@@ -1441,3 +1441,29 @@ u32 get_hybrid_cpu_params(int cpu)
 	smp_call_function_single(cpu, __do_get_hybrid_params, &params, true);
 	return params;
 }
+
+static char hybrid_name[64];
+#define X86_HYBRID_CPU_NATIVE_MODEL_ID_MASK	0xffffff
+#define INTEL_HYBRID_TYPE_ATOM			0x20
+#define INTEL_HYBRID_TYPE_CORE			0x40
+
+const char *intel_get_hybrid_cpu_type_name(u32 cpu_type)
+{
+	u32 native_model_id = cpu_type & X86_HYBRID_CPU_NATIVE_MODEL_ID_MASK;
+	u8 type = cpu_type >> X86_HYBRID_CPU_TYPE_ID_SHIFT;
+
+	switch (type) {
+	case INTEL_HYBRID_TYPE_ATOM:
+		snprintf(hybrid_name, sizeof(hybrid_name), "intel_atom_%u",
+			 native_model_id);
+		break;
+	case INTEL_HYBRID_TYPE_CORE:
+		snprintf(hybrid_name, sizeof(hybrid_name), "intel_core_%u",
+			 native_model_id);
+		break;
+	default:
+		return NULL;
+	}
+
+	return hybrid_name;
+}
