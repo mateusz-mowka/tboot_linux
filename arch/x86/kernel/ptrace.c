@@ -51,6 +51,7 @@ enum x86_regset_32 {
 	REGSET_XSTATE32,
 	REGSET_TLS32,
 	REGSET_IOPERM32,
+	REGSET_CET32,
 };
 
 enum x86_regset_64{
@@ -58,6 +59,7 @@ enum x86_regset_64{
 	REGSET_FP64,
 	REGSET_IOPERM64,
 	REGSET_XSTATE64,
+	REGSET_CET64,
 };
 
 #define REGSET_GENERAL \
@@ -1267,6 +1269,15 @@ static struct user_regset x86_64_regsets[] __ro_after_init = {
 		.active		= ioperm_active,
 		.regset_get 	= ioperm_get
 	},
+	[REGSET_CET64] = {
+		.core_note_type	= NT_X86_CET,
+		.n		= sizeof(struct cet_user_state) / sizeof(u64),
+		.size		= sizeof(u64),
+		.align		= sizeof(u64),
+		.active		= cetregs_active,
+		.regset_get	= cetregs_get,
+		.set		= cetregs_set
+	},
 };
 
 static const struct user_regset_view user_x86_64_view = {
@@ -1335,6 +1346,15 @@ static struct user_regset x86_32_regsets[] __ro_after_init = {
 		.align		= sizeof(u32),
 		.active		= ioperm_active,
 		.regset_get	= ioperm_get
+	},
+	[REGSET_CET32] = {
+		.core_note_type = NT_X86_CET,
+		.n		= sizeof(struct cet_user_state) / sizeof(u64),
+		.size		= sizeof(u64),
+		.align		= sizeof(u64),
+		.active		= cetregs_active,
+		.regset_get	= cetregs_get,
+		.set		= cetregs_set
 	},
 };
 
