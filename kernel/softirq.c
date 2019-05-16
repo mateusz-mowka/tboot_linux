@@ -900,7 +900,11 @@ void tasklet_unlock_wait(struct tasklet_struct *t)
 {
 	wait_var_event(&t->state, !test_bit(TASKLET_STATE_RUN, &t->state));
 }
+#ifndef CONFIG_SVOS
 EXPORT_SYMBOL_GPL(tasklet_unlock_wait);
+#else
+EXPORT_SYMBOL(tasklet_unlock_wait);
+#endif
 #endif
 
 void __init softirq_init(void)

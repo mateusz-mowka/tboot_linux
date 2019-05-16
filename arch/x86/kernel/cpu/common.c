@@ -376,6 +376,17 @@ static __always_inline void setup_smep(struct cpuinfo_x86 *c)
 		cr4_set_bits(X86_CR4_SMEP);
 }
 
+#ifdef CONFIG_SVOS
+static int svos_setup_sld = 0;
+static int __init svos_enable_sld(char *str)
+{
+	svos_setup_sld = 1;
+	pr_info("split_lock detector enabled\n");
+	return 1;
+}
+early_param("svos_enable_sld", svos_enable_sld);
+#endif
+
 static __always_inline void setup_smap(struct cpuinfo_x86 *c)
 {
 	unsigned long eflags = native_save_fl();
@@ -502,6 +513,9 @@ void cr4_init(void)
  */
 static void __init setup_cr_pinning(void)
 {
+#ifdef CONFIG_SVOS
+	return;
+#endif
 	cr4_pinned_bits = this_cpu_read(cpu_tlbstate.cr4) & cr4_pinned_mask;
 	static_key_enable(&cr_pinning.key);
 }
@@ -1527,6 +1541,9 @@ static void __init early_identify_cpu(struct cpuinfo_x86 *c)
 
 	cpu_set_bug_bits(c);
 
+#ifdef CONFIG_SVOS
+	if (svos_setup_sld)
+#endif
 	sld_setup(c);
 
 	fpu__init_system(c);

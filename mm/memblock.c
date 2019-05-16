@@ -104,6 +104,10 @@ unsigned long long max_possible_pfn;
 
 static struct memblock_region memblock_memory_init_regions[INIT_MEMBLOCK_REGIONS] __initdata_memblock;
 static struct memblock_region memblock_reserved_init_regions[INIT_MEMBLOCK_RESERVED_REGIONS] __initdata_memblock;
+#ifdef CONFIG_SVOS
+#include <linux/svos.h>
+static struct memblock_region memblock_svos_target_init_regions[INIT_MEMBLOCK_REGIONS] __initdata_memblock;
+#endif
 #ifdef CONFIG_HAVE_MEMBLOCK_PHYS_MAP
 static struct memblock_region memblock_physmem_init_regions[INIT_PHYSMEM_REGIONS];
 #endif
@@ -118,6 +122,13 @@ struct memblock memblock __initdata_memblock = {
 	.reserved.cnt		= 1,	/* empty dummy entry */
 	.reserved.max		= INIT_MEMBLOCK_RESERVED_REGIONS,
 	.reserved.name		= "reserved",
+
+#ifdef CONFIG_SVOS
+	.svos_target.regions	= memblock_svos_target_init_regions,
+	.svos_target.cnt	= 1,	/* empty dummy entry */
+	.svos_target.max	= INIT_MEMBLOCK_REGIONS,
+	.svos_target.name	= "svos_target",
+#endif
 
 	.bottom_up		= false,
 	.current_limit		= MEMBLOCK_ALLOC_ANYWHERE,
@@ -156,6 +167,9 @@ static bool system_has_some_mirror __initdata_memblock = false;
 static int memblock_can_resize __initdata_memblock;
 static int memblock_memory_in_slab __initdata_memblock = 0;
 static int memblock_reserved_in_slab __initdata_memblock = 0;
+#ifdef CONFIG_SVOS
+static int memblock_svos_target_in_slab __initdata_memblock = 0;
+#endif
 
 static enum memblock_flags __init_memblock choose_memblock_flags(void)
 {
@@ -382,6 +396,18 @@ void __init memblock_discard(void)
 			memblock_free_late(addr, size);
 	}
 
+#ifdef CONFIG_SVOS
+	if (memblock.svos_target.regions != memblock_svos_target_init_regions) {
+		addr = __pa(memblock.svos_target.regions);
+		size = PAGE_ALIGN(sizeof(struct memblock_region) *
+				  memblock.svos_target.max);
+		if (memblock_svos_target_in_slab)
+			kfree(memblock.svos_target.regions);
+		else
+			memblock_free_late(addr, size);
+	}
+#endif
+
 	memblock_memory = NULL;
 }
 #endif
@@ -430,8 +456,15 @@ static int __init_memblock memblock_double_array(struct memblock_type *type,
 	/* Retrieve the slab flag */
 	if (type == &memblock.memory)
 		in_slab = &memblock_memory_in_slab;
+#ifndef CONFIG_SVOS
 	else
 		in_slab = &memblock_reserved_in_slab;
+#else
+	else if (type == &memblock.reserved)
+		in_slab = &memblock_reserved_in_slab;
+	else
+		in_slab = &memblock_svos_target_in_slab;
+#endif
 
 	/* Try to find some space for it */
 	if (use_slab) {
@@ -700,6 +733,29 @@ int __init_memblock memblock_add(phys_addr_t base, phys_addr_t size)
 
 	return memblock_add_range(&memblock.memory, base, size, MAX_NUMNODES, 0);
 }
+
+#ifdef CONFIG_SVOS
+/**
+ * memblock_svos_target - add new SVOS target region
+ * @base: base address of the new region
+ * @size: size of the new region
+ *
+ * Add new memblock region [@base, @base + @size) to the "svos_target"
+ * type.
+ *
+ * Return:
+ * 0 on success, -errno on failure.
+ */
+int __init_memblock memblock_svos_target(phys_addr_t base, phys_addr_t size)
+{
+	phys_addr_t end = base + size - 1;
+
+	memblock_dbg("%s: [%pa-%pa] %pS\n", __func__,
+		     &base, &end, (void *)_RET_IP_);
+
+	return memblock_add_range(&memblock.svos_target, base, size, MAX_NUMNODES, 0);
+}
+#endif
 
 /**
  * memblock_isolate_range - isolate given range into disjoint memblocks
@@ -1833,6 +1889,24 @@ bool __init_memblock memblock_is_region_reserved(phys_addr_t base, phys_addr_t s
 	return memblock_overlaps_region(&memblock.reserved, base, size);
 }
 
+#ifdef CONFIG_SVOS
+/**
+ * memblock_is_region_svos_target - check if a region intersects svos_target memory
+ * @base: base of region to check
+ * @size: size of region to check
+ *
+ * Check if the region [@base, @base + @size) intersects an svos_target
+ * memory block.
+ *
+ * Return:
+ * True if they intersect, false if not.
+ */
+bool __init_memblock memblock_is_region_svos_target(phys_addr_t base, phys_addr_t size)
+{
+	return memblock_overlaps_region(&memblock.svos_target, base, size);
+}
+#endif
+
 void __init_memblock memblock_trim_memory(phys_addr_t align)
 {
 	phys_addr_t start, end, orig_start, orig_end;
@@ -1903,6 +1977,9 @@ static void __init_memblock __memblock_dump_all(void)
 
 	memblock_dump(&memblock.memory);
 	memblock_dump(&memblock.reserved);
+#ifdef CONFIG_SVOS
+	memblock_dump(&memblock.svos_target);
+#endif
 #ifdef CONFIG_HAVE_MEMBLOCK_PHYS_MAP
 	memblock_dump(&physmem);
 #endif
@@ -2114,6 +2191,9 @@ void __init memblock_free_all(void)
 	reset_all_zones_managed_pages();
 
 	pages = free_low_memory_core_early();
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+	svos_setup_svos_e820();
+#endif
 	totalram_pages_add(pages);
 }
 
@@ -2145,6 +2225,10 @@ static int __init memblock_init_debugfs(void)
 			    &memblock.memory, &memblock_debug_fops);
 	debugfs_create_file("reserved", 0444, root,
 			    &memblock.reserved, &memblock_debug_fops);
+#ifdef CONFIG_SVOS
+	debugfs_create_file("svos_target", 0444, root,
+			    &memblock.svos_target, &memblock_debug_fops);
+#endif
 #ifdef CONFIG_HAVE_MEMBLOCK_PHYS_MAP
 	debugfs_create_file("physmem", 0444, root, &physmem,
 			    &memblock_debug_fops);

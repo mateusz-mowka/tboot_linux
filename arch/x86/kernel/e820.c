@@ -20,6 +20,10 @@
 #include <asm/e820/api.h>
 #include <asm/setup.h>
 
+#ifdef CONFIG_SVOS
+#include <linux/svos.h>
+#endif
+
 /*
  * We organize the E820 table into three main data structures:
  *
@@ -196,6 +200,9 @@ static void __init e820_print_type(enum e820_type type)
 	case E820_TYPE_UNUSABLE:	pr_cont("unusable");			break;
 	case E820_TYPE_PMEM:		/* Fall through: */
 	case E820_TYPE_PRAM:		pr_cont("persistent (type %u)", type);	break;
+#ifdef CONFIG_SVOS
+	case E820_TYPE_SVOS_TARGET:	pr_cont("SVOS Target DRAM");		break;
+#endif
 	default:			pr_cont("type %u", type);		break;
 	}
 }
@@ -673,6 +680,9 @@ __init void e820__setup_pci_gap(void)
 #endif
 	}
 
+#ifdef CONFIG_SVOS
+	gapstart = svos_adjgap(gapstart);
+#endif
 	/*
 	 * e820__reserve_resources_late() protects stolen RAM already:
 	 */
@@ -898,6 +908,15 @@ static int __init parse_memopt(char *p)
 #endif
 	}
 
+#ifdef CONFIG_SVOS
+	/*
+	 * process svos mem start hint.
+	 */
+	if (memcmp(p, "svos@", 5) == 0) {
+		svos_parse_mem(p);
+		return 0;
+	}
+#endif
 	userdef = 1;
 	mem_size = memparse(p, &p);
 
@@ -1083,6 +1102,9 @@ static const char *__init e820_type_to_string(struct e820_entry *entry)
 	case E820_TYPE_PMEM:		return "Persistent Memory";
 	case E820_TYPE_RESERVED:	return "Reserved";
 	case E820_TYPE_SOFT_RESERVED:	return "Soft Reserved";
+#ifdef CONFIG_SVOS
+	case E820_TYPE_SVOS_TARGET:	return "SVOS Target DRAM";
+#endif
 	default:			return "Unknown E820 type";
 	}
 }
@@ -1342,6 +1364,15 @@ void __init e820__memblock_setup(void)
 
 		memblock_add(entry->addr, entry->size);
 	}
+#ifdef CONFIG_SVOS
+	for (i = 0; i < e820_svos.nr_entries; i++) {
+		struct e820_entry *entry = &e820_svos.entries[i];
+
+		if (entry->type == E820_TYPE_SVOS_TARGET) {
+			memblock_svos_target(entry->addr, entry->size);
+		}
+	}
+#endif
 
 	/* Throw away partial pages: */
 	memblock_trim_memory(PAGE_SIZE);

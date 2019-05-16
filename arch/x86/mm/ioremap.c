@@ -226,6 +226,12 @@ __ioremap_caller(resource_size_t phys_addr, unsigned long size,
 		return NULL;
 	}
 
+#ifdef CONFIG_SVOS
+	/* Skip cache mode check if not DRAM or outside mem=svos@ OS space. */
+	if (!e820__mapped_any(phys_addr, phys_addr + size, E820_TYPE_RAM))
+		pcm = new_pcm;
+	if (e820__mapped_any(phys_addr, phys_addr + size, E820_TYPE_RAM))
+#endif
 	if (pcm != new_pcm) {
 		if (!is_new_memtype_allowed(phys_addr, size, pcm, new_pcm)) {
 			printk(KERN_ERR
