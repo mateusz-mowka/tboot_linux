@@ -227,6 +227,8 @@ void init_freq_invariance_cppc(void);
 #define arch_init_invariance_cppc init_freq_invariance_cppc
 #endif
 
+#define CPUTYPES_MAX_NR 2
+
 #ifdef CONFIG_INTEL_THREAD_DIRECTOR
 int intel_hfi_task_classes_nr(void);
 void intel_hfi_update_task_class(struct task_struct *curr, bool smt_siblings_idle);
