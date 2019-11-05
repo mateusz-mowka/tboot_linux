@@ -227,6 +227,8 @@ void init_freq_invariance_cppc(void);
 #define arch_init_invariance_cppc init_freq_invariance_cppc
 #endif
 
+#define CPUTYPES_MAX_NR 2
+
 #if defined(CONFIG_IPC_CLASSES) && defined(CONFIG_INTEL_HFI_THERMAL)
 void intel_hfi_update_ipcc(struct task_struct *curr);
 unsigned long intel_hfi_get_ipcc_score(unsigned short ipcc, int cpu);
