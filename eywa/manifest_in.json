@@ -206,7 +206,7 @@
                 }
             ],
             "description": "Drm embargo branch",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Rodrigio Vivi",
@@ -236,7 +236,7 @@
                 }
             ],
             "description": "Enable split lock detection",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
@@ -424,15 +424,15 @@
                     "email": "dave.jiang@intel.com"
                 }
             ],
-            "description": "ICX NTB intel_ntb_hw driver",
-            "enabled": false,
+            "description": "ICX intel NTB enabling",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Pamujula",
                     "email": "rajesh.s.pamujula@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1795",
             "name": "ntb",
             "repourl": "ssh://git-amr-1.devtools.intel.com:29418/csig_storage_group-linux-kernel.git",
             "sdl_contact": [
@@ -445,7 +445,7 @@
             "stuck_at_ref": ""
         },
         {
-            "branch": "cse-5.5",
+            "branch": "cse-5.6",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -516,14 +516,14 @@
                 }
             ],
             "description": "CSE/CSME MEI driver and MEI client drivers",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "William A. Stevens",
                     "email": "William.a.stevens@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1793",
             "name": "mei",
             "repourl": "ssh://git-ger-8.devtools.intel.com:29418/sfip_linux-linux-mei.git",
             "sdl_contact": [
@@ -751,7 +751,7 @@
                 }
             ],
             "description": "LPSS/SMBus/GPIO/SPI-NOR/PCI/Thunderbolt driver enabling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Bhaskar",
@@ -774,7 +774,7 @@
                     "email": "reuven.rozic@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1798",
             "name": "lpss",
             "repourl": "ssh://git-amr-4.devtools.intel.com:29418/mwesterb-linux.git",
             "sdl_contact": [
@@ -797,7 +797,7 @@
                 }
             ],
             "description": "Linux perf PMU support for Cannonlake, Icelake, Tigerlake and Tremont",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Beeman Strong",
@@ -812,7 +812,7 @@
                     "email": "jeremiah.d.williamson@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1790",
             "name": "perf",
             "repourl": "ssh://git-amr-2.devtools.intel.com:29418/kan_lkp-perf-intel-next.git",
             "sdl_contact": [
@@ -835,16 +835,16 @@
                 }
             ],
             "description": "Enable out of tree powertop",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Nivedita Swaminathan",
                     "email": "Nivedita.Swaminathan@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1791",
             "name": "powertop",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_power-kernel.git",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
             "sdl_contact": [
                 {
                     "name": "Charles D Prestopine",
@@ -870,14 +870,14 @@
                 }
             ],
             "description": "Support for AES key hiding from memory during encryption and decryption process",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Jason W Brandt",
                     "email": "jason.w.brandt@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1809",
             "name": "keylocker",
             "repourl": "ssh://git-amr-4.devtools.intel.com:29418/linux_cbae1_share-kl.git",
             "sdl_contact": [
@@ -1009,16 +1009,28 @@
             "branch_type": "expiring",
             "config_options": [
                 {
+                    "name": "CONFIG_ACPI_ADXL",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_EDAC_DEBUG",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_EDAC_PND2",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_EDAC_SKX",
+                    "value": "m"
+                },
+                {
                     "name": "CONFIG_EDAC_IGEN6",
                     "value": "m"
                 },
                 {
                     "name": "CONFIG_EDAC_I10NM",
                     "value": "m"
-                },
-                {
-                    "name": "CONFIG_EDAC_DEBUG",
-                    "value": "y"
                 },
                 {
                     "name": "CONFIG_EDAC_IEH",
@@ -1032,7 +1044,7 @@
                 }
             ],
             "description": "Linux EDAC support for SPR, EHL, ICL NNPI and and IEH support for TGL.",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Puneet Wadhawan",
@@ -1051,7 +1063,7 @@
                     "email": "julian.j.revuelta@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1812",
             "name": "edac",
             "repourl": "ssh://git-ccr-1.devtools.intel.com:29418/otc_edac_driver-linux.git",
             "sdl_contact": [
@@ -1064,11 +1076,19 @@
             "stuck_at_ref": ""
         },
         {
-            "branch": "avx512_cpuids",
+            "branch": "pmc_core",
             "branch_type": "expiring",
             "config_options": [
                 {
                     "name": "INTEL_PMC_CORE",
+                    "value": "y"
+                },
+                {
+                    "name": "PM_SLEEP",
+                    "value": "y"
+                },
+                {
+                    "name": "DEBUG_FS",
                     "value": "y"
                 }
             ],
@@ -1078,8 +1098,8 @@
                     "email": "gayatri.kammela@intel.com"
                 }
             ],
-            "description": "TGL, EHL, RKL PMC core driver changes and new AVX512 cpuid support",
-            "enabled": false,
+            "description": "TGL, JSL and RKL PMC core driver changes and new AVX512 cpuid support",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Mark Charney",
@@ -1090,9 +1110,9 @@
                     "email": "christopher.j.lake@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1807",
             "name": "pmc_core",
-            "repourl": "ssh://git-ger-6.devtools.intel.com:29418/secure_git_internal_repo-my_internal_repo.git",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/gkammela/pmc_core-intel-next.git",
             "sdl_contact": [
                 {
                     "name": "David Box",
@@ -1303,7 +1323,7 @@
                     "email": "vijaykumar.b.kadgi@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1813",
             "name": "usb-typec",
             "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_usb-typec.git",
             "sdl_contact": [
@@ -1330,15 +1350,15 @@
                     "email": "rui.zhang@intel.com"
                 }
             ],
-            "description": "intel_rapl support for Icelake server, Cannonlake desktop Icelake desktop, ElkhartLake and Tigerlake mobile",
-            "enabled": false,
+            "description": "intel_rapl/ntel_idle support for ElkhartLake, JaperLake, CometLake, TigerLake, CooperLake, RocketLake and Sapphire Rapids.",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Evelyn Fields",
                     "email": "evelyn.fields@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1819",
             "name": "rapl/idle",
             "repourl": "ssh://git-ccr-1.devtools.intel.com:29418/otc_linux_rui-rapl",
             "sdl_contact": [
@@ -1701,7 +1721,7 @@
                 },
                 {
                     "name": "CONFIG_PCIE_EDR",
-                    "value": "y"
+                    "value": "n"
                 }
             ],
             "contributor": [
@@ -1711,14 +1731,14 @@
                 }
             ],
             "description": "Intel PCI driver related fixes",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1794",
             "name": "pci",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/skuppusw/linux.git",
             "sdl_contact": [
@@ -1741,16 +1761,16 @@
                 }
             ],
             "description": "GFX patch to load DMC firmware",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Matthew Attwood",
                     "email": "matthew.s.atwood@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1789",
             "name": "chrome-dmc",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_power-kernel.git",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel",
             "sdl_contact": [
                 {
                     "name": "Charles Prestopine",
@@ -1901,15 +1921,15 @@
                     "email": "srinivas.pandruvada@intel.com"
                 }
             ],
-            "description": "Intel Thermal",
-            "enabled": false,
+            "description": "x86/DTT thermal",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Jim Hermerding",
                     "email": "jim.g.hermerding@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1820",
             "name": "thermal",
             "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_linux_spandruv-internal.git",
             "sdl_contact": [
@@ -1936,24 +1956,24 @@
                     "email": "srinivas.pandruvada@intel.com"
                 }
             ],
-            "description": "Speed Select Technologies (SST)",
-            "enabled": false,
+            "description": "Intel Speed Select Technology",
+            "enabled": true,
             "ip_owner": [
                 {
-                    "name": "Stanley Chen",
-                    "email": "stanley.chen@intel.com"
+                    "name": "Vasudevan Srinivasan",
+                    "email": "vasudevan.srinivasan@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1808",
             "name": "sst",
             "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_linux_spandruv-internal.git",
             "sdl_contact": [
                 {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
+                    "name": "Srinivas Pandruvada",
+                    "email": "srinivas.pandruvada@intel.com"
                 }
             ],
-            "status": "intel confidential",
+            "status": "public",
             "stuck_at_ref": ""
         },
         {
@@ -2005,6 +2025,187 @@
                 }
             ],
             "status": "public",
+            "stuck_at_ref": ""
+        },
+        {
+            "branch": "fixups",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_IGC",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "description": "Fix up branch to revert a dma-buf patch from GFX, Fixup for PKS/DRM",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "jira": "NEXT-1810",
+            "name": "fixups",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
+            "sdl_contact": [
+                {
+                    "name": "Charles Prestopine",
+                    "email": "charles.d.prestopine@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": ""
+        },
+        {
+            "branch": "supervisor",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Yu-cheng Yu",
+                    "email": "yu-cheng.yu@intel.com"
+                }
+            ],
+            "description": "XSAVES Supervisor states",
+            "enabled": false,
+            "ip_owner": [
+                {
+                    "name": "Yu-cheng Yu",
+                    "email": "yu-cheng.yu@intel.com"
+                }
+            ],
+            "jira": "",
+            "name": "XSAVES",
+            "repourl": "git://github.com/yyu168/linux_super",
+            "sdl_contact": [
+                {
+                    "name": "Yu-cheng Yu",
+                    "email": "yu-cheng.yu@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": ""
+        },
+        {
+            "branch": "cet",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_X86_INTEL_SHADOW_STACK_USER",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_X86_INTEL_BRANCH_TRACKING_USER",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_X86_INTEL_CET",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Yu-cheng Yu",
+                    "email": "yu-cheng.yu@intel.com"
+                }
+            ],
+            "description": "Control-flow Enforcement Technology (CET) provides protection againstreturn/jump-oriented programming (ROP) attacks.",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Vedvyas Shanbhogue",
+                    "email": "vedvyas.shanbhogue@intel.com"
+                }
+            ],
+            "jira": "NEXT-1792",
+            "name": "cet",
+            "repourl": "git://github.com/yyu168/linux_cet",
+            "sdl_contact": [
+                {
+                    "name": "Yu-cheng Yu",
+                    "email": "yu-cheng.yu@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": ""
+        },
+        {
+            "branch": "pasid",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Fenghua Yu",
+                    "email": "fenghua.yu@intel.com"
+                }
+            ],
+            "description": "Handling pasid in svm binding/unbinding and #GP",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Ravi V. Shankar",
+                    "email": "ravi.v.shankar@intel.com"
+                }
+            ],
+            "jira": "NEXT-1805",
+            "name": "pasid",
+            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/enabling_cldemote_in_linux_kerne-linux_git.git",
+            "sdl_contact": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": ""
+        },
+        {
+            "branch": "amx",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_X86_INTEL_SHADOW_STACK_USER",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_X86_INTEL_BRANCH_TRACKING_USER",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_X86_INTEL_CET",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Chang S. Bae",
+                    "email": "chang.seok.bae@intel.com"
+                }
+            ],
+            "description": "Advanced Matrix Extension (AMX/TMUL), including cet, xsaves and pasid code",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Bob Valentine",
+                    "email": "bob.valentine@intel.com"
+                }
+            ],
+            "jira": "NEXT-1822",
+            "name": "amx_xsaves_cet_pasid",
+            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/enabling_cldemote_in_linux_kerne-linux_git.git",
+            "sdl_contact": [
+                {
+                    "name": "Israel Hirsh",
+                    "email": "israel.hirsh@intel.com"
+                }
+            ],
+            "status": "intel confidential",
             "stuck_at_ref": ""
         },
         {
@@ -2069,182 +2270,6 @@
                 {
                     "name": "Dave Jiang",
                     "email": "dave.jiang@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": ""
-        },
-        {
-            "branch": "fixups",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Fix up branch to revert a dma-buf patch from GFX, Fixup for PKS/DRM",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "fixups",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": ""
-        },
-        {
-            "branch": "supervisor",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Yu-cheng Yu",
-                    "email": "yu-cheng.yu@intel.com"
-                }
-            ],
-            "description": "XSAVES Supervisor states",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Yu-cheng Yu",
-                    "email": "yu-cheng.yu@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "XSAVES",
-            "repourl": "git://github.com/yyu168/linux_super",
-            "sdl_contact": [
-                {
-                    "name": "Yu-cheng Yu",
-                    "email": "yu-cheng.yu@intel.com"
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": ""
-        },
-        {
-            "branch": "pasid",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Fenghua Yu",
-                    "email": "fenghua.yu@intel.com"
-                }
-            ],
-            "description": "Handle PASID in svm binding/unbinding and #GP",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Ravi V. Shankar",
-                    "email": "ravi.v.shankar@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "pasid",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/enabling_cldemote_in_linux_kerne-linux_git.git",
-            "sdl_contact": [
-                {
-                    "name": "Ashok Raj",
-                    "email": "ashok.raj@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": ""
-        },
-        {
-            "branch": "cet",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_X86_INTEL_SHADOW_STACK_USER",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_X86_INTEL_BRANCH_TRACKING_USER",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_X86_INTEL_CET",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Yu-cheng Yu",
-                    "email": "yu-cheng.yu@intel.com"
-                }
-            ],
-            "description": "Control-flow Enforcement Technology (CET) provides protection againstreturn/jump-oriented programming (ROP) attacks.",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Vedvyas Shanbhogue",
-                    "email": "vedvyas.shanbhogue@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "cet",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/enabling_cldemote_in_linux_kerne-linux_git",
-            "sdl_contact": [
-                {
-                    "name": "Yu-cheng Yu",
-                    "email": "yu-cheng.yu@intel.com"
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": ""
-        },
-        {
-            "branch": "amx",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_X86_INTEL_SHADOW_STACK_USER",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_X86_INTEL_BRANCH_TRACKING_USER",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_X86_INTEL_CET",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Chang S. Bae",
-                    "email": "chang.seok.bae@intel.com"
-                }
-            ],
-            "description": "Advanced Matrix Extension (AMX/TMUL), including cet, xsaves and pasid code",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Bob Valentine",
-                    "email": "bob.valentine@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "amx_xsaves_cet_pasid",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/enabling_cldemote_in_linux_kerne-linux_git.git",
-            "sdl_contact": [
-                {
-                    "name": "Israel Hirsh",
-                    "email": "israel.hirsh@intel.com"
                 }
             ],
             "status": "intel confidential",
@@ -2547,17 +2572,17 @@
                     "email": "yu-cheng.yu@intel.com"
                 }
             ],
-            "description": "Intel RAR patches",
-            "enabled": false,
+            "description": "Remove Action Request (RAR) TLB Shootdown",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ido  Ouziel",
                     "email": "ido.ouziel@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1787",
             "name": "rar",
-            "repourl": "ssh://git-amr-1.devtools.intel.com:29418/linux_yyu-rar",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/yyu32/rar.git",
             "sdl_contact": [
                 {
                     "name": "Yu-cheng Yu",
@@ -2603,7 +2628,7 @@
             "stuck_at_ref": ""
         },
         {
-            "branch": "release-v5.5-rc1",
+            "branch": "release-v5.6-rc1",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -2613,6 +2638,14 @@
                 {
                     "name": "CONFIG_KEEMBAY_VPU_IPC",
                     "value": "y"
+                },
+                {
+                    "name": "CONFIG_KEEMBAY_IPC_TEST",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_KEEMBAY_VPU_IPC_TEST",
+                    "value": "m"
                 }
             ],
             "contributor": [
@@ -2622,14 +2655,14 @@
                 }
             ],
             "description": "VPU/IPC support for Keem Bay and TBH",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Farrell, David T",
                     "email": "david.t.farrell@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1811",
             "name": "ipc",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/mvds-linux-dev/thunder-bay-linux/tbh-linux.git",
             "sdl_contact": [
@@ -2883,7 +2916,7 @@
                 }
             ],
             "description": "TGPIO branch",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Abdul Rahman Ismail",
@@ -2894,7 +2927,7 @@
                     "email": "raymond.tan@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1800",
             "name": "ADC/TGPIO/PWM/QEP/MCAN",
             "repourl": "git://git-amr-4.devtools.intel.com/jarkkoni-linux.git",
             "sdl_contact": [
@@ -2961,7 +2994,7 @@
             ],
             "jira": "NEXT-1782",
             "name": "Thunderbay IO",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/hspe_csw/bsp/otc_intel_next-linux.git",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/hspe_csw/bsp/linux.git",
             "sdl_contact": [
                 {
                     "name": "Ajit Tapkir",
@@ -3100,7 +3133,7 @@
             "stuck_at_ref": ""
         },
         {
-            "branch": "svos-next-pull-5.5",
+            "branch": "svos-next-pull-5.6",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -3110,6 +3143,10 @@
                 {
                     "name": "CONFIG_SVFS_ACPI",
                     "value": "n"
+                },
+                {
+                    "name": "CONFIG_SVOS_RAS_ERRORCORRECT",
+                    "value": "n"
                 }
             ],
             "contributor": [
@@ -3118,7 +3155,7 @@
                     "email": "tom.stonecypher@intel.com"
                 }
             ],
-            "description": "SVOS Kernel/Driver Changes for v5.5",
+            "description": "SVOS Kernel/Driver Changes for v5.6",
             "enabled": false,
             "ip_owner": [
                 {
@@ -3126,7 +3163,7 @@
                     "email": "tom.stonecypher@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1818",
             "name": "SVOS Kernel",
             "repourl": "ssh://git-amr-1.devtools.intel.com:29418/svos_kernel-next.git",
             "sdl_contact": [
@@ -3165,7 +3202,7 @@
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1824",
             "name": "Intel User interrupt",
             "repourl": "ssh://git-ger-6.devtools.intel.com:29418/uli-linux-kernel.git",
             "sdl_contact": [
@@ -3435,14 +3472,14 @@
                 }
             ],
             "description": "Collection of new Intel RDT features",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Tony Luck",
                     "email": "tony.luck@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1788",
             "name": "rdt",
             "repourl": "ssh://git-amr-2.devtools.intel.com:29418/rt_linux-linux.git",
             "sdl_contact": [
@@ -3470,7 +3507,7 @@
                 }
             ],
             "description": "Support for Hybrid CPUs and Hardware-Guided Scheduling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Eugene Gorbatov",
@@ -3481,7 +3518,7 @@
                     "email": "muhammad.abozaed@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1806",
             "name": "hybrid",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/ranerica/linux-dev.git",
             "sdl_contact": [
@@ -3616,6 +3653,70 @@
                 }
             ],
             "status": "intel confidential",
+            "stuck_at_ref": ""
+        },
+        {
+            "branch": "dev/hemanthk/ocs_fix_warnings",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Hemanthkumar S",
+                    "email": "Hemanthkumar S"
+                },
+                {
+                    "name": "",
+                    "email": "Hemanthkumar.Sm@intel.com"
+                }
+            ],
+            "description": "THB crypto AES driver warning fix",
+            "enabled": false,
+            "ip_owner": [
+                {
+                    "name": "Kumaresan Sarveswaran",
+                    "email": "kumaresan.sarveswaran@intel.com"
+                }
+            ],
+            "jira": "NEXT-1799",
+            "name": "AES warning fix",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/hspe_csw/sbs/linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Kumaresan Sarveswaran",
+                    "email": "kumaresan.sarveswaran@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": ""
+        },
+        {
+            "branch": "drm-tip",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Rodrigo Vivi",
+                    "email": "rodrigo.vivi@intel.com"
+                }
+            ],
+            "description": "upstream DRM branch while drm-embargo is being rebased",
+            "enabled": false,
+            "ip_owner": [
+                {
+                    "name": "Rodrigo Vivi",
+                    "email": "rodrigo.vivi@intel.com"
+                }
+            ],
+            "jira": "NEXT-1777",
+            "name": "drm_tip",
+            "repourl": "git://anongit.freedesktop.org/drm-tip",
+            "sdl_contact": [
+                {
+                    "name": "Rodrigo Vivi",
+                    "email": "rodrigo.vivi@intel.com"
+                }
+            ],
+            "status": "public",
             "stuck_at_ref": ""
         }
     ]
