@@ -426,6 +426,21 @@ out:
 	cr4_clear_bits(X86_CR4_UMIP);
 }
 
+static __always_inline void setup_lass(struct cpuinfo_x86 *c)
+{
+	if (lass_enabled) {
+		cr4_set_bits(X86_CR4_LASS);
+	} else {
+		/*
+		 * Only clear the cr4 bit when hardware supports LASS
+		 * in case it was enabled in a previous boot (e.g.,
+		 * via kexec)
+		 */
+		if (cpu_has(c, X86_FEATURE_LASS))
+			cr4_clear_bits(X86_CR4_LASS);
+	}
+}
+
 /* These bits should not change their value after CPU init is finished. */
 static const unsigned long cr4_pinned_mask =
 	X86_CR4_SMEP | X86_CR4_SMAP | X86_CR4_UMIP |
@@ -1759,6 +1774,7 @@ static void identify_cpu(struct cpuinfo_x86 *c)
 	setup_smep(c);
 	setup_smap(c);
 	setup_umip(c);
+	setup_lass(c);
 
 	/* Enable FSGSBASE instructions if available. */
 	if (cpu_has(c, X86_FEATURE_FSGSBASE)) {

@@ -380,6 +380,14 @@ void __init map_vsyscall(void)
 	unsigned long physaddr_vsyscall = __pa_symbol(&__vsyscall_page);
 
 	/*
+	 * When LASS is on, vsyscall triggers a #GP fault,
+	 * so that force vsyscall_mode to NONE.
+	 */
+	if (is_lass_enabled()) {
+		vsyscall_mode = NONE;
+		return;
+	}
+	/*
 	 * For full emulation, the page needs to exist for real.  In
 	 * execute-only mode, there is no PTE at all backing the vsyscall
 	 * page.
