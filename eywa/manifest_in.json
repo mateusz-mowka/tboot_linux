@@ -102,7 +102,7 @@
             "repourl": "git://git.kernel.org/pub/scm/linux/kernel/git/rafael/linux-pm.git",
             "sdl_contact": [],
             "status": "public",
-            "stuck_at_ref": ""
+            "stuck_at_ref": "00b838d60ec480d931f6209868e69e0d251000c2"
         },
         {
             "branch": "next",
@@ -1618,23 +1618,23 @@
                 }
             ],
             "description": "Interrupt Message Store",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Megha Dey",
                     "email": "megha.dey@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-1825",
             "name": "ims",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_core_linux-linux.git",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/meghadey/linux.git",
             "sdl_contact": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "status": "intel confidential",
+            "status": "public",
             "stuck_at_ref": ""
         },
         {
@@ -3191,7 +3191,7 @@
                 }
             ],
             "description": "Intel User interrupt support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Jacob Pan",
