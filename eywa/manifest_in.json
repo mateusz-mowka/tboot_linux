@@ -102,7 +102,7 @@
             "repourl": "git://git.kernel.org/pub/scm/linux/kernel/git/rafael/linux-pm.git",
             "sdl_contact": [],
             "status": "public",
-            "stuck_at_ref": "00b838d60ec480d931f6209868e69e0d251000c2"
+            "stuck_at_ref": ""
         },
         {
             "branch": "next",
@@ -159,10 +159,6 @@
             "config_options": [
                 {
                     "name": "CONFIG_INTEL_SGX",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_INTEL_SGX_DRIVER",
                     "value": "y"
                 }
             ],
@@ -2030,12 +2026,7 @@
         {
             "branch": "fixups",
             "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_IGC",
-                    "value": "m"
-                }
-            ],
+            "config_options": [],
             "contributor": [
                 {
                     "name": "Kyle Pelton",
@@ -2043,7 +2034,7 @@
                 }
             ],
             "description": "Fix up branch to revert a dma-buf patch from GFX, Fixup for PKS/DRM",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
@@ -3156,7 +3147,7 @@
                 }
             ],
             "description": "SVOS Kernel/Driver Changes for v5.6",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Tom Stonecypher",
