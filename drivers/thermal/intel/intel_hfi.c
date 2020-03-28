@@ -24,6 +24,7 @@
 #include <linux/bitops.h>
 #include <linux/cpufeature.h>
 #include <linux/cpumask.h>
+#include <linux/debugfs.h>
 #include <linux/gfp.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -194,6 +195,176 @@ static DEFINE_MUTEX(hfi_instance_lock);
 static struct workqueue_struct *hfi_updates_wq;
 #define HFI_UPDATE_INTERVAL		HZ
 #define HFI_MAX_THERM_NOTIFY_COUNT	16
+
+#ifdef CONFIG_DEBUG_FS
+
+static int hfi_features_show(struct seq_file *s, void *unused)
+{
+	union cpuid6_edx edx;
+
+	edx.full = cpuid_edx(CPUID_HFI_LEAF);
+
+	seq_printf(s, "ITD supported:\t\t%u\n", boot_cpu_has(X86_FEATURE_ITD));
+	seq_printf(s, "HRESET supported:\t%u\n", boot_cpu_has(X86_FEATURE_HRESET));
+	if (boot_cpu_has(X86_FEATURE_HRESET))
+		seq_printf(s, "HRESET features:\t0x%x\n", cpuid_ebx(0x20));
+	seq_printf(s, "Number of classes:\t%u\n", hfi_features.nr_classes);
+	seq_printf(s, "Capabilities:\t\tP:%d EE:%d R:%d\n",
+		   edx.split.capabilities.split.performance,
+		   edx.split.capabilities.split.energy_efficiency,
+		   edx.split.capabilities.split.__reserved);
+	seq_printf(s, "Table pages:\t\t%zu\n", hfi_features.nr_table_pages);
+	seq_printf(s, "CPU stride:\t\t0x%x\n", hfi_features.cpu_stride);
+	seq_printf(s, "Class class stride:\t0x%x\n", hfi_features.class_stride);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(hfi_features);
+
+static int hfi_state_show(struct seq_file *s, void *unused)
+{
+	struct hfi_instance *hfi_instance = s->private;
+	struct hfi_hdr *hfi_hdr;
+	int cpu, i, j;
+	u64 msr_val;
+
+	cpu = cpumask_first(hfi_instance->cpus);
+
+	/* Dump the relevant registers */
+	rdmsrl_on_cpu(cpu, MSR_IA32_PACKAGE_THERM_STATUS, &msr_val);
+	seq_printf(s, "MSR_IA32_PACKAGE_THERM_STATUS:\t\t0x%llx HFI status:%lld\n",
+		   msr_val, (msr_val & 0x4000000) >> 26);
+
+	rdmsrl_on_cpu(cpu, MSR_IA32_PACKAGE_THERM_INTERRUPT, &msr_val);
+	seq_printf(s, "MSR_IA32_PACKAGE_THERM_INTERRUPT:\t0x%llx HFI intr: %lld\n",
+		   msr_val, (msr_val & 0x2000000) >> 25);
+
+	rdmsrl_on_cpu(cpu, MSR_IA32_HW_FEEDBACK_PTR, &msr_val);
+	seq_printf(s, "MSR_IA32_HW_FEEDBACK_PTR:\t\t0x%llx\n", msr_val);
+
+	rdmsrl_on_cpu(cpu, MSR_IA32_HW_FEEDBACK_CONFIG, &msr_val);
+	seq_printf(s, "MSR_IA32_HW_FEEDBACK_CONFIG:\t\t0x%llx\n", msr_val);
+	if (boot_cpu_has(X86_FEATURE_ITD)) {
+		seq_puts(s, "\nCPU\tMSR_IA32_HW_HRESET_ENABLE\tMSR_IA32_HW_FEEDBACK_THREAD_CONFIG\n");
+		for_each_cpu(i, hfi_instance->cpus) {
+			u64 hreset_en, thr_cfg;
+
+			rdmsrl_on_cpu(i, MSR_IA32_HW_HRESET_ENABLE, &hreset_en);
+			rdmsrl_on_cpu(i, MSR_IA32_HW_FEEDBACK_THREAD_CONFIG, &thr_cfg);
+			seq_printf(s, "%4d\t\t0x%llx\t\t\t\t0x%llx\n", i, hreset_en, thr_cfg);
+		}
+		seq_puts(s, "\n");
+	}
+
+	/* Dump the HFI table parameters */
+	seq_printf(s, "Table base:\t0x%px\n", hfi_instance->local_table);
+	seq_printf(s, "Headers base:\t0x%px\n", hfi_instance->hdr);
+	seq_printf(s, "Data base:\t0x%px\n", hfi_instance->data);
+	seq_printf(s, "Die id:\t\t%u\n",
+		   topology_logical_die_id(cpumask_first(hfi_instance->cpus)));
+	seq_printf(s, "CPUs:\t\t%*pbl\n", cpumask_pr_args(hfi_instance->cpus));
+	seq_printf(s, "Timestamp:\t%lld\n", *hfi_instance->timestamp);
+	seq_puts(s, "\nPer-CPU data:\n");
+	seq_puts(s, "CPU\tAddress\n");
+	for_each_cpu(i, hfi_instance->cpus) {
+		seq_printf(s, "%4d\t%px\n", i, per_cpu(hfi_cpu_info, i).hfi_instance);
+	}
+
+	/* Dump the performance capability change indication */
+	seq_puts(s, "\nPerf Cap Change Indication:\n");
+	hfi_hdr = hfi_instance->hdr;
+	for (i = 0; i < hfi_features.nr_classes; i++) {
+		struct hfi_hdr *hdr_data = hfi_hdr;
+
+		seq_printf(s, "Class%d:%u\t", i, hdr_data->perf_updated);
+		hfi_hdr++;
+	}
+
+	/* Dump the energy efficiency capability change indication */
+	seq_puts(s, "\n\nEnergy Efficiency Cap Change Indication:\n");
+	hfi_hdr = hfi_instance->hdr;
+	for (i = 0; i < hfi_features.nr_classes; i++) {
+		struct hfi_hdr *hdr_data = hfi_hdr;
+
+		seq_printf(s, "Class%d:%u\t", i, hdr_data->ee_updated);
+		hfi_hdr++;
+	}
+
+	/* Dump the HFI table */
+	seq_puts(s, "\nHFI table:\n");
+	seq_puts(s, "CPU\tIndex");
+	for (i = 0; i < hfi_features.nr_classes; i++)
+		seq_printf(s, "\tPe%u Ef%u", i, i);
+	seq_puts(s, "\n");
+
+	for_each_cpu(i, hfi_instance->cpus) {
+		s16 index = per_cpu(hfi_cpu_info, i).index;
+		void *data_ptr = hfi_instance->data +
+				       index * hfi_features.cpu_stride;
+
+		seq_printf(s, "%4u\t%4d", i, index);
+		for (j = 0; j < hfi_features.nr_classes; j++) {
+			struct hfi_cpu_data *data = data_ptr +
+						    j * hfi_features.class_stride;
+
+			seq_printf(s, "\t%3u %3u", data->perf_cap, data->ee_cap);
+		}
+
+		seq_puts(s, "\n");
+	}
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(hfi_state);
+
+static struct dentry *hfi_debugfs_dir;
+
+static void hfi_debugfs_unregister(void)
+{
+	debugfs_remove_recursive(hfi_debugfs_dir);
+}
+
+static void hfi_debugfs_register(void)
+{
+	struct dentry *f;
+
+	hfi_debugfs_dir = debugfs_create_dir("intel_hw_feedback", NULL);
+	if (!hfi_debugfs_dir)
+		return;
+
+	f = debugfs_create_file("features", 0444, hfi_debugfs_dir,
+				NULL, &hfi_features_fops);
+	if (!f)
+		goto err;
+
+	return;
+err:
+	hfi_debugfs_unregister();
+}
+
+static void hfi_debugfs_populate_instance(struct hfi_instance *hfi_instance,
+					  int die_id)
+{
+	char name[64];
+
+	if (!hfi_debugfs_dir)
+		return;
+
+	snprintf(name, 64, "hw_state%u", die_id);
+	debugfs_create_file(name, 0444, hfi_debugfs_dir, hfi_instance,
+			    &hfi_state_fops);
+}
+
+#else
+static void hfi_debugfs_register(void)
+{
+}
+
+static void hfi_debugfs_populate_instance(struct hfi_instance *hfi_instance,
+					  int die_id)
+{
+}
+#endif /* CONFIG_DEBUG_FS */
 
 #ifdef CONFIG_INTEL_THREAD_DIRECTOR
 
@@ -625,6 +796,8 @@ void intel_hfi_online(unsigned int cpu)
 
 	cpumask_set_cpu(cpu, hfi_instance->cpus);
 
+	hfi_debugfs_populate_instance(hfi_instance, die_id);
+
 	/*
 	 * Enable the hardware feedback interface and never disable it. See
 	 * comment on programming the address of the table.
@@ -771,6 +944,8 @@ void __init intel_hfi_init(void)
 	hfi_updates_wq = create_singlethread_workqueue("hfi-updates");
 	if (!hfi_updates_wq)
 		goto err_nomem;
+
+	hfi_debugfs_register();
 
 	return;
 
