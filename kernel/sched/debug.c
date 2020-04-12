@@ -712,6 +712,54 @@ void print_dl_rq(struct seq_file *m, int cpu, struct dl_rq *dl_rq)
 #undef PU
 }
 
+static void dump_sd_properties(struct seq_file *m, int cpu)
+{
+#ifdef CONFIG_SMP
+	struct sched_domain *sd;
+
+	SEQ_printf(m, " Scheduling domains:\n");
+	for_each_domain(cpu, sd) {
+		struct sched_group *sg;
+		int i;
+
+		if (!sd) {
+			SEQ_printf(m, "    CPU%d sd is null!\n", cpu);
+			continue;
+		}
+		SEQ_printf(m, "    sd_level=%s, span=%*pbl flags=0x%x, parent=%s child=%s busy_factor=%d balance_interval=%d\n",
+			   sd->name, cpumask_pr_args(sched_domain_span(sd)),
+			   sd->flags, sd->parent ? sd->parent->name : "null",
+			   sd->child ? sd->child->name : "null",
+			   sd->busy_factor, sd->balance_interval);
+
+		SEQ_printf(m, "    CPUs in the domain:\n");
+		for_each_cpu(i, sched_domain_span(sd)) {
+			SEQ_printf(m, "      cpu#%d: sd_llc_id:%d size:%d\n",
+				   i, per_cpu(sd_llc_id, i),
+				   per_cpu(sd_llc_size, i));
+		}
+
+		SEQ_printf(m, "\n    scheduling groups:\n");
+		sg = sd->groups;
+		do {
+			SEQ_printf(m, "      span: %*pbl\n",
+				   cpumask_pr_args(sched_group_span(sg)));
+			SEQ_printf(m, "      flags: %x\n", sg->flags);
+
+			if (sg->sgc)
+				SEQ_printf(m, "      Capacity:%lu Min capacity:%lu Max capacity:%lu Imbalance:%d\n",
+					   sg->sgc->capacity,
+					   sg->sgc->min_capacity,
+					   sg->sgc->max_capacity,
+					   sg->sgc->imbalance);
+			sg = sg->next;
+		} while (sg != sd->groups);
+	}
+
+	SEQ_printf(m, "\n");
+#endif /* CONFIG_SMP */
+}
+
 static void print_cpu(struct seq_file *m, int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
@@ -737,6 +785,8 @@ do {									\
 
 #define PN(x) \
 	SEQ_printf(m, "  .%-30s: %Ld.%06ld\n", #x, SPLIT_NS(rq->x))
+
+	dump_sd_properties(m, cpu);
 
 	P(nr_running);
 	P(nr_switches);
