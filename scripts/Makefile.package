@@ -32,6 +32,7 @@ export KDEB_SOURCENAME KDEB_FLAVOR KDEB_CHANGELOG_DIST
 TAR_CONTENT := $(KBUILD_ALLDIRS) .config .scmversion Makefile \
                Kbuild Kconfig COPYING $(wildcard localversion*)
 MKSPEC     := $(srctree)/scripts/package/mkspec
+MKSPEC_NEXT     := $(srctree)/scripts/package/mkspec_next
 
 quiet_cmd_src_tar = TAR     $(2).tar.gz
       cmd_src_tar = \
@@ -65,6 +66,14 @@ binrpm-pkg:
 	+rpmbuild $(RPMOPTS) --define "_builddir $(objtree)" --target \
 		$(UTS_MACHINE) -bb $(objtree)/binkernel.spec
 
+# nextrpm-pkg
+# ---------------------------------------------------------------------------
+PHONY += nextrpm-pkg
+nextrpm-pkg:
+	$(MAKE) KBUILD_SRC=
+	$(CONFIG_SHELL) $(MKSPEC_NEXT) prebuilt > $(objtree)/nextkernel.spec
+	+rpmbuild $(RPMOPTS) --define "_builddir $(objtree)" --target \
+		$(UTS_MACHINE) -bb $(objtree)/nextkernel.spec
 # Deb target
 # ---------------------------------------------------------------------------
 quiet_cmd_builddeb = BUILDDEB
