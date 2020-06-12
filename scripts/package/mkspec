@@ -89,7 +89,6 @@ $S
 	%build
 $S	$MAKE %{?_smp_mflags} KBUILD_BUILD_VERSION=%{release}
 	srctree=$(pwd) make -C tools/power/x86/turbostat
-	srctree=$(pwd) NO_LIBPYTHON=1 NO_LIBPERL=1 make -C tools/perf
 	srctree=$(pwd) make -C tools/power/x86/intel-speed-select
 	srctree=$(pwd) make -C tools/power/x86/x86_energy_perf_policy
 $S
@@ -97,7 +96,6 @@ $S
 	mkdir -p %{buildroot}/usr/bin
 	install -m 755 -D $srctree/tools/power/x86/intel-speed-select/intel-speed-select %{buildroot}/usr/bin
 	install -m 755 -D $srctree/tools/power/x86/turbostat/turbostat %{buildroot}/usr/bin
-	install -m 755 -D $srctree/tools/perf/perf %{buildroot}/usr/bin
 	install -m 755 -D $srctree/tools/power/x86/intel_pstate_tracer/intel_pstate_tracer.py %{buildroot}/usr/bin
 	install -m 755 -D tools/power/x86/x86_energy_perf_policy/x86_energy_perf_policy %{buildroot}/usr/bin
 
