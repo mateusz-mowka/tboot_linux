@@ -107,7 +107,7 @@ $S
 	%build
 $S	$MAKE %{?_smp_mflags} KBUILD_BUILD_VERSION=%{release}
 	srctree=$(pwd) make -C tools/power/x86/turbostat
-	srctree=$(pwd) make -C tools/perf
+	srctree=$(pwd) NO_LIBPYTHON=1 NO_LIBPERL=1 make -C tools/perf
 	srctree=$(pwd) make -C tools/power/x86/intel-speed-select
 	srctree=$(pwd) make -C tools/power/x86/x86_energy_perf_policy
 $S
