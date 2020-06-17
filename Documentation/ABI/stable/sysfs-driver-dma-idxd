@@ -131,6 +131,12 @@ Description:	The last executed device administrative command's status/error.
 		Also last configuration error overloaded.
 		Writing to it will clear the status.
 
+What:		/sys/bus/dsa/devices/dsa<m>/ims_size
+Date:		May 31, 2022
+KernelVersion:	5.21.0
+Contact:	dmaengine@vger.kernel.org
+Description:	The total number of vectors available for Interrupt Message Store.
+
 What:		/sys/bus/dsa/devices/wq<m>.<n>/block_on_fault
 Date:		Oct 27, 2020
 KernelVersion:	5.11.0
