@@ -96,7 +96,6 @@ $S
 	mkdir -p %{buildroot}/usr/bin
 	install -m 755 -D $srctree/tools/power/x86/intel-speed-select/intel-speed-select %{buildroot}/usr/bin
 	install -m 755 -D $srctree/tools/power/x86/turbostat/turbostat %{buildroot}/usr/bin
-	install -m 755 -D $srctree/tools/power/x86/intel_pstate_tracer/intel_pstate_tracer.py %{buildroot}/usr/bin
 	install -m 755 -D tools/power/x86/x86_energy_perf_policy/x86_energy_perf_policy %{buildroot}/usr/bin
 
 
