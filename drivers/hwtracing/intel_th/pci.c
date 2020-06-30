@@ -86,6 +86,14 @@ static void intel_th_pci_deactivate(struct intel_th *th)
 		dev_err(&pdev->dev, "failed to read NPKDSC register\n");
 }
 
+static const struct intel_th_drvdata intel_th_2x = {
+	.tscu_enable	= 1,
+	.has_mintctl	= 1,
+};
+
+static bool override_quirks;
+module_param(override_quirks, bool, 0644);
+
 static int intel_th_pci_probe(struct pci_dev *pdev,
 			      const struct pci_device_id *id)
 {
@@ -104,6 +112,11 @@ static int intel_th_pci_probe(struct pci_dev *pdev,
 	err = pcim_iomap_regions_request_all(pdev, BAR_MASK, DRIVER_NAME);
 	if (err)
 		return err;
+
+	if (override_quirks && drvdata) {
+		dev_info(&pdev->dev, "overriding device quirks\n");
+		drvdata = &intel_th_2x;
+	}
 
 	if (drvdata && drvdata->reset_on_probe)
 		intel_th_pci_reset(pdev);
@@ -149,11 +162,6 @@ static void intel_th_pci_remove(struct pci_dev *pdev)
 
 static const struct intel_th_drvdata intel_th_1x_multi_is_broken = {
 	.multi_is_broken	= 1,
-};
-
-static const struct intel_th_drvdata intel_th_2x = {
-	.tscu_enable	= 1,
-	.has_mintctl	= 1,
 };
 
 static const struct intel_th_drvdata intel_th_2x_tgl = {
