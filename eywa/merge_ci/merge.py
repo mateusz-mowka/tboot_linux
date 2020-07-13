@@ -1,8 +1,6 @@
 #!/usr/bin/python3 -u
 import json
 import subprocess
-import copy
-import pprint
 import sys
 import getopt
 import glob
@@ -11,8 +9,6 @@ import re
 import argparse
 import os
 import tabulate
-
-pp = pprint.PrettyPrinter(indent=4)
 
 manifest_in_path="manifest_in.json"
 manifest_out_path="manifest.json"
@@ -134,9 +130,12 @@ def fetch_remotes(manifest_in,skip_fetch,fetch_single,fetch_all):
         branch[u"rev"] = rev
     return manifest
 
-def setup_linus_branch(manifest,skip_fetch):
+def setup_linus_branch(manifest,skip_fetch,master_branch):
     #sets up the master branch what we are merging on top of
+
     main_branch = manifest["master_branch"]
+    if master_branch:
+        main_branch["use_latest_tag"] = False
     #if use latest_tag is set, get ref of latest tag
     name = sanitize_repo_name(main_branch["repourl"])
     branch_name= main_branch["branch"]
@@ -155,7 +154,7 @@ def setup_linus_branch(manifest,skip_fetch):
             main_branch[u"tag"] =tag
             rev = run_shell_cmd("git rev-list {} -1".format(tag)).split("\n")[0]
 
-    elif main_branch["stuck_at_ref"] != "" :
+    elif main_branch["stuck_at_ref"] != "":
             rev = main_branch["stuck_at_ref"]
     else:
             git_fetch_remote(main_branch["repourl"])
@@ -259,7 +258,10 @@ def merge_commit(manifest, config_options):
     run_shell_cmd("git add eywa/{}".format(log_file_name))
     run_shell_cmd("cp {} eywa/{}".format(patch_manifest,patch_manifest))
     run_shell_cmd("git add eywa/{}".format(patch_manifest))
-    commit_msg = "Intel Next: Add release files for {} {}\n\n".format(manifest["master_branch"]["tag"],date)
+    if manifest["master_branch"]["use_latest_tag"]:
+        commit_msg = "Intel Next: Add release files for {} {}\n\n".format(manifest["master_branch"]["tag"],date)
+    else:
+        commit_msg = "Intel Next: Add release files for master:{} {}\n\n".format(manifest["master_branch"]["rev"],date)
     commit_msg += "\nAdded: {} \n\n ".format(", ".join(artifacts+[log_file_name,patch_manifest,"README.intel"]))
 
     commit_msg +="\nManifest:\n"
@@ -538,6 +540,7 @@ def main():
     parser.add_argument('-g','--gen_manifest', help='just generate manifest and don\'t merge',action='store_true')
     parser.add_argument('-c','--continue_merge', help='continue merge using manifest.json/patch_manifest',action='store_true')
     parser.add_argument('-v','--verbose_mode', help='output all git output to terminal',action='store_true')
+    parser.add_argument('-m','--master_branch', help='use HEAD of master branch instead of latest tag',action='store_true')
     parser.add_argument('-u','--update_branch', help='fetch a single branch given repo url',type=str)
     parser.add_argument('-r','--regen_config', help='regen config options after merge is completed or if -n is passed', action='store_true')
     parser.add_argument('-d','--run_describe', help='run git describe on all enabled branches (unless -a is passed )', action='store_true')
@@ -553,6 +556,7 @@ def main():
     run_gen_manifest = args.gen_manifest
     regen_config = args.regen_config
     run_describe = args.run_describe
+    master_branch = args.master_branch
     fetch_all = args.all
 
     blacklist = []
@@ -575,7 +579,7 @@ def main():
         if run_describe:
            run_git_describe(manifest,fetch_all)
            return
-        manifest=setup_linus_branch(manifest,skip_fetch)
+        manifest = setup_linus_branch(manifest,skip_fetch,master_branch)
         #write manifest files
         write_manifest_files(manifest)
         if run_gen_manifest:
@@ -588,7 +592,7 @@ def main():
         #Continue merge
         open_logs("a")
         print_and_log("continuing merge with -c option")
-        manifest=read_manifest("manifest.json")
+        manifest = read_manifest("manifest.json")
         print_manifest_log(manifest)
     
     #Do actual merge now that everything is setup
