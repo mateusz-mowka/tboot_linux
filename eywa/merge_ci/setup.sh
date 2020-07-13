@@ -26,13 +26,12 @@ if [ $? != 0 ]; then
 
 	git remote add drm-cache git://anongit.freedesktop.org/drm/drm-tip
 fi
-set -e
 git fetch drm-cache
 git checkout drm-cache/rerere-cache -- rr-cache 
 cp -rf rr-cache .git
 rm -rf rr-cache
 
-
+set -e
 echo "Adding internal rr-cache"
 #Handle internal rr-cache
 mkdir -p eywa/merge_ci/rr-cache/
