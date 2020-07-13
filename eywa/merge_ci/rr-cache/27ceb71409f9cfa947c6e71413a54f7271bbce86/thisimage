@@ -9,7 +9,7 @@ struct task_struct;
 struct mm_struct;
 struct io_bitmap;
 struct vm86;
-/* Can we do without this? Why do we need to define the struct here? */
+// Check: Why is this needed?
 struct uintr_receiver;
 struct uintr_sender;
 
@@ -486,6 +486,7 @@ DECLARE_PER_CPU(struct irq_stack *, softirq_stack_ptr);
 #endif	/* X86_64 */
 
 extern unsigned int fpu_kernel_xstate_size;
+extern unsigned int fpu_kernel_xstate_exp_size;
 extern unsigned int fpu_user_xstate_size;
 
 struct perf_event;

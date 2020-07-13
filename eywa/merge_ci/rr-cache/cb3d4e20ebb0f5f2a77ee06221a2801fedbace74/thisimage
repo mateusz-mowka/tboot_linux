@@ -320,7 +320,7 @@ static __always_inline void setup_uintr(struct cpuinfo_x86 *c)
 		return;
 
 	cr4_set_bits(X86_CR4_UINT);
-	pr_info_once("x86: User Interrupt (UINTR) support activated\n");
+	pr_info_once("x86: User Interrupt (UINTR) supported\n");
 }
 
 static __init int setup_disable_smap(char *arg)
@@ -539,25 +539,7 @@ static __always_inline void setup_keylocker(struct cpuinfo_x86 *c)
 		 * Software can't read the loaded internal key value. Instead,
 		 * save it into a platform-scoped state from the boot CPU and
 		 * restore it from there for other CPUs.
-		 *
-		 * The key also needs to be sanitized in this process. The
-		 * saved status in the platform-scoped state may take time
-		 * to be updated. The boot CPU does not wait for saving
-		 * completion but proceeds onto its boot sequence. At this
-		 * point, proceeded saving the key in parallel, the
-		 * following CPU may find a valid state or wait for its
-		 * readiness.
 		 */
-
-		/*
-		 * Conservatively set the waiting time. The measured waiting
-		 * time, in the worst case, takes less than a millisecond on the
-		 * one right after the boot CPU. Other subsequent CPUs do not
-		 * require any significant waiting time.
-		 */
-		valid = check_saved_internal_key(USEC_PER_MSEC);
-		if (!valid)
-			goto disable_keylocker;
 
 		valid = restore_internal_key();
 		if (!valid)
@@ -594,7 +576,7 @@ static __always_inline void setup_pku(struct cpuinfo_x86 *c)
 		return;
 
 	cr4_set_bits(X86_CR4_PKE);
-	pk = get_xsave_addr(&init_fpstate.xsave, XFEATURE_PKRU);
+	pk = get_xsave_addr(NULL, XFEATURE_PKRU);
 	if (pk)
 		pk->pkru = init_pkru_value;
 	/*
@@ -1808,6 +1790,16 @@ static __init int setup_clearcpuid(char *arg)
 	return 1;
 }
 __setup("clearcpuid=", setup_clearcpuid);
+
+static __init int setup_forcecpuid(char *arg)
+{
+	int bits;
+
+	get_option(&arg, &bits);
+	setup_force_cpu_cap(bits);
+	return 1;
+}
+__setup("forcecpuid=", setup_forcecpuid);
 
 #ifdef CONFIG_X86_64
 DEFINE_PER_CPU_FIRST(struct fixed_percpu_data,
