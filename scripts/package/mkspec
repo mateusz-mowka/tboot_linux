@@ -43,7 +43,7 @@ sed -e '/^DEL/d' -e 's/^\t*//' <<EOF
 	Summary: The Linux Kernel
 	Version: $__KERNELRELEASE
 	Release: $(cat .version 2>/dev/null || echo 1)
-	License: GPL
+	License: INTEL CONFIDENTIAL
 	Group: System Environment/Kernel
 	Vendor: The Linux Community
 	URL: https://www.kernel.org
@@ -59,6 +59,7 @@ $S	Source: kernel-$__KERNELRELEASE.tar.gz
 	Summary: Header files for the Linux kernel for use by glibc
 	Group: Development/System
 	Obsoletes: kernel-headers
+	AutoReqProv: no
 	Provides: kernel-headers = %{version}
 	%description headers
 	Kernel-headers includes the C header files that specify the interface
@@ -70,6 +71,7 @@ $S	Source: kernel-$__KERNELRELEASE.tar.gz
 	%package tools
 	Summary: Supporting tools to be used with intel-next kernel
 	Group: Development/System
+	AutoReqProv: no
 	Obsoletes: kernel-tools
 	Provides: kernel-tools = %{version}
 	%description tools
