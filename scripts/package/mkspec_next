@@ -77,7 +77,7 @@ $S	Source: kernel-$__KERNELRELEASE.tar.gz
 	Summary: Header files for the Linux kernel for use by glibc
 	Group: Development/System
 	AutoReqProv: no
-	Obsoletes: kernel-next-headers
+	Obsoletes: kernel-headers
 	Provides: kernel-next-headers = %{version}
 	%description headers
 	Kernel-headers includes the C header files that specify the interface
