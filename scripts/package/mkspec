@@ -156,7 +156,7 @@ $M	%exclude /lib/modules/$KERNELRELEASE/source
 
 	%files headers
 	%defattr (-, root, root)
-	/usr/include
+	/usr/include/*
 $S$M
 $S$M	%files devel
 $S$M	%defattr (-, root, root)
