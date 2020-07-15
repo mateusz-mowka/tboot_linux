@@ -37,7 +37,7 @@ intel_next_packageversion() {
         fi
 }
 
-PROVIDES="$PROVIDES linux-intel-next-generic"
+PROVIDES="$PROVIDES kernel-next"
 
 RELEASE=$(cat .version 2>/dev/null || echo 1)
 if [ -n "$INTEL_NEXT" ]; then
@@ -76,8 +76,9 @@ $S	Source: kernel-$__KERNELRELEASE.tar.gz
 	%package headers
 	Summary: Header files for the Linux kernel for use by glibc
 	Group: Development/System
-	Obsoletes: linux-intel-next-generic-headers
-	Provides: linux-intel-next-generic-headers = %{version}
+	AutoReqProv: no
+	Obsoletes: kernel-next-headers
+	Provides: kernel-next-headers = %{version}
 	%description headers
 	Kernel-headers includes the C header files that specify the interface
 	between the Linux kernel and userspace libraries and programs.  The
@@ -88,8 +89,9 @@ $S	Source: kernel-$__KERNELRELEASE.tar.gz
 	%package tools
 	Summary: Supporting tools to be used with intel-next kernel
 	Group: Development/System
-	Provides: linux-intel-next-generic-tools = %{version}
-	Obsoletes: linux-intel-next-generic-tools
+	AutoReqProv: no
+	Provides: kernel-next-tools = %{version}
+	Obsoletes: kernel-tools
 	%description tools
 	This package contains the tools/ directory from the kernel source
 
