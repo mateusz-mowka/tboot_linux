@@ -78,7 +78,7 @@ $S	Source: kernel-$__KERNELRELEASE.tar.gz
 	Group: Development/System
 	AutoReqProv: no
 	Obsoletes: kernel-headers
-	Provides: kernel-next-headers = %{version}
+	Provides: kernel-headers = %{version}
 	%description headers
 	Kernel-headers includes the C header files that specify the interface
 	between the Linux kernel and userspace libraries and programs.  The
@@ -90,7 +90,7 @@ $S	Source: kernel-$__KERNELRELEASE.tar.gz
 	Summary: Supporting tools to be used with intel-next kernel
 	Group: Development/System
 	AutoReqProv: no
-	Provides: kernel-next-tools = %{version}
+	Provides: kernel-tools = %{version}
 	Obsoletes: kernel-tools
 	%description tools
 	This package contains the tools/ directory from the kernel source
