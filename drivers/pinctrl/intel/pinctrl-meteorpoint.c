@@ -14,11 +14,11 @@
 
 #include "pinctrl-intel.h"
 
-#define MTP_PAD_OWN	0x020
-#define MTP_PADCFGLOCK	0x080
-#define MTP_HOSTSW_OWN	0x0b0
-#define MTP_GPI_IS	0x100
-#define MTP_GPI_IE	0x120
+#define MTP_PAD_OWN	0x0a0
+#define MTP_PADCFGLOCK	0x110
+#define MTP_HOSTSW_OWN	0x150
+#define MTP_GPI_IS	0x200
+#define MTP_GPI_IE	0x220
 
 #define MTP_GPP(r, s, e)				\
 	{						\
