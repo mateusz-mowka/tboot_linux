@@ -394,7 +394,7 @@ $MAKE  NO_LIBPYTHON=1 NO_LIBPERL=1 tools/perf
 $MAKE -C tools/power/x86/x86_energy_perf_policy
 $MAKE -C tools/power/x86/turbostat
 $MAKE tools/intel-speed-select
-$MAKE tools/acpi
+srctree=$(pwd)/tools/power/acpi $MAKE -C tools/power/acpi acpidbg
 
 install -m 755 -D tools/perf/perf "$tools_dir/usr/bin"
 install -m 755 -D tools/power/x86/intel_pstate_tracer/intel_pstate_tracer.py "$tools_dir/usr/bin"
