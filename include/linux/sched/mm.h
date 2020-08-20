@@ -8,7 +8,7 @@
 #include <linux/mm_types.h>
 #include <linux/gfp.h>
 #include <linux/sync_core.h>
-#include <linux/ioasid.h>
+#include <linux/ioasid_def.h>
 
 /*
  * Routines for handling mm_structs
@@ -466,7 +466,7 @@ static inline void mm_pasid_set(struct mm_struct *mm, u32 pasid)
 static inline void mm_pasid_drop(struct mm_struct *mm)
 {
 	if (pasid_valid(mm->pasid)) {
-		ioasid_free(mm->pasid);
+		__ioasid_put(mm->pasid);
 		mm->pasid = INVALID_IOASID;
 	}
 }
