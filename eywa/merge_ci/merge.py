@@ -330,6 +330,8 @@ def gen_manifest(skip_fetch,fetch_single,fetch_all,blacklist,whitelist,enable_li
                if name == branch["name"]:
                    print_and_log("Exclusively enabled {} due to -w option".format(branch["name"]))
                    branch["enabled"] = True
+                   #Reset any stuck at ref in manifest_in.json
+                   branch["stuck_at_ref"] = ""
                    topic_branches.append(branch)
                    break
         #overwrite the topic branches with our new list
