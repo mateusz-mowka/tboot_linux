@@ -206,6 +206,23 @@ static struct workqueue_struct *hfi_updates_wq;
 
 #ifdef CONFIG_DEBUG_FS
 
+/* Received package-level interrupts that are not HFI events. */
+static DEFINE_PER_CPU(u64, hfi_intr_not_hfi);
+/* Received package-level interrupts when per-CPU data is not initialized. */
+static DEFINE_PER_CPU(u64, hfi_intr_not_initialized);
+/* Received package-level interrupts that are HFI events. */
+static DEFINE_PER_CPU(u64, hfi_intr_received);
+/* HFI events for which new delayed work was scheduled */
+static DEFINE_PER_CPU(u64, hfi_intr_processed);
+/* HFI events which delayed work was scheduled while there was previous work pending. */
+static DEFINE_PER_CPU(u64, hfi_intr_skipped);
+/* HFI events during which the event_lock was held by another CPU. */
+static DEFINE_PER_CPU(u64, hfi_intr_ignored);
+/* HFI events that did not have a newer timestamp */
+static DEFINE_PER_CPU(u64, hfi_intr_bad_ts);
+
+static u64 hfi_updates, hfi_updates_recovered;
+
 static int hfi_features_show(struct seq_file *s, void *unused)
 {
 	union cpuid6_edx edx;
@@ -273,9 +290,18 @@ static int hfi_state_show(struct seq_file *s, void *unused)
 	seq_printf(s, "CPUs:\t\t%*pbl\n", cpumask_pr_args(hfi_instance->cpus));
 	seq_printf(s, "Timestamp:\t%lld\n", *hfi_instance->timestamp);
 	seq_puts(s, "\nPer-CPU data:\n");
-	seq_puts(s, "CPU\tAddress\n");
+	seq_puts(s, "CPU\tInstance data at:\t\t\t\t\tHFI interrupts:\n");
+	seq_puts(s, "\t\t\t    received | not hfi | not initialized | processed | skipped | ignored | bad timestamp\n");
 	for_each_cpu(i, hfi_instance->cpus) {
-		seq_printf(s, "%4d\t%px\n", i, per_cpu(hfi_cpu_info, i).hfi_instance);
+		seq_printf(s, "%4d\t%px", i, per_cpu(hfi_cpu_info, i).hfi_instance);
+		seq_printf(s, "%12llu%10llu%18llu%12llu%10llu\t%8llu\t%8llu\n",
+			   per_cpu(hfi_intr_received, i),
+			   per_cpu(hfi_intr_not_hfi, i),
+			   per_cpu(hfi_intr_not_initialized, i),
+			   per_cpu(hfi_intr_processed, i),
+			   per_cpu(hfi_intr_skipped, i),
+			   per_cpu(hfi_intr_ignored, i),
+			   per_cpu(hfi_intr_bad_ts, i));
 	}
 
 	/* Dump the performance capability change indication */
@@ -297,6 +323,11 @@ static int hfi_state_show(struct seq_file *s, void *unused)
 		seq_printf(s, "Class%d:%u\t", i, hdr_data->ee_updated);
 		hfi_hdr++;
 	}
+
+	/* Overall HFI updates in the system */
+	seq_puts(s, "\n\nHFI table updates:\n");
+	seq_printf(s, "\tscheduled: %llu\t recovered: %llu\n",
+		   hfi_updates, hfi_updates_recovered);
 
 	/* Dump the HFI table */
 	seq_puts(s, "\nHFI table:\n");
@@ -785,6 +816,18 @@ static void hfi_update_work_fn(struct work_struct *work)
 	hfi_instance = container_of(to_delayed_work(work), struct hfi_instance,
 				    update_work);
 
+#ifdef CONFIG_DEBUG_FS
+	/*
+	 * Here we are misusing hfi_instance_lock, which is meant to protect accesses to
+	 * HFI instsances. It, however, needlessly protect accesses to all instances at the
+	 * same time. We explot this to protect hfi_updtes. If in the future there is a per-
+	 * instance lock, we would need to have our own lock.
+	 */
+	mutex_lock(&hfi_instance_lock);
+	hfi_updates++;
+	mutex_unlock(&hfi_instance_lock);
+#endif
+
 	update_capabilities(hfi_instance);
 }
 
@@ -795,13 +838,26 @@ void intel_hfi_process_event(__u64 pkg_therm_status_msr_val)
 	struct hfi_cpu_info *info;
 	unsigned long flags;
 	u64 new_timestamp;
+#ifdef CONFIG_DEBUG_FS
+	bool work_queued;
 
-	if (!pkg_therm_status_msr_val)
+	per_cpu(hfi_intr_received, cpu)++;
+#endif
+
+	if (!pkg_therm_status_msr_val) {
+#ifdef CONFIG_DEBUG_FS
+		per_cpu(hfi_intr_not_hfi, cpu)++;
+#endif
 		return;
+	}
 
 	info = &per_cpu(hfi_cpu_info, cpu);
-	if (!info)
+	if (!info) {
+#ifdef CONFIG_DEBUG_FS
+		per_cpu(hfi_intr_not_initialized, cpu)++;
+#endif
 		return;
+	}
 
 	/*
 	 * A CPU is linked to its HFI instance before the thermal vector in the
@@ -811,6 +867,9 @@ void intel_hfi_process_event(__u64 pkg_therm_status_msr_val)
 	hfi_instance = info->hfi_instance;
 	if (unlikely(!hfi_instance)) {
 		pr_debug("Received event on CPU %d but instance was null", cpu);
+#ifdef CONFIG_DEBUG_FS
+		per_cpu(hfi_intr_not_initialized, cpu)++;
+#endif
 		return;
 	}
 
@@ -820,12 +879,19 @@ void intel_hfi_process_event(__u64 pkg_therm_status_msr_val)
 	 * let a single CPU to acknowledge the update and queue work to
 	 * process it. The remaining CPUs can resume their work.
 	 */
-	if (!raw_spin_trylock(&hfi_instance->event_lock))
+	if (!raw_spin_trylock(&hfi_instance->event_lock)) {
+#ifdef CONFIG_DEBUG_FS
+		per_cpu(hfi_intr_ignored, cpu)++;
+#endif
 		return;
+	}
 
 	/* Skip duplicated updates. */
 	new_timestamp = *(u64 *)hfi_instance->hw_table;
 	if (*hfi_instance->timestamp == new_timestamp) {
+#ifdef CONFIG_DEBUG_FS
+		per_cpu(hfi_intr_bad_ts, cpu)++;
+#endif
 		raw_spin_unlock(&hfi_instance->event_lock);
 		return;
 	}
@@ -850,8 +916,18 @@ void intel_hfi_process_event(__u64 pkg_therm_status_msr_val)
 				    ~PACKAGE_THERM_STATUS_HFI_UPDATED;
 	wrmsrl(MSR_IA32_PACKAGE_THERM_STATUS, pkg_therm_status_msr_val);
 
+#ifdef CONFIG_DEBUG_FS
+	work_queued = queue_delayed_work(hfi_updates_wq,
+					 &hfi_instance->update_work,
+					 HFI_UPDATE_INTERVAL);
+	if (work_queued)
+		per_cpu(hfi_intr_processed, cpu)++;
+	else
+		per_cpu(hfi_intr_skipped, cpu)++;
+#else
 	queue_delayed_work(hfi_updates_wq, &hfi_instance->update_work,
 			   HFI_UPDATE_INTERVAL);
+#endif
 }
 
 static void init_hfi_cpu_index(struct hfi_cpu_info *info)
@@ -964,6 +1040,9 @@ void intel_hfi_online(unsigned int cpu)
 			queue_delayed_work(hfi_updates_wq,
 					   &hfi_instance->update_work,
 					   HFI_UPDATE_INTERVAL);
+#ifdef CONFIG_DEBUG_FS
+			hfi_updates_recovered++;
+#endif
 
 			goto unlock;
 		}
