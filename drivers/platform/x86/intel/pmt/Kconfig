@@ -38,3 +38,15 @@ config INTEL_PMT_CRASHLOG
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called intel_pmt_crashlog.
+
+config INTEL_PMT_WATCHER
+	tristate "Intel Platform Monitoring Technology (PMT) Watcher driver"
+	depends on INTEL_VSEC
+	select INTEL_PMT_CLASS
+	help
+	  The Intel Platform Monitoring Technology (PMT) Watcher driver provides
+	  access to hardware sampling and tracing capabilities on devices that
+	  support the feature.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called intel_pmt_watcher.
