@@ -377,6 +377,59 @@ static const struct file_operations proc_pid_cmdline_ops = {
 	.llseek	= generic_file_llseek,
 };
 
+static ssize_t proc_pid_class_read(struct file *file, char __user *buf,
+				   size_t count, loff_t *pos)
+{
+	struct task_struct *tsk;
+	char buffer[PROC_NUMBUF];
+	int class;
+	ssize_t len;
+
+	tsk = get_proc_task(file_inode(file));
+	if (!tsk)
+		return -ESRCH;
+
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	class = tsk->class;
+#else
+	class = TASK_CLASS_UNCLASSIFIED;
+#endif
+	len = snprintf(buffer, sizeof(buffer), "%d\n", class);
+	put_task_struct(tsk);
+	return simple_read_from_buffer(buf, count, pos, buffer, len);
+}
+
+static ssize_t proc_pid_class_write(struct file *file,
+				    const char __user *buf,
+				    size_t count, loff_t *pos)
+{
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	struct task_struct *tsk;
+	unsigned int class;
+	int err;
+
+	err = kstrtou32_from_user(buf, count, 10, &class);
+	if (err)
+		return err;
+
+	tsk = get_proc_task(file_inode(file));
+	if (!tsk)
+		return -ESRCH;
+
+	tsk->class = class;
+	put_task_struct(tsk);
+
+	return sizeof(class);
+#else
+	return -EPERM;
+#endif
+}
+
+static const struct file_operations proc_pid_class_ops = {
+	.read	= proc_pid_class_read,
+	.write	= proc_pid_class_write,
+};
+
 static ssize_t proc_pid_class_raw_read(struct file *file, char __user *buf,
 				       size_t count, loff_t *pos)
 {
@@ -3246,6 +3299,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 #endif
 	REG("cmdline",    S_IRUGO, proc_pid_cmdline_ops),
 	REG("classid_raw", S_IRUGO, proc_pid_class_raw_ops),
+	REG("classid",    S_IRUGO|S_IWUSR, proc_pid_class_ops),
 	ONE("stat",       S_IRUGO, proc_tgid_stat),
 	ONE("statm",      S_IRUGO, proc_pid_statm),
 	REG("maps",       S_IRUGO, proc_pid_maps_operations),
@@ -3591,6 +3645,7 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 	REG("cmdline",   S_IRUGO, proc_pid_cmdline_ops),
 	REG("classid_raw", S_IRUGO, proc_pid_class_raw_ops),
+	REG("classid",    S_IRUGO|S_IWUSR, proc_pid_class_ops),
 	ONE("stat",      S_IRUGO, proc_tid_stat),
 	ONE("statm",     S_IRUGO, proc_pid_statm),
 	REG("maps",      S_IRUGO, proc_pid_maps_operations),
