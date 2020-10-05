@@ -116,6 +116,8 @@ struct task_group;
 					 __TASK_TRACED | EXIT_DEAD | EXIT_ZOMBIE | \
 					 TASK_PARKED)
 
+#define TASK_CLASS_UNCLASSIFIED		-1
+
 #define task_is_running(task)		(READ_ONCE((task)->__state) == TASK_RUNNING)
 
 #define task_is_traced(task)		((READ_ONCE(task->jobctl) & JOBCTL_TRACED) != 0)
@@ -1498,6 +1500,11 @@ struct task_struct {
 	 * cores
 	 */
 	struct callback_head		l1d_flush_kill;
+#endif
+
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	/* Class of task that the scheduler uses for task placement decisions */
+	short				class;
 #endif
 
 	/*
