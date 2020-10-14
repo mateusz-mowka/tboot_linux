@@ -8,6 +8,7 @@
 #include <asm/current.h>
 #include <asm/errno.h>
 #include <asm/ia32_unistd.h>
+#include <asm/itd.h>
 #include <asm/thread_info.h>
 #include <asm/segment.h>
 #include <asm/irqflags.h>
@@ -57,6 +58,8 @@ SYM_CODE_START(entry_SYSENTER_compat)
 	pushq	%rax
 	SWITCH_TO_KERNEL_CR3 scratch_reg=%rax
 	popq	%rax
+
+	ITD_SAVE_CURR_TASK_CLASS
 
 	movq	PER_CPU_VAR(cpu_current_top_of_stack), %rsp
 
@@ -196,6 +199,8 @@ SYM_CODE_START(entry_SYSCALL_compat)
 SYM_INNER_LABEL(entry_SYSCALL_compat_safe_stack, SYM_L_GLOBAL)
 	ANNOTATE_NOENDBR
 
+	ITD_SAVE_CURR_TASK_CLASS
+
 	/* Construct struct pt_regs on stack */
 	pushq	$__USER32_DS		/* pt_regs->ss */
 	pushq	%r8			/* pt_regs->sp */
@@ -333,6 +338,8 @@ SYM_CODE_START(entry_INT80_compat)
 
 	movq	%rsp, %rax
 	movq	PER_CPU_VAR(cpu_current_top_of_stack), %rsp
+
+	ITD_SAVE_CURR_TASK_CLASS
 
 	pushq	5*8(%rax)		/* regs->ss */
 	pushq	4*8(%rax)		/* regs->rsp */

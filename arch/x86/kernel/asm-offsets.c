@@ -38,6 +38,9 @@ static void __used common(void)
 #ifdef CONFIG_STACKPROTECTOR
 	OFFSET(TASK_stack_canary, task_struct, stack_canary);
 #endif
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	OFFSET(TASK_class_raw,	task_struct, class_raw);
+#endif
 
 	BLANK();
 	OFFSET(pbe_address, pbe, address);
