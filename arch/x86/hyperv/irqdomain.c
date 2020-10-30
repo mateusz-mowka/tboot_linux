@@ -309,7 +309,7 @@ static struct irq_chip hv_pci_msi_controller = {
 
 static struct msi_domain_ops pci_msi_domain_ops = {
 	.msi_free		= hv_msi_free_irq,
-	.msi_prepare		= pci_msi_prepare,
+	.msi_prepare		= x86_msi_prepare,
 };
 
 static struct msi_domain_info hv_pci_msi_domain_info = {

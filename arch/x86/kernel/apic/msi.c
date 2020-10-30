@@ -157,23 +157,40 @@ static struct irq_chip pci_msi_controller = {
 				  IRQCHIP_AFFINITY_PRE_STARTUP,
 };
 
-int pci_msi_prepare(struct irq_domain *domain, struct device *dev, int nvec,
-		    msi_alloc_info_t *arg)
+void pci_msi_prepare(struct device *dev, msi_alloc_info_t *arg)
 {
 	init_irq_alloc_info(arg, NULL);
-	if (to_pci_dev(dev)->msix_enabled) {
-		arg->type = X86_IRQ_ALLOC_TYPE_PCI_MSIX;
-	} else {
-		arg->type = X86_IRQ_ALLOC_TYPE_PCI_MSI;
-		arg->flags |= X86_IRQ_ALLOC_CONTIGUOUS_VECTORS;
-	}
 
-	return 0;
+        if (to_pci_dev(dev)->msix_enabled) {
+                arg->type = X86_IRQ_ALLOC_TYPE_PCI_MSIX;
+        } else {
+                arg->type = X86_IRQ_ALLOC_TYPE_PCI_MSI;
+                arg->flags |= X86_IRQ_ALLOC_CONTIGUOUS_VECTORS;
+        }
 }
 EXPORT_SYMBOL_GPL(pci_msi_prepare);
 
+static void dev_msi_prepare(struct device *dev, msi_alloc_info_t *arg)
+{
+	arg->type = X86_IRQ_ALLOC_TYPE_DEV_MSI;
+}
+
+int x86_msi_prepare(struct irq_domain *domain, struct device *dev, int nvec,
+		    msi_alloc_info_t *arg)
+{
+	init_irq_alloc_info(arg, NULL);
+
+	if (dev_is_pci(dev))
+		pci_msi_prepare(dev, arg);
+	else
+		dev_msi_prepare(dev, arg);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(x86_msi_prepare);
+
 static struct msi_domain_ops pci_msi_domain_ops = {
-	.msi_prepare	= pci_msi_prepare,
+	.msi_prepare	= x86_msi_prepare,
 };
 
 static struct msi_domain_info pci_msi_domain_info = {
