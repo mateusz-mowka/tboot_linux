@@ -672,4 +672,8 @@ static inline struct irq_domain *pci_msi_get_device_domain(struct pci_dev *pdev)
 static inline void pci_write_msi_msg(unsigned int irq, struct msi_msg *msg) { }
 #endif /* !CONFIG_PCI_MSI */
 
+#ifndef arch_msi_prepare
+# define arch_msi_prepare	NULL
+#endif
+
 #endif /* LINUX_MSI_H */
