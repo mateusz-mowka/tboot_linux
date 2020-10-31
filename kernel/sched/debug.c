@@ -535,8 +535,13 @@ print_task(struct seq_file *m, struct rq *rq, struct task_struct *p)
 	else
 		SEQ_printf(m, " %c", task_state_to_char(p));
 
-	SEQ_printf(m, " %15s %5d %9Ld.%06ld %9Ld %5d ",
+	SEQ_printf(m, " %15s %5d %2d %9Ld.%06ld %9Ld %5d ",
 		p->comm, task_pid_nr(p),
+#ifdef CONFIG_IPC_CLASSES
+		p->ipcc,
+#else
+		IPC_CLASS_UNCLASSIFIED,
+#endif
 		SPLIT_NS(p->se.vruntime),
 		(long long)(p->nvcsw + p->nivcsw),
 		p->prio);
@@ -563,7 +568,7 @@ static void print_rq(struct seq_file *m, struct rq *rq, int rq_cpu)
 
 	SEQ_printf(m, "\n");
 	SEQ_printf(m, "runnable tasks:\n");
-	SEQ_printf(m, " S            task   PID         tree-key  switches  prio"
+	SEQ_printf(m, " S            task   PID class     tree-key  switches  prio"
 		   "     wait-time             sum-exec        sum-sleep\n");
 	SEQ_printf(m, "-------------------------------------------------------"
 		   "------------------------------------------------------\n");
