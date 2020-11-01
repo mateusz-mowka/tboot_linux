@@ -912,6 +912,12 @@ static void sched_debug_header(struct seq_file *m)
 		"sysctl_sched_tunable_scaling",
 		sysctl_sched_tunable_scaling,
 		sched_tunable_scaling_names[sysctl_sched_tunable_scaling]);
+
+#if defined(CONFIG_IPC_CLASSES)
+	SEQ_printf(m, "  .%-40s: %d\n", "sched_ipcc",
+		   static_branch_likely(&sched_ipcc) ? 1 : 0);
+#endif
+
 	SEQ_printf(m, "\n");
 }
 
