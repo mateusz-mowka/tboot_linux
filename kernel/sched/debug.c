@@ -712,6 +712,32 @@ void print_dl_rq(struct seq_file *m, int cpu, struct dl_rq *dl_rq)
 #undef PU
 }
 
+static void dump_rd_properties(struct seq_file *m, int cpu)
+{
+#ifdef CONFIG_SMP
+	struct rq *rq = cpu_rq(cpu);
+	struct root_domain *rd;
+
+	if (!rq) {
+		SEQ_printf(m, " rq of CPU%d is NULL\n", cpu);
+		return;
+	}
+
+	rd = rq->rd;
+	if (!rd) {
+		SEQ_printf(m, " rd of CPU% is NULL\n", cpu);
+		return;
+	}
+
+	SEQ_printf(m, " rd is at %p\n", rd);
+	SEQ_printf(m, " rd span = %*pbl\n", cpumask_pr_args(rd->span));
+	SEQ_printf(m, " rd online = %*pbl\n", cpumask_pr_args(rd->online));
+	SEQ_printf(m, " rd overload = %d\n", READ_ONCE(rd->overload));
+	SEQ_printf(m, " rd overutlized = %d\n", READ_ONCE(rd->overutilized));
+	SEQ_printf(m, " rd max_cpu_capacity = %lu\n", rd->max_cpu_capacity);
+#endif
+}
+
 static void dump_sd_properties(struct seq_file *m, int cpu)
 {
 #ifdef CONFIG_SMP
@@ -787,6 +813,7 @@ do {									\
 	SEQ_printf(m, "  .%-30s: %Ld.%06ld\n", #x, SPLIT_NS(rq->x))
 
 	dump_sd_properties(m, cpu);
+	dump_rd_properties(m, cpu);
 
 	P(nr_running);
 #ifdef CONFIG_SCHED_TASK_CLASSES
