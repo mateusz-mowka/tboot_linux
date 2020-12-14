@@ -3140,8 +3140,8 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 	__set_task_cpu(p, new_cpu);
 }
 
-#ifdef CONFIG_NUMA_BALANCING
-static void __migrate_swap_task(struct task_struct *p, int cpu)
+#if defined(CONFIG_SCHED_TASK_CLASSES) || defined(CONFIG_NUMA_BALANCING)
+void __migrate_swap_task(struct task_struct *p, int cpu)
 {
 	if (task_on_rq_queued(p)) {
 		struct rq *src_rq, *dst_rq;
@@ -3170,12 +3170,14 @@ static void __migrate_swap_task(struct task_struct *p, int cpu)
 		p->wake_cpu = cpu;
 	}
 }
+#endif
 
 struct migration_swap_arg {
 	struct task_struct *src_task, *dst_task;
 	int src_cpu, dst_cpu;
 };
 
+#ifdef CONFIG_NUMA_BALANCING
 static int migrate_swap_stop(void *data)
 {
 	struct migration_swap_arg *arg = data;

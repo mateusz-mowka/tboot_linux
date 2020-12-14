@@ -1667,6 +1667,10 @@ static inline int sched_numa_find_closest(const struct cpumask *cpus, int cpu)
 }
 #endif
 
+#if defined(CONFIG_SCHED_TASK_CLASSES) || defined(CONFIG_NUMA_BALANCING)
+void __migrate_swap_task(struct task_struct *p, int cpu);
+#endif
+
 #ifdef CONFIG_NUMA_BALANCING
 /* The regions in numa_faults array from task_struct */
 enum numa_faults_stats {
