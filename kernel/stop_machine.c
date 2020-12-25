@@ -153,31 +153,6 @@ int stop_one_cpu(unsigned int cpu, cpu_stop_fn_t fn, void *arg)
 	return done.ret;
 }
 
-/* This controls the threads on each CPU. */
-enum multi_stop_state {
-	/* Dummy starting state for thread. */
-	MULTI_STOP_NONE,
-	/* Awaiting everyone to be scheduled. */
-	MULTI_STOP_PREPARE,
-	/* Disable interrupts. */
-	MULTI_STOP_DISABLE_IRQ,
-	/* Run the function */
-	MULTI_STOP_RUN,
-	/* Exit */
-	MULTI_STOP_EXIT,
-};
-
-struct multi_stop_data {
-	cpu_stop_fn_t		fn;
-	void			*data;
-	/* Like num_online_cpus(), but hotplug cpu uses us, so we need this. */
-	unsigned int		num_threads;
-	const struct cpumask	*active_cpus;
-
-	enum multi_stop_state	state;
-	atomic_t		thread_ack;
-};
-
 static void set_state(struct multi_stop_data *msdata,
 		      enum multi_stop_state newstate)
 {
