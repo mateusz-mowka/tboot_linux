@@ -349,6 +349,29 @@ static int __stop_two_cpus(unsigned int cpu1, unsigned int cpu2,
 }
 
 /**
+ * stop_two_cpus_nowait() - stop to cpus to run fn on one of them
+ * @cpu1: the cpu to stop
+ * @cpu2: the other to stop
+ * @work1: pointer to cpu_stop_work structure for a cpu
+ * @work2: pointer to cpu_stop_work structure for the other cpu
+ * @msdata: pointer to a multi_stop_data structure to coordinate @cpu1 and @cpu2
+ * @arg: argument to @fn
+ *
+ * Stops @cpu1 and @cpu2 and runs @f2 on one of them. It does not stop for @fn
+ * to complete. The caller is responsible for ensuring that @work1, @work2, and
+ * @msdata are unused and remain untouced until stopper starts executing @fn.
+ *
+ * Returns 0 if work was scheduled successfully. Error otherwise.
+ */
+int stop_two_cpus_nowait(unsigned int cpu1, unsigned int cpu2, cpu_stop_fn_t fn,
+			 struct cpu_stop_work *work1, struct cpu_stop_work *work2,
+			 struct multi_stop_data *msdata, void *arg)
+{
+	return __stop_two_cpus(cpu1, cpu2, fn, work1, work2, msdata,
+			       arg, false);
+}
+
+/**
  * stop_two_cpus - stops two cpus
  * @cpu1: the cpu to stop
  * @cpu2: the other cpu to stop
