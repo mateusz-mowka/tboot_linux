@@ -3829,6 +3829,7 @@ static int fast_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault)
 		 */
 		if (is_access_allowed(fault, spte)) {
 			ret = RET_PF_SPURIOUS;
+			fault->pfn = spte & PT64_BASE_ADDR_MASK;
 			break;
 		}
 
@@ -3884,6 +3885,7 @@ static int fast_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault)
 		 */
 		if (fast_pf_fix_direct_spte(vcpu, fault, sptep, spte, new_spte)) {
 			ret = RET_PF_FIXED;
+			fault->pfn = spte & PT64_BASE_ADDR_MASK;
 			break;
 		}
 

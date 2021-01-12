@@ -1638,6 +1638,7 @@ static int tdx_complete_vp_vmcall(struct kvm_vcpu *vcpu)
 {
 	struct kvm_tdx_vmcall *tdx_vmcall = &vcpu->run->tdx.u.vmcall;
 	__u64 reg_mask;
+	int r = 1;
 
 	tdvmcall_set_return_code(vcpu, tdx_vmcall->status_code);
 	tdvmcall_set_return_val(vcpu, tdx_vmcall->out_r11);
@@ -1664,7 +1665,13 @@ static int tdx_complete_vp_vmcall(struct kvm_vcpu *vcpu)
 	if (reg_mask & TDX_VMCALL_REG_MASK_RDX)
 		kvm_rdx_write(vcpu, tdx_vmcall->out_rdx);
 
-	return 1;
+	if (unlikely(vcpu->arch.complete_tdx_vp_vmcall)) {
+		int (*ctvv)(struct kvm_vcpu *) = vcpu->arch.complete_tdx_vp_vmcall;
+		vcpu->arch.complete_tdx_vp_vmcall = NULL;
+		r = ctvv(vcpu);
+	}
+
+	return r;
 }
 
 static int tdx_vp_vmcall_to_user(struct kvm_vcpu *vcpu)
@@ -1742,12 +1749,42 @@ static void tdx_trace_tdvmcall_done(struct kvm_vcpu *vcpu)
 		kvm_r8_read(vcpu), kvm_r9_read(vcpu), kvm_rdx_read(vcpu));
 }
 
+/* used for both shared EPT and security EPT */
+#define TDX_EPT_PFERR (PFERR_WRITE_MASK | PFERR_USER_MASK)
+
+static int tdx_complete_map_gpa(struct kvm_vcpu *vcpu)
+{
+	gpa_t gpa = tdvmcall_a0_read(vcpu);
+	gpa_t size = tdvmcall_a1_read(vcpu);
+	bool prefault = tdvmcall_a2_read(vcpu);
+
+	if (!prefault)
+		return 1;
+
+	while (size) {
+		kvm_pfn_t pfn;
+
+		pfn = kvm_mmu_map_tdp_page(vcpu, gpa, TDX_EPT_PFERR,
+					   PG_LEVEL_4K);
+
+		if (is_error_noslot_pfn(pfn) || vcpu->kvm->vm_bugged) {
+			 pr_err("failed to pin shared pages %llx\n", gpa);
+		}
+
+		size -= PAGE_SIZE;
+		gpa += PAGE_SIZE;
+	}
+
+	return 1;
+}
+
 static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 {
 	struct kvm_memory_slot *slot;
 	struct kvm *kvm = vcpu->kvm;
 	gpa_t gpa = tdvmcall_a0_read(vcpu);
 	gpa_t size = tdvmcall_a1_read(vcpu);
+	bool prefault = tdvmcall_a2_read(vcpu);
 	gpa_t end = gpa + size;
 	int ret;
 
@@ -1773,8 +1810,14 @@ static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 
 	gpa = gpa & ~gfn_to_gpa(kvm_gfn_shared_mask(vcpu->kvm));
 	slot = kvm_vcpu_gfn_to_memslot(vcpu, gpa_to_gfn(gpa));
-	if (slot && kvm_slot_is_private(slot))
+	if (slot && kvm_slot_is_private(slot)) {
+		if (prefault)
+			vcpu->arch.complete_tdx_vp_vmcall = tdx_complete_map_gpa;
 		return tdx_vp_vmcall_to_user(vcpu);
+	}
+
+	if (prefault)
+		tdx_complete_map_gpa(vcpu);
 
 	return 1;
 }
