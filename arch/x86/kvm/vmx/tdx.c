@@ -1504,6 +1504,7 @@ static int tdx_complete_vp_vmcall(struct kvm_vcpu *vcpu)
 {
 	struct kvm_tdx_vmcall *tdx_vmcall = &vcpu->run->tdx.u.vmcall;
 	__u64 reg_mask;
+	int r = 1;
 
 	tdvmcall_set_return_code(vcpu, tdx_vmcall->status_code);
 	tdvmcall_set_return_val(vcpu, tdx_vmcall->out_r11);
@@ -1530,7 +1531,13 @@ static int tdx_complete_vp_vmcall(struct kvm_vcpu *vcpu)
 	if (reg_mask & TDX_VMCALL_REG_MASK_RDX)
 		kvm_rdx_write(vcpu, tdx_vmcall->out_rdx);
 
-	return 1;
+	if (unlikely(vcpu->arch.complete_tdx_vp_vmcall)) {
+		int (*ctvv)(struct kvm_vcpu *) = vcpu->arch.complete_tdx_vp_vmcall;
+		vcpu->arch.complete_tdx_vp_vmcall = NULL;
+		r = ctvv(vcpu);
+	}
+
+	return r;
 }
 
 static int tdx_vp_vmcall_to_user(struct kvm_vcpu *vcpu)
@@ -1821,11 +1828,41 @@ static int tdx_get_td_vm_call_info(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+/* used for both shared EPT and security EPT */
+#define TDX_EPT_PFERR (PFERR_WRITE_MASK | PFERR_USER_MASK)
+
+static int tdx_complete_map_gpa(struct kvm_vcpu *vcpu)
+{
+	gpa_t gpa = tdvmcall_a0_read(vcpu);
+	gpa_t size = tdvmcall_a1_read(vcpu);
+	bool prefault = tdvmcall_a2_read(vcpu);
+
+	if (!prefault)
+		return 1;
+
+	while (size) {
+		kvm_pfn_t pfn;
+
+		pfn = kvm_mmu_map_tdp_page(vcpu, gpa, TDX_EPT_PFERR,
+					   PG_LEVEL_4K, false);
+
+		if (is_error_noslot_pfn(pfn) || vcpu->kvm->vm_bugged) {
+			pr_err("failed to pin shared pages %llx\n", gpa);
+		}
+
+		size -= PAGE_SIZE;
+		gpa += PAGE_SIZE;
+	}
+
+	return 1;
+}
+
 static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 {
 	struct kvm *kvm = vcpu->kvm;
 	gpa_t gpa = tdvmcall_a0_read(vcpu);
 	gpa_t size = tdvmcall_a1_read(vcpu);
+	bool prefault = tdvmcall_a2_read(vcpu);
 	gpa_t end = gpa + size;
 	gfn_t s = gpa_to_gfn(gpa) & ~kvm_gfn_shared_mask(kvm);
 	gfn_t e = gpa_to_gfn(end) & ~kvm_gfn_shared_mask(kvm);
@@ -1861,8 +1898,11 @@ static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 
 			/* contained in slot */
 			if (slot_s <= s && e <= slot_e) {
-				if (kvm_slot_can_be_private(slot))
+				if (kvm_slot_can_be_private(slot)) {
+					if (prefault)
+						vcpu->arch.complete_tdx_vp_vmcall = tdx_complete_map_gpa;
 					return tdx_vp_vmcall_to_user(vcpu);
+				}
 				continue;
 			}
 
@@ -1874,10 +1914,13 @@ static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 	if (ret == -EAGAIN) {
 		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_RETRY);
 		tdvmcall_set_return_val(vcpu, gfn_to_gpa(s));
-	} else if (ret)
+	} else if (ret) {
 		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_INVALID_OPERAND);
-	else
+	} else {
+		if (prefault)
+			tdx_complete_map_gpa(vcpu);
 		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_SUCCESS);
+	}
 	return 1;
 }
 

@@ -1071,6 +1071,9 @@ struct kvm_vcpu_arch {
 #endif
 
 	bool pause;
+
+	/* TDX VP VMCALL post handling after userspace work completion*/
+	int (*complete_tdx_vp_vmcall)(struct kvm_vcpu *vcpu);
 };
 
 /*
