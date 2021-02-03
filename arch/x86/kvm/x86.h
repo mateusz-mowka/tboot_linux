@@ -2,6 +2,7 @@
 #ifndef ARCH_X86_KVM_X86_H
 #define ARCH_X86_KVM_X86_H
 
+#include <asm/fpu/api.h>
 #include <linux/kvm_host.h>
 #include <asm/mce.h>
 #include <asm/pvclock.h>
@@ -323,6 +324,16 @@ static inline bool kvm_mpx_supported(void)
 		== (XFEATURE_MASK_BNDREGS | XFEATURE_MASK_BNDCSR);
 }
 
+/*
+ * Guest CET user mode states depend on host XSAVES/XRSTORS to save/restore
+ * when vCPU enter/exit user space. If host doesn't support CET user bit in
+ * XSS msr, then treat this case as KVM doesn't support CET user mode.
+ */
+static inline bool kvm_cet_user_supported(void)
+{
+	return !!(kvm_caps.supported_xss & XFEATURE_MASK_CET_USER);
+}
+
 extern unsigned int min_timer_period_us;
 
 extern bool enable_vmware_backdoor;
@@ -490,5 +501,25 @@ int kvm_sev_es_mmio_read(struct kvm_vcpu *vcpu, gpa_t src, unsigned int bytes,
 int kvm_sev_es_string_io(struct kvm_vcpu *vcpu, unsigned int size,
 			 unsigned int port, void *data,  unsigned int count,
 			 int in);
+
+/*
+ * We've already loaded guest MSRs in __msr_io() when check the MSR index.
+ * In case vcpu has been preempted, we need to disable preemption, check
+ * and reload the guest fpu states before issue MSR read/write,
+ * fpu_lock_and_load() serves the purpose well.
+ */
+static inline void kvm_get_xsave_msr(struct msr_data *msr_info)
+{
+	fpu_lock_and_load();
+	rdmsrl(msr_info->index, msr_info->data);
+	fpregs_unlock();
+}
+
+static inline void kvm_set_xsave_msr(struct msr_data *msr_info)
+{
+	fpu_lock_and_load();
+	wrmsrl(msr_info->index, msr_info->data);
+	fpregs_unlock();
+}
 
 #endif
