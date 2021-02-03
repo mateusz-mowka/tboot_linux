@@ -1865,7 +1865,8 @@ static bool cet_is_msr_accessible(struct kvm_vcpu *vcpu,
 	    !guest_cpuid_has(vcpu, X86_FEATURE_IBT))
 		return false;
 
-	if (msr->index == MSR_IA32_PL3_SSP &&
+	if ((msr->index == MSR_IA32_PL3_SSP ||
+	     msr->index == MSR_KVM_GUEST_SSP) &&
 	    !guest_cpuid_has(vcpu, X86_FEATURE_SHSTK))
 		return false;
 
@@ -2013,9 +2014,13 @@ int vmx_get_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		break;
 	case MSR_IA32_U_CET:
 	case MSR_IA32_PL3_SSP:
+	case MSR_KVM_GUEST_SSP:
 		if (!cet_is_msr_accessible(vcpu, msr_info))
 			return 1;
-		kvm_get_xsave_msr(msr_info);
+		if (msr_info->index == MSR_KVM_GUEST_SSP)
+			msr_info->data = vmcs_readl(GUEST_SSP);
+		else
+			kvm_get_xsave_msr(msr_info);
 		break;
 	case MSR_IA32_DEBUGCTLMSR:
 		msr_info->data = vmcs_read64(GUEST_IA32_DEBUGCTL);
@@ -2365,12 +2370,16 @@ int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		kvm_set_xsave_msr(msr_info);
 		break;
 	case MSR_IA32_PL3_SSP:
+	case MSR_KVM_GUEST_SSP:
 		if (!cet_is_msr_accessible(vcpu, msr_info))
 			return 1;
 		if ((data & GENMASK(2, 0)) ||
 		    is_noncanonical_address(data, vcpu))
 			return 1;
-		kvm_set_xsave_msr(msr_info);
+		if (msr_index == MSR_KVM_GUEST_SSP)
+			vmcs_writel(GUEST_SSP, data);
+		else
+			kvm_set_xsave_msr(msr_info);
 		break;
 	case MSR_IA32_PERF_CAPABILITIES:
 		if (data && !vcpu_to_pmu(vcpu)->version)
