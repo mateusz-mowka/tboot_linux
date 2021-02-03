@@ -277,6 +277,16 @@ static void enter_smm_save_state_64(struct kvm_vcpu *vcpu,
 	enter_smm_save_seg_64(vcpu, &smram->gs, VCPU_SREG_GS);
 
 	smram->int_shadow = static_call(kvm_x86_get_interrupt_shadow)(vcpu);
+
+	if (kvm_cet_user_supported()) {
+		struct msr_data msr;
+
+		msr.index = MSR_KVM_GUEST_SSP;
+		msr.host_initiated = true;
+		/* GUEST_SSP is stored in VMCS at vm-exit. */
+		static_call(kvm_x86_get_msr)(vcpu, &msr);
+		smram->ssp = msr.data;
+	}
 }
 #endif
 
@@ -566,6 +576,16 @@ static int rsm_load_state_64(struct x86_emulate_ctxt *ctxt,
 
 	static_call(kvm_x86_set_interrupt_shadow)(vcpu, 0);
 	ctxt->interruptibility = (u8)smstate->int_shadow;
+
+	if (kvm_cet_user_supported()) {
+		struct msr_data msr;
+
+		msr.index = MSR_KVM_GUEST_SSP;
+		msr.host_initiated = true;
+		msr.data = smstate->ssp;
+		/* Mimic host_initiated access to bypass ssp access check. */
+		static_call(kvm_x86_set_msr)(vcpu, &msr);
+	}
 
 	return X86EMUL_CONTINUE;
 }
