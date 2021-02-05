@@ -26,7 +26,7 @@ if [ $? != 0 ]; then
 
 	git remote add drm-cache git://anongit.freedesktop.org/drm/drm-tip
 fi
-git fetch drm-cache
+#git fetch drm-cache
 git checkout drm-cache/rerere-cache -- rr-cache 
 cp -rf rr-cache .git
 rm -rf rr-cache

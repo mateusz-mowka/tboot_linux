@@ -36,9 +36,9 @@ create_defconfig intel_next_generic_defconfig intel_next_generic_defconfig  "int
 #intel-next clear config base off ubuntu with few options set to y
 create_defconfig intel_next_generic_defconfig intel_next_clear_generic_defconfig  "intel_next_config_options.config clear_fragments/clear.*.config"
 #intel-next dcg rpm config  with dbg off
-create_defconfig dcg_x86_64_defconfig  dcg_x86_64_defconfig "intel_next_config_options.config dcg_fragments/dcg.*.config clear_fragments/clear.*.config"
+create_defconfig dcg_x86_64_defconfig  dcg_x86_64_defconfig "intel_next_config_options.config dcg_fragments/dcg.*.config clear_fragments/clear.*.config overlay_fragments/overlay.config"
 #intel-next ubuntu based fedora rpm config with dbg off 
-create_defconfig intel_next_generic_defconfig intel_next_rpm_defconfig  "intel_next_config_options.config fedora_fragments/fedora.*.config clear_fragments/clear.*.config"
+create_defconfig intel_next_generic_defconfig intel_next_rpm_defconfig  "intel_next_config_options.config  clear_fragments/clear.*.config overlay_fragments/overlay.config"
 
 #copy generated configs to correct folder
 cp -rfv new_configs/* $CONFIG_FOLDER
