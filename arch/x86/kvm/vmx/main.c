@@ -700,7 +700,7 @@ static void vt_patch_hypercall(struct kvm_vcpu *vcpu,
 static void vt_inject_irq(struct kvm_vcpu *vcpu, bool reinjected)
 {
 	if (is_td_vcpu(vcpu))
-		return;
+		return tdx_inject_irq(vcpu);
 
 	vmx_inject_irq(vcpu, reinjected);
 }

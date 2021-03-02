@@ -2582,6 +2582,22 @@ void tdx_deliver_interrupt(struct kvm_lapic *apic, int delivery_mode,
 	__vmx_deliver_posted_interrupt(vcpu, &tdx->pi_desc, vector);
 }
 
+void tdx_inject_irq(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_tdx *tdx = to_tdx(vcpu);
+	int vector;
+
+	vector = vcpu->arch.interrupt.nr;
+
+	/* See comment in tdx_protected_apic_has_interrupt(). */
+	tdx->buggy_hlt_workaround = 1;
+	/* TDX supports only posted interrupt.  No lapic emulation. */
+	__vmx_deliver_posted_interrupt(vcpu, &tdx->pi_desc, vector);
+	pr_info("%s vector %d \n", __func__, vector);
+
+	kvm_clear_interrupt_queue(vcpu);
+}
+
 static int tdx_handle_ept_violation(struct kvm_vcpu *vcpu)
 {
 	union tdx_ext_exit_qualification ext_exit_qual;
