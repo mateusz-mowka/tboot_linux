@@ -1415,3 +1415,29 @@ u8 get_hybrid_cpu_type(int cpu)
 	smp_call_function_single(cpu, __do_get_get_hybrid_cpu_type, &type, true);
 	return type;
 }
+
+/**
+ * get_hybrid_cpu_params() - Get the parameters of a hybrid CPU
+ * @cpu:	The CPU in question
+ *
+ * Returns in a single value both the native model ID ([23:0}) and the CPU
+ * type of @cpu ([31:24]). If the processor is not hybrid, returns 0.
+ */
+u32 get_hybrid_cpu_params(int cpu)
+{
+	u32 params;
+
+	if (!cpu_feature_enabled(X86_FEATURE_HYBRID_CPU))
+		return 0;
+
+	if (cpu < 0 || cpu >= nr_cpu_ids)
+		return 0;
+
+	if (cpu == smp_processor_id()) {
+		__do_get_hybrid_params(&params);
+		return params;
+	}
+
+	smp_call_function_single(cpu, __do_get_hybrid_params, &params, true);
+	return params;
+}
