@@ -1381,3 +1381,27 @@ u8 get_this_hybrid_cpu_type(void)
 
 	return cpuid_eax(0x0000001a) >> X86_HYBRID_CPU_TYPE_ID_SHIFT;
 }
+
+static void __do_get_get_hybrid_cpu_type(void *data)
+{
+	u8 *type = data;
+
+	*type = get_this_hybrid_cpu_type();
+}
+
+u8 get_hybrid_cpu_type(int cpu)
+{
+	u8 type;
+
+	if (!cpu_feature_enabled(X86_FEATURE_HYBRID_CPU))
+		return 0;
+
+	if (cpu < 0 || cpu >= nr_cpu_ids)
+		return 0;
+
+	if (cpu == smp_processor_id())
+		return get_this_hybrid_cpu_type();
+
+	smp_call_function_single(cpu, __do_get_get_hybrid_cpu_type, &type, true);
+	return type;
+}
