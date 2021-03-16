@@ -1366,6 +1366,16 @@ void __init sld_setup(struct cpuinfo_x86 *c)
 	sld_state_show();
 }
 
+static void __do_get_hybrid_params(void *data)
+{
+	u32 *params = data;
+
+	if (!cpu_feature_enabled(X86_FEATURE_HYBRID_CPU))
+		*params = 0;
+
+	*params = cpuid_eax(0x0000001a);
+}
+
 #define X86_HYBRID_CPU_TYPE_ID_SHIFT	24
 
 /**
@@ -1376,10 +1386,10 @@ void __init sld_setup(struct cpuinfo_x86 *c)
  */
 u8 get_this_hybrid_cpu_type(void)
 {
-	if (!cpu_feature_enabled(X86_FEATURE_HYBRID_CPU))
-		return 0;
+	u32 params;
 
-	return cpuid_eax(0x0000001a) >> X86_HYBRID_CPU_TYPE_ID_SHIFT;
+	__do_get_hybrid_params(&params);
+	return params >> X86_HYBRID_CPU_TYPE_ID_SHIFT;
 }
 
 static void __do_get_get_hybrid_cpu_type(void *data)
