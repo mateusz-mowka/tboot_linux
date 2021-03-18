@@ -1615,7 +1615,7 @@ struct kvm_x86_ops {
 				 kvm_pfn_t pfn);
 	void (*drop_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
 				  kvm_pfn_t pfn);
-	void (*zap_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level);
+	int (*zap_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level);
 	void (*unzap_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level);
 	int (*link_private_sp)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
 			       void *private_sp);

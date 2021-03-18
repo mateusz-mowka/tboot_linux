@@ -2278,7 +2278,7 @@ static int tdx_sept_split_private_spte(struct kvm *kvm, gfn_t gfn,
 	return 0;
 }
 
-static void tdx_sept_zap_private_spte(struct kvm *kvm, gfn_t gfn,
+static int tdx_sept_zap_private_spte(struct kvm *kvm, gfn_t gfn,
 				      enum pg_level level)
 {
 	int tdx_level = pg_level_to_tdx_sept_level(level);
@@ -2294,6 +2294,8 @@ static void tdx_sept_zap_private_spte(struct kvm *kvm, gfn_t gfn,
 		pr_tdx_error(TDH_MEM_RANGE_BLOCK, err, &out);
 
 	WRITE_ONCE(kvm_tdx->has_range_blocked, true);
+
+	return err;
 }
 
 /*
