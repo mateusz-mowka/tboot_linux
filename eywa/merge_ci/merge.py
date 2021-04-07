@@ -1,4 +1,9 @@
 #!/usr/bin/python3 -u
+#Intel Next merge script used to generate intel-next kernel
+#Requires tabulate library to be installed from pip and git
+#manifest_in.json should be in the same directory as this script
+#regen option (-r) also depends on the regen_configs.sh script in the same path as this script
+
 import json
 import subprocess
 import sys
@@ -316,13 +321,26 @@ def print_manifest_log(manifest):
                 #If we want to print out DISABLED branches them change for loop above
                 f.write("#DISABLED {} {}\n\n".format(branch["repourl"],branch["branch"]))
 
+def list_manifest():
+    manifest = read_manifest(manifest_in_path)
+    headers = ["name","git remote name/branch","enabled"]
+    data = []
+    for branch in manifest["topic_branches"]:
+        data.append([branch["name"],"{}/{}".format(sanitize_repo_name(branch["repourl"]),branch["branch"]),str(branch["enabled"])])
+
+    print(tabulate.tabulate(data,headers,tablefmt="simple"))
 
 def gen_manifest(skip_fetch,fetch_single,fetch_all,blacklist,whitelist,enable_list):
  
     manifest=read_manifest(manifest_in_path)
-    #Process whitelist
-    #Don't check to make sure each argument passed it was valid. The user can figure that out
-    if whitelist != None:
+
+    #If any of the parameters are invalid exit the progran
+    for branch_name in blacklist+whitelist+enable_list:
+        if branch_name not in [branch["name"] for branch in manifest["topic_branches"]]:
+           raise Exception("{} is not a valid branch".format(branch_name))
+
+    #process whitelist
+    if whitelist != []:
         topic_branches =[]
         #Do it in this order so we can re-order the manifest based on cmdline
         for name in whitelist:
@@ -540,6 +558,7 @@ def main():
     parser = argparse.ArgumentParser(description=script_name)
     parser.add_argument('-s','--skip_fetch', help='skip git fetch',action='store_true')
     parser.add_argument('-g','--gen_manifest', help='just generate manifest and don\'t merge',action='store_true')
+    parser.add_argument('-l','--list_manifest', help='list manifest.in branches and status and exit',action='store_true')
     parser.add_argument('-c','--continue_merge', help='continue merge using manifest.json/patch_manifest',action='store_true')
     parser.add_argument('-v','--verbose_mode', help='output all git output to terminal',action='store_true')
     parser.add_argument('-m','--master_branch', help='use HEAD of master branch instead of latest tag',action='store_true')
@@ -564,7 +583,7 @@ def main():
     blacklist = []
     if args.blacklist != None:
         blacklist = args.blacklist.split(",")
-    whitelist = None
+    whitelist = []
     if args.whitelist != None:
         whitelist = args.whitelist.split(",")
     enable_list = []
@@ -574,7 +593,11 @@ def main():
 
     global verbose_mode
     verbose_mode = args.verbose_mode
-   
+
+    if args.list_manifest == True:
+        list_manifest()
+        return
+
     if continue_merge == False:
         open_logs("w")
         manifest = gen_manifest(skip_fetch,fetch_single,fetch_all,blacklist,whitelist,enable_list)
