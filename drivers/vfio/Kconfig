@@ -44,6 +44,17 @@ config VFIO_NOIOMMU
 
 	  If you don't know what to do here, say N.
 
+config VFIO_IMS
+	tristate "VFIO common lib code supporting Interrupt Message Store (IMS)"
+	depends on VFIO && EVENTFD
+	select IMS_MSI_ARRAY
+	select IRQ_BYPASS_MANAGER
+	default n
+	help
+	  Provide common library code to deal with IMS interrupts.
+
+	  If you don't know what to do here, say N.
+
 source "drivers/vfio/pci/Kconfig"
 source "drivers/vfio/platform/Kconfig"
 source "drivers/vfio/mdev/Kconfig"

@@ -13,6 +13,7 @@
 #include <linux/mm.h>
 #include <linux/workqueue.h>
 #include <linux/poll.h>
+#include <linux/irqbypass.h>
 #include <uapi/linux/vfio.h>
 #include <linux/cdev.h>
 
@@ -28,6 +29,22 @@ struct vfio_device_set {
 	struct mutex lock;
 	struct list_head device_list;
 	unsigned int device_count;
+};
+
+struct vfio_ims_entry {
+	struct eventfd_ctx *trigger;
+	struct irq_bypass_producer producer;
+	char *name;
+	bool ims;
+	int ims_id;
+};
+
+struct vfio_ims {
+	struct vfio_ims_entry *ims_entries;
+	int num;
+	int ims_num;
+	int irq_type;
+	bool ims_en;
 };
 
 struct vfio_device {
@@ -48,7 +65,13 @@ struct vfio_device {
 	unsigned int open_count;
 	struct completion comp;
 	struct list_head group_next;
+	struct vfio_ims ims;
 };
+
+static inline struct vfio_device *ims_to_vdev(struct vfio_ims *ims)
+{
+	return container_of(ims, struct vfio_device, ims);
+}
 
 /**
  * struct vfio_device_ops - VFIO bus driver device callbacks
@@ -263,5 +286,33 @@ void vfio_virqfd_disable(struct virqfd **pvirqfd);
 extern void vfio_device_set_pasid(struct vfio_device *device, u32 pasid);
 extern u32 vfio_device_get_pasid(struct vfio_device *device);
 extern void vfio_device_set_msi_domain(struct vfio_device *device, struct irq_domain *domain);
+
+/*
+ * IMS - generic
+ */
+#if IS_ENABLED(CONFIG_VFIO_IMS)
+int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
+			 unsigned int start, unsigned int count, u32 flags,
+			 void *data);
+void vfio_ims_send_signal(struct vfio_device *vdev, int vector);
+int vfio_ims_init(struct vfio_device *vdev, int num, bool *ims_map);
+void vfio_ims_free(struct vfio_device *vdev);
+#else
+static inline int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
+				       unsigned int start, unsigned int count, u32 flags,
+				       void *data)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline void vfio_ims_send_signal(struct vfio_device *vdev, int vector) {}
+
+static inline int vfio_ims_init(struct vfio_device *vdev, int num, bool *ims_map)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline void void vfio_ims_free(struct vfio_device *vdev) {}
+#endif /* CONFIG_VFIO_MDEV_IMS */
 
 #endif /* VFIO_H */
