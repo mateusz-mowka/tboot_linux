@@ -390,7 +390,7 @@ Description: Linux kernel version specific tools for version $packageversion
 EOF
 
 # OOT: build and include x86 tools
-$MAKE  NO_LIBPYTHON=1 NO_LIBPERL=1 tools/perf
+NO_LIBPYTHON=1 NO_LIBPERL=1 $MAKE -C tools perf
 $MAKE -C tools/power/x86/x86_energy_perf_policy
 $MAKE -C tools/power/x86/turbostat
 $MAKE tools/intel-speed-select
@@ -455,7 +455,7 @@ clean:
 binary: binary-arch
 EOF
 	mv ${KDEB_SOURCENAME}.tar.gz ../${sourcename}_${version}.orig.tar.gz
-	tar caf ../${sourcename}_${packageversion}.debian.tar.gz debian/{copyright,rules,changelog,control}
+	tar cavf ../${sourcename}_${packageversion}.debian.tar.gz debian/copyright debian/rules debian/changelog debian/control
 	dpkg-source -cdebian/control -ldebian/changelog --format="3.0 (custom)" --target-format="3.0 (quilt)" \
 		-b / ../${sourcename}_${version}.orig.tar.gz  ../${sourcename}_${packageversion}.debian.tar.gz
 	mv ${sourcename}_${packageversion}*dsc ..

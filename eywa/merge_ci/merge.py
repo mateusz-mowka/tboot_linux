@@ -321,12 +321,25 @@ def print_manifest_log(manifest):
                 #If we want to print out DISABLED branches them change for loop above
                 f.write("#DISABLED {} {}\n\n".format(branch["repourl"],branch["branch"]))
 
-def list_manifest():
+def list_manifest(list_repos):
+    """
+        Read in manifest_in and print out the manifest in txt format.
+
+        Args:
+        list_repos:(bool) if true print "repourl branch
+    """
     manifest = read_manifest(manifest_in_path)
-    headers = ["name","git remote name/branch","enabled"]
+    git_header = "git remote name/branch"
+    if list_repos:
+        git_header = "git repo branch"
+    headers = ["name",git_header,"enabled"]
     data = []
     for branch in manifest["topic_branches"]:
-        data.append([branch["name"],"{}/{}".format(sanitize_repo_name(branch["repourl"]),branch["branch"]),str(branch["enabled"])])
+       repo_branch = "{} {}".format(branch["repourl"],branch["branch"])
+       #print git remote name
+       if list_repos == False:
+           repo_branch = "{}/{}".format(sanitize_repo_name(branch["repourl"]),branch["branch"])
+       data.append([branch["name"],repo_branch,str(branch["enabled"])])
 
     print(tabulate.tabulate(data,headers,tablefmt="simple"))
 
@@ -558,7 +571,8 @@ def main():
     parser = argparse.ArgumentParser(description=script_name)
     parser.add_argument('-s','--skip_fetch', help='skip git fetch',action='store_true')
     parser.add_argument('-g','--gen_manifest', help='just generate manifest and don\'t merge',action='store_true')
-    parser.add_argument('-l','--list_manifest', help='list manifest.in branches and status and exit',action='store_true')
+    parser.add_argument('-l','--list_manifest', help='list manifest.in branches with name, git remote and status',action='store_true')
+    parser.add_argument('-lr','--list_manifest_repos', help='list manifest.in branches with name,git repos and status',action='store_true')
     parser.add_argument('-c','--continue_merge', help='continue merge using manifest.json/patch_manifest',action='store_true')
     parser.add_argument('-v','--verbose_mode', help='output all git output to terminal',action='store_true')
     parser.add_argument('-m','--master_branch', help='use HEAD of master branch instead of latest tag',action='store_true')
@@ -594,8 +608,8 @@ def main():
     global verbose_mode
     verbose_mode = args.verbose_mode
 
-    if args.list_manifest == True:
-        list_manifest()
+    if args.list_manifest == True or args.list_manifest_repos:
+        list_manifest(args.list_manifest_repos)
         return
 
     if continue_merge == False:

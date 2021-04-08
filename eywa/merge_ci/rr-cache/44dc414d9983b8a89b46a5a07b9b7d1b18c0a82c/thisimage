@@ -35,7 +35,6 @@ x86-specific Documentation
    resctrl
    tsx_async_abort
    usb-legacy-support
-   user-interrupts
    i386/index
    x86_64/index
    sva
