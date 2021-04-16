@@ -66,6 +66,7 @@ struct vfio_device {
 	struct completion comp;
 	struct list_head group_next;
 	struct vfio_ims ims;
+	struct eventfd_ctx *req_trigger;
 };
 
 static inline struct vfio_device *ims_to_vdev(struct vfio_ims *ims)
@@ -287,6 +288,15 @@ extern void vfio_device_set_pasid(struct vfio_device *device, u32 pasid);
 extern u32 vfio_device_get_pasid(struct vfio_device *device);
 extern void vfio_device_set_msi_domain(struct vfio_device *device, struct irq_domain *domain);
 extern int vfio_device_msi_hwirq(struct vfio_device *device, int index);
+
+/* common lib functions */
+extern int vfio_set_ctx_trigger_single(struct eventfd_ctx **ctx,
+				       unsigned int count, u32 flags,
+				       void *data);
+extern int vfio_set_req_trigger(struct vfio_device *vdev, unsigned int index,
+				unsigned int start, unsigned int count, u32 flags,
+				void *data);
+extern void vfio_device_request(struct vfio_device *vdev, unsigned int count);
 
 /*
  * IMS - generic
