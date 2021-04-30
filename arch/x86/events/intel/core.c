@@ -4561,6 +4561,11 @@ static struct attribute *intel_arch_formats_attr[] = {
 	NULL,
 };
 
+static struct attribute *any_thread_format_attr[] = {
+	&format_attr_any.attr,
+	NULL
+};
+
 ssize_t intel_event_sysfs_show(char *page, u64 config)
 {
 	u64 event = (config & ARCH_PERFMON_EVENTSEL_EVENT);
@@ -4903,17 +4908,6 @@ PMU_FORMAT_ATTR(ldlat, "config1:0-15");
 
 PMU_FORMAT_ATTR(frontend, "config1:0-23");
 
-static struct attribute *intel_arch3_formats_attr[] = {
-	&format_attr_event.attr,
-	&format_attr_umask.attr,
-	&format_attr_edge.attr,
-	&format_attr_pc.attr,
-	&format_attr_any.attr,
-	&format_attr_inv.attr,
-	&format_attr_cmask.attr,
-	NULL,
-};
-
 static struct attribute *hsw_format_attr[] = {
 	&format_attr_in_tx.attr,
 	&format_attr_in_tx_cp.attr,
@@ -5016,7 +5010,7 @@ static __initconst const struct x86_pmu intel_pmu = {
 	.put_event_constraints	= intel_put_event_constraints,
 	.pebs_aliases		= intel_pebs_aliases_core2,
 
-	.format_attrs		= intel_arch3_formats_attr,
+	.format_attrs		= intel_arch_formats_attr,
 	.events_sysfs_show	= intel_event_sysfs_show,
 
 	.cpu_prepare		= intel_pmu_cpu_prepare,
@@ -5612,6 +5606,11 @@ static struct attribute_group group_format_extra_skl = {
 	.is_visible = exra_is_visible,
 };
 
+static struct attribute_group group_format_any = {
+	.name       = "format",
+	.is_visible = exra_is_visible,
+};
+
 static struct attribute_group group_default = {
 	.attrs      = intel_pmu_attrs,
 	.is_visible = default_is_visible,
@@ -5625,6 +5624,7 @@ static const struct attribute_group *attr_update[] = {
 	&group_caps_lbr,
 	&group_format_extra,
 	&group_format_extra_skl,
+	&group_format_any,
 	&group_default,
 	NULL,
 };
@@ -5845,6 +5845,7 @@ static const struct attribute_group *hybrid_attr_update[] = {
 	&group_caps_gen,
 	&group_caps_lbr,
 	&hybrid_group_format_extra,
+	&group_format_any,
 	&group_default,
 	&hybrid_group_cpus,
 	NULL,
@@ -6061,11 +6062,13 @@ __init int intel_pmu_init(void)
 
 	x86_add_quirk(intel_arch_events_quirk); /* Install first, so it runs last */
 
-	if (version >= 5) {
+	group_format_any.attrs = &empty_attrs;
+	if (version >= 5)
 		x86_pmu.intel_cap.anythread_deprecated = edx.split.anythread_deprecated;
-		if (x86_pmu.intel_cap.anythread_deprecated)
-			pr_cont(" AnyThread deprecated, ");
-	}
+	if (x86_pmu.intel_cap.anythread_deprecated)
+		pr_cont(" AnyThread deprecated, ");
+	else if (version >= 3)
+		group_format_any.attrs = any_thread_format_attr;
 
 	/*
 	 * Install the hw-cache-events table:
@@ -6849,10 +6852,6 @@ __init int intel_pmu_init(void)
 				     &x86_pmu.num_counters_fixed,
 				     &x86_pmu.intel_ctrl,
 				     (u64)fixed_mask);
-
-	/* AnyThread may be deprecated on arch perfmon v5 or later */
-	if (x86_pmu.intel_cap.anythread_deprecated)
-		x86_pmu.format_attrs = intel_arch_formats_attr;
 
 	intel_pmu_check_event_constraints(x86_pmu.event_constraints,
 					  x86_pmu.num_counters,
