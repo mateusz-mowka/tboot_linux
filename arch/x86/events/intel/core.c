@@ -4543,6 +4543,7 @@ static void spr_limit_period(struct perf_event *event, s64 *left)
 
 PMU_FORMAT_ATTR(event,	"config:0-7"	);
 PMU_FORMAT_ATTR(umask,	"config:8-15"	);
+PMU_FORMAT_ATTR(umask2,	"config:8-15,40-47"); /* v6 + */
 PMU_FORMAT_ATTR(edge,	"config:18"	);
 PMU_FORMAT_ATTR(pc,	"config:19"	);
 PMU_FORMAT_ATTR(any,	"config:21"	); /* v3 + */
@@ -4550,6 +4551,7 @@ PMU_FORMAT_ATTR(inv,	"config:23"	);
 PMU_FORMAT_ATTR(cmask,	"config:24-31"	);
 PMU_FORMAT_ATTR(in_tx,  "config:32");
 PMU_FORMAT_ATTR(in_tx_cp, "config:33");
+PMU_FORMAT_ATTR(z,	"config:36"); /* v6 + */
 
 static struct attribute *intel_arch_formats_attr[] = {
 	&format_attr_event.attr,
@@ -4558,6 +4560,17 @@ static struct attribute *intel_arch_formats_attr[] = {
 	&format_attr_pc.attr,
 	&format_attr_inv.attr,
 	&format_attr_cmask.attr,
+	NULL,
+};
+
+static struct attribute *intel_arch6_formats_attr[] = {
+	&format_attr_event.attr,
+	&format_attr_umask2.attr,
+	&format_attr_edge.attr,
+	&format_attr_pc.attr,
+	&format_attr_inv.attr,
+	&format_attr_cmask.attr,
+	&format_attr_z.attr,
 	NULL,
 };
 
@@ -5986,6 +5999,7 @@ __init int intel_pmu_init(void)
 	union cpuid10_edx edx;
 	union cpuid10_eax eax;
 	union cpuid10_ebx ebx;
+	unsigned int cpuid33_eax, cpuid33_ebx, cpuid33_ecx, cpuid33_edx;
 	unsigned int fixed_mask;
 	bool pmem = false;
 	int version, i;
@@ -6020,9 +6034,27 @@ __init int intel_pmu_init(void)
 
 	x86_pmu.version			= version;
 	x86_pmu.num_counters		= eax.split.num_counters;
-	x86_pmu.cntval_bits		= eax.split.bit_width;
-	x86_pmu.cntval_mask		= (1ULL << eax.split.bit_width) - 1;
 
+	/*
+	 * TODO:
+	 * Update cpuid33 enumeration code when we have a clear define for the new leaf.
+	 */
+	if (version >= 6) {
+		cpuid(33, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
+		if (cpuid33_edx > 0) {
+			cpuid_count(33, 1, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
+			x86_pmu.num_counters = fls(cpuid33_eax);
+			fixed_mask = cpuid33_ebx;
+		}
+
+		if (WARN_ONCE(x86_pmu.num_counters > MAX_PEBS_EVENTS,
+		    "hw perf events (%d) > MAX_PEBS_EVENTS (%d), clipping!\n",
+		    x86_pmu.num_counters, MAX_PEBS_EVENTS))
+			x86_pmu.num_counters = MAX_PEBS_EVENTS;
+	}
+
+	x86_pmu.cntval_mask		= (1ULL << eax.split.bit_width) - 1;
+	x86_pmu.cntval_bits		= eax.split.bit_width;
 	x86_pmu.events_maskl		= ebx.full;
 	x86_pmu.events_mask_len		= eax.split.mask_length;
 
@@ -6069,6 +6101,9 @@ __init int intel_pmu_init(void)
 		pr_cont(" AnyThread deprecated, ");
 	else if (version >= 3)
 		group_format_any.attrs = any_thread_format_attr;
+
+	if (version >= 6)
+		x86_pmu.format_attrs = intel_arch6_formats_attr;
 
 	/*
 	 * Install the hw-cache-events table:
