@@ -443,6 +443,12 @@ static __always_inline void setup_hreset(struct cpuinfo_x86 *c)
 	pr_info_once("x86/cpu: Intel History Reset (HRESET) activated\n");
 }
 
+void hreset_reload(void)
+{
+	if (hardware_history_features)
+		wrmsrl(MSR_IA32_HW_HRESET_ENABLE, hardware_history_features);
+}
+
 /* These bits should not change their value after CPU init is finished. */
 static const unsigned long cr4_pinned_mask =
 	X86_CR4_SMEP | X86_CR4_SMAP | X86_CR4_UMIP |
