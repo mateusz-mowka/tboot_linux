@@ -3555,6 +3555,13 @@ static void record_steal_time(struct kvm_vcpu *vcpu)
 	mark_page_dirty_in_slot(vcpu->kvm, ghc->memslot, gpa_to_gfn(ghc->gpa));
 }
 
+static void kvm_vcpu_req_sleep(struct kvm_vcpu *vcpu)
+{
+	struct rcuwait *wait = kvm_arch_vcpu_get_wait(vcpu);
+
+	rcuwait_wait_event(wait, !vcpu->arch.pause, TASK_UNINTERRUPTIBLE);
+}
+
 int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 {
 	bool pr = false;
@@ -10234,6 +10241,8 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 			goto out;
 		}
 
+		if (kvm_check_request(KVM_REQ_SLEEP, vcpu))
+			kvm_vcpu_req_sleep(vcpu);
 		if (kvm_check_request(KVM_REQ_GET_NESTED_STATE_PAGES, vcpu)) {
 			if (unlikely(!kvm_x86_ops.nested_ops->get_nested_state_pages(vcpu))) {
 				r = 0;
@@ -12138,6 +12147,10 @@ int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 	kvm_hv_init_vm(kvm);
 	kvm_xen_init_vm(kvm);
 
+#ifdef CONFIG_X86_SGX_KVM
+	mutex_init(&kvm->arch.sgx_notifier_lock);
+#endif
+
 	return 0;
 
 out_uninit_mmu:
@@ -12283,6 +12296,10 @@ void kvm_arch_destroy_vm(struct kvm *kvm)
 	kvfree(rcu_dereference_check(kvm->arch.apic_map, 1));
 	kfree(srcu_dereference_check(kvm->arch.pmu_event_filter, &kvm->srcu, 1));
 	kvm_mmu_uninit_vm(kvm);
+#ifdef CONFIG_X86_SGX_KVM
+	if (kvm->arch.sgx_notifier.ops)
+		sgx_kvm_notifier_unregister(&kvm->arch.sgx_notifier);
+#endif
 	kvm_page_track_cleanup(kvm);
 	kvm_xen_destroy_vm(kvm);
 	kvm_hv_destroy_vm(kvm);
