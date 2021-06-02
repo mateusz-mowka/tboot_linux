@@ -8,6 +8,8 @@
 #include <linux/msi.h>
 #include <linux/irq.h>
 #include <linux/irqdomain.h>
+#include <linux/interrupt.h>
+#include <linux/ioasid.h>
 
 #include <linux/irqchip/irq-ims-msi.h>
 
@@ -100,6 +102,7 @@ static void ims_array_free_msi_store(struct irq_domain *domain,
 			ims_array_reset_slot(entry->device_msi.priv_iomem);
 			entry->device_msi.priv_iomem = NULL;
 			entry->device_msi.hwirq = 0;
+			irq_set_auxdata(entry->irq, IMS_AUXDATA_CONTROL_WORD, 0);
 		}
 	}
 }
@@ -121,6 +124,19 @@ static int ims_array_alloc_msi_store(struct irq_domain *domain,
 		entry->device_msi.priv_iomem = &ims->info.slots[idx];
 		ims_array_reset_slot(entry->device_msi.priv_iomem);
 		entry->device_msi.hwirq = idx;
+		if (dev->pasid != INVALID_IOASID) {
+			struct ims_slot __iomem *slot = entry->device_msi.priv_iomem;
+			u32 __iomem *ctrl = &slot->ctrl;
+			u32 val, auxval;
+
+			/*
+			 * At this point can't use irq_set_auxdata due to infrastructure
+			 * not fully setup yet. Need to directly program IMS MMIO.
+			 */
+			auxval = ims_ctrl_pasid_aux(dev_get_pasid(dev), true);
+			val = ioread32(ctrl) & IMS_CONTROL_WORD_IRQMASK;
+			iowrite32_and_flush(val | (u32) auxval, ctrl);
+		}
 	}
 	return 0;
 
