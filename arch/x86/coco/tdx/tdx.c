@@ -5,6 +5,7 @@
 #define pr_fmt(fmt)     "tdx: " fmt
 
 #include <linux/cpufeature.h>
+#include <linux/platform-feature.h>
 #include <linux/random.h>
 #include <asm/coco.h>
 #include <asm/tdx.h>
@@ -779,6 +780,9 @@ void __init tdx_early_init(void)
 	 * just in case it's some kind of host attack.
 	 */
 	panic_on_oops = 1;
+
+	/* Set restricted memory access for virtio. */
+	platform_set(PLATFORM_VIRTIO_RESTRICTED_MEM_ACCESS);
 
 	cc_set_vendor(CC_VENDOR_INTEL);
 	cc_mask = get_cc_mask();
