@@ -30,6 +30,7 @@
 #include <linux/swiotlb.h>
 #include <linux/sysfs.h>
 #include <linux/dma-map-ops.h> /* for dma_default_coherent */
+#include <linux/ioasid.h> /* for pasid default init */
 
 #include "base.h"
 #include "physical_location.h"
@@ -2896,6 +2897,7 @@ void device_initialize(struct device *dev)
 #ifdef CONFIG_SWIOTLB
 	dev->dma_io_tlb_mem = &io_tlb_default_mem;
 #endif
+	dev->pasid = INVALID_IOASID;
 }
 EXPORT_SYMBOL_GPL(device_initialize);
 
