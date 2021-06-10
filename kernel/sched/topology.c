@@ -101,6 +101,8 @@ static int sched_domain_debug_one(struct sched_domain *sd, int cpu, int level,
 		if (group->sgc->capacity != SCHED_CAPACITY_SCALE)
 			printk(KERN_CONT " cap=%lu", group->sgc->capacity);
 
+		printk(KERN_CONT " flags=%x", group->flags);
+
 		if (group == sd->groups && sd->child &&
 		    !cpumask_equal(sched_domain_span(sd->child),
 				   sched_group_span(group))) {
