@@ -2078,6 +2078,10 @@
                 {
                     "name": "CONFIG_INTEL_HFI",
                     "value": "y"
+                },
+                {
+                    "name": "CONFIG_IDLE_INJECT",
+                    "value": "y"
                 }
             ],
             "contributor": [
@@ -3225,14 +3229,14 @@
                 }
             ],
             "description": "TDX KVM support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Isaku Yamahata",
                     "email": "isaku.yamahata@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2513",
             "name": "tdx_kvm_support",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/tdx/linux.git",
             "sdl_contact": [
@@ -3243,7 +3247,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.12"
+            "last_enabled": "v5.13"
         },
         {
             "branch": "prm",
@@ -3559,14 +3563,14 @@
                 }
             ],
             "description": "Introduces dev-msi and interrupt message store",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Megha Dey",
                     "email": "megha.dey@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2516",
             "name": "interrupt_message",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/meghadey/linux.git",
             "sdl_contact": [
@@ -3577,7 +3581,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.12"
+            "last_enabled": "v5.13"
         },
         {
             "branch": "scan_at_field_release",
@@ -4349,6 +4353,154 @@
                 }
             ],
             "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.13"
+        },
+        {
+            "branch": "next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_CXL_BUS",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_CXL_MEM",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_CXL_MEM_RAW_COMMANDS",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_CXL_ACPI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_CXL_PMEM",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Williams Dan",
+                    "email": "dan.j.williams@intel.com"
+                }
+            ],
+            "description": "CXL Memory Expander support targeting the next merge window",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2509",
+            "name": "cxl",
+            "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/cxl/cxl",
+            "sdl_contact": [
+                {
+                    "name": "Dan Williams",
+                    "email": "dan.j.williams@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.13"
+        },
+        {
+            "branch": "dev-queue",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Sasha Neftin",
+                    "email": "sasha.neftin@intel.com"
+                }
+            ],
+            "description": "Add handshake with the CSME to support s0ix",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Sasha Neftin",
+                    "email": "sasha.neftin@intel.com"
+                }
+            ],
+            "jira": "NEXT-2512",
+            "name": "e1000e",
+            "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/tnguy/next-queue.git",
+            "sdl_contact": [
+                {
+                    "name": "Sasha Neftin",
+                    "email": "sasha.neftin@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "75af1491879a0ba9c5de9492369202c60c5bc5f2",
+            "last_enabled": "v5.13"
+        },
+        {
+            "branch": "svos-next-tdx-pull-5.13",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Tom Stonecypher",
+                    "email": "tom.stonecypher@intel.com"
+                }
+            ],
+            "description": "SVOS KVM/TDX SEAM Loader Changes for v5.13",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Tom Stonecypher",
+                    "email": "tom.stonecypher@intel.com"
+                }
+            ],
+            "jira": "NEXT-2514",
+            "name": "svos_kvm_tdx_seam",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/svos/sv/kernel/svos_next.git",
+            "sdl_contact": [
+                {
+                    "name": "Tom Stonecypher",
+                    "email": "tom.stonecypher@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.13"
+        },
+        {
+            "branch": "main",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_WWAN_CORE",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_CCCI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_WWAN",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Chirar Rapolu",
+                    "email": "chiranjeevi.rapolu@intel.com"
+                }
+            ],
+            "description": "MediateTek 5G WWAN device driver",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2515",
+            "name": "WWAN",
+            "repourl": "https://github.com/intel-sandbox/mtk_5g_wwan.git",
+            "sdl_contact": [
+                {
+                    "name": "Chiranjeevi Rapolu",
+                    "email": "chiranjeevi.rapolu@intel.com"
+                }
+            ],
+            "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.13"
         }
