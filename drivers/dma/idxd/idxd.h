@@ -262,7 +262,12 @@ struct idxd_driver_data {
 };
 
 struct idxd_evl {
+	spinlock_t lock;
+	void *log;
+	dma_addr_t dma;
+	unsigned int log_size;
 	u16 size;
+	u16 head;
 };
 
 struct idxd_device {
