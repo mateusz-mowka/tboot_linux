@@ -285,6 +285,10 @@ struct vdev_device_ops {
 	int (*device_remove)(struct idxd_device *idxd, char *vdev_name);
 };
 
+struct idxd_evl {
+	u16 size;
+};
+
 struct idxd_device {
 	struct idxd_dev idxd_dev;
 	struct idxd_driver_data *data;
@@ -347,6 +351,7 @@ struct idxd_device {
 	struct ida vdev_ida;
 	struct vdev_device_ops *vdev_ops;
 	struct list_head vdev_list;
+	struct idxd_evl *evl;
 };
 
 struct crypto_ctx {
