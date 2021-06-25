@@ -261,6 +261,10 @@ struct idxd_driver_data {
 	int align;
 };
 
+struct idxd_evl {
+	u16 size;
+};
+
 struct idxd_device {
 	struct idxd_dev idxd_dev;
 	struct idxd_driver_data *data;
@@ -316,6 +320,7 @@ struct idxd_device {
 	struct idxd_pmu *idxd_pmu;
 
 	unsigned long *opcap_bmap;
+	struct idxd_evl *evl;
 };
 
 /* IDXD software descriptor */
