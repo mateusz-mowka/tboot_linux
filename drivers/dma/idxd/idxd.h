@@ -286,7 +286,15 @@ struct vdev_device_ops {
 };
 
 struct idxd_evl {
+	/* Lock to protect event log access. */
+	spinlock_t lock;
+	void *log;
+	dma_addr_t dma;
+	/* Total size of event log = number of entries * entry size. */
+	unsigned int log_size;
+	/* The number of entries in the event log. */
 	u16 size;
+	u16 head;
 };
 
 struct idxd_device {
@@ -361,6 +369,17 @@ struct crypto_ctx {
 	dma_addr_t dst_addr;
 	bool compress;
 };
+
+static inline unsigned int evl_ent_size(struct idxd_device *idxd)
+{
+	return idxd->hw.gen_cap.evl_support ?
+	       (32 * (1 << idxd->hw.gen_cap.evl_support)) : 0;
+}
+
+static inline unsigned int evl_size(struct idxd_device *idxd)
+{
+	return idxd->evl->size * evl_ent_size(idxd);
+}
 
 /* IDXD software descriptor */
 struct idxd_desc {
