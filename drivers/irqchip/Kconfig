@@ -679,4 +679,18 @@ config SUNPLUS_SP7021_INTC
 	  chained controller, routing all interrupt source in P-Chip to
 	  the primary controller on C-Chip.
 
+config IMS_MSI
+	depends on PCI
+	select DEVICE_MSI
+	bool
+
+config IMS_MSI_ARRAY
+	bool "IMS Interrupt Message Store MSI controller for device memory storage arrays"
+	depends on PCI
+	select IMS_MSI
+	select GENERIC_MSI_IRQ_DOMAIN
+	help
+	  Support for IMS Interrupt Message Store MSI controller
+	  with IMS slot storage in a slot array in device memory
+
 endmenu
