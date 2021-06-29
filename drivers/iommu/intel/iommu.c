@@ -260,6 +260,7 @@ clear_context_copied(struct intel_iommu *iommu, u8 bus, u8 devfn)
  */
 static struct dmar_domain *si_domain;
 static int hw_pass_through = 1;
+static int intel_caching_mode;
 
 struct dmar_rmrr_unit {
 	struct list_head list;		/* list of rmrr units	*/
@@ -3024,6 +3025,8 @@ static int __init init_dmars(void)
 
 		if (!ecap_pass_through(iommu->ecap))
 			hw_pass_through = 0;
+		if (cap_caching_mode(iommu->cap))
+			intel_caching_mode = 1;
 		intel_svm_check(iommu);
 	}
 
@@ -4574,6 +4577,8 @@ static bool intel_iommu_capable(struct device *dev, enum iommu_cap cap)
 		return dmar_platform_optin();
 	case IOMMU_CAP_ENFORCE_CACHE_COHERENCY:
 		return ecap_sc_support(info->iommu->ecap);
+	if (cap == IOMMU_CAP_VIOMMU_HINT)
+		return intel_caching_mode;
 	default:
 		return false;
 	}

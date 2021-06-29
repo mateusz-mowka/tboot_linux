@@ -135,6 +135,8 @@ enum iommu_cap {
 	 * this device.
 	 */
 	IOMMU_CAP_ENFORCE_CACHE_COHERENCY,
+	IOMMU_CAP_VIOMMU_HINT,		/* IOMMU can detect a hit for running in
+					   VM */
 };
 
 /* These are the possible reserved region types */

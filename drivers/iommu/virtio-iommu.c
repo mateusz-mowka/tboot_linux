@@ -1011,6 +1011,7 @@ static bool viommu_capable(struct device *dev, enum iommu_cap cap)
 {
 	switch (cap) {
 	case IOMMU_CAP_CACHE_COHERENCY:
+	case IOMMU_CAP_VIOMMU_HINT:
 		return true;
 	default:
 		return false;
