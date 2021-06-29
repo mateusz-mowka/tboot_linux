@@ -256,6 +256,7 @@ static inline void context_clear_entry(struct context_entry *context)
  */
 static struct dmar_domain *si_domain;
 static int hw_pass_through = 1;
+static int intel_caching_mode;
 
 #define for_each_domain_iommu(idx, domain)			\
 	for (idx = 0; idx < g_num_of_iommus; idx++)		\
@@ -3139,6 +3140,8 @@ static int __init init_dmars(void)
 
 		if (!ecap_pass_through(iommu->ecap))
 			hw_pass_through = 0;
+		if (cap_caching_mode(iommu->cap))
+			intel_caching_mode = 1;
 		intel_svm_check(iommu);
 	}
 
@@ -4632,6 +4635,8 @@ static bool intel_iommu_capable(enum iommu_cap cap)
 		return irq_remapping_enabled == 1;
 	if (cap == IOMMU_CAP_PRE_BOOT_PROTECTION)
 		return dmar_platform_optin();
+	if (cap == IOMMU_CAP_VIOMMU_HINT)
+		return intel_caching_mode;
 
 	return false;
 }
