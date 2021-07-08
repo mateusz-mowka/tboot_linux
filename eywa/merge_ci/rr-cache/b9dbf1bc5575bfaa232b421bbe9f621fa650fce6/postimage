@@ -777,6 +777,10 @@
 
 #define MSR_TFA_RTM_FORCE_ABORT_BIT	0
 #define MSR_TFA_RTM_FORCE_ABORT		BIT_ULL(MSR_TFA_RTM_FORCE_ABORT_BIT)
+#define MSR_TFA_TSX_CPUID_CLEAR_BIT	1
+#define MSR_TFA_TSX_CPUID_CLEAR		BIT_ULL(MSR_TFA_TSX_CPUID_CLEAR_BIT)
+#define MSR_TFA_SDV_ENABLE_RTM_BIT	2
+#define MSR_TFA_SDV_ENABLE_RTM		BIT_ULL(MSR_TFA_SDV_ENABLE_RTM_BIT)
 
 /* P4/Xeon+ specific */
 #define MSR_IA32_MCG_EAX		0x00000180
@@ -940,6 +944,12 @@
 #define MSR_VM_IGNNE                    0xc0010115
 #define MSR_VM_HSAVE_PA                 0xc0010117
 
+/* MSRs for Key Locker Internal (Wrapping) Key management */
+#define MSR_IA32_COPY_LOCAL_TO_PLATFORM	0x00000d91
+#define MSR_IA32_COPY_PLATFORM_TO_LOCAL	0x00000d92
+#define MSR_IA32_COPY_STATUS		0x00000990
+#define MSR_IA32_IWKEYBACKUP_STATUS	0x00000991
+
 /* Control-flow Enforcement Technology MSRs */
 #define MSR_IA32_U_CET		0x000006a0 /* user mode cet setting */
 #define MSR_IA32_S_CET		0x000006a2 /* kernel mode cet setting */
@@ -958,11 +968,5 @@
 #define MSR_IA32_PL2_SSP	0x000006a6 /* ring-2 shadow stack pointer */
 #define MSR_IA32_PL3_SSP	0x000006a7 /* user shadow stack pointer */
 #define MSR_IA32_INT_SSP_TAB	0x000006a8 /* exception shadow stack table */
-
-/* MSRs for Key Locker Internal (Wrapping) Key management */
-#define MSR_IA32_COPY_LOCAL_TO_PLATFORM	0x00000d91
-#define MSR_IA32_COPY_PLATFORM_TO_LOCAL	0x00000d92
-#define MSR_IA32_COPY_STATUS		0x00000990
-#define MSR_IA32_IWKEYBACKUP_STATUS	0x00000991
 
 #endif /* _ASM_X86_MSR_INDEX_H */

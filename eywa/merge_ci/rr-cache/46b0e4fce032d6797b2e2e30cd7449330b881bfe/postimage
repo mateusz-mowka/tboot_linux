@@ -59,36 +59,6 @@ static void msr_restore_context(struct saved_context *ctxt)
 	}
 }
 
-/*
- * The boot CPU executes this function, while other CPUs restore the key
- * through the setup path in setup_keylocker().
- */
-static void restore_keylocker(void)
-{
-	u64 keybackup_status;
-	bool keycopied;
-
-	if (!cpu_feature_enabled(X86_FEATURE_KEYLOCKER))
-		return;
-
-	keybackup_status = read_keylocker_backup_status();
-	if (WARN(!(keybackup_status & BIT(0)),
-		 "x86/keylocker: internal key restoration failed with %s\n",
-		 (keybackup_status & BIT(2)) ? "read error" : "invalid status"))
-		goto disable_keylocker;
-
-	keycopied = copy_keylocker();
-	if (keycopied)
-		return;
-
-	pr_err("x86/keylocker: internal key copy failure\n");
-
-disable_keylocker:
-	pr_info("x86/keylocker: Disabled with internal key restoration failure\n");
-	setup_clear_cpu_cap(X86_FEATURE_KEYLOCKER);
-	cr4_clear_bits(X86_CR4_KEYLOCKER);
-}
-
 /**
  *	__save_processor_state - save CPU registers before creating a
  *		hibernation image and before restoring the memory state from it

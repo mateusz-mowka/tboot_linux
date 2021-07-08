@@ -21,8 +21,8 @@ x86-specific Documentation
    tlb
    mtrr
    pat
-   intel-hfi
    intel_cet
+   intel-hfi
    intel-iommu
    intel_txt
    amd-memory-encryption
@@ -31,10 +31,11 @@ x86-specific Documentation
    microcode
    resctrl
    tsx_async_abort
+   buslock
    usb-legacy-support
-   user-interrupts
    i386/index
    x86_64/index
    sva
    sgx
    features
+   elf_auxvec

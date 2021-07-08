@@ -102,7 +102,8 @@
 
 #define INTEL_FAM6_TIGERLAKE_L		0x8C	/* Willow Cove */
 #define INTEL_FAM6_TIGERLAKE		0x8D	/* Willow Cove */
-#define INTEL_FAM6_SAPPHIRERAPIDS_X	0x8F	/* Willow Cove */
+
+#define INTEL_FAM6_SAPPHIRERAPIDS_X	0x8F	/* Golden Cove */
 
 #define INTEL_FAM6_GRANITERAPIDS_X	0xAD
 
@@ -142,6 +143,8 @@
 #define INTEL_FAM6_ATOM_TREMONT_D	0x86 /* Jacobsville */
 #define INTEL_FAM6_ATOM_TREMONT		0x96 /* Elkhart Lake */
 #define INTEL_FAM6_ATOM_TREMONT_L	0x9C /* Jasper Lake */
+
+#define INTEL_FAM6_ATOM_CRESTMONT_D	0xB6 /* Grand Ridge */
 
 /* Xeon Phi */
 

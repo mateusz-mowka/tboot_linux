@@ -577,11 +577,11 @@ def main():
     parser.add_argument('-v','--verbose_mode', help='output all git output to terminal',action='store_true')
     parser.add_argument('-m','--master_branch', help='use HEAD of master branch instead of latest tag',action='store_true')
     parser.add_argument('-u','--update_branch', help='fetch a single branch given repo url',type=str)
-    parser.add_argument('-r','--regen_config', help='regen config options after merge is completed or if -n is passed', action='store_true')
+    parser.add_argument('-r','--regen_config', help='regen Kconfig options after merge is completed', action='store_true')
     parser.add_argument('-d','--run_describe', help='run git describe on all enabled branches (unless -a is passed )', action='store_true')
     parser.add_argument('-b','--blacklist', help='comma seperated list of branches not to merge even if enabled',type=str)
     parser.add_argument('-e','--enable_list', help='comma seperated list of branches to enable if disabled in manifest_in.json',type=str)
-    parser.add_argument('-w','--whitelist', help='comma seperated list of branches to exclusively merge (eywa branch is required; configs is required for -r option)',type=str)
+    parser.add_argument('-w','--whitelist', help='comma seperated list of branches to exclusively merge',type=str)
     parser.add_argument('-a','--all', help='merge or run git discribe even if branch is disabled', action='store_true')
     args = parser.parse_args()
 
