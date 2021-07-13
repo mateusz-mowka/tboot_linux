@@ -137,6 +137,35 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 	return rc;
 }
 
+static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
+{
+	struct idxd_device *idxd = wq->idxd;
+	struct idxd_evl *evl = idxd->evl;
+	union evl_status_reg status;
+	u16 h, t, size;
+	int ent_size = EVL_ENT_SIZE(idxd);
+	struct __evl_entry *entry_head;
+
+	if (!evl)
+		return;
+
+	spin_lock(&evl->lock);
+	status.bits = ioread64(idxd->reg_base + IDXD_EVLSTATUS_OFFSET);
+	t = status.tail;
+	h = evl->head;
+	size = evl->size;
+
+	while (h != t) {
+		entry_head = (struct __evl_entry *)(evl->log + (h * ent_size));
+		if (entry_head->pasid == pasid && entry_head->wq_idx == wq->id)
+			set_bit(h, evl->bmap);
+		h = (h + 1) % size;
+	}
+	spin_unlock(&evl->lock);
+
+	drain_workqueue(wq->wq);
+}
+
 static int idxd_cdev_release(struct inode *node, struct file *filep)
 {
 	struct idxd_user_context *ctx = filep->private_data;
@@ -162,8 +191,11 @@ static int idxd_cdev_release(struct inode *node, struct file *filep)
 		}
 	}
 
-	if (ctx->sva)
+	if (ctx->sva) {
+		idxd_cdev_evl_drain_pasid(wq, ctx->pasid);
 		iommu_sva_unbind_device(ctx->sva);
+	}
+
 	kfree(ctx);
 	mutex_lock(&wq->wq_lock);
 	idxd_wq_put(wq);

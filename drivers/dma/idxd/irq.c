@@ -7,6 +7,9 @@
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/dmaengine.h>
 #include <linux/delay.h>
+#include <linux/ioasid.h>
+#include <linux/iommu.h>
+#include <linux/sched/mm.h>
 #include <uapi/linux/idxd.h>
 #include "../dmaengine.h"
 #include "idxd.h"
@@ -222,14 +225,85 @@ static void idxd_int_handle_revoke(struct work_struct *work)
 	kfree(revoke);
 }
 
-static void process_evl_entry(struct idxd_device *idxd, struct __evl_entry *entry_head)
+static void idxd_evl_fault_work(struct work_struct *work)
+{
+	struct idxd_evl_fault *fault = container_of(work, struct idxd_evl_fault, work);
+	struct idxd_wq *wq = fault->wq;
+	struct idxd_device *idxd = wq->idxd;
+	struct device *dev = &idxd->pdev->dev;
+	struct mm_struct *mm;
+	int copied;
+	struct __evl_entry *entry_head = fault->entry;
+	void *cr = (void *)entry_head + idxd->data->evl_cr_off;
+	int cr_size = idxd->data->compl_size;
+
+	mm = iommu_sva_find(entry_head->pasid);
+	if (IS_ERR_OR_NULL(mm)) {
+		dev_err(dev, "Page request for invalid mm (pasid: %u).\n",
+			entry_head->pasid);
+		kfree(fault);
+		return;
+	}
+
+	switch (fault->status) {
+	case DSA_COMP_CRA_XLAT:
+	case DSA_COMP_DRAIN_EVL:
+		copied = access_remote_vm(mm, entry_head->fault_addr, cr, cr_size,
+					  FOLL_WRITE | FOLL_REMOTE);
+		if (copied != cr_size)
+			dev_err(dev, "Failed to write to completion record. (%d:%d)\n",
+				cr_size, copied);
+		break;
+	default:
+		dev_err(dev, "Unrecognized error code: %#x\n",
+			DSA_COMP_STATUS(entry_head->error));
+		break;
+	}
+
+	mmput(mm);
+	kmem_cache_free(idxd->evl_cache, fault);
+}
+
+static void process_evl_entry(struct idxd_device *idxd,
+			      struct __evl_entry *entry_head, unsigned int index)
 {
 	struct device *dev = &idxd->pdev->dev;
+	struct idxd_evl *evl = idxd->evl;
 	u8 status;
 
-	status = DSA_COMP_STATUS(entry_head->error);
-	dev_warn_ratelimited(dev, "Device error %#x operation: %#x fault addr: %#llx\n",
-			     status, entry_head->operation, entry_head->fault_addr);
+	if (test_bit(index, evl->bmap)) {
+		clear_bit(index, evl->bmap);
+	} else {
+		status = DSA_COMP_STATUS(entry_head->error);
+
+		if (status == DSA_COMP_CRA_XLAT || status == DSA_COMP_DRAIN_EVL) {
+			struct idxd_evl_fault *fault;
+			int ent_size = EVL_ENT_SIZE(idxd);
+
+			if (entry_head->rci)
+				dev_dbg(dev, "Completion Int Req set, ignoring!\n");
+
+			if (!entry_head->rcr && status == DSA_COMP_DRAIN_EVL)
+				return;
+
+			fault = kmem_cache_alloc(idxd->evl_cache, GFP_ATOMIC);
+			if (fault) {
+				struct idxd_wq *wq = idxd->wqs[entry_head->wq_idx];
+
+				fault->wq = wq;
+				fault->status = status;
+				memcpy(&fault->entry, entry_head, ent_size);
+				INIT_WORK(&fault->work, idxd_evl_fault_work);
+				queue_work(wq->wq, &fault->work);
+			} else {
+				dev_warn(dev, "Failed to service fault work.\n");
+			}
+		} else {
+			dev_warn_ratelimited(dev,
+					"Device error %#x operation: %#x fault addr: %#llx\n",
+					status, entry_head->operation, entry_head->fault_addr);
+		}
+	}
 }
 
 static void process_evl_entries(struct idxd_device *idxd)
@@ -255,7 +329,7 @@ static void process_evl_entries(struct idxd_device *idxd)
 
 	while (h != t) {
 		entry_head = (struct __evl_entry *)(evl->log + (h * ent_size));
-		process_evl_entry(idxd, entry_head);
+		process_evl_entry(idxd, entry_head, h);
 		h = (h + 1) % size;
 	}
 

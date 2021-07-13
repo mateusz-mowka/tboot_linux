@@ -260,6 +260,7 @@ struct idxd_driver_data {
 	struct device_type *dev_type;
 	int compl_size;
 	int align;
+	int evl_cr_off;
 };
 
 struct idxd_evl {
@@ -269,6 +270,7 @@ struct idxd_evl {
 	unsigned int log_size;
 	u16 size;
 	u16 head;
+	unsigned long *bmap;
 };
 
 struct idxd_evl_fault {

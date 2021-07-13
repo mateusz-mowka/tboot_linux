@@ -749,18 +749,29 @@ static int idxd_device_evl_setup(struct idxd_device *idxd)
 	dma_addr_t dma_addr;
 	int size;
 	struct idxd_evl *evl = idxd->evl;
+	unsigned long *bmap;
+	int rc;
 
 	if (!evl)
 		return 0;
 
 	size = EVL_SIZE(idxd);
+
+	bmap = bitmap_zalloc(size, GFP_KERNEL);
+	if (!bmap) {
+		rc = -ENOMEM;
+		goto err_bmap;
+	}
+
 	/*
 	 * Address needs to be page aligned. However, dma_alloc_coherent() provides
 	 * at minimal page size aligned address. No manual alignment required.
 	 */
 	addr = dma_alloc_coherent(dev, size, &dma_addr, GFP_KERNEL);
-	if (!addr)
-		return -ENOMEM;
+	if (!addr) {
+		rc = -ENOMEM;
+		goto err_alloc;
+	}
 
 	memset(addr, 0, size);
 
@@ -768,6 +779,7 @@ static int idxd_device_evl_setup(struct idxd_device *idxd)
 	evl->log = addr;
 	evl->dma = dma_addr;
 	evl->log_size = size;
+	evl->bmap = bmap;
 
 	memset(&evlcfg, 0, sizeof(evlcfg));
 	evlcfg.bits[0] = dma_addr & GENMASK(63, 12);
@@ -786,6 +798,11 @@ static int idxd_device_evl_setup(struct idxd_device *idxd)
 
 	spin_unlock(&evl->lock);
 	return 0;
+
+err_alloc:
+	bitmap_free(bmap);
+err_bmap:
+	return rc;
 }
 
 static void idxd_device_evl_free(struct idxd_device *idxd)
@@ -811,6 +828,7 @@ static void idxd_device_evl_free(struct idxd_device *idxd)
 	iowrite64(0, idxd->reg_base + IDXD_EVLCFG_OFFSET + 8);
 
 	dma_free_coherent(dev, evl->log_size, evl->log, evl->dma);
+	bitmap_free(evl->bmap);
 	evl->log = NULL;
 	evl->size = IDXD_EVL_SIZE_MIN;
 	spin_unlock(&evl->lock);
