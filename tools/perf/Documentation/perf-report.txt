@@ -570,6 +570,9 @@ include::itrace.txt[]
 	'Avg Cycles%'     - block average sampled cycles / sum of total block average
 			    sampled cycles
 	'Avg Cycles'      - block average sampled cycles
+	Event list	  - indications of precise event occurrences in LBRs
+			    one '#' indicates the selected event occurred 1 time in average.
+			    '+' means it may lost some occurrences.
 
 --skip-empty::
 	Do not print 0 results in the --stat output.
