@@ -1047,18 +1047,8 @@ static int __cmd_report(struct report *rep)
 	report__output_resort(rep);
 
 	if (rep->total_cycles_mode) {
-		int block_hpps[6] = {
-			PERF_HPP_REPORT__BLOCK_TOTAL_CYCLES_PCT,
-			PERF_HPP_REPORT__BLOCK_LBR_CYCLES,
-			PERF_HPP_REPORT__BLOCK_CYCLES_PCT,
-			PERF_HPP_REPORT__BLOCK_AVG_CYCLES,
-			PERF_HPP_REPORT__BLOCK_RANGE,
-			PERF_HPP_REPORT__BLOCK_DSO,
-		};
-
 		rep->block_reports = block_info__create_report(session->evlist,
 							       rep->total_cycles,
-							       block_hpps, 6,
 							       &rep->nr_block_reports);
 		if (!rep->block_reports)
 			return -1;
