@@ -231,11 +231,15 @@ static void idxd_evl_fault_work(struct work_struct *work)
 	struct idxd_wq *wq = fault->wq;
 	struct idxd_device *idxd = wq->idxd;
 	struct device *dev = &idxd->pdev->dev;
+	struct idxd_evl *evl = idxd->evl;
 	struct mm_struct *mm;
-	int copied;
+	int copied, copy_size;
 	struct __evl_entry *entry_head = fault->entry;
 	void *cr = (void *)entry_head + idxd->data->evl_cr_off;
 	int cr_size = idxd->data->compl_size;
+	u8 *status = (u8 *)cr + idxd->data->cr_status_off;
+	u8 *result = (u8 *)cr + idxd->data->cr_result_off;
+	bool *bf;
 
 	mm = iommu_sva_find(entry_head->pasid);
 	if (IS_ERR_OR_NULL(mm)) {
@@ -247,16 +251,53 @@ static void idxd_evl_fault_work(struct work_struct *work)
 
 	switch (fault->status) {
 	case DSA_COMP_CRA_XLAT:
+		if (entry_head->batch && entry_head->first_err_in_batch)
+			evl->batch_fail[entry_head->batch_id] = false;
+
+		copy_size = cr_size;
+		break;
+	case DSA_COMP_BATCH_EVL_ERR:
+		bf = &evl->batch_fail[entry_head->batch_id];
+
+		copy_size = entry_head->rcr || *bf ? cr_size : 0;
+		if (*bf) {
+			if (*status == DSA_COMP_SUCCESS)
+				*status = DSA_COMP_BATCH_FAIL;
+			*result = 1;
+			*bf = false;
+		}
+		break;
 	case DSA_COMP_DRAIN_EVL:
-		copied = access_remote_vm(mm, entry_head->fault_addr, cr, cr_size,
-					  FOLL_WRITE | FOLL_REMOTE);
-		if (copied != cr_size)
-			dev_err(dev, "Failed to write to completion record. (%d:%d)\n",
-				cr_size, copied);
+		copy_size = cr_size;
 		break;
 	default:
-		dev_err(dev, "Unrecognized error code: %#x\n",
-			DSA_COMP_STATUS(entry_head->error));
+		copy_size = 0;
+		dev_err(dev, "Unrecognized error code: %#x\n", fault->status);
+		break;
+	}
+
+	if (copy_size)
+		copied = access_remote_vm(mm, entry_head->fault_addr, cr, copy_size,
+					  FOLL_WRITE | FOLL_REMOTE);
+
+	switch (fault->status) {
+	case DSA_COMP_CRA_XLAT:
+		if (copied != copy_size) {
+			dev_err(dev, "Failed to write to completion record: (%d:%d)\n",
+				copy_size, copied);
+			if (entry_head->batch)
+				evl->batch_fail[entry_head->batch_id] = true;
+		}
+		break;
+	case DSA_COMP_BATCH_EVL_ERR:
+		if (copied != copy_size)
+			dev_err(dev, "Failed to write to batch completion record: (%d:%d)\n",
+				copy_size, copied);
+		break;
+	case DSA_COMP_DRAIN_EVL:
+		if (copied != copy_size)
+			dev_err(dev, "Failed to write to drain completion record: (%d:%d)\n",
+				copy_size, copied);
 		break;
 	}
 
@@ -276,7 +317,8 @@ static void process_evl_entry(struct idxd_device *idxd,
 	} else {
 		status = DSA_COMP_STATUS(entry_head->error);
 
-		if (status == DSA_COMP_CRA_XLAT || status == DSA_COMP_DRAIN_EVL) {
+		if (status == DSA_COMP_CRA_XLAT || status == DSA_COMP_DRAIN_EVL ||
+		    status == DSA_COMP_BATCH_EVL_ERR) {
 			struct idxd_evl_fault *fault;
 			int ent_size = EVL_ENT_SIZE(idxd);
 
@@ -300,8 +342,8 @@ static void process_evl_entry(struct idxd_device *idxd,
 			}
 		} else {
 			dev_warn_ratelimited(dev,
-					"Device error %#x operation: %#x fault addr: %#llx\n",
-					status, entry_head->operation, entry_head->fault_addr);
+				"Device error %#x operation: %#x fault addr: %#llx\n",
+				 status, entry_head->operation, entry_head->fault_addr);
 		}
 	}
 }
