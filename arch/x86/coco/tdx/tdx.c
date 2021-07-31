@@ -268,6 +268,47 @@ static int write_msr(struct pt_regs *regs, struct ve_info *ve)
 	return ve_instr_len(ve);
 }
 
+/*
+ * TDX has context switched MSRs and emulated MSRs. The emulated MSRs
+ * normally trigger a #VE, but that is expensive, which can be avoided
+ * by doing a direct TDCALL. Unfortunately, this cannot be done for all
+ * because some MSRs are "context switched" and need WRMSR.
+ *
+ * The list for this is unfortunately quite long. To avoid maintaining
+ * very long switch statements just do a fast path for the few critical
+ * MSRs that need TDCALL, currently only TSC_DEADLINE.
+ *
+ * More can be added as needed.
+ *
+ * The others will be handled by the #VE handler as needed.
+ * See 18.1 "MSR virtualization" in the TDX Module EAS
+ */
+static bool tdx_fast_tdcall_path_msr(unsigned int msr)
+{
+	switch (msr) {
+	case MSR_IA32_TSC_DEADLINE:
+		return true;
+	default:
+		return false;
+
+	}
+}
+
+void notrace tdx_write_msr(unsigned int msr, u32 low, u32 high)
+{
+	struct tdx_hypercall_args args = {
+		.r10 = TDX_HYPERCALL_STANDARD,
+		.r11 = hcall_func(EXIT_REASON_MSR_WRITE),
+		.r12 = msr,
+		.r13 = (u64)high << 32 | low,
+	};
+
+	if (tdx_fast_tdcall_path_msr(msr))
+		__tdx_hypercall(&args, 0);
+	else
+		native_write_msr(msr, low, high);
+}
+
 static int handle_cpuid(struct pt_regs *regs, struct ve_info *ve)
 {
 	struct tdx_hypercall_args args = {
@@ -783,6 +824,8 @@ void __init tdx_early_init(void)
 
 	/* Set restricted memory access for virtio. */
 	platform_set(PLATFORM_VIRTIO_RESTRICTED_MEM_ACCESS);
+
+	pv_ops.cpu.write_msr = tdx_write_msr;
 
 	cc_set_vendor(CC_VENDOR_INTEL);
 	cc_mask = get_cc_mask();
