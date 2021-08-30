@@ -83,6 +83,13 @@ static unsigned long change_pte_range(struct mmu_gather *tlb,
 			bool preserve_write = prot_numa && pte_write(oldpte);
 
 			/*
+			 * Preserve only normal writable PTE, but not shadow
+			 * stack (RW=0, Dirty=1).
+			 */
+			if (vma->vm_flags & VM_SHADOW_STACK)
+				preserve_write = false;
+
+			/*
 			 * Avoid trapping faults against the zero or KSM
 			 * pages. See similar comment in change_huge_pmd.
 			 */
