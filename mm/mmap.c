@@ -294,6 +294,13 @@ out:
 	return origbrk;
 }
 
+unsigned long __weak stack_guard_start_gap(struct vm_area_struct *vma)
+{
+	if (vma->vm_flags & VM_GROWSDOWN)
+		return stack_guard_gap;
+	return 0;
+}
+
 static inline unsigned long vma_compute_gap(struct vm_area_struct *vma)
 {
 	unsigned long gap, prev_end;
