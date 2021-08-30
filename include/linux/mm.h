@@ -982,13 +982,22 @@ void free_compound_page(struct page *page);
  * servicing faults for write access.  In the normal case, do always want
  * pte_mkwrite.  But get_user_pages can cause write faults for mappings
  * that do not have writing enabled, when used by access_process_vm.
+ * 
+ * If a vma is shadow stack (a type of writable memory), mark the pte shadow
+ * stack.
  */
+#ifndef maybe_mkwrite
 static inline pte_t maybe_mkwrite(pte_t pte, struct vm_area_struct *vma)
 {
-	if (likely(vma->vm_flags & VM_WRITE))
+	VM_WARN_ON((vma->vm_flags & VM_WRITE) &&
+		   (vma->vm_flags & VM_SHADOW_STACK));
+	if (vma->vm_flags & VM_WRITE)
 		pte = pte_mkwrite(pte);
+	else if (vma->vm_flags & VM_SHADOW_STACK)
+		pte = pte_mkwrite_shstk(pte);
 	return pte;
 }
+#endif
 
 vm_fault_t do_set_pmd(struct vm_fault *vmf, struct page *page);
 void do_set_pte(struct vm_fault *vmf, struct page *page, unsigned long addr);

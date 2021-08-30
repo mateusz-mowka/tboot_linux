@@ -480,12 +480,26 @@ static inline pte_t pte_sw_mkyoung(pte_t pte)
 #define pte_mk_savedwrite pte_mkwrite
 #endif
 
+#ifndef pte_mkwrite_shstk
+static inline pte_t pte_mkwrite_shstk(pte_t pte)
+{
+	return pte;
+}
+#endif
+
 #ifndef pte_clear_savedwrite
 #define pte_clear_savedwrite pte_wrprotect
 #endif
 
 #ifndef pmd_savedwrite
 #define pmd_savedwrite pmd_write
+#endif
+
+#ifndef pmd_mkwrite_shstk
+static inline pmd_t pmd_mkwrite_shstk(pmd_t pmd)
+{
+	return pmd;
+}
 #endif
 
 #ifndef pmd_mk_savedwrite
