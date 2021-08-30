@@ -268,6 +268,46 @@ static int shstk_check_rstor_token(unsigned long *new_ssp)
 	return 0;
 }
 
+int setup_signal_shadow_stack(void __user *restorer)
+{
+	unsigned long new_ssp;
+	int err;
+
+	if (!cpu_feature_enabled(X86_FEATURE_SHSTK) ||
+	    !feature_enabled(CET_SHSTK))
+		return 0;
+
+	err = shstk_setup_rstor_token((unsigned long)restorer, &new_ssp);
+	if (err)
+		return err;
+
+	fpu_lock_and_load();
+	wrmsrl(MSR_IA32_PL3_SSP, new_ssp);
+	fpregs_unlock();
+
+	return 0;
+}
+
+int restore_signal_shadow_stack(void)
+{
+	unsigned long new_ssp;
+	int err;
+
+	if (!cpu_feature_enabled(X86_FEATURE_SHSTK) ||
+	    !feature_enabled(CET_SHSTK))
+		return 0;
+
+	err = shstk_check_rstor_token(&new_ssp);
+	if (err)
+		return err;
+
+	fpu_lock_and_load();
+	wrmsrl(MSR_IA32_PL3_SSP, new_ssp);
+	fpregs_unlock();
+
+	return 0;
+}
+
 void shstk_free(struct task_struct *tsk)
 {
 	struct thread_shstk *shstk = &tsk->thread.shstk;
