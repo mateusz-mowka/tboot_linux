@@ -63,6 +63,7 @@ int mfill_atomic_install_pte(struct mm_struct *dst_mm, pmd_t *dst_pmd,
 	int ret;
 	pte_t _dst_pte, *dst_pte;
 	bool writable = dst_vma->vm_flags & VM_WRITE;
+	bool shstk = dst_vma->vm_flags & VM_SHADOW_STACK;
 	bool vm_shared = dst_vma->vm_flags & VM_SHARED;
 	bool page_in_cache = page_mapping(page);
 	spinlock_t *ptl;
@@ -84,9 +85,12 @@ int mfill_atomic_install_pte(struct mm_struct *dst_mm, pmd_t *dst_pmd,
 		writable = false;
 	}
 
-	if (writable)
-		_dst_pte = pte_mkwrite(_dst_pte);
-	else
+	if (writable) {
+		if (shstk)
+			_dst_pte = pte_mkwrite_shstk(_dst_pte);
+		else
+			_dst_pte = pte_mkwrite(_dst_pte);
+	} else
 		/*
 		 * We need this to make sure write bit removed; as mk_pte()
 		 * could return a pte with write bit set.

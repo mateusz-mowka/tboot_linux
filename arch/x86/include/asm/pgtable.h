@@ -951,6 +951,9 @@ static inline pgd_t pti_set_user_pgtbl(pgd_t *pgdp, pgd_t pgd)
 }
 #endif  /* CONFIG_PAGE_TABLE_ISOLATION */
 
+#define is_shstk_write is_shstk_write
+extern bool is_shstk_write(unsigned long vm_flags);
+
 #endif	/* __ASSEMBLY__ */
 
 
