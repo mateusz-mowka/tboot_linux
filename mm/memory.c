@@ -4754,8 +4754,12 @@ out_map:
 	old_pte = ptep_modify_prot_start(vma, vmf->address, vmf->pte);
 	pte = pte_modify(old_pte, vma->vm_page_prot);
 	pte = pte_mkyoung(pte);
-	if (was_writable)
-		pte = pte_mkwrite(pte);
+	if (was_writable) {
+		if (vma->vm_flags & VM_SHADOW_STACK)
+			pte = pte_mkwrite_shstk(pte);
+		else
+			pte = pte_mkwrite(pte);
+	}
 	ptep_modify_prot_commit(vma, vmf->address, vmf->pte, old_pte, pte);
 	update_mmu_cache(vma, vmf->address, vmf->pte);
 	pte_unmap_unlock(vmf->pte, vmf->ptl);

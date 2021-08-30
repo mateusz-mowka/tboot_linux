@@ -1471,8 +1471,12 @@ out_map:
 	/* Restore the PMD */
 	pmd = pmd_modify(oldpmd, vma->vm_page_prot);
 	pmd = pmd_mkyoung(pmd);
-	if (was_writable)
-		pmd = pmd_mkwrite(pmd);
+	if (was_writable) {
+		if (vma->vm_flags & VM_SHADOW_STACK)
+			pmd = pmd_mkwrite_shstk(pmd);
+		else
+			pmd = pmd_mkwrite(pmd);
+	}
 	set_pmd_at(vma->vm_mm, haddr, vmf->pmd, pmd);
 	update_mmu_cache_pmd(vma, vmf->address, vmf->pmd);
 	spin_unlock(vmf->ptl);
