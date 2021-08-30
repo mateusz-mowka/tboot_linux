@@ -1692,7 +1692,6 @@ static inline bool pud_user_accessible_page(pud_t pud)
 	return pud_leaf(pud) && (pud_val(pud) & _PAGE_PRESENT) && (pud_val(pud) & _PAGE_USER);
 }
 #endif
-
 #endif	/* __ASSEMBLY__ */
 
 #endif /* _ASM_X86_PGTABLE_H */
