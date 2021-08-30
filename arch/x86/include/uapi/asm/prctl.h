@@ -26,4 +26,6 @@
 #define ARCH_CET_DISABLE		0x4002
 #define ARCH_CET_LOCK			0x4003
 
+#define CET_SHSTK			0x1
+
 #endif /* _ASM_X86_PRCTL_H */

@@ -310,6 +310,17 @@ void msrs_free(struct msr *msrs);
 int msr_set_bit(u32 msr, u8 bit);
 int msr_clear_bit(u32 msr, u8 bit);
 
+static inline void set_clr_bits_msrl(u32 msr, u64 set, u64 clear)
+{
+	u64 val, new_val;
+
+	rdmsrl(msr, val);
+	new_val = (val & ~clear) | set;
+
+	if (new_val != val)
+		wrmsrl(msr, new_val);
+}
+
 #ifdef CONFIG_SMP
 int rdmsr_on_cpu(unsigned int cpu, u32 msr_no, u32 *l, u32 *h);
 int wrmsr_on_cpu(unsigned int cpu, u32 msr_no, u32 l, u32 h);
