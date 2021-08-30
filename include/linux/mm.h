@@ -2156,7 +2156,7 @@ static inline bool vma_wants_manual_pte_write_upgrade(struct vm_area_struct *vma
 	 */
 	if (vma->vm_flags & VM_SHARED)
 		return vma_wants_writenotify(vma, vma->vm_page_prot);
-	return !!(vma->vm_flags & VM_WRITE);
+	return (vma->vm_flags & VM_WRITE) && !(vma->vm_flags & VM_SHADOW_STACK);
 
 }
 bool can_change_pte_writable(struct vm_area_struct *vma, unsigned long addr,
