@@ -117,6 +117,50 @@ void reset_thread_shstk(void)
 	current->thread.features_locked = 0;
 }
 
+int shstk_alloc_thread_stack(struct task_struct *tsk, unsigned long clone_flags,
+			     unsigned long stack_size, unsigned long *shstk_addr)
+{
+	struct thread_shstk *shstk = &tsk->thread.shstk;
+	unsigned long addr;
+
+	*shstk_addr = 0;
+
+	/*
+	 * If shadow stack is not enabled on the new thread, skip any
+	 * switch to a new shadow stack.
+	 */
+	if (!feature_enabled(CET_SHSTK))
+		return 0;
+
+	/*
+	 * clone() does not pass stack_size, which was added to clone3().
+	 * Use RLIMIT_STACK and cap to 4 GB.
+	 */
+	if (!stack_size)
+		stack_size = min_t(unsigned long long, rlimit(RLIMIT_STACK), SZ_4G);
+
+	/*
+	 * For CLONE_VM, except vfork, the child needs a separate shadow
+	 * stack.
+	 */
+	if ((clone_flags & (CLONE_VFORK | CLONE_VM)) != CLONE_VM)
+		return 0;
+
+
+	stack_size = PAGE_ALIGN(stack_size);
+	addr = alloc_shstk(stack_size);
+	if (IS_ERR_VALUE(addr)) {
+		return PTR_ERR((void *)addr);
+	}
+
+	shstk->base = addr;
+	shstk->size = stack_size;
+
+	*shstk_addr = addr + stack_size;
+
+	return 0;
+}
+
 void shstk_free(struct task_struct *tsk)
 {
 	struct thread_shstk *shstk = &tsk->thread.shstk;
@@ -125,7 +169,13 @@ void shstk_free(struct task_struct *tsk)
 	    !feature_enabled(CET_SHSTK))
 		return;
 
-	if (!tsk->mm)
+	/*
+	 * When fork() with CLONE_VM fails, the child (tsk) already has a
+	 * shadow stack allocated, and exit_thread() calls this function to
+	 * free it.  In this case the parent (current) and the child share
+	 * the same mm struct.
+	 */
+	if (!tsk->mm || tsk->mm != current->mm)
 		return;
 
 	unmap_shadow_stack(shstk->base, shstk->size);
