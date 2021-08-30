@@ -392,9 +392,19 @@ static inline pte_t pte_mkexec(pte_t pte)
 	return pte_clear_flags(pte, _PAGE_NX);
 }
 
+static inline pte_t __pte_mkdirty(pte_t pte, bool soft)
+{
+	pteval_t dirty = _PAGE_DIRTY;
+
+	if (soft)
+		dirty |= _PAGE_SOFT_DIRTY;
+
+	return pte_set_flags(pte, dirty);
+}
+
 static inline pte_t pte_mkdirty(pte_t pte)
 {
-	return pte_set_flags(pte, _PAGE_DIRTY | _PAGE_SOFT_DIRTY);
+	return __pte_mkdirty(pte, true);
 }
 
 static inline pte_t pte_mkyoung(pte_t pte)
@@ -503,9 +513,19 @@ static inline pmd_t pmd_wrprotect(pmd_t pmd)
 	return pmd_clear_flags(pmd, _PAGE_RW);
 }
 
+static inline pmd_t __pmd_mkdirty(pmd_t pmd, bool soft)
+{
+	pmdval_t dirty = _PAGE_DIRTY;
+
+	if (soft)
+		dirty |= _PAGE_SOFT_DIRTY;
+
+	return pmd_set_flags(pmd, dirty);
+}
+
 static inline pmd_t pmd_mkdirty(pmd_t pmd)
 {
-	return pmd_set_flags(pmd, _PAGE_DIRTY | _PAGE_SOFT_DIRTY);
+	return __pmd_mkdirty(pmd, true);
 }
 
 static inline pmd_t pmd_mkdevmap(pmd_t pmd)
@@ -715,26 +735,54 @@ static inline u64 flip_protnone_guard(u64 oldval, u64 val, u64 mask);
 
 static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 {
+	pteval_t _page_chg_mask_no_dirty = _PAGE_CHG_MASK & ~_PAGE_DIRTY;
 	pteval_t val = pte_val(pte), oldval = val;
+	pte_t pte_result;
 
 	/*
 	 * Chop off the NX bit (if present), and add the NX portion of
 	 * the newprot (if present):
 	 */
-	val &= _PAGE_CHG_MASK;
-	val |= check_pgprot(newprot) & ~_PAGE_CHG_MASK;
+	val &= _page_chg_mask_no_dirty;
+	val |= check_pgprot(newprot) & ~_page_chg_mask_no_dirty;
 	val = flip_protnone_guard(oldval, val, PTE_PFN_MASK);
-	return __pte(val);
+
+	pte_result = __pte(val);
+
+	/*
+	 * Dirty bit is not preserved above so it can be done
+	 * in a special way for the shadow stack case, where it
+	 * may need to set _PAGE_COW. __pte_mkdirty() will do this in
+	 * the case of shadow stack.
+	 */
+	if (pte_dirty(pte))
+		pte_result = __pte_mkdirty(pte_result, false);
+
+	return pte_result;
 }
 
 static inline pmd_t pmd_modify(pmd_t pmd, pgprot_t newprot)
 {
+	pteval_t _hpage_chg_mask_no_dirty = _HPAGE_CHG_MASK & ~_PAGE_DIRTY;
 	pmdval_t val = pmd_val(pmd), oldval = val;
+	pmd_t pmd_result;
 
-	val &= _HPAGE_CHG_MASK;
-	val |= check_pgprot(newprot) & ~_HPAGE_CHG_MASK;
+	val &= _hpage_chg_mask_no_dirty;
+	val |= check_pgprot(newprot) & ~_hpage_chg_mask_no_dirty;
 	val = flip_protnone_guard(oldval, val, PHYSICAL_PMD_PAGE_MASK);
-	return __pmd(val);
+
+	pmd_result = __pmd(val);
+
+	/*
+	 * Dirty bit is not preserved above so it can be done
+	 * in a special way for the shadow stack case, where it
+	 * may need to set _PAGE_COW. __pmd_mkdirty() will do this in
+	 * the case of shadow stack.
+	 */
+	if (pmd_dirty(pmd))
+		pmd_result = __pmd_mkdirty(pmd_result, false);
+
+	return pmd_result;
 }
 
 /*
