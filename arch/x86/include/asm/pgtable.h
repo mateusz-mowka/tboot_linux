@@ -445,6 +445,7 @@ static inline pte_t pte_mkdirty(pte_t pte)
 	return __pte_mkdirty(pte, true);
 }
 
+#define pte_mkwrite_shstk pte_mkwrite_shstk
 static inline pte_t pte_mkwrite_shstk(pte_t pte)
 {
 	/* pte_clear_cow() also sets Dirty=1 */
@@ -589,6 +590,7 @@ static inline pmd_t pmd_mkdirty(pmd_t pmd)
 	return __pmd_mkdirty(pmd, true);
 }
 
+#define pmd_mkwrite_shstk pmd_mkwrite_shstk
 static inline pmd_t pmd_mkwrite_shstk(pmd_t pmd)
 {
 	return pmd_clear_cow(pmd);

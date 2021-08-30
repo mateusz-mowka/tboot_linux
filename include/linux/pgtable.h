@@ -532,6 +532,20 @@ static inline pte_t pte_sw_mkyoung(pte_t pte)
 #define pte_sw_mkyoung	pte_sw_mkyoung
 #endif
 
+#ifndef pte_mkwrite_shstk
+static inline pte_t pte_mkwrite_shstk(pte_t pte)
+{
+	return pte;
+}
+#endif
+
+#ifndef pmd_mkwrite_shstk
+static inline pmd_t pmd_mkwrite_shstk(pmd_t pmd)
+{
+	return pmd;
+}
+#endif
+
 #ifndef __HAVE_ARCH_PMDP_SET_WRPROTECT
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 static inline void pmdp_set_wrprotect(struct mm_struct *mm,
