@@ -822,6 +822,7 @@ static void perf_sched_init(struct perf_sched *sched, struct event_constraint **
 	sched->state.event	= idx;		/* start with min weight */
 	sched->state.weight	= wmin;
 	sched->state.unassigned	= num;
+	sched->state.counter	= INTEL_PMC_IDX_FIXED;
 }
 
 static void perf_sched_save_state(struct perf_sched *sched)
@@ -846,7 +847,7 @@ static bool perf_sched_restore_state(struct perf_sched *sched)
 	sched->state.used &= ~BIT_ULL(sched->state.counter);
 
 	/* try the next one */
-	sched->state.counter++;
+	sched->state.counter--;
 
 	return true;
 }
@@ -858,6 +859,7 @@ static bool perf_sched_restore_state(struct perf_sched *sched)
 static bool __perf_sched_find_counter(struct perf_sched *sched)
 {
 	struct event_constraint *c;
+	u64 idxmsk;
 	int idx;
 
 	if (!sched->state.unassigned)
@@ -881,13 +883,15 @@ static bool __perf_sched_find_counter(struct perf_sched *sched)
 		}
 	}
 
-	/* Grab the first unused counter starting with idx */
-	idx = sched->state.counter;
-	for_each_set_bit_from(idx, c->idxmsk, INTEL_PMC_IDX_FIXED) {
+	/* Grab the first unused counter in a reverse order */
+	idxmsk = c->idxmsk64 & ((1ULL << INTEL_PMC_IDX_FIXED) - 1);
+	while ((idx = find_last_bit((unsigned long *)&idxmsk, sched->state.counter)) < sched->state.counter) {
 		u64 mask = BIT_ULL(idx);
 
 		if (c->flags & PERF_X86_EVENT_PAIR)
 			mask |= mask << 1;
+
+		idxmsk &= ~mask;
 
 		if (sched->state.used & mask)
 			continue;
@@ -944,7 +948,7 @@ static bool perf_sched_next_event(struct perf_sched *sched)
 		c = sched->constraints[sched->state.event];
 	} while (c->weight != sched->state.weight);
 
-	sched->state.counter = 0;	/* start with first counter */
+	sched->state.counter = INTEL_PMC_IDX_FIXED;
 
 	return true;
 }
