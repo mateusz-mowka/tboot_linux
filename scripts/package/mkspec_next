@@ -111,7 +111,6 @@ $S	$MAKE %{?_smp_mflags} KBUILD_BUILD_VERSION=%{release}
 	srctree=$(pwd) make -C tools/power/x86/turbostat
 	srctree=$(pwd) make -C tools/power/x86/x86_energy_perf_policy
 	make tools/intel-speed-select
-	make -j1 tools/acpi
 
 $S
 	%install
@@ -119,7 +118,6 @@ $S
 	install -m 755 -D $srctree/tools/power/x86/intel-speed-select/intel-speed-select %{buildroot}/usr/bin
 	install -m 755 -D $srctree/tools/power/x86/turbostat/turbostat %{buildroot}/usr/bin
 	install -m 755 -D $srctree/tools/power/x86/x86_energy_perf_policy/x86_energy_perf_policy %{buildroot}/usr/bin
-	install -m 755 -D $srctree/tools/power/acpi/acpidbg %{buildroot}/usr/bin
 
 	mkdir -p %{buildroot}/boot
 	%ifarch ia64
