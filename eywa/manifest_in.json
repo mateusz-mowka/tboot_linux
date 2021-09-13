@@ -2458,7 +2458,7 @@
             "last_enabled": "v5.10"
         },
         {
-            "branch": "sm_off",
+            "branch": "satc-5.15-rc1",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -2468,14 +2468,14 @@
                 }
             ],
             "description": "Add command-line option to disable scalable mode",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2609",
             "name": "disable_scalable_mode",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/chenyian/kernel-works.git",
             "sdl_contact": [
@@ -2486,7 +2486,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.12"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "crypto",
