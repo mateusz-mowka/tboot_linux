@@ -200,12 +200,12 @@
             ],
             "contributor": [
                 {
-                    "name": "Rodrigo Vivi",
-                    "email": "rodrigo.vivi@intel.com"
+                    "name": "Ashutosh Dixit",
+                    "email": "ashutosh.dixit@intel.com"
                 }
             ],
             "description": "Drm embargo branch",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Rodrigio Vivi",
