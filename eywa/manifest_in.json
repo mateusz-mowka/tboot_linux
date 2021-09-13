@@ -78,6 +78,46 @@
             "last_enabled": "v5.15"
         },
         {
+            "branch": "intel_next_branding",
+            "branch_type": "internal nonexpiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_LOGO",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_LOGO_LINUX_NEXT_CLUT224",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "description": "Custom intel-next logo on bootup",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "jira": "NEXT-2605",
+            "name": "branding",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
+            "sdl_contact": [
+                {
+                    "name": "Charles Prestopine",
+                    "email": "charles.d.prestopine@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.15"
+        },
+        {
             "branch": "intel-next",
             "branch_type": "internal nonexpiring",
             "config_options": [],
@@ -101,7 +141,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "testing",
@@ -205,7 +245,7 @@
                 }
             ],
             "description": "NVME driver enabling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Revanth Rajashekar",
@@ -223,7 +263,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "scs-v5.14",
@@ -1361,46 +1401,6 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.11"
-        },
-        {
-            "branch": "intel_next_branding",
-            "branch_type": "internal nonexpiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_LOGO",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_LOGO_LINUX_NEXT_CLUT224",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Custom intel-next logo on bootup",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "branding",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.14"
         },
         {
             "branch": "to_eywa_thermal",
