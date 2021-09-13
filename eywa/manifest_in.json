@@ -266,7 +266,7 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "scs-v5.14",
+            "branch": "scs-v5.15",
             "branch_type": "expiring",
             "config_options": [
                 {
