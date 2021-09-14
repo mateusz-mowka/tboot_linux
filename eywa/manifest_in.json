@@ -4426,6 +4426,41 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.14"
+        },
+        {
+            "branch": "pfru-for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_ACPI_PFRU",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_ACPI_PFRU_TELEMETRY",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Yu Chen",
+                    "email": "yu.c.chen@intel.com"
+                }
+            ],
+            "description": "Add Linux Platform Firmware Runtime Update support for SPR",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2614",
+            "name": "PFRU",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/chenyu5/linux-pm.git",
+            "sdl_contact": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.15"
         }
     ]
 }
