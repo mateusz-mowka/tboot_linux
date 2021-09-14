@@ -4447,7 +4447,7 @@
                 }
             ],
             "description": "Add Linux Platform Firmware Runtime Update support for SPR",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [],
             "jira": "NEXT-2614",
             "name": "PFRU",
