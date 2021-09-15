@@ -1176,47 +1176,11 @@
                     "value": "m"
                 },
                 {
-                    "name": "CONFIG_TYPEC_TCPM",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_TYPEC_FUSB302",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_TYPEC_WCOVE",
-                    "value": "m"
-                },
-                {
                     "name": "CONFIG_TYPEC_UCSI",
                     "value": "m"
                 },
                 {
                     "name": "CONFIG_UCSI_ACPI",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_TYPEC_DP_ALTMODE",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_TYPEC_TPS6598X",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_TYPEC_MUX_PI3USB30532",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_USB_ROLE_SWITCH",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_USB_ROLES_INTEL_XHCI",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_INTEL_CHT_INT33FE",
                     "value": "m"
                 },
                 {
@@ -1230,42 +1194,6 @@
                 {
                     "name": "CONFIG_USB_DWC3_PCI",
                     "value": "m"
-                },
-                {
-                    "name": "CONFIG_TYPEC_MUX_INTEL_PMC",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_MFD_INTEL_PMC_BXT",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_INTEL_SOC_PMIC",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_BXT_WC_PMIC_OPREGION",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_INTEL_SCU_IPC",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_I2C_DESIGNWARE_PLATFORM",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_BXT_WC_PMIC_OPREGION",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_INTEL_SOC_PMIC_BXTWC",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_PMIC_OPREGION",
-                    "value": "y"
                 }
             ],
             "contributor": [
@@ -1274,15 +1202,15 @@
                     "email": "heikki.krogerus@linux.intel.com"
                 }
             ],
-            "description": "Type-C Support",
-            "enabled": false,
+            "description": "USB Type-C/DWC3 ",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Abdul Rahman Ismail",
                     "email": "abdul.r.ismail@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2616",
             "name": "usb-typec",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/hkrogeru/linux.git",
             "sdl_contact": [
@@ -1293,7 +1221,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "for-intel-next",
