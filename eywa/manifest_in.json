@@ -1062,8 +1062,8 @@
                     "email": "gayatri.kammela@intel.com"
                 }
             ],
-            "description": "ADL, Lakefield, and MTL support for PMC core driver and new AVX512 cpuid support",
-            "enabled": false,
+            "description": "Lakefield, and MTL support for PMC core driver and new AVX512 cpuid support",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Mark Charney",
@@ -1074,7 +1074,7 @@
                     "email": "christopher.j.lake@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2619",
             "name": "pmc_core",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/gkammela/pmc_core-intel-next.git",
             "sdl_contact": [
@@ -1085,7 +1085,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "intel_th-for-intel-next",
