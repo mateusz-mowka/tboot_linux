@@ -154,6 +154,15 @@ static int report__config(const char *var, const char *value, void *cb)
 	return 0;
 }
 
+static int lbr_event_config(void)
+{
+	/*
+	 * Will read the value from sysfs when kernel supports.
+	 */
+	symbol_conf.lbr_max_occur = LBR_EVENT_MAX_OCCUR;
+	return 0;
+}
+
 static int hist_iter__report_callback(struct hist_entry_iter *iter,
 				      struct addr_location *al, bool single,
 				      void *arg)
@@ -1401,6 +1410,10 @@ int cmd_report(int argc, const char **argv)
 	ret = perf_config(report__config, &report);
 	if (ret)
 		goto exit;
+
+	ret = lbr_event_config();
+	if (ret)
+		return ret;
 
 	argc = parse_options(argc, argv, options, report_usage, 0);
 	if (argc) {

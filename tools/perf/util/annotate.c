@@ -832,12 +832,26 @@ void symbol__annotate_zero_histograms(struct symbol *sym)
 	mutex_unlock(&notes->lock);
 }
 
+static void update_event_occur(u32 *event_occurs, u8 *max_occurs, u32 events)
+{
+	for (int i = 0; i < PERF_MAX_BRANCH_EVENTS; i++) {
+		int value = events & 0x3;
+
+		if (value == symbol_conf.lbr_max_occur)
+			max_occurs[i] = 1;
+
+		event_occurs[i] += value;
+		events >>= 2;
+	}
+}
+
 static int __symbol__account_cycles(struct cyc_hist *ch,
 				    u64 start,
 				    unsigned offset, struct branch_flags *flags,
 				    unsigned have_start)
 {
 	unsigned cycles = flags->cycles;
+	unsigned events = flags->events;
 	/*
 	 * For now we can only account one basic block per
 	 * final jump. But multiple could be overlapping.
@@ -868,6 +882,10 @@ static int __symbol__account_cycles(struct cyc_hist *ch,
 			ch[offset].num = 0;
 			if (ch[offset].reset < 0xffff)
 				ch[offset].reset++;
+			memset(ch[offset].event_occurs, 0,
+			       sizeof(ch[offset].event_occurs));
+			memset(ch[offset].max_occurs, 0,
+			       sizeof(ch[offset].max_occurs));
 		} else if (have_start &&
 			   ch[offset].start < start)
 			return 0;
@@ -880,6 +898,12 @@ static int __symbol__account_cycles(struct cyc_hist *ch,
 	ch[offset].start = start;
 	ch[offset].cycles += cycles;
 	ch[offset].num++;
+
+	if (events) {
+		update_event_occur(ch[offset].event_occurs,
+				   ch[offset].max_occurs, events);
+	}
+
 	return 0;
 }
 
