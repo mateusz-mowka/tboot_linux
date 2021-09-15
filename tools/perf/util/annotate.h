@@ -10,6 +10,7 @@
 #include <linux/rbtree.h>
 #include <pthread.h>
 #include <asm/bug.h>
+#include <linux/perf_event.h>
 #include "symbol_conf.h"
 #include "spark.h"
 
@@ -24,6 +25,8 @@ struct perf_sample;
 struct evsel;
 struct symbol;
 struct branch_flags;
+
+#define LBR_EVENT_MAX_OCCUR	3
 
 struct ins {
 	const char     *name;
@@ -243,6 +246,8 @@ struct cyc_hist {
 	s64	cycles_spark[NUM_SPARKS];
 	u32	num;
 	u32	num_aggr;
+	u32	event_occurs[PERF_MAX_BRANCH_EVENTS];
+	u8	max_occurs[PERF_MAX_BRANCH_EVENTS];
 	u8	have_start;
 	/* 1 byte padding */
 	u16	reset;

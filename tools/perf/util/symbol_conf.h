@@ -78,6 +78,7 @@ struct symbol_conf {
 	int		pad_output_len_dso;
 	int		group_sort_idx;
 	int		addr_range;
+	int		lbr_max_occur;
 };
 
 extern struct symbol_conf symbol_conf;
