@@ -1816,10 +1816,6 @@
                 {
                     "name": "CONFIG_INTEL_HFI",
                     "value": "y"
-                },
-                {
-                    "name": "CONFIG_IDLE_INJECT",
-                    "value": "y"
                 }
             ],
             "contributor": [
@@ -1829,7 +1825,7 @@
                 }
             ],
             "description": "Support for Hybrid CPUs and Hardware-Guided Scheduling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Eliezer Weissman",
@@ -1840,7 +1836,7 @@
                     "email": "muhammad.abozaed@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2620",
             "name": "hybrid",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/ranerica/linux-dev.git",
             "sdl_contact": [
@@ -1851,7 +1847,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "tip-pks-v3",
