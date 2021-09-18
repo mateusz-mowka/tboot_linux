@@ -2479,11 +2479,11 @@
             "branch_type": "expiring",
             "config_options": [
                 {
-                    "name": "CONFIG_SPI_INTEL_SPI_PCI",
+                    "name": "CONFIG_SPI_INTEL_PCI",
                     "value": "m"
                 },
                 {
-                    "name": "CONFIG_SPI_INTEL_SPI_PLATFORM",
+                    "name": "CONFIG_SPI_INTEL_PLATFORM",
                     "value": "m"
                 },
                 {
