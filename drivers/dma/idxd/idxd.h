@@ -271,6 +271,15 @@ struct idxd_evl {
 	u16 head;
 };
 
+struct idxd_evl_fault {
+	struct work_struct work;
+	struct idxd_wq *wq;
+	u8 status;
+
+	/* make this last member always */
+	struct __evl_entry entry[];
+};
+
 struct idxd_device {
 	struct idxd_dev idxd_dev;
 	struct idxd_driver_data *data;
@@ -327,6 +336,7 @@ struct idxd_device {
 
 	unsigned long *opcap_bmap;
 	struct idxd_evl *evl;
+	struct kmem_cache *evl_cache;
 
 	struct dentry *dbgfs_dir;
 	struct dentry *dbgfs_evl_file;
