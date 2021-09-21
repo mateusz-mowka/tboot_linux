@@ -548,6 +548,41 @@ void intel_hfi_online(unsigned int cpu)
 	mutex_lock(&hfi_instance_lock);
 	if (hfi_instance->hdr) {
 		cpumask_set_cpu(cpu, hfi_instance->cpus);
+
+		/*
+		 * Both the HFI thermal interrupt and the local APIC thermal LVT
+		 * are enabled when a CPU comes online. On some systems, all
+		 * CPUs get the package thermak interrupt. On others, however,
+		 * only a subset of CPU gets it. In the former case, we always
+		 * get the interrupt as we enable the HFI after having enabled
+		 * the thermal interrupt in the local APIC. However, in the
+		 * latter case, we may miss the interrupt if hardware issues the
+		 * interrupt to a CPU in which the thermal vector has not been
+		 * enabled in the local APIC. We know that this is the case as
+		 * the status bit will be set. In such a case, handle the
+		 * interrupt.
+		 */
+		raw_spin_lock_irq(&hfi_instance->table_lock);
+		rdmsrl(MSR_IA32_PACKAGE_THERM_STATUS, msr_val);
+		if (msr_val & PACKAGE_THERM_STATUS_HFI_UPDATED) {
+			memcpy(hfi_instance->local_table, hfi_instance->hw_table,
+			       hfi_features.nr_table_pages << PAGE_SHIFT);
+
+			msr_val &= THERM_STATUS_CLEAR_PKG_MASK &
+				   ~PACKAGE_THERM_STATUS_HFI_UPDATED;
+			wrmsrl(MSR_IA32_PACKAGE_THERM_STATUS, msr_val);
+
+			raw_spin_unlock_irq(&hfi_instance->table_lock);
+
+			queue_delayed_work(hfi_updates_wq,
+					   &hfi_instance->update_work,
+					   HFI_UPDATE_INTERVAL);
+
+			goto unlock;
+		}
+
+		raw_spin_unlock_irq(&hfi_instance->table_lock);
+
 		goto unlock;
 	}
 
