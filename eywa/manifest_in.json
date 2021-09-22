@@ -4300,7 +4300,7 @@
                 }
             ],
             "description": "Re-enable ENQCMD and PASID",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
