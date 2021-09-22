@@ -1406,14 +1406,14 @@
                 }
             ],
             "description": "Intel Speed Select Technology",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Stanley Chen",
                     "email": "stanley.chen@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2631",
             "name": "sst",
             "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_linux_spandruv-internal.git",
             "sdl_contact": [
@@ -1424,7 +1424,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "v5.14-rc2-cet",
