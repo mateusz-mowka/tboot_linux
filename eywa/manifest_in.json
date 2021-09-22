@@ -426,7 +426,7 @@
             "last_enabled": "v5.10"
         },
         {
-            "branch": "cse-5.14",
+            "branch": "cse-5.15",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -509,14 +509,14 @@
                 }
             ],
             "description": "CSE/CSME MEI driver and MEI client drivers",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "William A. Stevens",
                     "email": "William.a.stevens@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2633",
             "name": "mei",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/mesw/linux/linux-mei-pk.git",
             "sdl_contact": [
@@ -539,7 +539,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "to_eywa_intel_ish",
