@@ -3999,9 +3999,9 @@
                 }
             ],
             "description": "CXL Memory Expander support targeting the next merge window",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2634",
             "name": "cxl",
             "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/cxl/cxl",
             "sdl_contact": [
@@ -4012,7 +4012,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "dev-queue",
