@@ -3032,7 +3032,7 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "sgx-bootless-next",
+            "branch": "sgx-bootless-next-v5.15-rc2",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -3042,14 +3042,14 @@
                 }
             ],
             "description": "SGX bootless support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2635",
             "name": "sgx_bootless",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/zhangj4/linux-sgx",
             "sdl_contact": [
@@ -3060,7 +3060,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "bus_lock",
