@@ -1239,14 +1239,14 @@
                 }
             ],
             "description": "intel_rapl support as well as intel_idle support, for ElkhartLake, JasperLake, CometLake, TigerLake, AlderLake, RocketLake, Sapphire Rapids, and Meteorlake ",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Evelyn Fields",
                     "email": "evelyn.fields@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2637",
             "name": "rapl/idle",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/rzhang1/for-intel-next.git",
             "sdl_contact": [
@@ -1257,7 +1257,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "pci-next",
