@@ -7,6 +7,6 @@ Intel Next development happens on our mailing list: https://eclists.intel.com/sy
 rpm/deb binaires for the latest kernel are published most business days to Github/Gitlab. Release notes are sent to our announce mailing list: https://eclists.intel.com/sympa/info/intel-next-announce
 ## Support
 Please email intel-next-maintainers@eclists.intel.com for questions or support.
-## More infomation
+## More Infomation
 Visit our Intelpedia page for more documentation: https://intelpedia.intel.com/IntelNext
 
