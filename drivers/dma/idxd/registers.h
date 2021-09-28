@@ -362,6 +362,12 @@ union idbr_reg {
 	u32 bits;
 } __packed;
 
+enum idpte_type {
+	IPTE_TYPE_SASS = 0,	/* single access single submitter */
+	IPTE_TYPE_SAMS,		/* single access multiple submittter */
+	IPTE_TYPE_AASS,		/* any access single submitter */
+};
+
 union idpte {
 	struct {
 		/* bytes 0-3 */

@@ -80,6 +80,17 @@ enum dsa_opcode {
 	DSA_OPCODE_DIF_STRP,
 	DSA_OPCODE_DIF_UPDT,
 	DSA_OPCODE_CFLUSH = 0x20,
+	DSA_OPCODE_UPDATE_WIN,
+	DSA_OPCODE_RS_IPASID_MEMCOPY = 0x23,
+	DSA_OPCODE_RS_IPASID_FILL,
+	DSA_OPCODE_RS_IPASID_COMPARE,
+	DSA_OPCODE_RS_IPASID_COMPVAL,
+	DSA_OPCODE_RS_IPASID_CFLUSH,
+	DSA_OPCODE_URS_IPASID_MEMCOPY = 0x33,
+	DSA_OPCODE_URS_IPASID_FILL,
+	DSA_OPCODE_URS_IPASID_COMPARE,
+	DSA_OPCODE_URS_IPASID_COMPVAL,
+	DSA_OPCODE_URS_IPASID_CFLUSH,
 };
 
 enum iax_opcode {
@@ -186,12 +197,14 @@ struct dsa_hw_desc {
 		uint64_t	rdback_addr;
 		uint64_t	pattern;
 		uint64_t	desc_list_addr;
+		uint64_t	win_base_addr;
 	};
 	union {
 		uint64_t	dst_addr;
 		uint64_t	rdback_addr2;
 		uint64_t	src2_addr;
 		uint64_t	comp_pattern;
+		uint64_t	win_size;
 	};
 	union {
 		uint32_t	xfer_size;
@@ -250,6 +263,83 @@ struct dsa_hw_desc {
 			uint16_t	dest_app_tag_seed;
 		};
 
+		/* restricted ops with interpasid */
+		struct {
+			uint8_t rest_ip_res1[20];
+			union {
+				uint16_t src_pasid_hndl;
+				uint8_t rest_ip_res2[2];
+				uint16_t src1_pasid_hndl;
+			};
+			union {
+				uint16_t dest_pasid_hndl;
+				uint16_t src2_pasid_hndl;
+				uint8_t rest_ip_res3[2];
+			};
+		};
+
+		/* unrestricted ops with interpasid */
+		struct {
+			uint8_t unrest_ip_res1[8];
+			union {
+				/* Generic */
+				struct {
+					uint32_t addr1_pasid:20;
+					uint32_t unrest_ip_res2:11;
+					uint32_t addr1_priv:1;
+				};
+				/* Memcopy, Compare Pattern */
+				struct {
+					uint32_t src_pasid:20;
+					uint32_t unrest_ip_res3:11;
+					uint32_t unrest_src_priv:1;
+				};
+				/* Fill, Cache Flush */
+				struct {
+					uint32_t unrest_ip_res4: 32;
+				};
+				/* Compare */
+				struct {
+					uint32_t src1_pasid:20;
+					uint32_t unrest_ip_res5:11;
+					uint32_t unrest_src1_priv:1;
+				};
+			};
+			union {
+				/* Generic */
+				struct {
+					uint32_t addr2_pasid:20;
+					uint32_t unrest_ip_res6:11;
+					uint32_t addr2_priv:1;
+				};
+				/* Memcopy, Fill */
+				struct {
+					uint32_t dest_pasid:20;
+					uint32_t unrest_ip_res7:11;
+					uint32_t unrest_dest_priv:1;
+				};
+				/* Compare */
+				struct {
+					uint32_t src2_pasid:20;
+					uint32_t unrest_ip_res8:11;
+					uint32_t unrest_src2_priv:1;
+				};
+				/* Compare Pattern */
+				struct {
+					uint32_t unrest_ip_res9: 32;
+				};
+			};
+			uint64_t unrest_ip_res10:48;
+			uint16_t ipt_handle;
+		};
+
+		/* Update window */
+		struct {
+			uint8_t update_win_resv2[21];
+			uint8_t idpt_win_flags;
+			uint16_t idpt_win_handle;
+		};
+
 		uint8_t		op_specific[24];
 	};
 } __attribute__((packed));
@@ -279,6 +369,11 @@ struct iax_hw_desc {
 struct dsa_raw_desc {
 	uint64_t	field[8];
 } __attribute__((packed));
+
+#define DSA_COMP_FI_FA_MASKED_MASK	0x1
+#define DSA_COMP_FI_FA_MASKED_SHIFT	0x0
+#define DSA_COMP_FI_OP_ID_MASK		0x7
+#define DSA_COMP_FI_OP_ID_SHIFT		0x1
 
 /*
  * The status field will be modified by hardware, therefore it should be
