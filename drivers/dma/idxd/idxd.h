@@ -259,6 +259,7 @@ struct idxd_hw {
 	struct opcap opcap;
 	u32 cmd_cap;
 	union iaa_cap_reg iaa_cap;
+	union idcap_reg id_cap;
 };
 
 enum idxd_device_state {
@@ -348,6 +349,7 @@ struct idxd_device {
 	u32 wqcfg_offset;
 	u32 grpcfg_offset;
 	u32 perfmon_offset;
+	u32 idpt_offset;
 
 	u64 max_xfer_bytes;
 	u32 max_batch_size;
@@ -360,6 +362,9 @@ struct idxd_device {
 	int rdbuf_limit;
 	int nr_rdbufs;		/* non-reserved read buffers */
 	unsigned int wqcfg_size;
+
+	unsigned int idpt_size;
+	unsigned int idpte_support_mask;
 
 	union sw_err_reg sw_err;
 	wait_queue_head_t cmd_waitq;

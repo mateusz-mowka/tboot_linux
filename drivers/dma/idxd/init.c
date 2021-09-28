@@ -436,6 +436,8 @@ static void idxd_read_table_offsets(struct idxd_device *idxd)
 	dev_dbg(dev, "IDXD IMS Offset: %#x\n", idxd->ims_offset);
 	idxd->perfmon_offset = offsets.perfmon * IDXD_TABLE_MULT;
 	dev_dbg(dev, "IDXD Perfmon Offset: %#x\n", idxd->perfmon_offset);
+	idxd->idpt_offset = offsets.idpt * IDXD_TABLE_MULT;
+	dev_dbg(dev, "IDXD IDPT offset: %#x\n", idxd->idpt_offset);
 }
 
 void multi_u64_to_bmap(unsigned long *bmap, u64 *val, int count)
@@ -511,11 +513,26 @@ static void idxd_read_caps(struct idxd_device *idxd)
 				IDXD_OPCAP_OFFSET + i * sizeof(u64));
 		dev_dbg(dev, "opcap[%d]: %#llx\n", i, idxd->hw.opcap.bits[i]);
 	}
+
 	multi_u64_to_bmap(idxd->opcap_bmap, &idxd->hw.opcap.bits[0], 4);
 
 	/* read iaa cap */
 	if (idxd->data->type == IDXD_TYPE_IAX && idxd->hw.version >= DEVICE_VERSION_2)
 		idxd->hw.iaa_cap.bits = ioread64(idxd->reg_base + IDXD_IAACAP_OFFSET);
+
+	/* reading inter-domain capabilities */
+	if (idxd->hw.gen_cap.inter_domain) {
+		idxd->hw.id_cap.bits = ioread64(idxd->reg_base + IDXD_IDCAP_OFFSET);
+		dev_dbg(dev, "idcap: %#llx\n", idxd->hw.id_cap.bits);
+
+		idxd->idpt_size = idxd->hw.id_cap.idpt_size;
+		dev_dbg(dev, "IDPT size: %u\n", idxd->idpt_size);
+		idxd->idpte_support_mask = idxd->hw.id_cap.idpte_support_mask;
+		dev_dbg(dev, "IDPTE support mask: %#x\n", idxd->idpte_support_mask);
+		dev_dbg(dev, "IDPT offset mode support: %u\n", idxd->hw.id_cap.ofs_mode);
+		dev_dbg(dev, "IDPT update window suppress drain support: %u\n",
+			idxd->hw.id_cap.win_drain_suppress);
+	}
 }
 
 static struct idxd_device *idxd_alloc(struct pci_dev *pdev, struct idxd_driver_data *data)

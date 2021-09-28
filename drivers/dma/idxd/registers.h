@@ -30,7 +30,9 @@ union gen_cap_reg {
 		u64 cache_control_mem:1;
 		u64 cache_control_cache:1;
 		u64 cmd_cap:1;
-		u64 rsvd:3;
+		u64 rsvd:1;
+		u64 inter_domain:1;
+		u64 rsvd4:1;
 		u64 dest_readback:1;
 		u64 drain_readback:1;
 		u64 rsvd2:3;
@@ -113,7 +115,8 @@ union offsets_reg {
 		u64 msix_perm:16;
 		u64 ims:16;
 		u64 perfmon:16;
-		u64 rsvd:48;
+		u64 idpt:16;
+		u64 rsvd:32;
 	};
 	u64 bits[2];
 } __packed;
@@ -331,6 +334,61 @@ union evlcfg_reg {
 
 #define IDXD_EVL_SIZE_MIN	0x0040
 #define IDXD_EVL_SIZE_MAX	0xffff
+
+#define IDXD_IDCAP_OFFSET	0x100
+union idcap_reg {
+	struct {
+		u64 idpte_support_mask:3;
+		u64 rsvd:5;
+		u64 idpt_size:16;
+		u64 ofs_mode:1;
+		u64 win_drain_suppress:1;
+		u64 idpte_size:2;
+		u64 rsvd2:36;
+	};
+	u64 bits;
+} __packed;
+
+#define IDXD_IDBR_OFFSET	0x108
+union idbr_reg {
+	struct {
+		u32 pasid_en:1;
+		u32 priv:1;
+		u32 bitmap_tc:3;
+		u32 rsvd:3;
+		u32 bitmap_pasid:20;
+		u32 rsvd2:4;
+	};
+	u32 bits;
+} __packed;
+
+union idpte {
+	struct {
+		/* bytes 0-3 */
+		u32 usable:1;
+		u32 allow_update:1;
+		u32 type:2;
+		u32 rsvd:8;
+		u32 submit_pasid:20;
+
+		/* bytes 4-7 */
+		u32 rd_perm:1;
+		u32 wr_perm:1;
+		u32 access_priv:1;
+		u32 win_en:1;
+		u32 win_mode:2;
+		u32 rsvd1:6;
+		u32 access_pasid:20;
+
+		/* bytes 8-32 */
+		u64 base_addr;
+		u64 range_size;
+		u64 bmap_addr;	/* bottom 12 bits are reserved */
+	};
+	u64 bits[4];
+} __packed;
+
+#define BMAP_ADDR_MASK	PAGE_MASK
 
 union msix_perm {
 	struct {
