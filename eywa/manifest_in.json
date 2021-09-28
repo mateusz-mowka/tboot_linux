@@ -3819,7 +3819,7 @@
             "last_enabled": "v5.13"
         },
         {
-            "branch": "5.14-rc2",
+            "branch": "for-intel-next",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -3834,14 +3834,14 @@
                 }
             ],
             "description": "cpu on/off test torture module",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Srinivas Pandruvada",
                     "email": "srinivas.pandruvada@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2640",
             "name": "torture_test",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/xpardee/linux.git",
             "sdl_contact": [
@@ -3852,7 +3852,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "seamless-for-intel-next",
