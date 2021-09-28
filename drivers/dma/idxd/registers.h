@@ -360,9 +360,9 @@ union idbr_reg {
 } __packed;
 
 enum idpte_type {
-	IPTE_TYPE_SASS = 0,	/* single access single submitter */
-	IPTE_TYPE_SAMS,		/* single access multiple submittter */
-	IPTE_TYPE_AASS,		/* any access single submitter */
+	IDPTE_TYPE_SASS = 0,	/* single access single submitter */
+	IDPTE_TYPE_SAMS,	/* single access multiple submittter */
+	IDPTE_TYPE_AASS,	/* any access single submitter */
 };
 
 union idpte {
@@ -392,6 +392,7 @@ union idpte {
 } __packed;
 
 #define BMAP_ADDR_MASK	PAGE_MASK
+#define IDPT_STRIDES	4
 
 union msix_perm {
 	struct {
