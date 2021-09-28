@@ -231,15 +231,18 @@ def print_and_log(str):
 
 def create_readme_file():
     #Implements the README.intel from the legacy merge.sh
-    readme_out="INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.\n"
-    readme_out+=rule+"\n"
-    for f in glob.glob("README.*"):
+    readme_out = "INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.\n"
+    readme_out += rule+"\n"
+    #exlude README.md file
+    excludes = ["README.md"]
+    files = [x for x in glob.glob("README.*") if x not in excludes]
+    for f in files:
         with open(f) as fobj:
-            readme_out +=f + ":\n\n"
-            readme_out +=fobj.read()+"\n"
+            readme_out += f + ":\n\n"
+            readme_out += fobj.read()+"\n"
 
-    readme_out +="\n" +rule +"\n"
-    readme_out +="Intel Next Maintainers <intel-next-maintainers@eclists.intel.com>"
+    readme_out += "\n" + rule +"\n"
+    readme_out += "Intel Next Maintainers <intel-next-maintainers@eclists.intel.com>"
     with open("README.intel","w") as f:
         f.write(readme_out)
 
