@@ -1763,6 +1763,7 @@ static void idxd_conf_device_release(struct device *dev)
 	kfree(idxd->groups);
 	kfree(idxd->wqs);
 	kfree(idxd->engines);
+	kfree(idxd->idpte_data);
 	kfree(idxd->evl);
 	kmem_cache_destroy(idxd->evl_cache);
 	ida_free(&idxd_ida, idxd->id);

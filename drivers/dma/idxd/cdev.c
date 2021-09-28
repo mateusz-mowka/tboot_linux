@@ -12,6 +12,8 @@
 #include <linux/poll.h>
 #include <linux/iommu.h>
 #include <linux/xarray.h>
+#include <linux/anon_inodes.h>
+#include <linux/mmu_notifier.h>
 #include <uapi/linux/idxd.h>
 #include "registers.h"
 #include "idxd.h"
@@ -148,6 +150,16 @@ static struct device_type idxd_cdev_file_type = {
 	.name = "idxd_file",
 	.release = idxd_file_dev_release,
 	.groups = cdev_file_attribute_groups,
+};
+
+struct idxd_submit_node {
+	struct list_head list;
+	struct idxd_idpt_entry_data *idpte_data;
+	struct files_struct *submit_id;
+	struct iommu_sva *submit_sva;
+	struct mmu_notifier mmu_notifier;
+	struct mm_struct *mm;
+	bool mmu_notify;
 };
 
 static void idxd_cdev_dev_release(struct device *dev)
@@ -426,12 +438,311 @@ static __poll_t idxd_cdev_poll(struct file *filp,
 	return out;
 }
 
+static inline u32 submitter_pasid(struct idxd_submit_node *sn)
+{
+	return iommu_sva_get_pasid(sn->submit_sva);
+}
+
+static inline u32 idxd_idpte_offset(struct idxd_device *idxd, int index)
+{
+	return idxd->idpt_offset + index * sizeof(union idpte);
+}
+
+static void idxd_idpte_flush_submitter_node(struct idxd_submit_node *sn)
+{
+	struct idxd_idpt_entry_data *idpte_data;
+	struct idxd_device *idxd;
+	struct device *dev;
+	union idpte idpte;
+	u32 offset;
+
+	if (!sn)
+		return;
+
+	idpte_data = sn->idpte_data;
+	idxd = idpte_data->idxd;
+	dev = &idxd->pdev->dev;
+
+	if (list_empty(&idpte_data->submit_list) && idpte_data->handle_valid) {
+		offset = idxd_idpte_offset(idxd, idpte_data->handle);
+		idpte.bits[0] = ioread64(idxd->reg_base + offset);
+		idpte.usable = 0;
+		iowrite64(idpte.bits[0], idxd->reg_base + offset);
+	}
+
+	if (sn->mmu_notify)
+		mmu_notifier_unregister(&sn->mmu_notifier, sn->mm);
+}
+
+static int idxd_idpte_flush_submitter(struct idxd_idpt_entry_data *idpte_data, fl_owner_t id)
+{
+	struct idxd_device *idxd = idpte_data->idxd;
+	struct idxd_submit_node *sn, *tmp;
+
+	mutex_lock(&idpte_data->lock);
+	list_for_each_entry_safe(sn, tmp, &idpte_data->submit_list, list) {
+		if (sn->submit_id != id)
+			continue;
+
+		list_del(&sn->list);
+		break;
+	}
+
+	if (!(sn && sn->submit_id == id)) {
+		/*
+		 * If a process creates a window and then forks, the child process
+		 * will have a fd for the window but submit_id will mismatch.
+		 */
+		kfree(sn);
+		mutex_unlock(&idpte_data->lock);
+		return 0;
+	}
+
+	if (sn->idpte_data->handle_valid)
+		idxd_device_drain_pasid(idxd, submitter_pasid(sn));
+	idxd_idpte_flush_submitter_node(sn);
+
+	mutex_unlock(&idpte_data->lock);
+
+	iommu_sva_unbind_device(sn->submit_sva);
+	kfree(sn);
+	return 0;
+}
+
+static void idxd_idpte_flush_owner(struct idxd_idpt_entry_data *idpte_data)
+{
+	struct idxd_device *idxd = idpte_data->idxd;
+	u32 offset;
+	int i;
+
+	idxd_device_drain_pasid(idxd, iommu_sva_get_pasid(idpte_data->owner_sva));
+
+	mutex_lock(&idpte_data->lock);
+	idpte_data->handle_valid = 0;
+	mutex_unlock(&idpte_data->lock);
+
+	idxd->idpte_data[idpte_data->handle] = NULL;
+	offset = idxd_idpte_offset(idxd, idpte_data->handle);
+	for (i = 0; i < IDPT_STRIDES; i++)
+		iowrite64(0, idxd->reg_base + offset + i * sizeof(u64));
+
+	mutex_lock(&idxd->idpt_lock);
+	ida_free(&idxd->idpt_ida, idpte_data->handle);
+	mutex_unlock(&idxd->idpt_lock);
+
+	iommu_sva_unbind_device(idpte_data->owner_sva);
+
+	put_device(idxd_confdev(idxd));
+}
+
+static int idxd_idpte_flush(struct file *filp, fl_owner_t id)
+{
+	struct idxd_idpt_entry_data *idpte_data = filp->private_data;
+
+	if (idpte_data->owner_id != id)
+		return idxd_idpte_flush_submitter(idpte_data, id);
+
+	idxd_idpte_flush_owner(idpte_data);
+	return 0;
+}
+
+static int idxd_idpte_release(struct inode *i, struct file *filp)
+{
+	struct idxd_idpt_entry_data *idpte_data = filp->private_data;
+
+	ioasid_put(idpte_data->access_pasid);
+	kfree(idpte_data);
+	return 0;
+}
+
+static const struct file_operations idxd_idpte_fops = {
+	.owner = THIS_MODULE,
+	.flush = idxd_idpte_flush,
+	.release = idxd_idpte_release,
+};
+
+void dump_idpte(struct idxd_device *idxd, union idpte *idpte)
+{
+	struct device *dev = &idxd->pdev->dev;
+
+	dev_dbg(dev, "valid %u\n", idpte->usable);
+	dev_dbg(dev, "modify %u\n", idpte->allow_update);
+	dev_dbg(dev, "read %u\n", idpte->rd_perm);
+	dev_dbg(dev, "write %u\n", idpte->wr_perm);
+	dev_dbg(dev, "type %u\n", idpte->type);
+	dev_dbg(dev, "access privilege %u\n", idpte->access_priv);
+	dev_dbg(dev, "window enable %u\n", idpte->win_en);
+	dev_dbg(dev, "window mode %u\n", idpte->win_mode);
+	dev_dbg(dev, "access pasid %u\n", idpte->access_pasid);
+	dev_dbg(dev, "base addr %#llx\n", idpte->base_addr);
+	dev_dbg(dev, "range_size %#llx\n", idpte->range_size);
+}
+
+static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_param,
+				 u16 __user *uhandle)
+{
+	struct idxd_user_context *ctx = filp->private_data;
+	struct idxd_wq *wq = ctx->wq;
+	struct idxd_device *idxd = wq->idxd;
+	struct device *dev = &idxd->pdev->dev;
+	struct idxd_idpt_entry_data *idpte_data;
+	union idpte idpte = {0};
+	unsigned int flags;
+	unsigned int type;
+	int index, fd, i;
+	u32 offset;
+	u16 khandle;
+	long rc;
+
+	type = win_param->type;
+	flags = win_param->flags;
+
+	dev_dbg(dev, "%s with pid %u flags %#x\n", __func__, current->pid, flags);
+
+	if (!idxd->hw.gen_cap.inter_domain || !idxd->idpt_size ||
+	    !(BIT(type) & idxd->hw.id_cap.idpte_support_mask) ||
+	    type == IDPTE_TYPE_AASS)
+		return -EOPNOTSUPP;
+
+	if (flags & ~IDXD_WIN_FLAGS_MASK) {
+		dev_dbg(dev, "%s: invalid flags\n", __func__);
+		return -EINVAL;
+	}
+
+	idpte.win_mode = !!(flags & IDXD_WIN_FLAGS_OFFSET_MODE);
+	idpte.win_en = !!(flags & IDXD_WIN_FLAGS_WIN_CHECK);
+
+	/* No window offset mode support */
+	if (idpte.win_mode && !idxd->hw.id_cap.ofs_mode) {
+		dev_dbg(dev, "%s: device does not support window mode 1\n", __func__);
+		return -EOPNOTSUPP;
+	}
+
+	/* Window check disabled, but window mode is in offset mode */
+	if (!idpte.win_en && idpte.win_mode) {
+		dev_dbg(dev, "%s: window check disabled, window set to offset mode\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!idpte.win_en && (win_param->base || win_param->size)) {
+		dev_dbg(dev, "%s: win check enabled, base or size are non-zero\n", __func__);
+		return -EINVAL;
+	}
+
+	if (win_param->base + win_param->size < win_param->base) {
+		dev_dbg(dev, "%s: invalid window size: base: %#llx size: %#llx\n",
+			__func__, win_param->base, win_param->size);
+		return -EINVAL;
+	}
+
+	/* Can be removed when multi-submitter support is added */
+	if (type == IDXD_WIN_TYPE_SA_MS)
+		return -EOPNOTSUPP;
+
+	index = ida_alloc(&idxd->idpt_ida, GFP_KERNEL);
+	if (index < 0)
+		return index;
+
+	idpte_data = kzalloc(sizeof(*idpte_data), GFP_KERNEL);
+	if (!idpte_data) {
+		rc = -ENOMEM;
+		goto idpted_failed;
+	}
+
+	idpte_data->owner_sva = iommu_sva_bind_device(dev, current->mm, NULL);
+	if (IS_ERR(idpte_data->owner_sva)) {
+		rc = PTR_ERR(idpte_data->owner_sva);
+		goto sva_bind_fail;
+	}
+
+	idpte.usable = 0;
+	idpte.allow_update = 1;
+	idpte.rd_perm = !!(flags & IDXD_WIN_FLAGS_PROT_READ);
+	idpte.wr_perm = !!(flags & IDXD_WIN_FLAGS_PROT_WRITE);
+	idpte.type = type;
+
+	idpte_data->idxd = idxd;
+	idpte_data->handle = index;
+	idpte_data->handle_valid = 1;
+	idpte_data->owner_id = current->files;
+	INIT_LIST_HEAD(&idpte_data->submit_list);
+	mutex_init(&idpte_data->lock);
+	khandle = idpte_data->handle;
+
+	/* non priviledged access */
+	idpte.access_priv = 0;
+
+	ioasid_get(ctx->pasid);
+	idpte_data->access_pasid = idpte.access_pasid = ctx->pasid;
+	idpte.submit_pasid = 0;
+	idpte.base_addr = win_param->base;
+	idpte.range_size = win_param->size;
+
+	offset = idxd_idpte_offset(idxd, index);
+
+	dump_idpte(idxd, &idpte);
+
+	for (i = 0; i < IDPT_STRIDES; i++)
+		iowrite64(idpte.bits[i], idxd->reg_base + offset + i * sizeof(u64));
+
+	idxd->idpte_data[index] = idpte_data;
+
+	fd = anon_inode_getfd("ipt", &idxd_idpte_fops, idpte_data, 0);
+	if (fd < 0) {
+		dev_dbg(dev, "Failed getting anon inode fd: %d\n", fd);
+		rc = fd;
+		goto getfd_fail;
+	}
+
+	if (put_user(khandle, uhandle)) {
+		rc = -EFAULT;
+		goto cp_user_fail;
+	}
+
+	get_device(idxd_confdev(idxd));
+
+	return fd;
+
+cp_user_fail:
+getfd_fail:
+	idxd->idpte_data[index] = NULL;
+sva_bind_fail:
+	kfree(idpte_data);
+idpted_failed:
+	mutex_lock(&idxd->idpt_lock);
+	ida_free(&idxd->idpt_ida, index);
+	mutex_unlock(&idxd->idpt_lock);
+	return rc;
+
+}
+
+static long idxd_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct idxd_win_param win_param;
+	int rc = -EOPNOTSUPP;
+
+	switch (cmd) {
+	case IDXD_WIN_CREATE:
+		if (copy_from_user(&win_param, (void __user *)arg, sizeof(win_param)))
+			return -EFAULT;
+
+		return idxd_idpt_win_create(filp, &win_param,
+					    &((struct idxd_win_param *)arg)->handle);
+
+	default:
+		break;
+	};
+
+	return rc;
+}
+
 static const struct file_operations idxd_cdev_fops = {
 	.owner = THIS_MODULE,
 	.open = idxd_cdev_open,
 	.release = idxd_cdev_release,
 	.mmap = idxd_cdev_mmap,
 	.poll = idxd_cdev_poll,
+	.unlocked_ioctl = idxd_cdev_ioctl,
 };
 
 int idxd_cdev_get_major(struct idxd_device *idxd)

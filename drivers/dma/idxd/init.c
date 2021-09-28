@@ -378,6 +378,11 @@ static int idxd_setup_internals(struct idxd_device *idxd)
 	struct device *dev = &idxd->pdev->dev;
 	int rc, i;
 
+	if (idxd->hw.gen_cap.inter_domain) {
+		mutex_init(&idxd->idpt_lock);
+		ida_init(&idxd->idpt_ida);
+	}
+
 	init_waitqueue_head(&idxd->cmd_waitq);
 
 	rc = idxd_setup_wqs(idxd);
@@ -398,13 +403,24 @@ static int idxd_setup_internals(struct idxd_device *idxd)
 		goto err_wkq_create;
 	}
 
+	if (idxd->idpt_size) {
+		idxd->idpte_data = kcalloc_node(idxd->idpt_size,
+						sizeof(struct idpte_data *),
+						GFP_KERNEL, dev_to_node(dev));
+		if (!idxd->idpte_data)
+			goto err_idtp;
+	}
+
 	rc = idxd_init_evl(idxd);
 	if (rc < 0)
 		goto err_evl;
 
+
 	return 0;
 
  err_evl:
+	kfree(idxd->idpte_data);
+ err_idtp:
 	destroy_workqueue(idxd->wq);
  err_wkq_create:
 	for (i = 0; i < idxd->max_groups; i++)

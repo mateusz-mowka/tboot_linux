@@ -3,11 +3,8 @@
 #ifndef _USR_IDXD_H_
 #define _USR_IDXD_H_
 
-#ifdef __KERNEL__
 #include <linux/types.h>
-#else
-#include <stdint.h>
-#endif
+#include <linux/ioctl.h>
 
 /* Driver command error status */
 enum idxd_scmd_stat {
@@ -458,5 +455,32 @@ struct iax_completion_record {
 struct iax_raw_completion_record {
 	uint64_t	field[8];
 } __attribute__((packed));
+
+#define IDXD_TYPE	('d')
+#define IDXD_IOC_BASE	100
+
+enum idxd_win_type {
+	IDXD_WIN_TYPE_SA_SS = 0,
+	IDXD_WIN_TYPE_SA_MS,
+};
+
+/* IDXD window flags */
+#define IDXD_WIN_FLAGS_PROT_READ	0x0001
+#define IDXD_WIN_FLAGS_PROT_WRITE	0x0002
+#define IDXD_WIN_FLAGS_WIN_CHECK	0x0004
+#define IDXD_WIN_FLAGS_OFFSET_MODE	0x0008
+
+#define IDXD_WIN_FLAGS_MASK		(IDXD_WIN_FLAGS_PROT_READ | IDXD_WIN_FLAGS_PROT_WRITE |\
+					 IDXD_WIN_FLAGS_WIN_CHECK | IDXD_WIN_FLAGS_OFFSET_MODE)
+
+struct idxd_win_param {
+	uint64_t base;		/* Window base */
+	uint64_t size;		/* Window size */
+	uint32_t type;		/* Window type, see enum idxd_win_type */
+	uint16_t flags;		/* See IDXD windows flags */
+	uint16_t handle;		/* Window handle returned by driver */
+} __attribute__((packed));
+
+#define IDXD_WIN_CREATE		_IOWR(IDXD_TYPE, IDXD_IOC_BASE + 1, struct idxd_win_param)
 
 #endif
