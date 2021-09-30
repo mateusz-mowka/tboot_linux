@@ -3598,7 +3598,7 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "832d22d2bc4d7e3553f7673ec782eb98786aa361",
             "last_enabled": "v5.15"
         },
         {
