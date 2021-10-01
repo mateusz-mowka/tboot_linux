@@ -535,6 +535,7 @@ void idxd_wq_quiesce(struct idxd_wq *wq)
 	__idxd_wq_quiesce(wq);
 	mutex_unlock(&wq->wq_lock);
 }
+EXPORT_SYMBOL_GPL(idxd_wq_quiesce);
 
 /* Device control bits */
 static inline bool idxd_is_enabled(struct idxd_device *idxd)
