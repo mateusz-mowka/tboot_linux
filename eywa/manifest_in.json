@@ -3206,14 +3206,14 @@
                 }
             ],
             "description": "Introduces dev-msi and interrupt message store",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Megha Dey",
                     "email": "megha.dey@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2642",
             "name": "interrupt_message",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/meghadey/linux.git",
             "sdl_contact": [
@@ -3224,7 +3224,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.13"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "scan_at_field_release",
