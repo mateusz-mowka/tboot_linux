@@ -576,7 +576,7 @@ def open_logs(mode):
     patch = open(patch_manifest,mode)
 
 def branch_is_for_all_subprojects(branch):
-    '''Check if branch if branch is not to be included in all sub projects'''
+    '''Check if branch is to be included in all sub projects'''
     return "project_branches" in branch and branch["project_branches"] == {}
 
 def setup_project_merge(manifest,project):
