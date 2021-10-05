@@ -246,7 +246,7 @@ def create_readme_file():
     with open("README.intel","w") as f:
         f.write(readme_out)
 
-def merge_commit(manifest, config_options):
+def merge_commit(manifest, project,config_options):
     #Final Intel next commit. We need to make it look good.
     artifacts=["manifest","manifest.json"]
     date = datetime.date.today()
@@ -266,10 +266,16 @@ def merge_commit(manifest, config_options):
     run_shell_cmd("git add eywa/{}".format(log_file_name))
     run_shell_cmd("cp {} eywa/{}".format(patch_manifest,patch_manifest))
     run_shell_cmd("git add eywa/{}".format(patch_manifest))
-    if manifest["master_branch"]["use_latest_tag"]:
-        commit_msg = "Intel Next: Add release files for {} {}\n\n".format(manifest["master_branch"]["tag"],date)
+
+    if project != None:
+        base_msg = "Intel Next ({} project release): Add release files for ".format(project)
     else:
-        commit_msg = "Intel Next: Add release files for master:{} {}\n\n".format(manifest["master_branch"]["rev"],date)
+        base_msg = "Intel Next: Add release files for ".format(project)
+
+    if manifest["master_branch"]["use_latest_tag"]:
+        commit_msg = base_msg + "{} {}\n\n".format(manifest["master_branch"]["tag"],date)
+    else:
+        commit_msg = base_msg + "master:{} {}\n\n".format(manifest["master_branch"]["rev"],date)
     commit_msg += "\nAdded: {} \n\n ".format(", ".join(artifacts+[log_file_name,patch_manifest,"README.intel"]))
 
     commit_msg +="\nManifest:\n"
@@ -287,7 +293,7 @@ def merge_commit(manifest, config_options):
 
     run_shell_cmd("git commit -s -m '{}'".format(commit_msg))
 
-def print_manifest_log(manifest):
+def print_manifest_log(manifest,project):
     #Creates TXT version of the manifest which can be sent out
     master= manifest["master_branch"]
     branches = manifest["topic_branches"]
@@ -308,6 +314,8 @@ def print_manifest_log(manifest):
             f.write("#Topic Branch: {}\n".format(branch["name"]))
             f.write("#Classification: {}\n".format(branch["status"]))
             f.write("#Description: {}\n".format(branch["description"]))
+            if project != None:
+                f.write("#Project: {}\n".format(project))
             f.write("#Jira: {}\n".format(branch["jira"]))
             f.write("#Contributor: {}\n".format(", ".join(contributors)))
             f.write("#Branch Type: {}\n".format(branch["branch_type"]))
@@ -324,14 +332,13 @@ def print_manifest_log(manifest):
                 #If we want to print out DISABLED branches them change for loop above
                 f.write("#DISABLED {} {}\n\n".format(branch["repourl"],branch["branch"]))
 
-def list_manifest(list_repos):
+def list_manifest(manifest,list_repos):
     """
         Read in manifest_in and print out the manifest in txt format.
 
         Args:
         list_repos:(bool) if true print "repourl branch
     """
-    manifest = read_manifest(manifest_in_path)
     git_header = "git remote name/branch"
     if list_repos:
         git_header = "git repo branch"
@@ -346,10 +353,8 @@ def list_manifest(list_repos):
 
     print(tabulate.tabulate(data,headers,tablefmt="simple"))
 
-def gen_manifest(skip_fetch,fetch_single,fetch_all,blacklist,whitelist,enable_list):
+def gen_manifest(manifest,skip_fetch,fetch_single,fetch_all,blacklist,whitelist,enable_list):
  
-    manifest=read_manifest(manifest_in_path)
-
     #If any of the parameters are invalid exit the progran
     for branch_name in blacklist+whitelist+enable_list:
         if branch_name not in [branch["name"] for branch in manifest["topic_branches"]]:
@@ -557,10 +562,10 @@ def run_git_describe(manifest,fetch_all):
             tag = run_shell_cmd("git describe {}/{}".format(remote_name,branch["branch"])).split("\n")[0]
             print("{} {}".format(branch["name"],tag))
 
-def write_manifest_files(manifest):
+def write_manifest_files(manifest,project):
     s=json.dumps(manifest,indent=4)
     open(manifest_out_path,"w").write(s)
-    print_manifest_log(manifest)
+    print_manifest_log(manifest,project)
 
 def open_logs(mode):
     if mode not in ["a","w"]:
@@ -569,6 +574,38 @@ def open_logs(mode):
     global patch
     log = open(log_file_name,mode)
     patch = open(patch_manifest,mode)
+
+def branch_is_for_all_subprojects(branch):
+    '''Check if branch if branch is not to be included in all sub projects'''
+    return "project_branches" in branch and branch["project_branches"] == {}
+
+def setup_project_merge(manifest,project):
+    '''Modify manifest for project specific merge
+
+       Remove branches that do not have project_branches = {} or
+       branches that do not contain the specified sub project
+    '''
+    del_list = []
+    found_project = False
+    for branch in manifest["topic_branches"]:
+        #If subproject dict exists and the sub project also exists
+        if "project_branches" in branch and project in branch["project_branches"]:
+            sub_project = branch["project_branches"][project]
+            branch["enabled"] = sub_project["enabled"]
+            branch["branch"] = sub_project["branch"]
+            branch["stuck_at_ref"] = sub_project["stuck_at_ref"]
+            #At least one subproject for the passed -p exists
+            found_project = True
+        #Check if the branch is to added for all subprojects
+        elif not branch_is_for_all_subprojects(branch):
+            del_list.append(branch)
+
+    if found_project == False:
+        raise Exception("Could not find project {} ".format(project))
+
+    #Modify manifest with only branches enabled that are to be merged
+    for dbranch in del_list:
+        manifest["topic_branches"].remove(dbranch)
 
 def main():
     parser = argparse.ArgumentParser(description=script_name)
@@ -581,6 +618,7 @@ def main():
     parser.add_argument('-m','--master_branch', help='use HEAD of master branch instead of latest tag',action='store_true')
     parser.add_argument('-u','--update_branch', help='fetch a single branch given repo url',type=str)
     parser.add_argument('-r','--regen_config', help='regen Kconfig options after merge is completed', action='store_true')
+    parser.add_argument('-p','--project_merge', help='do project specific merge',type=str)
     parser.add_argument('-d','--run_describe', help='run git describe on all enabled branches (unless -a is passed )', action='store_true')
     parser.add_argument('-b','--blacklist', help='comma seperated list of branches not to merge even if enabled',type=str)
     parser.add_argument('-e','--enable_list', help='comma seperated list of branches to enable if disabled in manifest_in.json',type=str)
@@ -607,23 +645,28 @@ def main():
     if args.enable_list != None:
         enable_list = args.enable_list.split(",")
 
+    manifest=read_manifest(manifest_in_path)
+
+    project = args.project_merge
+    if project != None:
+       setup_project_merge(manifest,project)
 
     global verbose_mode
     verbose_mode = args.verbose_mode
 
     if args.list_manifest == True or args.list_manifest_repos:
-        list_manifest(args.list_manifest_repos)
+        list_manifest(manifest,args.list_manifest_repos)
         return
 
     if continue_merge == False:
         open_logs("w")
-        manifest = gen_manifest(skip_fetch,fetch_single,fetch_all,blacklist,whitelist,enable_list)
+        manifest = gen_manifest(manifest,skip_fetch,fetch_single,fetch_all,blacklist,whitelist,enable_list)
         if run_describe:
            run_git_describe(manifest,fetch_all)
            return
         manifest = setup_linus_branch(manifest,skip_fetch,master_branch)
         #write manifest files
-        write_manifest_files(manifest)
+        write_manifest_files(manifest,project)
         if run_gen_manifest:
             print("Manifest generation has completed")
             return
@@ -646,7 +689,7 @@ def main():
         config_change = gen_config()
 
     #Last step is to do the merge commit which checks in log files/cfg files etc 
-    merge_commit(manifest, config_change)
+    merge_commit(manifest,project,config_change)
     #If we get here without Exception, merge is done
     print("Merge script has completed without error")
 
