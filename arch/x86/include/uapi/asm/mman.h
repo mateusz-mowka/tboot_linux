@@ -12,6 +12,8 @@
 		((key) & 0x8 ? VM_PKEY_BIT3 : 0))
 #endif
 
+#define SHADOW_STACK_SET_TOKEN	0x1	/* Set up a restore token in the shadow stack */
+
 #include <asm-generic/mman.h>
 
 #endif /* _UAPI_ASM_X86_MMAN_H */
