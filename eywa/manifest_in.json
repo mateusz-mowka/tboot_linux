@@ -3254,7 +3254,7 @@
                 }
             ],
             "status": "intel confidential",
-            "stuck_at_ref": "52f5c29d822d31a39fa5b9dd86970115633edd4d",
+            "stuck_at_ref": "",
             "last_enabled": "v5.15"
         },
         {
