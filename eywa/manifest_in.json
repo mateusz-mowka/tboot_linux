@@ -1370,14 +1370,14 @@
                 }
             ],
             "description": "Linux thermal",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Jim Hermerding",
                     "email": "jim.g.hermerding@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2646",
             "name": "thermal",
             "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_linux_spandruv-internal.git",
             "sdl_contact": [
@@ -1388,7 +1388,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "intel-sst",
