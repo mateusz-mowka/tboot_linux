@@ -309,6 +309,9 @@
 #define X86_FEATURE_MSR_TSX_CTRL	(11*32+20) /* "" MSR IA32_TSX_CTRL (Intel) implemented */
 #define X86_FEATURE_HRESET		(11*32+21) /* Hardware history reset instruction */
 #define X86_FEATURE_USER_SHSTK		(11*32+22) /* Shadow stack support for user mode applications */
+#define X86_FEATURE_CAT_L3_IO		(11*32+23) /* I/O RDT L3 cache allocation. */
+#define X86_FEATURE_CQM_OCCUP_LLC_IO	(11*32+24) /* I/O RDT L3 occupancy monitoring */
+#define X86_FEATURE_CQM_MBM_IO		(11*32+25) /* I/O RDT memory L3 external bandwidth monitoring. */
 
 /* Intel-defined CPU features, CPUID level 0x00000007:1 (EAX), word 12 */
 #define X86_FEATURE_AVX_VNNI		(12*32+ 4) /* AVX VNNI instructions */
