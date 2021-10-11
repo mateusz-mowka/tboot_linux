@@ -678,7 +678,7 @@ def main():
         open_logs("a")
         print_and_log("continuing merge with -c option")
         manifest = read_manifest("manifest.json")
-        print_manifest_log(manifest)
+        print_manifest_log(manifest,project)
     
     #Do actual merge now that everything is setup
     do_merge(manifest, continue_merge)
