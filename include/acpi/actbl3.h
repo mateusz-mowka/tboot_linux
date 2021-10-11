@@ -42,6 +42,7 @@
 #define ACPI_SIG_WSMT           "WSMT"	/* Windows SMM Security Mitigations Table */
 #define ACPI_SIG_XENV           "XENV"	/* Xen Environment table */
 #define ACPI_SIG_XXXX           "XXXX"	/* Intermediate AML header for ASL/ASL+ converter */
+#define ACPI_SIG_IRDT           "IRDT"	/* IRDT table */
 
 /*
  * All tables must be byte-packed to match the ACPI specification, since
@@ -770,6 +771,81 @@ struct acpi_table_xenv {
 	u32 event_interrupt;
 	u8 event_flags;
 };
+
+/*******************************************************************************
+ *
+ * IRDT - I/O Resource Director Technology (IRDT) table
+ *
+ ******************************************************************************/
+
+struct acpi_table_irdt {
+	struct acpi_table_header header;
+	u16 io_flags;		/* IO_PROTO_MON and IO_PROTO_CTL bits */
+	u16 cache_flags;	/* IO_COH_MON and IO_COH_CTL bits */
+	u64 reserved;
+	/* RMUD tables */
+};
+
+/*******************************************************************************
+ *
+ * RMUD - I/O RDT Resource Management Unit Descriptor (RMUD) table
+ *
+ ******************************************************************************/
+
+struct acpi_table_rmud {
+	u8  type;		/* Type 0="RMUD" */
+	u8  reserved0[3];
+	u32 length;		/* Total length of the table in bytes */
+	u32 min_clos;		/* Min numerical CLOS tag supported */
+	u32 min_rmid;		/* Min numerical RMID tag supported */
+	u32 max_clos;		/* Max numerical CLOS tag supported */
+	u32 max_rmid;		/* Max numerical RMID tag supported */
+	u16 segment;		/* The PCI Segment containing this RMUD */
+	u8  reserved1[3];
+	/* DSS and RCS tables */
+};
+
+/*******************************************************************************
+ *
+ * DSS - I/O RDT Device Scope Structures (DSS) table
+ *
+ ******************************************************************************/
+
+struct acpi_table_dss {
+	u16 type;		/* Type 0="DSS" */
+	u16 length;		/* Total length of the table in bytes */
+	u8  dev_type;		/* 0x1: Root; 0x2: PCI sub-hierarchy */
+	u16 id;			/* If dev_type is 1 or 2, this field is BDF */
+	u8  reserved;
+	/* CHMS and RCS tables */
+};
+
+/*******************************************************************************
+ *
+ * RCS - I/O RDT RMUD Control Structures (RCS) table
+ *
+ ******************************************************************************/
+
+struct acpi_table_rcs {
+	u16 type;		/* Type 1="RCS" */
+	u16 length;		/* Total length of the table in bytes */
+	u16 channel_type;	/* Type of channel controlled */
+	u8  id;			/* ID for this RCS under this RMUD */
+	u8  channel_count;	/* Number of channels */
+	u64 flags;
+	u16 rmid_block_offset;	/* Offset from RCS block MMIO RMID location */
+	u16 clos_block_offset;	/* Offset from RCS block MMIO CLOS location */
+	u16 block_bdf;		/* RCS hosting I/O block BDF */
+	u8  block_bar_number;	/* RCS hosting IO/ block BAR number */
+	u8  reserved[9];
+	u64 block_mmio_location;/* RCH hosting I/O block MMIO BAR location */
+};
+
+/* Flags for protection_flags field above */
+
+#define ACPI_WSMT_FIXED_COMM_BUFFERS                (1)
+#define ACPI_WSMT_COMM_BUFFER_NESTED_PTR_PROTECTION (2)
+#define ACPI_WSMT_SYSTEM_RESOURCE_PROTECTION        (4)
 
 /* Reset to default packing */
 
