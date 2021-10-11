@@ -159,6 +159,38 @@ struct rftype *get_iordt_info_files(void)
 }
 */
 
+static u64 io_enabled;
+
+static u64 l3_io_qos_cfg(void)
+{
+	u64 l3_mon = io_enabled & (IO_CMT_L3_ENABLED | IO_MBM_L3_ENABLED) ?
+		     L3_IOM_ENABLE : 0;
+	u64 l3_cat = io_enabled & IO_CAT_L3_ENABLED ?  L3_IOA_ENABLE : 0;
+
+	return l3_mon | l3_cat;
+}
+
+/* Restore IO QoS states */
+void l3_io_qos_cfg_update(void)
+{
+	u64 val;
+
+	if (!iordt_enabled())
+		return;
+
+	val = l3_io_qos_cfg();
+	wrmsrl(MSR_IA32_L3_IO_QOS_CFG, val);
+}
+
+#define io_enabled_valid(flag) (flag & (IO_CAT_L3_ENABLED |		\
+				IO_CMT_L3_ENABLED | IO_MBM_L3_ENABLED))
+
+void __init iordt_enable(u64 flag)
+{
+	if (io_enabled_valid(flag))
+		io_enabled |= flag;
+}
+
 static bool __init irdt_enabled(void)
 {
 	return cpu_feature_enabled(X86_FEATURE_CQM_OCCUP_LLC_IO)	|

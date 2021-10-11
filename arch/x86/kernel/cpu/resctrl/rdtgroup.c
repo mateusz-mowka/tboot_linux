@@ -1875,7 +1875,7 @@ static int set_cache_qos_cfg(int level, bool enable)
 }
 
 /* Restore the qos cfg state when a domain comes online */
-void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
+static void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
 {
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 
@@ -1887,6 +1887,12 @@ void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
 
 	if (r->rid == RDT_RESOURCE_L3)
 		l3_qos_cfg_update(&hw_res->cdp_enabled);
+}
+
+/* Restore the qos cfg states when a domain comes online */
+void rdt_domain_reconfigure(struct rdt_resource *r)
+{
+	rdt_domain_reconfigure_cdp(r);
 }
 
 /*

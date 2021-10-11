@@ -22,6 +22,9 @@
 
 #define L2_QOS_CDP_ENABLE		0x01ULL
 
+#define MSR_IA32_L3_IO_QOS_CFG		0xc83
+#define L3_IOA_ENABLE			0x1ULL
+#define L3_IOM_ENABLE			0x2ULL
 /*
  * Event IDs are used to program IA32_QM_EVTSEL before reading event
  * counter from IA32_QM_CTR
@@ -404,6 +407,13 @@ struct rdt_hw_resource {
 
 bool iordt_enabled(void);
 
+#define IO_CAT_L3_ENABLED	BIT_ULL(0)
+#define IO_CMT_L3_ENABLED	BIT_ULL(1)
+#define IO_MBM_L3_ENABLED	BIT_ULL(2)
+
+void __init iordt_enable(u64 flag);
+void __init iordt_mon_config(void);
+
 static inline struct rdt_hw_resource *resctrl_to_arch_res(struct rdt_resource *r)
 {
 	return container_of(r, struct rdt_hw_resource, r_resctrl);
@@ -558,7 +568,8 @@ void cqm_setup_limbo_handler(struct rdt_domain *dom, unsigned long delay_ms);
 void cqm_handle_limbo(struct work_struct *work);
 bool has_busy_rmid(struct rdt_resource *r, struct rdt_domain *d);
 void __check_limbo(struct rdt_domain *d, bool force_free);
-void rdt_domain_reconfigure_cdp(struct rdt_resource *r);
+void rdt_domain_reconfigure(struct rdt_resource *r);
+void l3_io_qos_cfg_update(void);
 void __init thread_throttle_mode_init(void);
 bool __init rdt_cpu_has(int flag);
 
