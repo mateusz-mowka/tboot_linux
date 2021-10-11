@@ -726,6 +726,8 @@ static int dom_data_init(struct rdt_resource *r)
 	entry = __rmid_entry(0);
 	list_del(&entry->list);
 
+	iordt_mon_config();
+
 	return 0;
 }
 

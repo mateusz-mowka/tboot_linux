@@ -492,7 +492,7 @@ static void domain_add_cpu(int cpu, struct rdt_resource *r)
 	if (d) {
 		cpumask_set_cpu(cpu, &d->cpu_mask);
 		if (r->cache.arch_has_per_cpu_cfg)
-			rdt_domain_reconfigure_cdp(r);
+			rdt_domain_reconfigure(r);
 		return;
 	}
 
@@ -504,7 +504,7 @@ static void domain_add_cpu(int cpu, struct rdt_resource *r)
 	d->id = id;
 	cpumask_set_cpu(cpu, &d->cpu_mask);
 
-	rdt_domain_reconfigure_cdp(r);
+	rdt_domain_reconfigure(r);
 
 	if (r->alloc_capable && domain_setup_ctrlval(r, d)) {
 		domain_free(hw_dom);
@@ -585,6 +585,17 @@ static int resctrl_online_cpu(unsigned int cpu)
 	mutex_lock(&rdtgroup_mutex);
 	for_each_capable_rdt_resource(r)
 		domain_add_cpu(cpu, r);
+
+	/*
+	 * MSR_IA32_L3_IO_QOS_CFG is scoped at L3 cache level. It's good
+	 * enough to update the MSR on just one CPU per L3 cache. But it's
+	 * complex to track the CPU per L3 cache that updates the MSR. To
+	 * simplify the code, update the MSR on each CPU. Hopefully extra
+	 * MSR writes may not cause a serious performance issue because this
+	 * is called only once on CPU online.
+	 */
+	l3_io_qos_cfg_update();
+
 	/* The cpu is set in default rdtgroup after online. */
 	cpumask_set_cpu(cpu, &rdtgroup_default.cpu_mask);
 	clear_closid_rmid(cpu);
@@ -719,6 +730,16 @@ bool __init rdt_cpu_has(int flag)
 	return ret;
 }
 
+void __init iordt_mon_config(void)
+{
+	if (is_llc_occupancy_enabled() &&
+	    rdt_cpu_has(X86_FEATURE_CQM_OCCUP_LLC_IO))
+		iordt_enable(IO_CMT_L3_ENABLED);
+
+	if (is_mbm_enabled() && rdt_cpu_has(X86_FEATURE_CQM_MBM_IO))
+		iordt_enable(IO_MBM_L3_ENABLED);
+}
+
 static __init bool get_mem_config(void)
 {
 	struct rdt_hw_resource *hw_res = &rdt_resources_all[RDT_RESOURCE_MBA];
@@ -748,6 +769,8 @@ static __init bool get_rdt_alloc_resources(void)
 	if (rdt_cpu_has(X86_FEATURE_CAT_L3)) {
 		r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
 		rdt_get_cache_alloc_cfg(1, r);
+		if (rdt_cpu_has(X86_FEATURE_CAT_L3_IO))
+			iordt_enable(IO_CAT_L3_ENABLED);
 		if (rdt_cpu_has(X86_FEATURE_CDP_L3))
 			rdt_get_cdp_l3_config();
 		ret = true;

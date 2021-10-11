@@ -1910,7 +1910,7 @@ static int set_cache_qos_cfg(int level, bool enable)
 }
 
 /* Restore the qos cfg state when a domain comes online */
-void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
+static void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
 {
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 
@@ -1958,6 +1958,12 @@ static bool supports_mba_mbps(void)
 
 	return (is_mbm_local_enabled() &&
 		r->alloc_capable && is_mba_linear());
+}
+
+/* Restore the qos cfg states when a domain comes online */
+void rdt_domain_reconfigure(struct rdt_resource *r)
+{
+	rdt_domain_reconfigure_cdp(r);
 }
 
 /*
