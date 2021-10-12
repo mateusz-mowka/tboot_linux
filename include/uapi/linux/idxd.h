@@ -481,6 +481,11 @@ struct idxd_win_param {
 	uint16_t handle;		/* Window handle returned by driver */
 } __attribute__((packed));
 
-#define IDXD_WIN_CREATE		_IOWR(IDXD_TYPE, IDXD_IOC_BASE + 1, struct idxd_win_param)
+struct idxd_win_attach {
+	uint32_t fd;		/* Window file descriptor returned by IDXD_WIN_CREATE */
+	uint16_t handle;	/* Window handle returned by driver */
+} __attribute__((packed));
 
+#define IDXD_WIN_CREATE		_IOWR(IDXD_TYPE, IDXD_IOC_BASE + 1, struct idxd_win_param)
+#define IDXD_WIN_ATTACH		_IOR(IDXD_TYPE, IDXD_IOC_BASE + 2, struct idxd_win_attach)
 #endif

@@ -531,7 +531,6 @@ static void idxd_idpte_flush_owner(struct idxd_idpt_entry_data *idpte_data)
 	mutex_unlock(&idxd->idpt_lock);
 
 	iommu_sva_unbind_device(idpte_data->owner_sva);
-
 	put_device(idxd_confdev(idxd));
 }
 
@@ -716,9 +715,156 @@ idpted_failed:
 
 }
 
+static struct file *idxd_idpte_data_get_file(int fd)
+{
+	struct file *file;
+
+	file = fget(fd);
+
+	if (!file)
+		return ERR_PTR(-EBADF);
+
+	if (file->f_op != &idxd_idpte_fops) {
+		fput(file);
+		return ERR_PTR(-EINVAL);
+	}
+
+	return file;
+}
+
+static bool idxd_submitter_exist(struct idxd_idpt_entry_data *idpte_data,
+				 struct iommu_sva *submit_sva)
+{
+	struct idxd_submit_node *sn;
+
+	lockdep_assert_held(&idpte_data->lock);
+	sn = list_first_entry_or_null(&idpte_data->submit_list,
+				      struct idxd_submit_node, list);
+	if (!sn)
+		return false;
+
+	if (sn->submit_sva != submit_sva)
+		return false;
+
+	return true;
+}
+
+static bool idxd_new_submitter_allowed(struct idxd_idpt_entry_data *idpte_data)
+{
+	lockdep_assert_held(&idpte_data->lock);
+	return list_empty(&idpte_data->submit_list);
+}
+
+static void idxd_add_submitter(struct idxd_device *idxd,
+			       struct idxd_idpt_entry_data *idpte_data,
+			       struct idxd_submit_node *sn)
+{
+	u32 offset;
+	union idpte idpte;
+
+	lockdep_assert_held(&idpte_data->lock);
+	offset = idxd_idpte_offset(idxd, idpte_data->handle);
+
+	if (list_empty(&idpte_data->submit_list)) {
+		idpte.bits[0] = ioread64(idxd->reg_base + offset);
+		idpte.usable = 1;
+		if (idpte.type == IDPTE_TYPE_SASS)
+			idpte.submit_pasid = submitter_pasid(sn);
+		iowrite64(idpte.bits[0], idxd->reg_base + offset);
+	}
+
+	list_add_tail(&sn->list, &idpte_data->submit_list);
+}
+
+static long idxd_idpt_win_attach(struct file *submit_wq, int fd, u16 __user *uhandle)
+{
+	struct idxd_user_context *ctx = submit_wq->private_data;
+	struct idxd_device *idxd = ctx->wq->idxd;
+	struct device *dev = &idxd->pdev->dev;
+	struct file *idpte_file;
+	struct idxd_idpt_entry_data *idpte_data;
+	struct iommu_sva *submit_sva;
+	struct idxd_submit_node *new_submit;
+	u32 khandle;
+	int rc;
+
+	idpte_file = idxd_idpte_data_get_file(fd);
+	if (IS_ERR(idpte_file))
+		return PTR_ERR(idpte_file);
+
+	idpte_data = idpte_file->private_data;
+	if (idpte_data->idxd != idxd) {
+		rc = -EINVAL;
+		goto err_match_dev;
+	}
+
+	mutex_lock(&idpte_data->lock);
+
+	if (!idpte_data->handle_valid) {
+		rc = -EINVAL;
+		goto err_invalid_handle;
+	}
+
+	submit_sva = iommu_sva_bind_device(dev, current->mm, NULL);
+	if (IS_ERR(submit_sva)) {
+		rc = PTR_ERR(submit_sva);
+		goto err_sva;
+	}
+
+	if (idxd_submitter_exist(idpte_data, submit_sva)) {
+		rc = -EEXIST;
+		goto rel_mutex;
+	}
+
+	if (!idxd_new_submitter_allowed(idpte_data)) {
+		rc = -ENOSPC;
+		goto err_no_submit;
+	}
+
+	new_submit = kzalloc(sizeof(struct idxd_submit_node), GFP_KERNEL);
+	if (!new_submit) {
+		rc = -ENOMEM;
+		goto err_submit_alloc;
+	}
+
+	new_submit->idpte_data = idpte_data;
+	new_submit->mm = current->mm;
+	new_submit->submit_id = current->files;
+	new_submit->submit_sva = submit_sva;
+	new_submit->mmu_notify = false;
+	idxd_add_submitter(idxd, idpte_data, new_submit);
+
+rel_mutex:
+	khandle = idpte_data->handle;
+	mutex_unlock(&idpte_data->lock);
+	fput(idpte_file);
+
+	if (put_user(khandle, uhandle)) {
+		rc = -EFAULT;
+		goto err_put_user;
+	}
+
+	return 0;
+
+err_put_user:
+	idxd_idpte_flush_submitter_node(new_submit);
+	list_del(&new_submit->list);
+	kfree(new_submit);
+
+err_submit_alloc:
+err_no_submit:
+err_sva:
+err_invalid_handle:
+	mutex_unlock(&idpte_data->lock);
+err_match_dev:
+	fput(idpte_file);
+	return rc;
+}
+
 static long idxd_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct idxd_win_param win_param;
+	struct idxd_win_attach win_attach;
 	int rc = -EOPNOTSUPP;
 
 	switch (cmd) {
@@ -729,9 +875,16 @@ static long idxd_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		return idxd_idpt_win_create(filp, &win_param,
 					    &((struct idxd_win_param *)arg)->handle);
 
+	case IDXD_WIN_ATTACH:
+		if (copy_from_user(&win_attach, (void __user *)arg, sizeof(win_attach)))
+			return -EFAULT;
+
+		return idxd_idpt_win_attach(filp, win_attach.fd,
+					    &((struct idxd_win_attach *)arg)->handle);
+
 	default:
 		break;
-	};
+	}
 
 	return rc;
 }
