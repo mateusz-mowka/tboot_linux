@@ -4082,7 +4082,7 @@
             "last_enabled": "v5.14"
         },
         {
-            "branch": "main",
+            "branch": "t7xx_intel_next",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -4100,25 +4100,25 @@
             ],
             "contributor": [
                 {
-                    "name": "Chirar Rapolu",
-                    "email": "chiranjeevi.rapolu@intel.com"
+                    "name": "Ricardo Martinez",
+                    "email": "ricardo.martinez@linux.intel.com"
                 }
             ],
             "description": "MediateTek 5G WWAN device driver",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2649",
             "name": "WWAN",
             "repourl": "https://github.com/intel-sandbox/mtk_5g_wwan.git",
             "sdl_contact": [
                 {
-                    "name": "Chiranjeevi Rapolu",
-                    "email": "chiranjeevi.rapolu@intel.com"
+                    "name": "Moises Veleta",
+                    "email": "moises.veleta@intel.com"
                 }
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "dmwr-5.15-rc1",
