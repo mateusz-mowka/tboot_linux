@@ -14,6 +14,7 @@
 #include <linux/xarray.h>
 #include <linux/anon_inodes.h>
 #include <linux/mmu_notifier.h>
+#include <linux/sizes.h>
 #include <uapi/linux/idxd.h>
 #include "registers.h"
 #include "idxd.h"
@@ -448,6 +449,110 @@ static inline u32 idxd_idpte_offset(struct idxd_device *idxd, int index)
 	return idxd->idpt_offset + index * sizeof(union idpte);
 }
 
+static int idxd_idpte_set_bit(struct idxd_idpt_entry_data *idpte_data, u32 index)
+{
+	int pos, rc;
+	struct page *page;
+	struct page *pages[1];
+	u64 addr;
+
+	lockdep_assert_held(&idpte_data->lock);
+	/*
+	 * Determine the page number from the index. It would be index / PAGE_SIZE * 8,
+	 * which is also >> PAGE_SHIFT + 3, 15.
+	 */
+	pos = index >> (PAGE_SHIFT + 3);
+	if (!__test_and_set_bit(pos, idpte_data->page_bitmap)) {
+		page = alloc_page(GFP_KERNEL | __GFP_ZERO);
+		if (!page) {
+			__clear_bit(pos, idpte_data->page_bitmap);
+			return -ENOMEM;
+		}
+		addr = (u64)idpte_data->bitmap + pos * PAGE_SIZE;
+		pages[0] = page;
+		rc = vmap_pages_range(addr, addr + PAGE_SIZE,
+				      PAGE_KERNEL, pages, PAGE_SHIFT);
+		if (rc < 0) {
+			__clear_bit(pos, idpte_data->page_bitmap);
+			__free_page(page);
+			return rc;
+		}
+
+		idpte_data->bitmap_vma->pages[pos] = page;
+		idpte_data->bitmap_vma->nr_pages++;
+	}
+
+	__set_bit(index, idpte_data->bitmap);
+	return 0;
+}
+
+static void idxd_idpte_clear_bit(struct idxd_idpt_entry_data *idpte_data, int index)
+{
+	int pos;
+
+	mutex_lock(&idpte_data->lock);
+	pos = index >> (PAGE_SHIFT + 3);
+	if (!test_bit(pos, idpte_data->page_bitmap)) {
+		mutex_unlock(&idpte_data->lock);
+		return;
+	}
+	__clear_bit(index, idpte_data->bitmap);
+	mutex_unlock(&idpte_data->lock);
+}
+
+static int idxd_idpte_setup_bitmap(struct idxd_idpt_entry_data *idpte_data)
+{
+	struct vm_struct *vma;
+	unsigned long *page_bitmap;
+	struct page **pages;
+	struct idxd_device *idxd = idpte_data->idxd;
+	struct device *dev = &idxd->pdev->dev;
+	int pages_num = SZ_128K / PAGE_SIZE;
+	int rc;
+
+	vma = get_vm_area(SZ_128K, VM_MAP_PUT_PAGES);
+	if (!vma)
+		return -ENOMEM;
+
+	page_bitmap = bitmap_zalloc(pages_num, GFP_KERNEL);
+	if (!page_bitmap) {
+		rc = -ENOMEM;
+		goto err_bitmap_alloc;
+	}
+
+	pages = kcalloc_node(pages_num, sizeof(struct page *), GFP_KERNEL, dev_to_node(dev));
+	if (!pages) {
+		rc = -ENOMEM;
+		goto err_pages_alloc;
+	}
+
+	idpte_data->page_bitmap = page_bitmap;
+	vma->pages = pages;
+	idpte_data->bitmap_vma = vma;
+	idpte_data->bitmap = vma->addr;
+
+	return 0;
+
+err_pages_alloc:
+	bitmap_free(page_bitmap);
+err_bitmap_alloc:
+	free_vm_area(vma);
+	return rc;
+}
+
+static void idxd_idpte_free_bitmap(struct idxd_idpt_entry_data *idpte_data)
+{
+	struct idxd_device *idxd = idpte_data->idxd;
+	struct device *dev = &idxd->pdev->dev;
+
+	iommu_flush_iotlb_all_dev_pasid(dev, idxd->pasid);
+	vfree(idpte_data->bitmap);
+	kfree(idpte_data->page_bitmap);
+	idpte_data->bitmap_vma = NULL;
+	idpte_data->bitmap = NULL;
+	idpte_data->page_bitmap = NULL;
+}
+
 static void idxd_idpte_flush_submitter_node(struct idxd_submit_node *sn)
 {
 	struct idxd_idpt_entry_data *idpte_data;
@@ -465,9 +570,11 @@ static void idxd_idpte_flush_submitter_node(struct idxd_submit_node *sn)
 
 	if (list_empty(&idpte_data->submit_list) && idpte_data->handle_valid) {
 		offset = idxd_idpte_offset(idxd, idpte_data->handle);
+		mutex_lock(&idxd->idpt_lock);
 		idpte.bits[0] = ioread64(idxd->reg_base + offset);
 		idpte.usable = 0;
 		iowrite64(idpte.bits[0], idxd->reg_base + offset);
+		mutex_unlock(&idxd->idpt_lock);
 	}
 
 	if (sn->mmu_notify)
@@ -477,32 +584,32 @@ static void idxd_idpte_flush_submitter_node(struct idxd_submit_node *sn)
 static int idxd_idpte_flush_submitter(struct idxd_idpt_entry_data *idpte_data, fl_owner_t id)
 {
 	struct idxd_device *idxd = idpte_data->idxd;
-	struct idxd_submit_node *sn, *tmp;
+	struct idxd_submit_node *sn = NULL, *tmp;
+	bool found = false;
 
 	mutex_lock(&idpte_data->lock);
+
+	if (list_empty(&idpte_data->submit_list)) {
+		mutex_unlock(&idpte_data->lock);
+		return 0;
+	}
+
 	list_for_each_entry_safe(sn, tmp, &idpte_data->submit_list, list) {
 		if (sn->submit_id != id)
 			continue;
 
 		list_del(&sn->list);
+		found = true;
 		break;
 	}
+	mutex_unlock(&idpte_data->lock);
 
-	if (!(sn && sn->submit_id == id)) {
-		/*
-		 * If a process creates a window and then forks, the child process
-		 * will have a fd for the window but submit_id will mismatch.
-		 */
-		kfree(sn);
-		mutex_unlock(&idpte_data->lock);
+	if (!found)
 		return 0;
-	}
 
 	if (sn->idpte_data->handle_valid)
 		idxd_device_drain_pasid(idxd, submitter_pasid(sn));
 	idxd_idpte_flush_submitter_node(sn);
-
-	mutex_unlock(&idpte_data->lock);
 
 	iommu_sva_unbind_device(sn->submit_sva);
 	kfree(sn);
@@ -520,8 +627,8 @@ static void idxd_idpte_flush_owner(struct idxd_idpt_entry_data *idpte_data)
 	mutex_lock(&idpte_data->lock);
 	idpte_data->handle_valid = 0;
 	mutex_unlock(&idpte_data->lock);
-
 	idxd->idpte_data[idpte_data->handle] = NULL;
+
 	offset = idxd_idpte_offset(idxd, idpte_data->handle);
 	for (i = 0; i < IDPT_STRIDES; i++)
 		iowrite64(0, idxd->reg_base + offset + i * sizeof(u64));
@@ -725,11 +832,9 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 		return -EINVAL;
 	}
 
-	/* Can be removed when multi-submitter support is added */
-	if (type == IDXD_WIN_TYPE_SA_MS)
-		return -EOPNOTSUPP;
-
+	mutex_lock(&idxd->idpt_lock);
 	index = ida_alloc(&idxd->idpt_ida, GFP_KERNEL);
+	mutex_unlock(&idxd->idpt_lock);
 	if (index < 0)
 		return index;
 
@@ -798,6 +903,8 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 cp_user_fail:
 getfd_fail:
 	idxd->idpte_data[index] = NULL;
+bitmap_fail:
+	iommu_sva_unbind_device(idpte_data->owner_sva);
 sva_bind_fail:
 	kfree(idpte_data);
 idpted_failed:
