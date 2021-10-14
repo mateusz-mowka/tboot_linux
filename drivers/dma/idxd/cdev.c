@@ -531,6 +531,8 @@ static void idxd_idpte_flush_owner(struct idxd_idpt_entry_data *idpte_data)
 	mutex_unlock(&idxd->idpt_lock);
 
 	iommu_sva_unbind_device(idpte_data->owner_sva);
+	mmdrop(idpte_data->owner_mm);
+	idpte_data->owner_mm = NULL;
 	put_device(idxd_confdev(idxd));
 }
 
@@ -554,10 +556,99 @@ static int idxd_idpte_release(struct inode *i, struct file *filp)
 	return 0;
 }
 
+static long idxd_idpte_win_fault(struct file *filp, struct idxd_win_fault *win_fault)
+{
+	struct idxd_idpt_entry_data *idpte_data = filp->private_data;
+	struct idxd_device *idxd = idpte_data->idxd;
+	struct device *dev = &idxd->pdev->dev;
+	struct iommu_sva *submit_sva;
+	struct mm_struct *mm = NULL;
+	u64 addr, start_va, end_va;
+	union idpte idpte;
+	u32 offset;
+	int i, rc = 0;
+
+	mutex_lock(&idpte_data->lock);
+
+	submit_sva = iommu_sva_bind_device(dev, current->mm, NULL);
+	if (IS_ERR(submit_sva)) {
+		rc = PTR_ERR(submit_sva);
+		goto out;
+	}
+
+	if (!idpte_data->handle_valid) {
+		rc = -EINVAL;
+		goto out;
+	}
+
+	offset = idxd_idpte_offset(idxd, idpte_data->handle);
+	for (i = 0; i < 4; i++)
+		idpte.bits[i] = ioread64(idxd->reg_base + offset + i * sizeof(u64));
+
+	start_va = win_fault->offset + idpte.base_addr;
+	end_va = start_va + win_fault->len - 1;
+
+	if (!idpte.rd_perm || (!idpte.wr_perm && win_fault->write_fault) ||
+	    start_va >= end_va || end_va >= start_va + idpte.range_size ||
+	    win_fault->len == 0) {
+		rc = -EINVAL;
+		goto out;
+	}
+
+	mm = idpte_data->owner_mm;
+	for (addr = start_va; addr <= end_va; addr += PAGE_SIZE) {
+		u8 b;
+		int cnt;
+
+		cnt = access_remote_vm(mm, addr, &b, 1, FOLL_REMOTE);
+		if (cnt == 0) {
+			rc = -EFAULT;
+			goto out;
+		}
+
+		if (win_fault->write_fault) {
+			cnt = access_remote_vm(mm, addr, &b, 1, FOLL_WRITE | FOLL_REMOTE);
+			if (cnt == 0) {
+				rc = -EFAULT;
+				goto out;
+			}
+		}
+
+		if (addr == start_va)
+			addr = ALIGN_DOWN(start_va, PAGE_SIZE);
+	}
+
+out:
+	if (!IS_ERR_OR_NULL(submit_sva))
+		iommu_sva_unbind_device(submit_sva);
+
+	mutex_unlock(&idpte_data->lock);
+	return rc;
+}
+
+static long idxd_idpte_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct idxd_win_fault win_fault;
+
+	switch (cmd) {
+	case IDXD_WIN_FAULT:
+		if (copy_from_user(&win_fault, (void __user *)arg, sizeof(win_fault)))
+			return -EFAULT;
+
+		return idxd_idpte_win_fault(filp, &win_fault);
+
+	default:
+		break;
+	}
+
+	return -EOPNOTSUPP;
+}
+
 static const struct file_operations idxd_idpte_fops = {
 	.owner = THIS_MODULE,
 	.flush = idxd_idpte_flush,
 	.release = idxd_idpte_release,
+	.unlocked_ioctl = idxd_idpte_ioctl,
 };
 
 void dump_idpte(struct idxd_device *idxd, union idpte *idpte)
@@ -660,6 +751,8 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 	idpte.wr_perm = !!(flags & IDXD_WIN_FLAGS_PROT_WRITE);
 	idpte.type = type;
 
+	mmgrab(current->mm);
+	idpte_data->owner_mm = current->mm;
 	idpte_data->idxd = idxd;
 	idpte_data->handle = index;
 	idpte_data->handle_valid = 1;

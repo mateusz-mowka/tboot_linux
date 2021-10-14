@@ -458,6 +458,7 @@ struct iax_raw_completion_record {
 
 #define IDXD_TYPE	('d')
 #define IDXD_IOC_BASE	100
+#define IDXD_WIN_BASE	200
 
 enum idxd_win_type {
 	IDXD_WIN_TYPE_SA_SS = 0,
@@ -486,6 +487,14 @@ struct idxd_win_attach {
 	uint16_t handle;	/* Window handle returned by driver */
 } __attribute__((packed));
 
+struct idxd_win_fault {
+	uint64_t offset;	/* Window offset of faulting address */
+	uint64_t len;		/* Faulting range */
+	uint32_t write_fault;	/* Fault generated on write */
+} __attribute__((packed));
+
 #define IDXD_WIN_CREATE		_IOWR(IDXD_TYPE, IDXD_IOC_BASE + 1, struct idxd_win_param)
 #define IDXD_WIN_ATTACH		_IOR(IDXD_TYPE, IDXD_IOC_BASE + 2, struct idxd_win_attach)
+#define IDXD_WIN_FAULT           _IOR(IDXD_TYPE, IDXD_WIN_BASE + 1, struct idxd_win_fault)
+
 #endif

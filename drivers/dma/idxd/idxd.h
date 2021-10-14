@@ -326,6 +326,7 @@ struct idxd_idpt_entry_data {
 	struct list_head next;
 	u32 access_pasid;
 	struct iommu_sva *owner_sva;
+	struct mm_struct *owner_mm;
 };
 
 struct idxd_device {
