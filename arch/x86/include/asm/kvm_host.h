@@ -2156,6 +2156,8 @@ static inline int kvm_cpu_get_apicid(int mps_cpu)
 #endif
 }
 
+extern int kvm_set_guest_paused(struct kvm_vcpu *vcpu);
+
 int memslot_rmap_alloc(struct kvm_memory_slot *slot, unsigned long npages);
 
 #define KVM_CLOCK_VALID_FLAGS						\
