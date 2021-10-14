@@ -125,6 +125,7 @@ struct iommu_domain {
 	};
 	ioasid_t dma_pasid;		/* Used for DMA requests with PASID */
 	atomic_t dma_pasid_users;
+	u32 spasid;
 };
 
 static inline bool iommu_is_dma_domain(struct iommu_domain *domain)
@@ -553,6 +554,16 @@ extern int report_iommu_fault(struct iommu_domain *domain, struct device *dev,
 
 static inline void iommu_flush_iotlb_all(struct iommu_domain *domain)
 {
+	if (domain->ops->flush_iotlb_all)
+		domain->ops->flush_iotlb_all(domain);
+}
+
+static inline void iommu_flush_iotlb_all_dev_pasid(struct device *dev, u32 pasid)
+{
+	struct iommu_domain *domain;
+
+	domain = iommu_get_domain_for_dev(dev);
+	domain->spasid = pasid;
 	if (domain->ops->flush_iotlb_all)
 		domain->ops->flush_iotlb_all(domain);
 }

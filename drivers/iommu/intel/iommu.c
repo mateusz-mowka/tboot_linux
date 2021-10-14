@@ -1573,6 +1573,11 @@ static void domain_flush_pasid_iotlb(struct intel_iommu *iommu,
 	}
 	spin_unlock_irqrestore(&device_domain_lock, flags);
 
+	if (domain->spasid) {
+		pr_info_ratelimited("%s: spasid %d\n", __func__, domain->spasid);
+		qi_flush_piotlb(iommu, did, domain->spasid, addr, npages, ih);
+	}
+
 	if (!list_empty(&domain->devices))
 		qi_flush_piotlb(iommu, did, PASID_RID2PASID, addr, npages, ih);
 }
@@ -1662,6 +1667,7 @@ static void intel_flush_iotlb_all(struct iommu_domain *domain)
 	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
 	int idx;
 
+	dmar_domain->spasid = domain->spasid;
 	for_each_domain_iommu(idx, dmar_domain) {
 		struct intel_iommu *iommu = g_iommus[idx];
 		u16 did = dmar_domain->iommu_did[iommu->seq_id];
