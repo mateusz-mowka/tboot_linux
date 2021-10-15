@@ -613,7 +613,7 @@ int vmap_pages_range_noflush(unsigned long addr, unsigned long end,
  * RETURNS:
  * 0 on success, -errno on failure.
  */
-static int vmap_pages_range(unsigned long addr, unsigned long end,
+int vmap_pages_range(unsigned long addr, unsigned long end,
 		pgprot_t prot, struct page **pages, unsigned int page_shift)
 {
 	int err;
@@ -622,6 +622,7 @@ static int vmap_pages_range(unsigned long addr, unsigned long end,
 	flush_cache_vmap(addr, end);
 	return err;
 }
+EXPORT_SYMBOL_GPL(vmap_pages_range);
 
 int is_vmalloc_or_module_addr(const void *x)
 {
@@ -2499,6 +2500,7 @@ struct vm_struct *get_vm_area(unsigned long size, unsigned long flags)
 				  NUMA_NO_NODE, GFP_KERNEL,
 				  __builtin_return_address(0));
 }
+EXPORT_SYMBOL_GPL(get_vm_area);
 
 struct vm_struct *get_vm_area_caller(unsigned long size, unsigned long flags,
 				const void *caller)
