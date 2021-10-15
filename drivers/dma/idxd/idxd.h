@@ -330,6 +330,7 @@ struct idxd_idpt_entry_data {
 	struct vm_struct *bitmap_vma;
 	void *bitmap;
 	void *page_bitmap;
+	bool multi_user;
 };
 
 struct idxd_device {

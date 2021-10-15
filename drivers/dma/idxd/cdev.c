@@ -179,6 +179,15 @@ static struct device_type idxd_cdev_device_type = {
 	.release = idxd_cdev_dev_release,
 };
 
+static inline u32 bitmap_pos(u32 index)
+{
+	/*
+	 * Determine the page number from the index. It would be index / PAGE_SIZE * 8,
+	 * which is also >> PAGE_SHIFT + 3, 15.
+	 */
+	return index >> (PAGE_SHIFT + 3);
+}
+
 static inline struct idxd_cdev *inode_idxd_cdev(struct inode *inode)
 {
 	struct cdev *cdev = inode->i_cdev;
@@ -457,11 +466,7 @@ static int idxd_idpte_set_bit(struct idxd_idpt_entry_data *idpte_data, u32 index
 	u64 addr;
 
 	lockdep_assert_held(&idpte_data->lock);
-	/*
-	 * Determine the page number from the index. It would be index / PAGE_SIZE * 8,
-	 * which is also >> PAGE_SHIFT + 3, 15.
-	 */
-	pos = index >> (PAGE_SHIFT + 3);
+	pos = bitmap_pos(index);
 	if (!__test_and_set_bit(pos, idpte_data->page_bitmap)) {
 		page = alloc_page(GFP_KERNEL | __GFP_ZERO);
 		if (!page) {
@@ -568,6 +573,9 @@ static void idxd_idpte_flush_submitter_node(struct idxd_submit_node *sn)
 	idxd = idpte_data->idxd;
 	dev = &idxd->pdev->dev;
 
+	if (idpte_data->multi_user && idpte_data->bitmap)
+		idxd_idpte_clear_bit(idpte_data, submitter_pasid(sn));
+
 	if (list_empty(&idpte_data->submit_list) && idpte_data->handle_valid) {
 		offset = idxd_idpte_offset(idxd, idpte_data->handle);
 		mutex_lock(&idxd->idpt_lock);
@@ -639,6 +647,8 @@ static void idxd_idpte_flush_owner(struct idxd_idpt_entry_data *idpte_data)
 
 	iommu_sva_unbind_device(idpte_data->owner_sva);
 	mmdrop(idpte_data->owner_mm);
+	if (idpte_data->multi_user && idpte_data->bitmap)
+		idxd_idpte_free_bitmap(idpte_data);
 	idpte_data->owner_mm = NULL;
 	put_device(idxd_confdev(idxd));
 }
@@ -865,6 +875,14 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 	INIT_LIST_HEAD(&idpte_data->submit_list);
 	mutex_init(&idpte_data->lock);
 	khandle = idpte_data->handle;
+	idpte_data->multi_user = type == IDXD_WIN_TYPE_SA_MS;
+
+	if (type == IDXD_WIN_TYPE_SA_MS) {
+		rc = idxd_idpte_setup_bitmap(idpte_data);
+		if (rc < 0)
+			goto bitmap_fail;
+		idpte.bmap_addr = (u64)idpte_data->bitmap;
+	}
 
 	/* non priviledged access */
 	idpte.access_priv = 0;
@@ -936,15 +954,30 @@ static bool idxd_submitter_exist(struct idxd_idpt_entry_data *idpte_data,
 				 struct iommu_sva *submit_sva)
 {
 	struct idxd_submit_node *sn;
+	u32 pasid;
 
 	lockdep_assert_held(&idpte_data->lock);
-	sn = list_first_entry_or_null(&idpte_data->submit_list,
-				      struct idxd_submit_node, list);
-	if (!sn)
-		return false;
 
-	if (sn->submit_sva != submit_sva)
-		return false;
+	if (idpte_data->multi_user) {
+		pasid = iommu_sva_get_pasid(submit_sva);
+		if (pasid == IOMMU_PASID_INVALID)
+			return false;
+
+		if (!test_bit(bitmap_pos(pasid), idpte_data->page_bitmap))
+			return false;
+
+		if (!test_bit(pasid, idpte_data->bitmap))
+			return false;
+
+	} else {
+		sn = list_first_entry_or_null(&idpte_data->submit_list,
+					      struct idxd_submit_node, list);
+		if (!sn)
+			return false;
+
+		if (sn->submit_sva != submit_sva)
+			return false;
+	}
 
 	return true;
 }
@@ -955,15 +988,25 @@ static bool idxd_new_submitter_allowed(struct idxd_idpt_entry_data *idpte_data)
 	return list_empty(&idpte_data->submit_list);
 }
 
-static void idxd_add_submitter(struct idxd_device *idxd,
-			       struct idxd_idpt_entry_data *idpte_data,
-			       struct idxd_submit_node *sn)
+static int idxd_add_submitter(struct idxd_device *idxd,
+			      struct idxd_idpt_entry_data *idpte_data,
+			      struct idxd_submit_node *sn)
 {
 	u32 offset;
 	union idpte idpte;
+	int rc;
 
 	lockdep_assert_held(&idpte_data->lock);
 	offset = idxd_idpte_offset(idxd, idpte_data->handle);
+
+	if (idpte_data->multi_user) {
+		rc = idxd_idpte_set_bit(idpte_data, submitter_pasid(sn));
+		if (rc < 0) {
+			dev_warn(&idxd->pdev->dev, "Unable to set IDPT bitmap for %d\n",
+				 submitter_pasid(sn));
+			return rc;
+		}
+	}
 
 	if (list_empty(&idpte_data->submit_list)) {
 		idpte.bits[0] = ioread64(idxd->reg_base + offset);
@@ -974,6 +1017,7 @@ static void idxd_add_submitter(struct idxd_device *idxd,
 	}
 
 	list_add_tail(&sn->list, &idpte_data->submit_list);
+	return 0;
 }
 
 static long idxd_idpt_win_attach(struct file *submit_wq, int fd, u16 __user *uhandle)
@@ -1032,7 +1076,9 @@ static long idxd_idpt_win_attach(struct file *submit_wq, int fd, u16 __user *uha
 	new_submit->submit_id = current->files;
 	new_submit->submit_sva = submit_sva;
 	new_submit->mmu_notify = false;
-	idxd_add_submitter(idxd, idpte_data, new_submit);
+	rc = idxd_add_submitter(idxd, idpte_data, new_submit);
+	if (rc < 0)
+		goto err_add_submitter;
 
 rel_mutex:
 	khandle = idpte_data->handle;
@@ -1049,6 +1095,7 @@ rel_mutex:
 err_put_user:
 	idxd_idpte_flush_submitter_node(new_submit);
 	list_del(&new_submit->list);
+err_add_submitter:
 	kfree(new_submit);
 
 err_submit_alloc:
