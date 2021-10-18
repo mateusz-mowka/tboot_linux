@@ -4447,6 +4447,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.15"
+        },
+        {
+            "branch": "usi-for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_HID_USI",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Tero Kristo",
+                    "email": "tero.kristo@intel.com"
+                }
+            ],
+            "description": "USI (Universal Stylus Interface) support",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2650",
+            "name": "usi_support",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/tkristo/linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Kai Svahn",
+                    "email": "kai.svahn@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.15"
         }
     ]
 }
