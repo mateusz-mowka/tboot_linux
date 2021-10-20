@@ -813,7 +813,7 @@
                 }
             ],
             "description": "LPSS/GPIO enabling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Bhaskar",
@@ -824,7 +824,7 @@
                     "email": "eric.thian.aun.tan@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2654",
             "name": "lpss_gpio",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/ashevche/linux.git",
             "sdl_contact": [
@@ -835,7 +835,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.15"
         },
         {
             "branch": "perf-intel-next",
