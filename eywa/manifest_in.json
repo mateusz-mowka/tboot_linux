@@ -2098,7 +2098,7 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "dlb2-for-intel-next-v5.12-rc2",
+            "branch": "dlb2-for-intel-next-v5.15-rc6",
             "branch_type": "expiring",
             "config_options": [
                 {
