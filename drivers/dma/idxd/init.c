@@ -15,6 +15,7 @@
 #include <linux/device.h>
 #include <linux/idr.h>
 #include <linux/iommu.h>
+#include <linux/dma-iommu.h>
 #include <uapi/linux/idxd.h>
 #include <linux/dmaengine.h>
 #include <linux/irqdomain.h>
@@ -487,14 +488,22 @@ static struct idxd_device *idxd_alloc(struct pci_dev *pdev, struct idxd_driver_d
 
 static int idxd_enable_system_pasid(struct idxd_device *idxd)
 {
-	return -EOPNOTSUPP;
+	u32 pasid;
+	int ret;
+
+	ret = iommu_attach_dma_pasid(&idxd->pdev->dev, &pasid);
+	if (ret) {
+		dev_err(&idxd->pdev->dev, "No DMA PASID %d\n", ret);
+		return ret;
+	}
+	idxd->pasid = pasid;
+
+	return 0;
 }
 
 static void idxd_disable_system_pasid(struct idxd_device *idxd)
 {
-
-	iommu_sva_unbind_device(idxd->sva);
-	idxd->sva = NULL;
+	iommu_detach_dma_pasid(&idxd->pdev->dev);
 }
 
 static int idxd_probe(struct idxd_device *idxd)
@@ -523,7 +532,6 @@ static int idxd_probe(struct idxd_device *idxd)
 	} else if (!sva) {
 		dev_warn(dev, "User forced SVA off via module param.\n");
 	}
-
 	idxd_read_caps(idxd);
 	idxd_read_table_offsets(idxd);
 
