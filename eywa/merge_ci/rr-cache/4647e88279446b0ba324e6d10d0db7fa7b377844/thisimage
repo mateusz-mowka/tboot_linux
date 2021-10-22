@@ -200,8 +200,8 @@ void msi_destroy_sysfs(struct device *dev, const struct attribute_group **msi_ir
 {
 	struct device_attribute *dev_attr;
 	struct attribute **msi_attrs;
-	int count = 0;
 	struct msi_desc *entry;
+	int count = 0;
 
 	if (!msi_irq_groups)
 		return;
