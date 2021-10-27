@@ -757,12 +757,14 @@ void msi_domain_free_irq(struct irq_domain *domain, struct device *dev, unsigned
 	struct msi_desc *desc = irq_get_msi_desc(irq);
 	struct irq_data *irq_data;
 
-	irq_data = irq_domain_get_irq_data(domain, irq);
-	if (irqd_is_activated(irq_data))
-		irq_domain_deactivate_irq(irq_data);
+	if (irq) {
+		irq_data = irq_domain_get_irq_data(domain, irq);
+		if (irqd_is_activated(irq_data))
+			irq_domain_deactivate_irq(irq_data);
 
-	irq_domain_free_irqs(desc->irq, 1);
-	desc->irq = 0;
+		irq_domain_free_irqs(desc->irq, 1);
+		desc->irq = 0;
+	}
 }
 
 /**
