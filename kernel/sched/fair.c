@@ -8578,6 +8578,111 @@ group_type group_classify(unsigned int imbalance_pct,
 }
 
 #ifdef CONFIG_SCHED_TASK_CLASSES
+struct swap_tasks_arg {
+	struct task_struct *src_task;
+	struct task_struct *dst_task;
+};
+
+static int find_exchangeable_tasks(struct rq *dst_rq, struct rq *src_rq,
+				   struct swap_tasks_arg *arg)
+{
+	int src_cpu = cpu_of(src_rq), dst_cpu = cpu_of(dst_rq);
+	bool found_src_task = false, found_dst_task = false;
+	unsigned long throughput_xchg, throughput_no_xchg;
+	struct task_struct *p_src = NULL, *p_dst = NULL;
+
+	if (arg)
+		memset(arg, 0, sizeof(*arg));
+
+	list_for_each_entry_reverse(p_src,
+				    &src_rq->cfs_tasks, se.group_node) {
+		if (p_src->class == TASK_CLASS_UNCLASSIFIED)
+			continue;
+
+		if (!cpumask_test_cpu(dst_cpu, p_src->cpus_ptr))
+			continue;
+
+		found_src_task = true;
+		break;
+	}
+
+	if (!found_src_task)
+		return 0;
+
+	list_for_each_entry_reverse(p_dst,
+				    &dst_rq->cfs_tasks, se.group_node) {
+		if (p_dst->class == TASK_CLASS_UNCLASSIFIED)
+			continue;
+
+		if (!cpumask_test_cpu(src_cpu, p_dst->cpus_ptr))
+			continue;
+
+		found_dst_task = true;
+		break;
+	}
+
+	if (!found_dst_task)
+		return 0;
+
+	/*
+	 * Now compare the per-class priorities of the candidate tasks to be
+	 * exchanged. Compute the throughput in both the current configuration
+	 * and as if they were exchanged.
+	 */
+	throughput_no_xchg = arch_get_task_class_score(p_src->class, src_cpu) +
+			     arch_get_task_class_score(p_dst->class,dst_cpu);
+	throughput_xchg = arch_get_task_class_score(p_src->class, dst_cpu) +
+			  arch_get_task_class_score(p_dst->class, src_cpu);
+
+	if (throughput_xchg <= throughput_no_xchg)
+		return 0;
+
+	if (arg) {
+		arg->src_task = p_dst;
+		arg->dst_task = p_src;
+	}
+
+	return 1;
+}
+
+/*
+ * This function must run with interrupts disabled. If called
+ * via stop_two_cpus_nowait(), this is the case.
+ */
+static int migrate_swap_stop2(void *data)
+{
+	struct rq *busiest_rq, *target_rq;
+	int busiest_cpu, target_cpu;
+	struct swap_tasks_arg arg;
+	int can_swap;
+
+	busiest_rq = data;
+	target_rq = cpu_rq(busiest_rq->push_cpu);
+
+	busiest_cpu = cpu_of(busiest_rq);
+	target_cpu = busiest_rq->push_cpu;
+
+	double_rq_lock(busiest_rq, target_rq);
+
+	can_swap = find_exchangeable_tasks(busiest_rq, target_rq, &arg);
+	if (can_swap) {
+		double_raw_lock(&arg.src_task->pi_lock,
+				&arg.dst_task->pi_lock);
+
+		__migrate_swap_task(arg.src_task, target_cpu);
+		__migrate_swap_task(arg.dst_task, busiest_cpu);
+
+		raw_spin_unlock(&arg.dst_task->pi_lock);
+		raw_spin_unlock(&arg.src_task->pi_lock);
+	}
+
+	busiest_rq->active_balance = 0;
+	target_rq->active_balance = 0;
+
+	double_rq_unlock(busiest_rq, target_rq);
+
+	return 0;
+}
 
 static void update_sg_lb_task_class_stats(struct lb_env *env,
 					  struct sg_lb_stats *sgs,
@@ -8669,6 +8774,11 @@ static bool sched_group_has_misfit_task_classes(struct lb_env *env,
 						struct sg_lb_stats *local)
 {
 	return false;
+}
+
+static int migrate_swap_stop2(void *data)
+{
+	return 0;
 }
 #endif /* CONFIG_SCHED_TASK_CLASSES */
 
@@ -10040,16 +10150,35 @@ static int should_we_balance(struct lb_env *env)
 static int
 trigger_active_balance(int this_cpu, struct rq *busiest, struct lb_env *env)
 {
+	bool task_exchange_balance = false;
 	int active_balance = 0;
 	unsigned long flags;
 
-	raw_spin_rq_lock_irqsave(busiest, flags);
+	if (env->idle == CPU_NOT_IDLE &&
+	    env->migration_type == migrate_misfit_task_class)
+		task_exchange_balance = true;
+
+	if (task_exchange_balance) {
+		local_irq_save(flags);
+		double_rq_lock(busiest, cpu_rq(this_cpu));
+	} else {
+		raw_spin_rq_lock_irqsave(busiest, flags);
+	}
 
 	/*
 	 * Don't kick the active_load_balance_cpu_stop, if the curr task on
 	 * busiest CPU can't be moved to this_cpu:
 	 */
 	if (!cpumask_test_cpu(this_cpu, busiest->curr->cpus_ptr)) {
+		active_balance = -EPERM;
+		goto unlock;
+	}
+
+	/* If attempting to swap tasks, also check if the curr task of
+	 * @this_cpu can be moved to busiest.
+	 */
+	if (task_exchange_balance &&
+	    !cpumask_test_cpu(cpu_of(busiest), cpu_rq(this_cpu)->curr->cpus_ptr)) {
 		active_balance = -EPERM;
 		goto unlock;
 	}
@@ -10061,19 +10190,41 @@ trigger_active_balance(int this_cpu, struct rq *busiest, struct lb_env *env)
 	 * ->active_balance synchronizes accesses to ->active_balance_work.
 	 * Once set, it's cleared only after active load balance is finished.
 	 */
-	if (!busiest->active_balance) {
+	if (!busiest->active_balance &&
+	    /*
+	     * If attempting to swap tasks, ensure that ->active_balance_work
+	     * of this_rq is available.
+	     */
+	    (!task_exchange_balance || !cpu_rq(this_cpu)->active_balance)) {
 		busiest->active_balance = 1;
 		busiest->push_cpu = this_cpu;
 		active_balance = 1;
+
+		if (task_exchange_balance)
+			cpu_rq(this_cpu)->active_balance = 1;
 	}
 
 unlock:
-	raw_spin_rq_unlock_irqrestore(busiest, flags);
+	if (task_exchange_balance) {
+		double_rq_unlock(busiest, cpu_rq(this_cpu));
+		local_irq_restore(flags);
+	} else {
+		raw_spin_rq_unlock_irqrestore(busiest, flags);
+	}
+
 	if (active_balance < 1)
 		return active_balance;
 
-	stop_one_cpu_nowait(cpu_of(busiest), active_load_balance_cpu_stop,
-			    busiest, &busiest->active_balance_work);
+	if (task_exchange_balance)
+		stop_two_cpus_nowait(cpu_of(busiest), this_cpu,
+				     migrate_swap_stop2,
+				     &busiest->active_balance_work,
+				     &cpu_rq(this_cpu)->active_balance_work,
+				     &busiest->multi_stop_data, busiest);
+	else
+		stop_one_cpu_nowait(cpu_of(busiest),
+				    active_load_balance_cpu_stop, busiest,
+				    &busiest->active_balance_work);
 
 	return 1;
 }

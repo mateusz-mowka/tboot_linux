@@ -1011,6 +1011,7 @@ struct rq {
 	int			active_balance;
 	int			push_cpu;
 	struct cpu_stop_work	active_balance_work;
+	struct multi_stop_data  multi_stop_data;
 
 	/* CPU of this runqueue: */
 	int			cpu;
