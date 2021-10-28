@@ -2980,7 +2980,7 @@
                 }
             ],
             "description": "SoCWatch and SEP drivers for both native and ACRN hypervisor",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Benmlih, Faycal",
