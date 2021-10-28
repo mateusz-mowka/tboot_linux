@@ -4489,7 +4489,7 @@
                     "email": "kyle.d.pelton@intel.com"
                 }
             ],
-            "description": "Reverts 4565cd4effe7 Disable SVM when ATS/PRI/PASID are not enabled in the device",
+            "description": "Fixes build error in idxd introduced by dma-next branch.",
             "enabled": true,
             "ip_owner": [
                 {
