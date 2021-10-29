@@ -82,6 +82,12 @@ static inline void fpregs_unlock(void)
 		preempt_enable();
 }
 
+/*
+ * Lock and load the fpu state into the registers, if they are not already
+ * loaded.
+ */
+void fpu_lock_and_load(void);
+
 #ifdef CONFIG_X86_DEBUG_FPU
 extern void fpregs_assert_state_consistent(void);
 #else
@@ -163,5 +169,4 @@ static inline bool fpstate_is_confidential(struct fpu_guest *gfpu)
 
 /* prctl */
 extern long fpu_xstate_prctl(int option, unsigned long arg2);
-
 #endif /* _ASM_X86_FPU_API_H */
