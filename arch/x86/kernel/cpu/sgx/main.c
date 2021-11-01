@@ -23,6 +23,17 @@ static int sgx_nr_epc_sections;
 static struct task_struct *ksgxd_tsk;
 static DECLARE_WAIT_QUEUE_HEAD(ksgxd_waitq);
 static DEFINE_XARRAY(sgx_epc_address_space);
+/*
+ * The flag sgx_epc_locked prevents any new SGX flows that
+ * may attempt to allocate a new EPC page.
+ */
+static bool __rcu sgx_epc_locked;
+/*
+ * By synchronizing around sgx_epc_locked SRCU ensures that any executing
+ * SGX flows have completed before proceeding with an SVN update. New SGX flows
+ * will be prevented from starting during an SVN update.
+ */
+DEFINE_SRCU(sgx_lock_epc_srcu);
 
 /*
  * These variables are part of the state of the reclaimer, and must be accessed
@@ -394,6 +405,8 @@ void sgx_reclaim_direct(void)
 
 static int ksgxd(void *p)
 {
+	int srcu_idx;
+
 	set_freezable();
 
 	/*
@@ -411,9 +424,15 @@ static int ksgxd(void *p)
 				     kthread_should_stop() ||
 				     sgx_should_reclaim(SGX_NR_HIGH_PAGES));
 
+		srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+		if (sgx_epc_is_locked())
+			goto maybe_resched;
+
 		if (sgx_should_reclaim(SGX_NR_HIGH_PAGES))
 			sgx_reclaim_pages();
 
+maybe_resched:
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 		cond_resched();
 	}
 
@@ -961,3 +980,21 @@ err_page_cache:
 }
 
 device_initcall(sgx_init);
+
+static void sgx_lock_epc(void)
+{
+	sgx_epc_locked = true;
+	synchronize_srcu(&sgx_lock_epc_srcu);
+}
+
+static void sgx_unlock_epc(void)
+{
+	sgx_epc_locked = false;
+	synchronize_srcu(&sgx_lock_epc_srcu);
+}
+
+bool sgx_epc_is_locked(void)
+{
+	lockdep_assert_held(&sgx_lock_epc_srcu);
+	return sgx_epc_locked;
+}
