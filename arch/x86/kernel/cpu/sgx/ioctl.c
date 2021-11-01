@@ -147,24 +147,43 @@ err_out_shrink:
 static long sgx_ioc_enclave_create(struct sgx_encl *encl, void __user *arg)
 {
 	struct sgx_enclave_create create_arg;
+	int srcu_idx;
 	void *secs;
 	int ret;
 
-	if (test_bit(SGX_ENCL_CREATED, &encl->flags))
-		return -EINVAL;
+	if (test_bit(SGX_ENCL_CREATED, &encl->flags)) {
+		ret = -EINVAL;
+		goto err;
+	}
 
-	if (copy_from_user(&create_arg, arg, sizeof(create_arg)))
-		return -EFAULT;
+	if (copy_from_user(&create_arg, arg, sizeof(create_arg))) {
+		ret = -EFAULT;
+		goto err;
+	}
 
 	secs = kmalloc(PAGE_SIZE, GFP_KERNEL);
-	if (!secs)
-		return -ENOMEM;
+	if (!secs) {
+		ret = -ENOMEM;
+		goto err;
+	}
 
-	if (copy_from_user(secs, (void __user *)create_arg.src, PAGE_SIZE))
+	if (copy_from_user(secs, (void __user *)create_arg.src, PAGE_SIZE)) {
 		ret = -EFAULT;
-	else
-		ret = sgx_encl_create(encl, secs);
+		goto err;
+	}
 
+	srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+	if (sgx_epc_is_locked()) {
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+		ret = -EBUSY;
+		goto err;
+	}
+
+	ret = sgx_encl_create(encl, secs);
+
+	srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+
+err:
 	kfree(secs);
 	return ret;
 }
@@ -409,6 +428,7 @@ static long sgx_ioc_enclave_add_pages(struct sgx_encl *encl, void __user *arg)
 	struct sgx_enclave_add_pages add_arg;
 	struct sgx_secinfo secinfo;
 	unsigned long c;
+	int srcu_idx;
 	int ret;
 
 	if (!test_bit(SGX_ENCL_CREATED, &encl->flags) ||
@@ -442,8 +462,18 @@ static long sgx_ioc_enclave_add_pages(struct sgx_encl *encl, void __user *arg)
 		if (need_resched())
 			cond_resched();
 
+		srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+		if (sgx_epc_is_locked()) {
+			ret = -EBUSY;
+			srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+			break;
+		}
+
 		ret = sgx_encl_add_page(encl, add_arg.src + c, add_arg.offset + c,
 					&secinfo, add_arg.flags);
+
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+
 		if (ret)
 			break;
 	}

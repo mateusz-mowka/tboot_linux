@@ -415,6 +415,7 @@ static vm_fault_t sgx_vma_fault(struct vm_fault *vmf)
 	unsigned long phys_addr;
 	struct sgx_encl *encl;
 	vm_fault_t ret;
+	int srcu_idx;
 
 	encl = vma->vm_private_data;
 
@@ -437,11 +438,18 @@ static vm_fault_t sgx_vma_fault(struct vm_fault *vmf)
 	    (!xa_load(&encl->page_array, PFN_DOWN(addr))))
 		return sgx_encl_eaug_page(vma, encl, addr);
 
+	srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+	if (sgx_epc_is_locked()) {
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+		return VM_FAULT_SIGBUS;
+	}
+
 	mutex_lock(&encl->lock);
 
 	entry = sgx_encl_load_page_in_vma(encl, addr, vma->vm_flags);
 	if (IS_ERR(entry)) {
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 
 		if (PTR_ERR(entry) == -EBUSY)
 			return VM_FAULT_NOPAGE;
@@ -454,12 +462,14 @@ static vm_fault_t sgx_vma_fault(struct vm_fault *vmf)
 	ret = vmf_insert_pfn(vma, addr, PFN_DOWN(phys_addr));
 	if (ret != VM_FAULT_NOPAGE) {
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 
 		return VM_FAULT_SIGBUS;
 	}
 
 	sgx_encl_test_and_clear_young(vma->vm_mm, entry);
 	mutex_unlock(&encl->lock);
+	srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 
 	return VM_FAULT_NOPAGE;
 }
@@ -612,6 +622,7 @@ static int sgx_vma_access(struct vm_area_struct *vma, unsigned long addr,
 	struct sgx_encl_page *entry = NULL;
 	char data[sizeof(unsigned long)];
 	unsigned long align;
+	int srcu_idx;
 	int offset;
 	int cnt;
 	int ret = 0;
@@ -628,6 +639,12 @@ static int sgx_vma_access(struct vm_area_struct *vma, unsigned long addr,
 		return -EFAULT;
 
 	for (i = 0; i < len; i += cnt) {
+		srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+		if (sgx_epc_is_locked()) {
+			ret = -EBUSY;
+			goto out;
+		}
+
 		entry = sgx_encl_reserve_page(encl, (addr + i) & PAGE_MASK,
 					      vma->vm_flags);
 		if (IS_ERR(entry)) {
@@ -655,6 +672,7 @@ static int sgx_vma_access(struct vm_area_struct *vma, unsigned long addr,
 
 out:
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 
 		if (ret)
 			break;
