@@ -192,6 +192,7 @@ static int intel_platform_pinctrl_probe(struct platform_device *pdev)
 }
 
 static const struct acpi_device_id intel_platform_pinctrl_acpi_match[] = {
+	{ "INTC105F" },
 	{ }
 };
 MODULE_DEVICE_TABLE(acpi, intel_platform_pinctrl_acpi_match);
