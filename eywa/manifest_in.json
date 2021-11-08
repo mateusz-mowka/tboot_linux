@@ -1406,7 +1406,7 @@
                 }
             ],
             "description": "Intel Speed Select Technology",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Stanley Chen",
