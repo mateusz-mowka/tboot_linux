@@ -1547,7 +1547,7 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "intel-pt-perf-tools-v5.13",
+            "branch": "intel-pt-perf-tools-v5.16",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -1557,16 +1557,16 @@
                 }
             ],
             "description": "Updates to perf tools for Intel PT",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Beeman Strong",
                     "email": "beeman.strong@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2687",
             "name": "perf-tools",
-            "repourl": "ssh://git-amr-3.devtools.intel.com:29418/otc_mmc-linux.git",
+            "repourl": "https://github.com/intel-sandbox/ahunter6.next/commits/intel-pt-perf-tools-v5.16",
             "sdl_contact": [
                 {
                     "name": "Kai Svahn",
@@ -1575,7 +1575,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.13"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "iommu-workarounds",
