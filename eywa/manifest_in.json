@@ -1566,7 +1566,7 @@
             ],
             "jira": "NEXT-2687",
             "name": "perf-tools",
-            "repourl": "https://github.com/intel-sandbox/ahunter6.next/commits/intel-pt-perf-tools-v5.16",
+            "repourl": "https://github.com/intel-sandbox/ahunter6.next.git",
             "sdl_contact": [
                 {
                     "name": "Kai Svahn",
