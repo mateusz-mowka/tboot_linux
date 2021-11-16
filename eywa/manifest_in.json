@@ -4632,7 +4632,7 @@
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "status": "top secret",
+            "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
         },
