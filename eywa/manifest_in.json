@@ -154,7 +154,7 @@
                 }
             ],
             "description": "NEXT PM tree",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2680",
             "name": "pm-testing",
