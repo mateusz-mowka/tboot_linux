@@ -813,7 +813,7 @@
                 }
             ],
             "description": "LPSS/GPIO enabling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Bhaskar",
@@ -835,7 +835,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "perf-intel-next",
