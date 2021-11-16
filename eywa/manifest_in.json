@@ -4555,15 +4555,15 @@
                     "email": "xi.pardee@intel.com"
                 }
             ],
-            "description": "Fixes pm_test branch.",
-            "enabled": false,
+            "description": "Fixes pm_test branch by reverting c10383e8ddf4810b9a5c1595404c2724d925a0a6",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Xi Pardee",
                     "email": "xi.pardee@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2691",
             "name": "pm_fixup",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
             "sdl_contact": [
@@ -4574,7 +4574,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         }
     ]
 }
