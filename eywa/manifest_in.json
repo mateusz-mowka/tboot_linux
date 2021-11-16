@@ -2382,7 +2382,7 @@
             "last_enabled": "v5.10"
         },
         {
-            "branch": "satc-5.15-rc1",
+            "branch": "satc-5.16-rc1",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -2391,16 +2391,16 @@
                     "email": "yian.chen@intel.com"
                 }
             ],
-            "description": "Add command-line option to disable scalable mode",
-            "enabled": false,
+            "description": "Enable ATS for the devices in SATC table",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
-            "name": "disable_scalable_mode",
+            "jira": "NEXT-2696",
+            "name": "ATS/SATC",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/chenyian/kernel-works.git",
             "sdl_contact": [
                 {
@@ -2410,7 +2410,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "crypto",
