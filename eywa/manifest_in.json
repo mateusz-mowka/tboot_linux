@@ -4525,14 +4525,14 @@
                 }
             ],
             "description": "Updates and extensions to Linux support for \"Protected Processor Inventory Number\"",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Luck, Tony",
                     "email": "tony.luck@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2699",
             "name": "ppin",
             "repourl": "https://github.com/intel-sandbox/agluck-linux.git",
             "sdl_contact": [
@@ -4543,7 +4543,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "pm_fixup",
