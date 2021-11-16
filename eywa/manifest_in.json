@@ -4575,6 +4575,66 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
+        },
+        {
+            "branch": "dma-api-pasid-intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_DMAR_TABLE",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_IOMMU",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_IOMMU_DEBUGFS",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_IOMMU_SVM",
+                    "value": "y"
+                },
+                {
+                    "name": " CONFIG_INTEL_IOMMU_DEFAULT_ON",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_IOMMU_FLOPPY_WA",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_IOMMU_SCALABLE_MODE_DEFAULT_ON",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Jacob Pan",
+                    "email": "jacob.jun.pan@intel.com"
+                }
+            ],
+            "description": "Enable PASID usage with DMA API",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "jira": "NEXT-2694",
+            "name": "pasid/DMA",
+            "repourl": "https://github.com/intel-sandbox/linux-svm-kernel.git",
+            "sdl_contact": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.16"
         }
     ]
 }
