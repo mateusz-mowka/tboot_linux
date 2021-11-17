@@ -4125,7 +4125,7 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "dmwr-5.15-rc1",
+            "branch": "dmwr-5.16-rc1",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -4135,14 +4135,14 @@
                 }
             ],
             "description": "Enable PCIe Deferrable Memory Write (DMWr)",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2707",
             "name": "DMWr",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/chenyian/kernel-works.git",
             "sdl_contact": [
@@ -4153,7 +4153,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "for-intel-next",
