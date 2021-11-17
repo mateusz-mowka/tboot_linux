@@ -1146,17 +1146,17 @@
                     "email": "alexander.shishkin@linux.intel.com"
                 }
             ],
-            "description": "Contains support for Granite Rapids, Meteor Lake.",
-            "enabled": false,
+            "description": "Contains support for Granite Rapids, Meteor Lake, Raptor Lake.",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Marcus Winston",
                     "email": "marcus.winston@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2708",
             "name": "tracehub",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/ash-pullme.git",
+            "repourl": "https://github.com/intel-sandbox/linux-stm.git",
             "sdl_contact": [
                 {
                     "name": "Kai Svahn",
@@ -1165,7 +1165,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "for-eywa",
