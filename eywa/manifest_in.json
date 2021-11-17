@@ -1006,8 +1006,8 @@
                     "email": "qiuxu.zhuo@intel.com"
                 }
             ],
-            "description": "EDAC retry_rd_error_log for SPR and IEH for TGL.",
-            "enabled": false,
+            "description": "EDAC for SPR and IEH for TGL",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Bezbroz, Henrietta",
@@ -1026,7 +1026,7 @@
                     "email": "amir.radjai@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2703",
             "name": "edac",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/qzhuo/otc-edac.git",
             "sdl_contact": [
@@ -1037,7 +1037,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "pmc_core",
