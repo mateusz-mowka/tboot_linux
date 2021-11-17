@@ -4677,7 +4677,7 @@
                 },
                 {
                     "name": "CONFIG_I2C_DESIGNWARE_PCI",
-                    "value": "y"
+                    "value": "m"
                 },
                 {
                     "name": "CONFIG_I2C_I801",
