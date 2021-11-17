@@ -4681,23 +4681,23 @@
                 },
                 {
                     "name": "CONFIG_I2C_I801",
-                    "value": "y"
+                    "value": "m"
                 },
                 {
                     "name": "CONFIG_MFD_INTEL_LPSS_ACPI",
-                    "value": "y"
+                    "value": "m"
                 },
                 {
                     "name": "CONFIG_MFD_INTEL_LPSS_PCI",
-                    "value": "y"
+                    "value": "m"
                 },
                 {
                     "name": "CONFIG_SPI_PXA2XX",
-                    "value": "y"
+                    "value": "m"
                 },
                 {
                     "name": "CONFIG_SPI_PXA2XX_PCI",
-                    "value": "y"
+                    "value": "m"
                 }
             ],
             "contributor": [
