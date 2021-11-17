@@ -4616,7 +4616,7 @@
                 }
             ],
             "description": "Enable PASID usage with DMA API",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
