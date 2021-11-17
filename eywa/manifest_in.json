@@ -4666,6 +4666,78 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
+        },
+        {
+            "branch": "for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_I2C_DESIGNWARE_PLATFORM",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_I2C_DESIGNWARE_PCI",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_I2C_I801",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_MFD_INTEL_LPSS_ACPI",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_MFD_INTEL_LPSS_PCI",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SPI_PXA2XX",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SPI_PXA2XX_PCI",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Jarkko Nikula",
+                    "email": "jarkko.nikula@linux.intel.com"
+                }
+            ],
+            "description": "LPSS/SMBus Changes",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Rajesh Bhaskar",
+                    "email": "rajesh.bhaskar@intel.com"
+                },
+                {
+                    "name": "Ming Chew Lee",
+                    "email": "ming.chew.lee@intel.com"
+                },
+                {
+                    "name": "Abdul Rahman Ismail",
+                    "email": "abdul.r.ismail@intel.com"
+                },
+                {
+                    "name": "Raymond Tan",
+                    "email": "raymond.tan@intel.com"
+                }
+            ],
+            "jira": "NEXT-2704",
+            "name": "LPSS/SMBus",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/jarkkoni/linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Kai Svahn",
+                    "email": "kai.svahn@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.16"
         }
     ]
 }
