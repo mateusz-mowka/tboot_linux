@@ -4430,7 +4430,7 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "dynamic_msix_for_intel_next",
+            "branch": "dynamic_msix_ims_for_intel_next",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
