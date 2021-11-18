@@ -4432,14 +4432,14 @@
                 }
             ],
             "description": "Enables dynamic allocation of MSI-X vectors",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Megha Dey",
                     "email": "megha.dey@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2711",
             "name": "dynamic_msi_x",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/meghadey/linux.git",
             "sdl_contact": [
@@ -4450,7 +4450,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "usi-for-intel-next",
