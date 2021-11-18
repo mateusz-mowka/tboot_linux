@@ -826,7 +826,7 @@
             ],
             "jira": "NEXT-2679",
             "name": "lpss_gpio",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/ashevche/linux.git",
+            "repourl": "https://github.com/intel-sandbox/ashevche.linux.kernel",
             "sdl_contact": [
                 {
                     "name": "Kai Svahn",
