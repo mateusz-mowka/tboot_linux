@@ -3576,6 +3576,14 @@
                 {
                     "name": "CONFIG_DMATEST",
                     "value": "m"
+                },
+                {
+                    "name": "CONFIG_IMS_MSI",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_IMS_MSI_ARRAY",
+                    "value": "y"
                 }
             ],
             "contributor": [
@@ -3585,14 +3593,14 @@
                 }
             ],
             "description": "Intel combined Accelerator driver (DSA & IAX)",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Pamujula",
                     "email": "rajesh.s.pamujula@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2712",
             "name": "idxd",
             "repourl": "https://github.com/intel-sandbox/idxd.git",
             "sdl_contact": [
@@ -3603,7 +3611,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "idxd_fixup_cet",
