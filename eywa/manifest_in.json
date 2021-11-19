@@ -366,66 +366,6 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "ntb-next-upstream",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_NTB",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_NTB_INTEL",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_NTB_PINGPONG",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_NTB_TOOL",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_NTB_PERF",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_NTB_TRANSPORT",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_NTB_NETDEV",
-                    "value": "m"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Dave Jiang",
-                    "email": "dave.jiang@intel.com"
-                }
-            ],
-            "description": "SPR intel NTB enabling",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Rajesh Pamujula",
-                    "email": "rajesh.s.pamujula@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "ntb",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-clk-server/linux-pse/linux-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Dave Jiang",
-                    "email": "dave.jiang@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.10"
-        },
-        {
             "branch": "cse-5.15",
             "branch_type": "expiring",
             "config_options": [
@@ -877,37 +817,6 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "powertop",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Nivedita Swaminathan",
-                    "email": "nivedita.swaminathan@intel.com"
-                }
-            ],
-            "description": "Enable out of tree powertop",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Nivedita Swaminathan",
-                    "email": "Nivedita.Swaminathan@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "powertop",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles D Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.11"
-        },
-        {
             "branch": "kl",
             "branch_type": "expiring",
             "config_options": [
@@ -1300,37 +1209,6 @@
             "last_enabled": "v5.12"
         },
         {
-            "branch": "chrome-dmc-patch",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Nivedita Swaminathan",
-                    "email": "nivedita.swaminathan@intel.com"
-                }
-            ],
-            "description": "GFX patch to load DMC firmware",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Matthew Attwood",
-                    "email": "matthew.s.atwood@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "chrome-dmc",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.11"
-        },
-        {
             "branch": "to_eywa_thermal",
             "branch_type": "expiring",
             "config_options": [
@@ -1578,42 +1456,6 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "iommu-workarounds",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_INTEL_IOMMU_WORKAROUND",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Sohil Mehta ",
-                    "email": "sohil.mehta@intel.com"
-                }
-            ],
-            "description": "IOMMU workarounds/fixes for upcoming affected platforms.",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Ashok Raj",
-                    "email": "ashok.raj@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "iommu-workarounds",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/linux_iommu-iommu.git",
-            "sdl_contact": [
-                {
-                    "name": "Ashok Raj",
-                    "email": "ashok.raj@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.10"
-        },
-        {
             "branch": "pmt_for_intel_next",
             "branch_type": "expiring",
             "config_options": [
@@ -1850,41 +1692,6 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "tip-pks-v3",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Fenghua Yu",
-                    "email": "fenghua.yu@intel.com"
-                },
-                {
-                    "name": " Ira Weiny",
-                    "email": "ira.weiny@intel.com"
-                }
-            ],
-            "description": "APIs for PKS and PMEM user",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Ravi Shankar",
-                    "email": "ravi.v.shankar@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "PKS",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/iweiny/linux-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Ravi Shankar",
-                    "email": "ravi.v.shankar@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.10"
-        },
-        {
             "branch": "resctrl_selftest",
             "branch_type": "expiring",
             "config_options": [],
@@ -1914,85 +1721,6 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.12"
-        },
-        {
-            "branch": "drm-tip",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Rodrigo Vivi",
-                    "email": "rodrigo.vivi@intel.com"
-                }
-            ],
-            "description": "upstream DRM branch while drm-embargo is being rebased",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Rodrigo Vivi",
-                    "email": "rodrigo.vivi@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "drm_tip",
-            "repourl": "git://anongit.freedesktop.org/drm-tip",
-            "sdl_contact": [
-                {
-                    "name": "Rodrigo Vivi",
-                    "email": "rodrigo.vivi@intel.com"
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.10"
-        },
-        {
-            "branch": "intel-next",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_X86_MKTME",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Alison Schofield",
-                    "email": "alison.schofield@intel.com"
-                },
-                {
-                    "name": "Kirill Shutemov",
-                    "email": "kirill.shutemov@intel.com"
-                },
-                {
-                    "name": "Jingqi Liu",
-                    "email": "jingqi.liu@intel.com"
-                },
-                {
-                    "name": "Jacob Pan",
-                    "email": "jacob.jun.pan@intel.com"
-                }
-            ],
-            "description": "MKTME enabling for Persistent Memory",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Baiju Patel",
-                    "email": "baiju.v.patel@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "MKTME",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-clk-server/mktme/mktme-pmem.git",
-            "sdl_contact": [
-                {
-                    "name": "Dan Williams",
-                    "email": "dan.j.williams@intel.com"
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.11"
         },
         {
             "branch": "sle_support_v5.14",
@@ -2029,42 +1757,6 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.14"
-        },
-        {
-            "branch": "cxl-next",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_PCI_CXL",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Sean Kelley",
-                    "email": "sean.v.kelley@linux.intel.com"
-                }
-            ],
-            "description": "CXL / PCIe for SPR A0 for 5.8.0-rc7 on cxl-next",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Prajwal Mohan",
-                    "email": "prajwal.karur.mohan@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "CXL",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/cxl-development/cxl11-core.git",
-            "sdl_contact": [
-                {
-                    "name": "Sean Kelley",
-                    "email": "sean.v.kelley@linux.intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.11"
         },
         {
             "branch": "lass-5.16-rc1",
@@ -2162,226 +1854,6 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "sof-for-next-5.10-rc1",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_SND_SOC_INTEL_SKL_HDA_DSP_GENERIC_MACH",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_INTEL_SOUNDWIRE_SOF_MACH",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_TOPLEVEL",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_PCI",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_ACPI",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_OF",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_PROBE_WORK_QUEUE",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_INTEL_TOPLEVEL",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_INTEL_ACPI",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_INTEL_PCI",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_INTEL_COMMON",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_INTEL_USER_FRIENDLY_LONG_NAMES",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_TIGERLAKE_SUPPORT",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_TIGERLAKE",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_ELKHARTLAKE_SUPPORT",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_ELKHARTLAKE",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_JASPERLAKE_SUPPORT",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_JASPERLAKE",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_ALDERLAKE_SUPPORT",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_ALDERLAKE",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_HDA_COMMON",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_HDA_LINK",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_HDA_LINK_BASELINE",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_HDA",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE_LINK",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_XTENSA",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_RT1308_SDW",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_RT700",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_RT700_SDW",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_RT711",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_RT711_SDW",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_RT715",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_RT715_SDW",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SOUNDWIRE",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SOUNDWIRE_CADENCE",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SOUNDWIRE_INTEL",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_DEBUG",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_DEBUG_VERBOSE_IPC",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_DEBUG_ENABLE_DEBUGFS_CACHE",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_DEBUG_ENABLE_FIRMWARE_TRACE",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_INTEL_SKL_HDA_DSP_GENERIC_MACH",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_INTEL_TGL_RT711_RT1308_MACH",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_INTEL_EHL_RT5660_MACH",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SND_SOC_SOF_DEVELOPER_SUPPORT",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Kai Vehmanen",
-                    "email": "kai.vehmanen@linux.intel.com"
-                }
-            ],
-            "description": "This  SOF branch is used by the audio driver team toprepare for ADL-S PO.",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Wong, Kar Leong",
-                    "email": "kar.leong.wong@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "sof_audio",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_audio-linux",
-            "sdl_contact": [
-                {
-                    "name": "Filip Kaczmarski",
-                    "email": "filip.kaczmarski@intel.com"
-                },
-                {
-                    "name": "Mengdong Lin",
-                    "email": "mengdong.lin@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.10"
-        },
-        {
             "branch": "satc-5.16-rc1",
             "branch_type": "expiring",
             "config_options": [],
@@ -2411,37 +1883,6 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
-        },
-        {
-            "branch": "crypto",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyung Min Park",
-                    "email": "kyung.min.park@intel.com"
-                }
-            ],
-            "description": "AVX512 crypto optimization algorithms",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Greg Tucker",
-                    "email": "greg.b.tucker@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "crypto",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/kyungmin/iommu.git",
-            "sdl_contact": [
-                {
-                    "name": "Ravi Shankar",
-                    "email": "ravi.v.shankar@intel.com"
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.10"
         },
         {
             "branch": "iommu",
@@ -2703,37 +2144,6 @@
             "last_enabled": "v5.12"
         },
         {
-            "branch": "cpuid",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyung Min Park",
-                    "email": "kyung.min.park@intel.com"
-                }
-            ],
-            "description": "This pull request contains AVX2 VNNI instruction enumeration",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Charney, Mark",
-                    "email": "mark.charney@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "AVX512-VNNI",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/kyungmin/iommu.git",
-            "sdl_contact": [
-                {
-                    "name": "Shankar, Ravi",
-                    "email": "ravi.v.shankar@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.11"
-        },
-        {
             "branch": "for_intel_next_v5.16-rc1",
             "branch_type": "expiring",
             "config_options": [
@@ -2792,73 +2202,6 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
-        },
-        {
-            "branch": "iommu-workarounds",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_INTEL_IOMMU_WORKAROUND",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Sohil Mehta",
-                    "email": "sohil.mehta@intel.com"
-                }
-            ],
-            "description": "Enable Intel IOMMU workarounds",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Ashok Raj",
-                    "email": "ashok.raj@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "iommu_workarouds",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/sohilmeh/linux-iommu.git",
-            "sdl_contact": [
-                {
-                    "name": "Ashok Raj",
-                    "email": "sohil.mehta@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.11"
-        },
-        {
-            "branch": "pmc_core_test",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "David E Box",
-                    "email": "david.e.box@intel.com"
-                }
-            ],
-            "description": "pmc_core changes",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "David E Box",
-                    "email": "david.e.box@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "pmc_core_changes",
-            "repourl": "https://github.com/debpathfinder/lkd.git",
-            "sdl_contact": [
-                {
-                    "name": "David E Box",
-                    "email": ""
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.10"
         },
         {
             "branch": "intel-next",
@@ -3098,42 +2441,6 @@
             "last_enabled": "v5.13"
         },
         {
-            "branch": "IcelakeSNC",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_NUMA",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Alison Schofield",
-                    "email": "Alison.Schofield@intel.com"
-                }
-            ],
-            "description": "Sub-Numa-Cluster support for Icelake",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Alison Schofield",
-                    "email": "Alison.Schofield@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "snc_for_icl",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-clk-server/linux.git",
-            "sdl_contact": [
-                {
-                    "name": "Bob Kasten",
-                    "email": "robert.a.kasten@intel.com"
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.11"
-        },
-        {
             "branch": "qi_done",
             "branch_type": "expiring",
             "config_options": [],
@@ -3163,32 +2470,6 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.13"
-        },
-        {
-            "branch": "performance-tools",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Feng Tang",
-                    "email": "feng.tang@intel.com"
-                }
-            ],
-            "description": "performance/scalability optimizations and kcpuid tool",
-            "enabled": false,
-            "ip_owner": [],
-            "jira": "",
-            "name": "kcpuid",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/ftang1/linux.git",
-            "sdl_contact": [
-                {
-                    "name": "Robert A Kasten",
-                    "email": "robert.a.kasten@intel.com"
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.11"
         },
         {
             "branch": "ims_for_intel_next",
