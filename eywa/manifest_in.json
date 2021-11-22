@@ -2240,7 +2240,7 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "prm",
+            "branch": "prm_update_for_intel_next",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -2250,30 +2250,34 @@
             ],
             "contributor": [
                 {
-                    "name": "Erik Kaneda",
-                    "email": "erik.kaneda@intel.com"
+                    "name": "Aubrey Li",
+                    "email": "aubrey.li@intel.com"
                 }
             ],
-            "description": "PRM linux support for v5.12",
-            "enabled": false,
+            "description": "PRM runtime update support for Intel PRM-capable platform",
+            "enabled": true,
             "ip_owner": [
                 {
-                    "name": "Erik Kaneda ",
-                    "email": "erik.kaneda@intel.com"
+                    "name": "Raj, Ashok",
+                    "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2717",
             "name": "prm_linux_support",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/eschmaus1/private-linux.git",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/cli6/aubrey-linux",
             "sdl_contact": [
                 {
-                    "name": "Prestopine, Charles D ",
-                    "email": "charles.d.prestopine@intel.com"
+                    "name": "Li, Aubrey",
+                    "email": "aubrey.li@intel.com"
+                },
+                {
+                    "name": "Williams, Dan J",
+                    "email": "dan.j.williams@intel.com"
                 }
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.12"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "sep_socwatch_linux_5_15",
