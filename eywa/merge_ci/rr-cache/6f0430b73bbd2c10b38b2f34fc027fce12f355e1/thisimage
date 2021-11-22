@@ -188,8 +188,8 @@ static void cmci_storm_end(int bank)
 void mce_intel_storm_tracker(int bank, u64 status)
 {
 	unsigned long now = jiffies, delta;
+	unsigned int shift;
 	u64 history;
-	int shift;
 
 	delta = now - this_cpu_read(bank_time_stamp[bank]);
 	shift = this_cpu_read(bank_storm[bank]) ? 1 : (delta + HZBITS) / HZBITS;
