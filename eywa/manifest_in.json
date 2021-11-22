@@ -2589,7 +2589,7 @@
                 }
             ],
             "description": "Intel TPMI MFD driver",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Chen, Stanley",
