@@ -1360,14 +1360,14 @@
                 }
             ],
             "description": "Intel User interrupt support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "  Gil Neiger ",
                     "email": "gil.neiger@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2716",
             "name": "Intel User interrupt",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/sohilmeh/uintr-linux-kernel.git",
             "sdl_contact": [
@@ -1378,7 +1378,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "amx",
