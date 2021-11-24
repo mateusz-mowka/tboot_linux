@@ -601,6 +601,14 @@ static __always_inline void setup_cet(struct cpuinfo_x86 *c)
 	bool kernel_ibt = HAS_KERNEL_IBT && cpu_feature_enabled(X86_FEATURE_IBT);
 	u64 msr = CET_ENDBR_EN;
 
+	/*
+	 * Shadow stack is supported on AMD processors, but has not been
+	 * tested. Only support it on Intel processors until this is done.
+	 * At which point, this vendor check should be removed.
+	 */
+	if (c->x86_vendor != X86_VENDOR_INTEL)
+		setup_clear_cpu_cap(X86_FEATURE_SHSTK);
+
 	if (kernel_ibt)
 		wrmsrl(MSR_IA32_S_CET, msr);
 
@@ -610,7 +618,6 @@ static __always_inline void setup_cet(struct cpuinfo_x86 *c)
 	if (kernel_ibt && !ibt_selftest()) {
 		pr_err("IBT selftest: Failed!\n");
 		setup_clear_cpu_cap(X86_FEATURE_IBT);
-		return;
 	}
 }
 
