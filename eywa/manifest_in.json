@@ -1666,8 +1666,8 @@
                     "email": "ricardo.neri-calderon@linux.intel.com"
                 }
             ],
-            "description": "Support for Hybrid CPUs and Hardware-Guided Scheduling",
-            "enabled": false,
+            "description": "Support for hybrid CPUs and Hardware Feedback Interface",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Eliezer Weissman",
@@ -1678,7 +1678,7 @@
                     "email": "muhammad.abozaed@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2720",
             "name": "hybrid",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/ranerica/linux-dev.git",
             "sdl_contact": [
@@ -1689,7 +1689,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "resctrl_selftest",
