@@ -3152,9 +3152,14 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "seamless-for-intel-next",
+            "branch": "for-intel-next",
             "branch_type": "expiring",
-            "config_options": [],
+            "config_options": [
+                {
+                    "name": "CONFIG_ACPI_PFRU",
+                    "value": "m"
+                }
+            ],
             "contributor": [
                 {
                     "name": "Yu Chen",
@@ -3162,9 +3167,14 @@
                 }
             ],
             "description": "Runtime Firmware Update and Firmware Telemetry driver",
-            "enabled": false,
-            "ip_owner": [],
-            "jira": "",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Murugasamy Nachimuthu",
+                    "email": "murugasamy.nachimuthu@intel.com"
+                }
+            ],
+            "jira": "NEXT-2719",
             "name": "firmware_telem",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/chenyu5/linux-pm.git",
             "sdl_contact": [
@@ -3175,7 +3185,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.13"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "oobmsm_for_intel_next",
