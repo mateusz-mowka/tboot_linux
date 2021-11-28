@@ -19,4 +19,9 @@ int tpmi_get_resource_count(struct auxiliary_device *auxdev);
 int intel_tpmi_readq(struct auxiliary_device *auxdev, const void __iomem *addr, u64 *val);
 int intel_tpmi_writeq(struct auxiliary_device *auxdev, u64 value, void __iomem *addr);
 
+/* In kernel interface only */
+int tpmi_get_info(int package_id, int tpmi_id, int *num_entries, int *entry_size);
+void __iomem *tpmi_get_mem(int package_id, int tpmi_id, int *size);
+void tpmi_free_mem(void __iomem *mem);
+
 #endif
