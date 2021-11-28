@@ -9,6 +9,7 @@
 
 #include <linux/auxiliary_bus.h>
 #include <linux/bitfield.h>
+#include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/intel_tpmi.h>
 #include <linux/intel_vsec.h>
@@ -47,6 +48,7 @@ struct intel_tpmi_pfs {
 /**
  * struct intel_tpmi_pm_feature - TPMI PM Feature information for a TPMI ID
  * @pfs_header:	Stores pfs header struct bits as exported by hardware
+ * @vsec_dev:	Pointer to intel_vsec_device structure for this TPMI device
  * @vsec_offset: Start of memory address in MMIO from VSEC offset in the
  *		 PCI header
  *
@@ -55,6 +57,7 @@ struct intel_tpmi_pfs {
  */
 struct intel_tpmi_pm_feature {
 	struct intel_tpmi_pfs pfs_header;
+	struct intel_vsec_device *vsec_dev;
 	unsigned int vsec_offset;
 };
 
@@ -66,6 +69,7 @@ struct intel_tpmi_pm_feature {
  * @pfs_start:		Start of PFS offset for the TPMI instances in this device
  * @plat_info:		Stores platform info which can be used by the client drivers
  * @tpmi_control_mem:	Memory mapped IO for getting control information
+ * @dbgfs_dir:		debugfs entry pointer
  *
  * Stores the information for all TPMI devices enumerated from a single PCI device.
  */
@@ -76,6 +80,7 @@ struct intel_tpmi_info {
 	u64 pfs_start;
 	struct intel_tpmi_plat_info plat_info;
 	void __iomem *tpmi_control_mem;
+	struct dentry *dbgfs_dir;
 };
 
 /**
@@ -320,6 +325,250 @@ err_proc:
 	return ret;
 }
 
+static int tpmi_help_show(struct seq_file *s, void *unused)
+{
+	seq_puts(s, "TPMI debugfs help\n");
+	seq_puts(s, "There will be multiple instances of debugfs folders, one for each package\n");
+	seq_puts(s, "E.g. intel_extnd_cap_66.1.auto and intel_extnd_cap_66.2.auto\n");
+	seq_puts(s, "\t 1 and 2 are instance number, which can change always\n");
+	seq_puts(s, "Attrubutes:\n");
+	seq_puts(s, "pfs_dump: Shows all PFS entries. Refer to TPMI spec for details\n");
+	seq_puts(s, "Each of the TPMI ID will have its folder for read/write register access\n");
+	seq_puts(s, "The name of the folder suffixed with tpmi ID\n");
+	seq_puts(s, "Each folder contains two entries\n");
+	seq_puts(s, "mem_dump and mem_write\n");
+	seq_puts(s, "mem_dump: Show register contents of full PFS for all TPMI instances\n");
+	seq_puts(s, "The total size will be pfs->entry_size * pfs->number of entries * 4\n");
+	seq_puts(s, "mem_write: Allows to write at any offset. It doesn't check for Read/Write access\n");
+	seq_puts(s, "Read/write is at offset multiples of 4\n");
+	seq_puts(s, "The format is instance:offset:contents\n");
+	seq_puts(s, "The actual value follows the 0x* for hex, 0x for octal or plain decimal without any prefix\n");
+	seq_puts(s, "Example: echo 0:0x20:0xff > mem_write\n");
+	seq_puts(s, "Example: echo 1:64:64 > mem_write\n");
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(tpmi_help);
+
+static int tpmi_pfs_dbg_show(struct seq_file *s, void *unused)
+{
+	struct intel_tpmi_info *tpmi_info = s->private;
+        struct intel_vsec_device *vsec_dev;
+	int i, ret;
+
+	vsec_dev = tpmi_info->vsec_dev;
+
+        pm_runtime_get_sync(&vsec_dev->auxdev.dev);
+
+	seq_printf(s, "tpmi PFS start offset 0x:%llx\n", tpmi_info->pfs_start);
+	seq_puts(s, "tpmi_id\t\tnum_entries\tentry_size\t\tcap_offset\tattribute\tfull_base_pointer_for_memmap\tlocked\tdisabled\n");
+	for (i = 0; i < tpmi_info->feature_count; ++i) {
+		struct intel_tpmi_pm_feature *pfs;
+		int locked, disabled;
+
+		pfs = &tpmi_info->tpmi_features[i];
+		ret = tpmi_get_feature_status(tpmi_info, pfs->pfs_header.tpmi_id, &locked, &disabled);
+		if (ret) {
+			locked = 'U';
+			disabled = 'U';
+		} else {
+			disabled = disabled ? 'Y' : 'N';
+			locked = locked ? 'Y' : 'N';
+		}
+		seq_printf(s, "0x%02x\t\t0x%02x\t\t0x%06x\t\t0x%04x\t\t0x%02x\t\t0x%x\t\t\t%c\t%c\n",
+			   pfs->pfs_header.tpmi_id, pfs->pfs_header.num_entries, pfs->pfs_header.entry_size,
+			   pfs->pfs_header.cap_offset, pfs->pfs_header.attribute, pfs->vsec_offset, locked, disabled);
+	}
+
+	pm_runtime_mark_last_busy(&vsec_dev->auxdev.dev);
+	pm_runtime_put_autosuspend(&vsec_dev->auxdev.dev);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(tpmi_pfs_dbg);
+
+static int tpmi_mem_dump_show(struct seq_file *s, void *unused)
+{
+	struct intel_tpmi_pm_feature *pfs = s->private;
+	struct intel_vsec_device *vsec_dev = pfs->vsec_dev;
+	size_t row_size = 8 * sizeof(u32);
+	int i, count, ret = 0;
+	void __iomem *mem;
+	u16 size;
+	u32 off;
+
+	off = pfs->vsec_offset;
+
+	pm_runtime_get_sync(&vsec_dev->auxdev.dev);
+
+	for (count = 0; count < pfs->pfs_header.num_entries; ++count) {
+		size = pfs->pfs_header.entry_size * 4;
+
+		seq_printf(s, "TPMI Instance:%d offset:0x%x\n", count, off);
+		mem = ioremap(off, size);
+		if (!mem) {
+			ret = -ENOMEM;
+			goto done_mem_show;
+		}
+		for (i = 0; i < size; i += row_size) {
+			char line[128];
+			u32 buffer[16];
+			int j, k = 0;
+
+			for (j = 0; j < row_size; j += sizeof(u32)) {
+				int index = i + j;
+				u8 __iomem *_mem;
+
+				if (index >= size)
+					break;
+
+				_mem = (u8 __iomem *)mem + index;
+				buffer[k++] = readl(_mem);
+			}
+
+			hex_dump_to_buffer(buffer, j, row_size, sizeof(u32), line, sizeof(line),
+					   false);
+			seq_printf(s, "[%04x] %s\n", i, line);
+		}
+
+		iounmap(mem);
+
+		off += size;
+	}
+done_mem_show:
+	pm_runtime_mark_last_busy(&vsec_dev->auxdev.dev);
+	pm_runtime_put_autosuspend(&vsec_dev->auxdev.dev);
+
+	return ret;
+}
+DEFINE_SHOW_ATTRIBUTE(tpmi_mem_dump);
+
+static ssize_t mem_write_write(struct file *file, const char __user *userbuf,
+			       size_t len, loff_t *ppos)
+{
+	struct seq_file *m = file->private_data;
+	struct intel_tpmi_pm_feature *pfs = m->private;
+	struct intel_vsec_device *vsec_dev = pfs->vsec_dev;
+	char buf[32], *tmp, *tmp1, *tmp_val;
+	u32 addr, value, punit;
+	void __iomem *mem;
+	u16 size;
+
+	if (len >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(buf, userbuf, len))
+		return -EFAULT;
+
+	/* Get punit number */
+	tmp = strchr(buf, ':');
+	if (!tmp)
+		return -EINVAL;
+
+	*tmp = '\0';
+
+	if (kstrtouint(buf, 0, &punit))
+		return -EINVAL;
+
+	if (punit >= pfs->pfs_header.num_entries)
+		return -EINVAL;
+
+	++tmp;
+
+	/* Get offset */
+	tmp1 = strchr(tmp, ':');
+	if (!tmp1)
+		return -EINVAL;
+
+	*tmp1 = '\0';
+
+	if (kstrtouint(tmp, 0, &addr))
+		return -EINVAL;
+
+	/* Get Value to write */
+	tmp_val = tmp1 + 1;
+	tmp = strchr(tmp_val, '\n');
+	if (!tmp)
+		return -EINVAL;
+
+	*tmp = '\0';
+
+	if (kstrtouint(tmp_val, 0, &value))
+		return -EINVAL;
+
+	size = pfs->pfs_header.entry_size * 4;
+	pr_debug("instance%d size:%d offset:0x%x addr:0x%x value:0x%x\n", punit, size,
+		 addr, pfs->vsec_offset + (punit * size) + addr, value);
+	if (addr >= size)
+		return -EINVAL;
+
+	mem = ioremap(pfs->vsec_offset + (punit * size), size);
+	if (!mem)
+		return -ENOMEM;
+
+	pm_runtime_get_sync(&vsec_dev->auxdev.dev);
+
+	writel(value, (u8 __iomem *)mem + addr);
+
+	iounmap(mem);
+
+	pm_runtime_mark_last_busy(&vsec_dev->auxdev.dev);
+	pm_runtime_put_autosuspend(&vsec_dev->auxdev.dev);
+
+	return len;
+}
+
+static int mem_write_show(struct seq_file *s, void *unused)
+{
+	return 0;
+}
+
+static int mem_write_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, mem_write_show, inode->i_private);
+}
+
+static const struct file_operations mem_write_ops = {
+	.open           = mem_write_open,
+	.read           = seq_read,
+	.write          = mem_write_write,
+	.llseek         = seq_lseek,
+	.release        = single_release,
+};
+
+static void tpmi_dbgfs_register(struct intel_tpmi_info *tpmi_info)
+{
+	struct dentry *top_dir;
+	char name[64];
+	int i;
+
+	snprintf(name, sizeof(name), "tpmi-%s", dev_name(tpmi_to_dev(tpmi_info)));
+	top_dir = debugfs_create_dir(name, NULL);
+	tpmi_info->dbgfs_dir = top_dir;
+
+	debugfs_create_file("pfs_dump", 0444, top_dir, tpmi_info,
+			    &tpmi_pfs_dbg_fops);
+	debugfs_create_file("help", 0444, top_dir, NULL, &tpmi_help_fops);
+	for (i = 0; i < tpmi_info->feature_count; ++i) {
+		struct intel_tpmi_pm_feature *pfs;
+		struct dentry *dir;
+		char name[16];
+
+		pfs = &tpmi_info->tpmi_features[i];
+		snprintf(name, sizeof(name), "tpmi-id-%02x", pfs->pfs_header.tpmi_id);
+		dir = debugfs_create_dir(name, top_dir);
+
+		debugfs_create_file("mem_dump", 0444, dir, pfs,
+				    &tpmi_mem_dump_fops);
+		debugfs_create_file("mem_write", 0644, dir, pfs,
+				    &mem_write_ops);
+	}
+}
+
+static void tpmi_dbgfs_unregister(struct intel_tpmi_info *tpmi_info)
+{
+	debugfs_remove_recursive(tpmi_info->dbgfs_dir);
+}
+
 static void tpmi_set_control_base(struct intel_tpmi_info *tpmi_info,
 				  struct intel_tpmi_pm_feature *pfs)
 {
@@ -536,6 +785,7 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 		int size, ret;
 
 		pfs = &tpmi_info->tpmi_features[i];
+		pfs->vsec_dev = vsec_dev;
 
 		size = tpmi_get_resource(vsec_dev, i, &res_start);
 		if (size < 0)
@@ -568,6 +818,8 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 	if (ret)
 		return ret;
 
+	tpmi_dbgfs_register(tpmi_info);
+
 	pm_runtime_set_active(&auxdev->dev);
 	pm_runtime_set_autosuspend_delay(&auxdev->dev, TPMI_AUTO_SUSPEND_DELAY_MS);
 	pm_runtime_use_autosuspend(&auxdev->dev);
@@ -591,6 +843,8 @@ static void tpmi_remove(struct auxiliary_device *auxdev)
 
 	if (tpmi_info->tpmi_control_mem)
 		iounmap(tpmi_info->tpmi_control_mem);
+
+	tpmi_dbgfs_unregister(auxiliary_get_drvdata(auxdev));
 }
 
 static const struct auxiliary_device_id tpmi_id_table[] = {
