@@ -8,6 +8,8 @@
  */
 
 #include <linux/auxiliary_bus.h>
+#include <linux/bitfield.h>
+#include <linux/delay.h>
 #include <linux/intel_tpmi.h>
 #include <linux/intel_vsec.h>
 #include <linux/io.h>
@@ -63,6 +65,7 @@ struct intel_tpmi_pm_feature {
  * @feature_count:	Number of TPMI of TPMI instances pointed by tpmi_features
  * @pfs_start:		Start of PFS offset for the TPMI instances in this device
  * @plat_info:		Stores platform info which can be used by the client drivers
+ * @tpmi_control_mem:	Memory mapped IO for getting control information
  *
  * Stores the information for all TPMI devices enumerated from a single PCI device.
  */
@@ -72,6 +75,7 @@ struct intel_tpmi_info {
 	int feature_count;
 	u64 pfs_start;
 	struct intel_tpmi_plat_info plat_info;
+	void __iomem *tpmi_control_mem;
 };
 
 /**
@@ -106,6 +110,8 @@ enum intel_tpmi_id {
 	TPMI_ID_UNCORE = 2, /* Uncore Frequency Scaling */
 	TPMI_ID_SST = 5, /* Speed Select Technology */
 };
+
+#define tpmi_to_dev(info)	(&info->vsec_dev->pcidev->dev)
 
 /* Used during auxbus device creation */
 static DEFINE_IDA(intel_vsec_tpmi_ida);
@@ -172,8 +178,166 @@ struct resource *tpmi_get_resource_at_index(struct auxiliary_device *auxdev, int
 }
 EXPORT_SYMBOL_NS_GPL(tpmi_get_resource_at_index, INTEL_TPMI);
 
+/* TPMI Control Interface */
+
+#define TPMI_CONTROL_ID			0x80
+#define TPMI_CONTROL_STATUS_OFFSET	0x00
+#define TPMI_COMMAND_OFFSET		0x08
+#define TPMI_DATA_OFFSET		0x0C
+#define TPMI_CONTROL_TIMEOUT_MS		1000
+#define TPMI_MAX_OWNER_LOOP_COUNT	2
+#define TPMI_RB_TIMEOUT_RESCHD_MS	10
+#define TPMI_RB_TIMEOUT_MS		1000
+#define TPMI_OWNER_NONE			0
+#define TPMI_OWNER_IN_BAND		1
+
+#define TPMI_GENMASK_OWNER	GENMASK_ULL(5, 4)
+#define TPMI_GENMASK_STATUS	GENMASK_ULL(15, 8)
+
+
+#define TPMI_GET_STATE_CMD		0x10
+#define TPMI_GET_STATE_CMD_DATA_OFFSET	8
+#define TPMI_CMD_DATA_OFFSET		32
+#define TPMI_CMD_PKT_LEN_OFFSET		16
+#define TPMI_CMD_PKT_LEN		2
+#define TPMI_CONTROL_RB_BIT		0
+#define TPMI_CONTROL_CPL_BIT		6
+#define TPMI_CMD_STATUS_SUCCESS		0x40
+#define TPMI_GET_STATUS_BIT_ENABLE	0
+#define TPMI_GET_STATUS_BIT_LOCKED	31
+
+/* Mutex to complete get feature status without interruption */
+static DEFINE_MUTEX(tpmi_dev_lock);
+
+static int tpmi_wait_for_owner(struct intel_tpmi_info *tpmi_info, u8 owner)
+{
+	int index, ret = -1;
+	u64 control;
+
+	index = 0;
+	/* Wait until owner match */
+	do {
+		control = readq(tpmi_info->tpmi_control_mem + TPMI_CONTROL_STATUS_OFFSET);
+		control = FIELD_GET(TPMI_GENMASK_OWNER, control);
+		if (control != owner) {
+			ret = -EBUSY;
+			pr_info("Waiting for mailbox ownership\n");
+			/*
+			 * Spec is calling for 1 Second wait here.
+			 * This is highly unlikely that owner will not match,
+			 * unless some out or band agent is doing something bad.
+			 * Also spec calls for loop forever, here we limit to 2.
+			 */
+			msleep(TPMI_CONTROL_TIMEOUT_MS);
+			continue;
+		}
+		ret = 0;
+		break;
+	} while (index++ < TPMI_MAX_OWNER_LOOP_COUNT);
+
+	return ret;
+}
+
+static int tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
+				   int feature_id, int *locked, int *disabled)
+{
+	u64 control, data;
+	s64 tm_delta = 0;
+	ktime_t tm;
+	int ret;
+
+	if (!tpmi_info->tpmi_control_mem)
+		return -EFAULT;
+
+	mutex_lock(&tpmi_dev_lock);
+
+	ret = tpmi_wait_for_owner(tpmi_info, TPMI_OWNER_NONE);
+	if (ret)
+		goto err_proc;
+
+	/* set command id to 0x10 for TPMI_GET_STATE */
+	data = TPMI_GET_STATE_CMD;
+	/* 32 bits for DATA offset and +8 for feature_id field */
+	data |= ((u64)feature_id << (TPMI_CMD_DATA_OFFSET + TPMI_GET_STATE_CMD_DATA_OFFSET));
+
+	/* Write at command offset for qword access */
+	writeq(data, tpmi_info->tpmi_control_mem + TPMI_COMMAND_OFFSET);
+
+	ret = tpmi_wait_for_owner(tpmi_info, TPMI_OWNER_IN_BAND);
+	if (ret)
+		goto err_proc;
+
+	/* Set Run Busy and packet length of 2 dwords */
+	writeq(BIT_ULL(TPMI_CONTROL_RB_BIT) | (TPMI_CMD_PKT_LEN << TPMI_CMD_PKT_LEN_OFFSET),
+	       tpmi_info->tpmi_control_mem + TPMI_CONTROL_STATUS_OFFSET);
+
+	/* Poll for rb bit == 0 */
+	tm = ktime_get();
+	do {
+		control = readq(tpmi_info->tpmi_control_mem + TPMI_CONTROL_STATUS_OFFSET);
+		if (control & BIT_ULL(TPMI_CONTROL_RB_BIT)) {
+			ret = -EBUSY;
+			tm_delta = ktime_ms_delta(ktime_get(), tm);
+			if (tm_delta > TPMI_RB_TIMEOUT_RESCHD_MS)
+				cond_resched();
+			continue;
+		}
+		ret = 0;
+		break;
+	} while (tm_delta < TPMI_RB_TIMEOUT_MS);
+
+	if (ret)
+		goto done_proc;
+
+	control = FIELD_GET(TPMI_GENMASK_STATUS, control);
+	if (control != TPMI_CMD_STATUS_SUCCESS) {
+		ret = -EBUSY;
+		pr_info("Mailbox command failed\n");
+		goto done_proc;
+	}
+
+	data = readq(tpmi_info->tpmi_control_mem + TPMI_COMMAND_OFFSET);
+	data >>= TPMI_CMD_DATA_OFFSET; /* Upper 32 bits are for TPMI_DATA */
+
+	*disabled = 0;
+	*locked = 0;
+
+	if (!(data & BIT_ULL(TPMI_GET_STATUS_BIT_ENABLE)))
+		*disabled = 1;
+
+	if (data & BIT_ULL(TPMI_GET_STATUS_BIT_LOCKED))
+		*locked = 1;
+
+	ret = 0;
+
+done_proc:
+	/* SET CPL "completion"bit */
+	writeq(BIT_ULL(TPMI_CONTROL_CPL_BIT),  tpmi_info->tpmi_control_mem + TPMI_CONTROL_STATUS_OFFSET);
+
+err_proc:
+	mutex_unlock(&tpmi_dev_lock);
+
+	return ret;
+}
+
+static void tpmi_set_control_base(struct intel_tpmi_info *tpmi_info,
+				  struct intel_tpmi_pm_feature *pfs)
+{
+	void __iomem *mem;
+	u16 size;
+
+	size = pfs->pfs_header.num_entries * pfs->pfs_header.entry_size * 4;
+	mem = ioremap(pfs->vsec_offset, size);
+	if (!mem)
+		return;
+
+	/* mem is pointing to TPMI CONTROL base */
+	tpmi_info->tpmi_control_mem = mem;
+}
+
 /* Read one PFS entry and fill pfs structure */
-static int tpmi_update_pfs(struct intel_tpmi_pm_feature *pfs, u64 start, int size)
+static int tpmi_update_pfs(struct intel_tpmi_pm_feature *pfs, u64 start,
+			   int size)
 {
 	void __iomem *pfs_mem;
 	u64 header;
@@ -273,6 +437,16 @@ static int tpmi_create_devices(struct intel_tpmi_info *tpmi_info)
 	int ret, i;
 
 	for (i = 0; i < vsec_dev->num_resources; i++) {
+		struct intel_tpmi_pm_feature *pfs;
+		int locked, disabled;
+
+		pfs = &tpmi_info->tpmi_features[i];
+		ret = tpmi_get_feature_status(tpmi_info, pfs->pfs_header.tpmi_id,
+					      &locked, &disabled);
+		if (!ret)
+			dev_dbg(tpmi_to_dev(tpmi_info), "id:%d, locked:%d disabled:%d\n",
+				pfs->pfs_header.tpmi_id, locked, disabled);
+		/* Todo: Till tested on HW, just create device anyway even if locked */
 		ret = tpmi_create_device(tpmi_info, &tpmi_info->tpmi_features[i],
 					 tpmi_info->pfs_start);
 		/*
@@ -381,6 +555,9 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 		/* Process TPMI_INFO to get BDF to package mapping */
 		if (pfs->pfs_header.tpmi_id == TPMI_INFO_ID)
 			tpmi_process_info(tpmi_info, pfs);
+
+		if (pfs->pfs_header.tpmi_id == TPMI_CONTROL_ID)
+			tpmi_set_control_base(tpmi_info, pfs);
 	}
 
 	tpmi_info->pfs_start = pfs_start;
@@ -408,7 +585,12 @@ static int tpmi_probe(struct auxiliary_device *auxdev,
 
 static void tpmi_remove(struct auxiliary_device *auxdev)
 {
+	struct intel_tpmi_info *tpmi_info = auxiliary_get_drvdata(auxdev);
+
 	pm_runtime_disable(&auxdev->dev);
+
+	if (tpmi_info->tpmi_control_mem)
+		iounmap(tpmi_info->tpmi_control_mem);
 }
 
 static const struct auxiliary_device_id tpmi_id_table[] = {
