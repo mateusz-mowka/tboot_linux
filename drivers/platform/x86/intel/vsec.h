@@ -29,6 +29,8 @@ struct intel_vsec_device {
 	struct ida *ida;
 	unsigned long quirks;
 	int num_resources;
+	void *priv_data;
+	size_t priv_data_size;
 };
 
 int intel_vsec_add_aux(struct pci_dev *pdev, struct device *parent,
