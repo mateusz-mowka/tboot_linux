@@ -28,5 +28,6 @@ struct resource *tpmi_get_resource_at_index(struct auxiliary_device *auxdev, int
 int tpmi_get_resource_count(struct auxiliary_device *auxdev);
 int intel_tpmi_readq(struct auxiliary_device *auxdev, const void __iomem *addr, u64 *val);
 int intel_tpmi_writeq(struct auxiliary_device *auxdev, u64 value, void __iomem *addr);
-
+int tpmi_get_feature_status(struct auxiliary_device *auxdev,
+			    int feature_id, int *locked, int *disabled);
 #endif
