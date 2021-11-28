@@ -8,6 +8,7 @@
  */
 
 #include <linux/auxiliary_bus.h>
+#include <linux/intel_tpmi.h>
 #include <linux/intel_vsec.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -60,6 +61,7 @@ struct intel_tpmi_pm_feature {
  * @vsec_dev:		Pointer to intel_vsec_device structure for this TPMI device
  * @feature_count:	Number of TPMI of TPMI instances pointed by tpmi_features
  * @pfs_start:		Start of PFS offset for the TPMI instances in this device
+ * @plat_info:		Stores platform info which can be used by the client drivers
  *
  * Stores the information for all TPMI devices enumerated from a single PCI device.
  */
@@ -68,6 +70,28 @@ struct intel_tpmi_info {
 	struct intel_vsec_device *vsec_dev;
 	int feature_count;
 	u64 pfs_start;
+	struct intel_tpmi_plat_info plat_info;
+};
+
+/**
+ * struct tpmi_info_header - TPMI_INFO ID header
+ * @fn:		PCI function number
+ * @dev:	PCI device number
+ * @bus:	PCI bus number
+ * @pkg:	CPU Package id
+ * @resd:	Reserved for future use
+ * @lock:	locked
+ *
+ * This structure is used parse TPMI_INFO contents. This is packed to the
+ * same format as defined in the specifications.
+ */
+struct tpmi_info_header {
+	u64 fn :3;
+	u64 dev :5;
+	u64 bus :8;
+	u64 pkg :8;
+	u64 resd :39;
+	u64 lock :1;
 };
 
 /*
@@ -84,6 +108,14 @@ enum intel_tpmi_id {
 
 /* Used during auxbus device creation */
 static DEFINE_IDA(intel_vsec_tpmi_ida);
+
+struct intel_tpmi_plat_info *tpmi_get_platform_data(struct auxiliary_device *auxdev)
+{
+	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
+
+	return vsec_dev->priv_data;
+}
+EXPORT_SYMBOL_NS_GPL(tpmi_get_platform_data, INTEL_TPMI);
 
 /* Read one PFS entry and fill pfs structure */
 static int tpmi_update_pfs(struct intel_tpmi_pm_feature *pfs, u64 start, int size)
@@ -157,6 +189,8 @@ static int tpmi_create_device(struct intel_tpmi_info *tpmi_info,
 	feature_vsec_dev->pcidev = vsec_dev->pcidev;
 	feature_vsec_dev->resource = res;
 	feature_vsec_dev->num_resources = pfs->pfs_header.num_entries;
+	feature_vsec_dev->priv_data = &tpmi_info->plat_info;
+	feature_vsec_dev->priv_data_size = sizeof(tpmi_info->plat_info);
 	feature_vsec_dev->ida = &intel_vsec_tpmi_ida;
 
 	/*
@@ -197,6 +231,35 @@ static int tpmi_create_devices(struct intel_tpmi_info *tpmi_info)
 	return 0;
 }
 
+#define TPMI_INFO_ID 0x81
+#define TPMI_INFO_BUS_INFO_OFFSET 0x08
+
+static int tpmi_process_info(struct intel_tpmi_info *tpmi_info,
+			     struct intel_tpmi_pm_feature *pfs)
+{
+	struct tpmi_info_header *header;
+	void __iomem *info_mem;
+	u64 info;
+
+	info_mem = ioremap(pfs->vsec_offset + TPMI_INFO_BUS_INFO_OFFSET,
+			   pfs->pfs_header.entry_size * 4 - TPMI_INFO_BUS_INFO_OFFSET);
+	if (!info_mem)
+		return -ENOMEM;
+
+	info = readq(info_mem);
+
+	header = (struct tpmi_info_header *)&info;
+
+	tpmi_info->plat_info.package_id = header->pkg;
+	tpmi_info->plat_info.bus_number = header->bus;
+	tpmi_info->plat_info.device_number = header->dev;
+	tpmi_info->plat_info.function_number = header->fn;
+
+	iounmap(info_mem);
+
+	return 0;
+}
+
 static int tpmi_get_resource(struct intel_vsec_device *vsec_dev, int index,
 			     u64 *resource_start)
 {
@@ -217,6 +280,7 @@ static int tpmi_get_resource(struct intel_vsec_device *vsec_dev, int index,
 static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 {
 	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
+	struct pci_dev *pci_dev = vsec_dev->pcidev;
 	struct intel_tpmi_info *tpmi_info;
 	u64 pfs_start = 0;
 	int i;
@@ -227,6 +291,7 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 
 	tpmi_info->vsec_dev = vsec_dev;
 	tpmi_info->feature_count = vsec_dev->num_resources;
+	tpmi_info->plat_info.bus_number = pci_dev->bus->number;
 
 	tpmi_info->tpmi_features = devm_kcalloc(&auxdev->dev, vsec_dev->num_resources,
 						sizeof(*tpmi_info->tpmi_features),
@@ -255,6 +320,10 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 		pfs->pfs_header.cap_offset *= 1024;
 
 		pfs->vsec_offset = pfs_start + pfs->pfs_header.cap_offset;
+
+		/* Process TPMI_INFO to get BDF to package mapping */
+		if (pfs->pfs_header.tpmi_id == TPMI_INFO_ID)
+			tpmi_process_info(tpmi_info, pfs);
 	}
 
 	tpmi_info->pfs_start = pfs_start;
