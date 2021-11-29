@@ -110,6 +110,38 @@ enum intel_tpmi_id {
 /* Used during auxbus device creation */
 static DEFINE_IDA(intel_vsec_tpmi_ida);
 
+int intel_tpmi_readq(struct auxiliary_device *auxdev, const void __iomem *addr, u64 *val)
+{
+	int ret;
+
+	ret = pm_runtime_resume_and_get(&auxdev->dev);
+	if (ret < 0)
+		return ret;
+
+	*val = readq(addr);
+	pm_runtime_mark_last_busy(&auxdev->dev);
+	pm_runtime_put_autosuspend(&auxdev->dev);
+
+	return 0;
+}
+EXPORT_SYMBOL_NS_GPL(intel_tpmi_readq, INTEL_TPMI);
+
+int intel_tpmi_writeq(struct auxiliary_device *auxdev, u64 value, void __iomem *addr)
+{
+	int ret;
+
+	ret = pm_runtime_resume_and_get(&auxdev->dev);
+	if (ret < 0)
+		return ret;
+
+	writeq(value, addr);
+	pm_runtime_mark_last_busy(&auxdev->dev);
+	pm_runtime_put_autosuspend(&auxdev->dev);
+
+	return 0;
+}
+EXPORT_SYMBOL_NS_GPL(intel_tpmi_writeq, INTEL_TPMI);
+
 struct intel_tpmi_plat_info *tpmi_get_platform_data(struct auxiliary_device *auxdev)
 {
 	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
@@ -117,6 +149,28 @@ struct intel_tpmi_plat_info *tpmi_get_platform_data(struct auxiliary_device *aux
 	return vsec_dev->priv_data;
 }
 EXPORT_SYMBOL_NS_GPL(tpmi_get_platform_data, INTEL_TPMI);
+
+int tpmi_get_resource_count(struct auxiliary_device *auxdev)
+{
+	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
+
+	if (vsec_dev)
+		return vsec_dev->num_resources;
+
+	return 0;
+}
+EXPORT_SYMBOL_NS_GPL(tpmi_get_resource_count, INTEL_TPMI);
+
+struct resource *tpmi_get_resource_at_index(struct auxiliary_device *auxdev, int index)
+{
+	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
+
+	if (vsec_dev && index < vsec_dev->num_resources)
+		return &vsec_dev->resource[index];
+
+	return NULL;
+}
+EXPORT_SYMBOL_NS_GPL(tpmi_get_resource_at_index, INTEL_TPMI);
 
 /* Read one PFS entry and fill pfs structure */
 static int tpmi_update_pfs(struct intel_tpmi_pm_feature *pfs, u64 start, int size)
