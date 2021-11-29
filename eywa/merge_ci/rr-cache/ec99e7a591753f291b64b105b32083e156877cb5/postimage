@@ -144,6 +144,7 @@ static struct attribute *default_attrs[] = {
 #ifdef CONFIG_SMP
 	&dev_attr_priority.attr,
 #endif
+	&dev_attr_ppin.attr,
 	NULL
 };
 
