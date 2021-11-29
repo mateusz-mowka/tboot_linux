@@ -2219,14 +2219,14 @@
                 }
             ],
             "description": "TDX KVM support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Isaku Yamahata",
                     "email": "isaku.yamahata@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2723",
             "name": "tdx_kvm_support",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/tdx/linux.git",
             "sdl_contact": [
@@ -2237,7 +2237,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "prm_update_for_intel_next",
