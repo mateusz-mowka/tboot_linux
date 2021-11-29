@@ -2208,7 +2208,11 @@
             "branch_type": "expiring",
             "config_options": [
                 {
-                    "name": "CONFIG_KVM_INTEL_TDX",
+                    "name": "KVM_INTEL_TDX_SEAM_BACKDOOR",
+                    "value": "y"
+                },
+                {
+                    "name": "INTEL_TDX_HOST",
                     "value": "y"
                 }
             ],
