@@ -3674,14 +3674,14 @@
                 }
             ],
             "description": "Add Linux Platform Firmware Runtime Update support for SPR",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Murugasamy Nachimuthu",
                     "email": "murugasamy.nachimuthu@intel.com"
                 }
             ],
-            "jira": "NEXT-2721",
+            "jira": "",
             "name": "PFRU",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/chenyu5/linux-pm.git",
             "sdl_contact": [
