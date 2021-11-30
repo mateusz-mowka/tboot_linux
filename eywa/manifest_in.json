@@ -2397,7 +2397,7 @@
                 }
             ],
             "description": "SGX bootless support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
