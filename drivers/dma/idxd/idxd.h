@@ -238,6 +238,8 @@ struct idxd_wq {
 	struct xarray upasid_xa;
 	bool ats_dis;
 	char driver_name[WQ_NAME_SIZE + 1];
+
+	void *private_data;
 };
 
 struct idxd_engine {
