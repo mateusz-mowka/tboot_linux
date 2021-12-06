@@ -2586,10 +2586,6 @@
             "branch_type": "expiring",
             "config_options": [
                 {
-                    "name": "CONFIG_MFD_INTEL_TPMI",
-                    "value": "m"
-                },
-                {
                     "name": "CONFIG_INTEL_TPMI",
                     "value": "m"
                 }
