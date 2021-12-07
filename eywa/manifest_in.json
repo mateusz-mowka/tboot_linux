@@ -3578,26 +3578,26 @@
             "last_enabled": "v5.14"
         },
         {
-            "branch": "v5.14-rc6-rollback",
+            "branch": "microcode_rollback",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
                 {
-                    "name": "Ashok Raj",
-                    "email": "ashok.raj@intel.com"
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
                 }
             ],
             "description": "Enable microcode rollback in intel-next",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2732",
             "name": "microcode_rollback",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/araj/maple.git",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
             "sdl_contact": [
                 {
                     "name": "Ashok Raj",
@@ -3606,7 +3606,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.14"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "pasid",
