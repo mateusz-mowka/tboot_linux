@@ -3579,7 +3579,7 @@
         },
         {
             "branch": "microcode_rollback",
-            "branch_type": "expiring",
+            "branch_type": "internal nonexpiring",
             "config_options": [],
             "contributor": [
                 {
