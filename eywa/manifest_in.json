@@ -2588,6 +2588,10 @@
                 {
                     "name": "CONFIG_INTEL_TPMI",
                     "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_RAPL_TPMI",
+                    "value": "m"
                 }
             ],
             "contributor": [
