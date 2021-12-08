@@ -4049,6 +4049,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
+        },
+        {
+            "branch": "cpuid-for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Tony Lucy",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "description": "Add ADL-N CPU model number",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Cindy Johnson",
+                    "email": "cindy.r.johnson@intel.com"
+                }
+            ],
+            "jira": "NEXT-2735",
+            "name": "ADL-N_model",
+            "repourl": "https://github.com/intel-sandbox/agluck-linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.16"
         }
     ]
 }
