@@ -4023,6 +4023,32 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
+        },
+        {
+            "branch": "libnvdimm-for-next",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Williams Dan",
+                    "email": "dan.j.williams@intel.com"
+                }
+            ],
+            "description": "Receive reworks to the filesystem-DAX facility that decouples it from block-devices",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2733",
+            "name": "libnvdimm",
+            "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/nvdimm/nvdimm",
+            "sdl_contact": [
+                {
+                    "name": "Dan Williams",
+                    "email": "dan.j.williams@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.16"
         }
     ]
 }
