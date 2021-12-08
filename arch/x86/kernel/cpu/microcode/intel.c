@@ -748,7 +748,11 @@ static enum ucode_state apply_microcode_intel(int cpu)
 	native_wbinvd();
 
 	/* write microcode via MSR 0x79 */
+	pr_info("Ucode rollback: Writing %lx to MSR %x\n",
+			(unsigned long)mc->bits,
+			MSR_IA32_UCODE_WRITE);
 	wrmsrl(MSR_IA32_UCODE_WRITE, (unsigned long)mc->bits);
+	pr_info("Ucode rollback: MSR update done\n");
 
 	rev = intel_get_microcode_revision();
 
