@@ -2284,7 +2284,7 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "sep_socwatch_linux_5_15",
+            "branch": "sep_socwatch_linux_5_16",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -2330,19 +2330,19 @@
             ],
             "contributor": [
                 {
-                    "name": "Swedhana viswanathan",
-                    "email": "swedhana.viswanathan@intel.com"
+                    "name": "Harita Chilukuri",
+                    "email": "harita.chilukuri@intel.com"
                 }
             ],
             "description": "SoCWatch and SEP drivers for both native and ACRN hypervisor",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Benmlih, Faycal",
                     "email": "faycal.benmlih@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2734",
             "name": "socwatch",
             "repourl": "https://github.com/mchinth/linux.git",
             "sdl_contact": [
@@ -2353,7 +2353,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "fixups",
