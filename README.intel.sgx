@@ -1,0 +1,2 @@
+* Add support for SGX2, also referred to as Enclave Dynamic Memory Management (EDMM).
+* Platforms affected: ICX, SPR, and more.
