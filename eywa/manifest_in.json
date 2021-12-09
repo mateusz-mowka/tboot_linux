@@ -4080,6 +4080,37 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
+        },
+        {
+            "branch": "sgx/for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_X86_SGX",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Chatre Reinette",
+                    "email": "reinette.chatre@intel.com"
+                }
+            ],
+            "description": "Support SGX2",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2737",
+            "name": "sgx2",
+            "repourl": "https://github.com/intel-sandbox/rchatre.linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Reinette Chatre",
+                    "email": "reinette.chatre@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.16"
         }
     ]
 }
