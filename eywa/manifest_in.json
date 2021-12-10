@@ -1391,7 +1391,7 @@
                 }
             ],
             "description": "Advanced Matrix Extensions (AMX/TMUL)",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Bob Valentine",
