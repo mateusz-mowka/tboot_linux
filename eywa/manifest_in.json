@@ -1383,20 +1383,7 @@
         {
             "branch": "amx",
             "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_X86_SHADOW_STACK",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_X86_IBT",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_X86_USER_INTERRUPTS",
-                    "value": "y"
-                }
-            ],
+            "config_options": [],
             "contributor": [
                 {
                     "name": "Chang S. Bae",
@@ -1404,14 +1391,14 @@
                 }
             ],
             "description": "Advanced Matrix Extensions (AMX/TMUL)",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Bob Valentine",
                     "email": "bob.valentine@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2738",
             "name": "amx",
             "repourl": "ssh://git-amr-4.devtools.intel.com:29418/linux_cbae1_share-kl",
             "sdl_contact": [
@@ -1422,7 +1409,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "intel-pt-perf-tools-v5.16",
