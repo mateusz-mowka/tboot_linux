@@ -119,7 +119,7 @@
         },
         {
             "branch": "intel-next",
-            "branch_type": "internal nonexpiring",
+            "branch_type": "expiring",
             "config_options": [],
             "contributor": [
                 {
@@ -130,7 +130,7 @@
             "description": "Len Brown's patches",
             "enabled": false,
             "ip_owner": [],
-            "jira": "NEXT-2676",
+            "jira": "",
             "name": "len-x86",
             "repourl": "git://linux-os.sc.intel.com/~lenb/linux",
             "sdl_contact": [
