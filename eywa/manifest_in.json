@@ -4098,6 +4098,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.16"
+        },
+        {
+            "branch": "vmd",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "David Box",
+                    "email": "david.e.box@intel.com"
+                }
+            ],
+            "description": "VMD patches",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "David Box",
+                    "email": "david.e.box@intel.com"
+                }
+            ],
+            "jira": "NEXT-2742",
+            "name": "vmd",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/debox1/linux-kernel-dev.git",
+            "sdl_contact": [
+                {
+                    "name": "David Box",
+                    "email": "david.e.box@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.16"
         }
     ]
 }
