@@ -1430,12 +1430,14 @@ static int sgx_updatesvn(void)
 void sgx_update_cpusvn_intel(void)
 {
 	sgx_lock_epc();
+	sgx_kvm_notifier_halt();
 	if (sgx_zap_pages())
 		goto out;
 
 	sgx_updatesvn();
 
 out:
+	sgx_kvm_notifier_resume();
 	sgx_unlock_epc();
 }
 
