@@ -1820,7 +1820,7 @@
                 }
             ],
             "description": "The dlb2 driver is a kernel module that supports configuration and use of the DLB 2.0 device",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Niall Mcdonnell",
