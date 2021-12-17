@@ -2384,7 +2384,7 @@
                 }
             ],
             "description": "resolve merge marker conflict",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
