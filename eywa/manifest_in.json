@@ -972,7 +972,7 @@
                 }
             ],
             "description": "Lakefield, Raptor Lake, Alder Lake N and MTL support for PMC core driver and new AVX512 cpuid support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Mark Charney",
@@ -1820,7 +1820,7 @@
                 }
             ],
             "description": "The dlb2 driver is a kernel module that supports configuration and use of the DLB 2.0 device",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Niall Mcdonnell",
