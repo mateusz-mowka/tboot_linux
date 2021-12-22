@@ -51,6 +51,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/pm_runtime.h>
 
 #include "vsec.h"
 
@@ -317,13 +318,15 @@ static int tpmi_fetch_pfs_header(struct intel_tpmi_pm_feature *pfs, u64 start, i
 	return 0;
 }
 
+#define TPMI_AUTO_SUSPEND_DELAY_MS	2000
+
 static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 {
 	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
 	struct pci_dev *pci_dev = vsec_dev->pcidev;
 	struct intel_tpmi_info *tpmi_info;
 	u64 pfs_start = 0;
-	int i;
+	int ret, i;
 
 	tpmi_info = devm_kzalloc(&auxdev->dev, sizeof(*tpmi_info), GFP_KERNEL);
 	if (!tpmi_info)
@@ -343,7 +346,7 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 		struct intel_tpmi_pm_feature *pfs;
 		struct resource *res;
 		u64 res_start;
-		int size, ret;
+		int size;
 
 		pfs = &tpmi_info->tpmi_features[i];
 
@@ -382,7 +385,17 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 
 	auxiliary_set_drvdata(auxdev, tpmi_info);
 
-	return tpmi_create_devices(tpmi_info);
+	ret = tpmi_create_devices(tpmi_info);
+	if (ret)
+		return ret;
+
+	pm_runtime_set_active(&auxdev->dev);
+	pm_runtime_set_autosuspend_delay(&auxdev->dev, TPMI_AUTO_SUSPEND_DELAY_MS);
+	pm_runtime_use_autosuspend(&auxdev->dev);
+	pm_runtime_enable(&auxdev->dev);
+	pm_runtime_mark_last_busy(&auxdev->dev);
+
+	return 0;
 }
 
 static int tpmi_probe(struct auxiliary_device *auxdev,
@@ -391,11 +404,10 @@ static int tpmi_probe(struct auxiliary_device *auxdev,
 	return intel_vsec_tpmi_init(auxdev);
 }
 
-/*
- * Remove callback is not needed currently as there is no
- * cleanup required. All memory allocs are device managed. All
- * devices created by this modules are also device managed.
- */
+static void tpmi_remove(struct auxiliary_device *auxdev)
+{
+	pm_runtime_disable(&auxdev->dev);
+}
 
 static const struct auxiliary_device_id tpmi_id_table[] = {
 	{ .name = "intel_vsec.tpmi" },
@@ -406,6 +418,7 @@ MODULE_DEVICE_TABLE(auxiliary, tpmi_id_table);
 static struct auxiliary_driver tpmi_aux_driver = {
 	.id_table	= tpmi_id_table,
 	.probe		= tpmi_probe,
+	.remove         = tpmi_remove,
 };
 
 module_auxiliary_driver(tpmi_aux_driver);
