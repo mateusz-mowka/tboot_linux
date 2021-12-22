@@ -13,6 +13,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/pm_runtime.h>
 
 /**
  * struct intel_tpmi_pfs - TPMI PM Feature Structure (PFS)
@@ -277,13 +278,15 @@ static int tpmi_get_resource(struct intel_vsec_device *vsec_dev, int index,
 	return size;
 }
 
+#define TPMI_AUTO_SUSPEND_DELAY_MS	2000
+
 static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 {
 	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
 	struct pci_dev *pci_dev = vsec_dev->pcidev;
 	struct intel_tpmi_info *tpmi_info;
 	u64 pfs_start = 0;
-	int i;
+	int ret, i;
 
 	tpmi_info = devm_kzalloc(&auxdev->dev, sizeof(*tpmi_info), GFP_KERNEL);
 	if (!tpmi_info)
@@ -330,7 +333,17 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 
 	auxiliary_set_drvdata(auxdev, tpmi_info);
 
-	return tpmi_create_devices(tpmi_info);
+	ret = tpmi_create_devices(tpmi_info);
+	if (ret)
+		return ret;
+
+	pm_runtime_set_active(&auxdev->dev);
+	pm_runtime_set_autosuspend_delay(&auxdev->dev, TPMI_AUTO_SUSPEND_DELAY_MS);
+	pm_runtime_use_autosuspend(&auxdev->dev);
+	pm_runtime_enable(&auxdev->dev);
+	pm_runtime_mark_last_busy(&auxdev->dev);
+
+	return 0;
 }
 
 static int tpmi_probe(struct auxiliary_device *auxdev,
@@ -341,11 +354,7 @@ static int tpmi_probe(struct auxiliary_device *auxdev,
 
 static void tpmi_remove(struct auxiliary_device *auxdev)
 {
-	/*
-	 * TODO: Remove processing by getting
-	 * struct intel_tpmi_info *tpmi_info = auxiliary_get_drvdata(auxdev);
-	 * Will be used in later patches.
-	 */
+	pm_runtime_disable(&auxdev->dev);
 }
 
 static const struct auxiliary_device_id tpmi_id_table[] = {
