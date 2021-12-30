@@ -540,6 +540,7 @@ static int evlist__tui_block_hists_browse(struct evlist *evlist, struct report *
 	struct evsel *pos;
 	int i = 0, ret;
 
+	rep->annotation_opts.evlist = evlist;
 	evlist__for_each_entry(evlist, pos) {
 		ret = report__browse_block_hists(&rep->block_reports[i++].hist,
 						 rep->min_percent, pos,
