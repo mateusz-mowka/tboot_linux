@@ -31,6 +31,7 @@
 #include "bpf-utils.h"
 #include "block-range.h"
 #include "string2.h"
+#include "branch.h"
 #include "util/event.h"
 #include "arch/common.h"
 #include "namespaces.h"
@@ -833,9 +834,10 @@ void symbol__annotate_zero_histograms(struct symbol *sym)
 
 static int __symbol__account_cycles(struct cyc_hist *ch,
 				    u64 start,
-				    unsigned offset, unsigned cycles,
+				    unsigned offset, struct branch_flags *flags,
 				    unsigned have_start)
 {
+	unsigned cycles = flags->cycles;
 	/*
 	 * For now we can only account one basic block per
 	 * final jump. But multiple could be overlapping.
@@ -970,7 +972,8 @@ static int symbol__inc_addr_samples(struct map_symbol *ms,
 }
 
 static int symbol__account_cycles(u64 addr, u64 start,
-				  struct symbol *sym, unsigned cycles)
+				  struct symbol *sym,
+				  struct branch_flags *flags)
 {
 	struct cyc_hist *cycles_hist;
 	unsigned offset;
@@ -992,18 +995,18 @@ static int symbol__account_cycles(u64 addr, u64 start,
 	offset = addr - sym->start;
 	return __symbol__account_cycles(cycles_hist,
 					start ? start - sym->start : 0,
-					offset, cycles,
+					offset, flags,
 					!!start);
 }
 
 int addr_map_symbol__account_cycles(struct addr_map_symbol *ams,
 				    struct addr_map_symbol *start,
-				    unsigned cycles)
+				    struct branch_flags *flags)
 {
 	u64 saddr = 0;
 	int err;
 
-	if (!cycles)
+	if (!flags->cycles)
 		return 0;
 
 	/*
@@ -1024,7 +1027,7 @@ int addr_map_symbol__account_cycles(struct addr_map_symbol *ams,
 			start ? start->addr : 0,
 			ams->ms.sym ? ams->ms.sym->start + ams->ms.map->start : 0,
 			saddr);
-	err = symbol__account_cycles(ams->al_addr, saddr, ams->ms.sym, cycles);
+	err = symbol__account_cycles(ams->al_addr, saddr, ams->ms.sym, flags);
 	if (err)
 		pr_debug2("account_cycles failed %d\n", err);
 	return err;
