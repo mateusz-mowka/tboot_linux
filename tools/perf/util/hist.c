@@ -2658,7 +2658,7 @@ void hist__account_cycles(struct branch_stack *bs, struct addr_location *al,
 			for (i = bs->nr - 1; i >= 0; i--) {
 				addr_map_symbol__account_cycles(&bi[i].from,
 					nonany_branch_mode ? NULL : prev,
-					bi[i].flags.cycles);
+					&bi[i].flags);
 				prev = &bi[i].to;
 
 				if (total_cycles)

@@ -23,6 +23,7 @@ struct option;
 struct perf_sample;
 struct evsel;
 struct symbol;
+struct branch_flags;
 
 struct ins {
 	const char     *name;
@@ -346,7 +347,7 @@ int addr_map_symbol__inc_samples(struct addr_map_symbol *ams, struct perf_sample
 
 int addr_map_symbol__account_cycles(struct addr_map_symbol *ams,
 				    struct addr_map_symbol *start,
-				    unsigned cycles);
+				    struct branch_flags *flags);
 
 int hist_entry__inc_addr_samples(struct hist_entry *he, struct perf_sample *sample,
 				 struct evsel *evsel, u64 addr);
