@@ -1497,6 +1497,8 @@ struct kvm_x86_ops {
 	void (*flush_shadow_all_private)(struct kvm *kvm);
 	void (*vm_destroy)(struct kvm *kvm);
 	void (*vm_free)(struct kvm *kvm);
+	void (*svmm_get)(unsigned long vm_type, int event);
+	void (*svmm_put)(unsigned long vm_type, int event);
 
 	/* Create, but do not attach this VCPU */
 	int (*vcpu_precreate)(struct kvm *kvm);
@@ -2209,5 +2211,30 @@ int memslot_rmap_alloc(struct kvm_memory_slot *slot, unsigned long npages);
 
 /* The common function for normal x86 guest */
 void load_guest_debug_regs(struct kvm_vcpu *vcpu);
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+#define __KVM_HAVE_SVMM_UPDATE
+#define SVMM_EVENT_BASIC		0
+#define SVMM_EVENT_MN_INVD		1
+#define SVMM_EVENT_MN_INVD_NONBLOCK	2
+
+#define kvm_svmm_get(_kvm) \
+	static_call_cond(kvm_x86_svmm_get)((_kvm)->arch.vm_type, \
+			 SVMM_EVENT_BASIC)
+#define kvm_svmm_get_mn_invalidate(_kvm, _block) \
+	static_call_cond(kvm_x86_svmm_get)((_kvm)->arch.vm_type, \
+			 SVMM_EVENT_MN_INVD + (_block))
+#define kvm_svmm_get_by_vm_type(_type) \
+	static_call_cond(kvm_x86_svmm_get)(_type, SVMM_EVENT_BASIC)
+
+#define kvm_svmm_put(_kvm) \
+	static_call_cond(kvm_x86_svmm_put)((_kvm)->arch.vm_type, \
+			 SVMM_EVENT_BASIC)
+#define kvm_svmm_put_mn_invalidate(_kvm, _block) \
+	static_call_cond(kvm_x86_svmm_put)((_kvm)->arch.vm_type, \
+			 SVMM_EVENT_MN_INVD + (_block))
+#define kvm_svmm_put_by_vm_type(_type) \
+	static_call_cond(kvm_x86_svmm_put)(_type, SVMM_EVENT_BASIC)
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
 
 #endif /* _ASM_X86_KVM_HOST_H */

@@ -2321,4 +2321,12 @@ static inline void kvm_private_mem_put_pfn(struct kvm_memory_slot *slot,
 }
 #endif /* CONFIG_HAVE_KVM_PRIVATE_MEM */
 
+#ifndef __KVM_HAVE_SVMM_UPDATE
+static inline void kvm_svmm_get(struct kvm *kvm) {}
+static inline void kvm_svmm_put(struct kvm *kvm) {}
+static inline void kvm_svmm_get_by_vm_type(unsigned long vm_type) {}
+static inline void kvm_svmm_put_by_vm_type(unsigned long vm_type) {}
+static inline void kvm_svmm_get_mn_invalidate(struct kvm *kvm, bool block) {}
+static inline void kvm_svmm_put_mn_invalidate(struct kvm *kvm, bool block) {}
+#endif /* __KVM_HAVE_SVMM_LIVE_UPDATE */
 #endif

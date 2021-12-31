@@ -3,6 +3,7 @@
 #include <linux/firmware.h>
 #include <linux/mmu_context.h>
 #include <linux/misc_cgroup.h>
+#include <linux/percpu-rwsem.h>
 #include <linux/platform_device.h>
 
 #include <asm/fpu/xcr.h>
@@ -38,6 +39,46 @@ static bool tdx_in_update;
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
 /* Fake device for request_firmware */
 static struct platform_device *tdx_pdev;
+DEFINE_STATIC_PERCPU_RWSEM(tdx_update_percpu_rwsem);
+DEFINE_STATIC_PERCPU_RWSEM(tdx_update_percpu_rwsem_mn_invalidate);
+static DEFINE_RWLOCK(tdx_update_rwlock);
+
+void tdx_svmm_get(int event)
+{
+	switch (event) {
+	case SVMM_EVENT_BASIC:
+		percpu_down_read(&tdx_update_percpu_rwsem);
+		break;
+	case SVMM_EVENT_MN_INVD:
+		percpu_down_read(&tdx_update_percpu_rwsem_mn_invalidate);
+		break;
+	case SVMM_EVENT_MN_INVD_NONBLOCK:
+		read_lock(&tdx_update_rwlock);
+		break;
+	default:
+		WARN_ON_ONCE(1);
+		break;
+	}
+
+}
+
+void tdx_svmm_put(int event)
+{
+	switch (event) {
+	case SVMM_EVENT_BASIC:
+		percpu_up_read(&tdx_update_percpu_rwsem);
+		break;
+	case SVMM_EVENT_MN_INVD:
+		percpu_up_read(&tdx_update_percpu_rwsem_mn_invalidate);
+		break;
+	case SVMM_EVENT_MN_INVD_NONBLOCK:
+		read_unlock(&tdx_update_rwlock);
+		break;
+	default:
+		WARN_ON_ONCE(1);
+		break;
+	}
+}
 #endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
 
 #define TDX_MAX_NR_CPUID_CONFIGS					\

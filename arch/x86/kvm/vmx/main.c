@@ -914,6 +914,20 @@ static bool vt_check_apicv_inhibit_reasons(struct kvm *kvm,
 	return vmx_check_apicv_inhibit_reasons(kvm, reason);
 }
 
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+static void vt_svmm_get(unsigned long vm_type, int event)
+{
+	if (vm_type == KVM_X86_TDX_VM)
+		tdx_svmm_get(event);
+}
+
+static void vt_svmm_put(unsigned long vm_type, int event)
+{
+	if (vm_type == KVM_X86_TDX_VM)
+		tdx_svmm_put(event);
+}
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
+
 struct kvm_x86_ops vt_x86_ops __initdata = {
 	.name = "kvm_intel",
 
@@ -930,6 +944,11 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.flush_shadow_all_private = vt_flush_shadow_all_private,
 	.vm_destroy = vt_vm_destroy,
 	.vm_free = vt_vm_free,
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+	.svmm_get = vt_svmm_get,
+	.svmm_put = vt_svmm_put,
+#endif
 
 	.vcpu_precreate = vt_vcpu_precreate,
 	.vcpu_create = vt_vcpu_create,

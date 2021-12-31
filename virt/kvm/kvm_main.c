@@ -546,6 +546,7 @@ static __always_inline int __kvm_handle_hva_range(struct kvm *kvm,
 		return 0;
 
 	idx = srcu_read_lock(&kvm->srcu);
+	kvm_svmm_get_mn_invalidate(kvm, !range->may_block);
 
 	for (i = 0; i < KVM_ADDRESS_SPACE_NUM; i++) {
 		struct interval_tree_node *node;
@@ -598,6 +599,7 @@ static __always_inline int __kvm_handle_hva_range(struct kvm *kvm,
 			range->on_unlock(kvm);
 	}
 
+	kvm_svmm_put_mn_invalidate(kvm, !range->may_block);
 	srcu_read_unlock(&kvm->srcu, idx);
 
 	/* The notifiers are averse to booleans. :-( */
@@ -843,7 +845,9 @@ static void kvm_mmu_notifier_release(struct mmu_notifier *mn,
 	int idx;
 
 	idx = srcu_read_lock(&kvm->srcu);
+	kvm_svmm_get(kvm);
 	kvm_flush_shadow_all(kvm);
+	kvm_svmm_put(kvm);
 	srcu_read_unlock(&kvm->srcu, idx);
 }
 
@@ -900,11 +904,13 @@ static void kvm_private_mem_notifier_handler(struct memfile_notifier *notifier,
 		return;
 
 	idx = srcu_read_lock(&kvm->srcu);
+	kvm_svmm_get(kvm);
 	KVM_MMU_LOCK(kvm);
 	if (kvm_unmap_gfn_range(kvm, &gfn_range))
 		kvm_flush_remote_tlbs(kvm);
 	kvm->mmu_notifier_seq++;
 	KVM_MMU_UNLOCK(kvm);
+	kvm_svmm_put(kvm);
 	srcu_read_unlock(&kvm->srcu, idx);
 }
 
@@ -1302,6 +1308,7 @@ static void kvm_destroy_vm(struct kvm *kvm)
 	int i;
 	struct mm_struct *mm = kvm->mm;
 
+	kvm_svmm_get(kvm);
 	kvm_destroy_pm_notifier(kvm);
 	kvm_uevent_notify_change(KVM_EVENT_DESTROY_VM, kvm);
 	kvm_destroy_vm_debugfs(kvm);
@@ -1341,6 +1348,7 @@ static void kvm_destroy_vm(struct kvm *kvm)
 		kvm_free_memslots(kvm, &kvm->__memslots[i][0]);
 		kvm_free_memslots(kvm, &kvm->__memslots[i][1]);
 	}
+	kvm_svmm_put(kvm);
 	cleanup_srcu_struct(&kvm->irq_srcu);
 	cleanup_srcu_struct(&kvm->srcu);
 	kvm_arch_free_vm(kvm);
@@ -4104,8 +4112,11 @@ static long kvm_vcpu_ioctl(struct file *filp,
 	if (r != -ENOIOCTLCMD)
 		return r;
 
-	if (mutex_lock_killable(&vcpu->mutex))
+	kvm_svmm_get(vcpu->kvm);
+	if (mutex_lock_killable(&vcpu->mutex)) {
+		kvm_svmm_put(vcpu->kvm);
 		return -EINTR;
+	}
 	switch (ioctl) {
 	case KVM_RUN: {
 		struct pid *oldpid;
@@ -4296,6 +4307,7 @@ out_free1:
 	}
 out:
 	mutex_unlock(&vcpu->mutex);
+	kvm_svmm_put(vcpu->kvm);
 	kfree(fpu);
 	kfree(kvm_sregs);
 	return r;
@@ -4703,6 +4715,7 @@ static long kvm_vm_ioctl(struct file *filp,
 
 	if (kvm->mm != current->mm || kvm->vm_dead)
 		return -EIO;
+	kvm_svmm_get(kvm);
 	switch (ioctl) {
 	case KVM_CREATE_VCPU:
 		r = kvm_vm_ioctl_create_vcpu(kvm, arg);
@@ -4900,6 +4913,7 @@ static long kvm_vm_ioctl(struct file *filp,
 		r = kvm_arch_vm_ioctl(filp, ioctl, arg);
 	}
 out:
+	kvm_svmm_put(kvm);
 	return r;
 }
 
@@ -5046,7 +5060,9 @@ static long kvm_dev_ioctl(struct file *filp,
 		r = KVM_API_VERSION;
 		break;
 	case KVM_CREATE_VM:
+		kvm_svmm_get_by_vm_type(arg);
 		r = kvm_dev_ioctl_create_vm(arg);
+		kvm_svmm_put_by_vm_type(arg);
 		break;
 	case KVM_CHECK_EXTENSION:
 		r = kvm_vm_ioctl_check_extension_generic(NULL, arg);
