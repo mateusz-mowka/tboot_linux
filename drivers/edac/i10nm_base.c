@@ -13,7 +13,7 @@
 #include "edac_module.h"
 #include "skx_common.h"
 
-#define I10NM_REVISION	"v0.0.5"
+#define I10NM_REVISION	"v0.0.6"
 #define EDAC_MOD_STR	"i10nm_edac"
 
 /* Debug macros */
@@ -22,25 +22,34 @@
 
 #define I10NM_GET_SCK_BAR(d, reg)	\
 	pci_read_config_dword((d)->uracu, 0xd0, &(reg))
-#define I10NM_GET_IMC_BAR(d, i, reg)	\
-	pci_read_config_dword((d)->uracu, 0xd8 + (i) * 4, &(reg))
+#define I10NM_GET_IMC_BAR(d, i, reg)		\
+	pci_read_config_dword((d)->uracu,	\
+	(res_cfg->type == GNR ? 0xd4 : 0xd8) + (i) * 4, &(reg))
 #define I10NM_GET_SAD(d, offset, i, reg)\
-	pci_read_config_dword((d)->sad_all, (offset) + (i) * 8, &(reg))
+	pci_read_config_dword((d)->sad_all, (offset) + (i) * \
+	(res_cfg->type == GNR ? 12 : 8), &(reg))
 #define I10NM_GET_HBM_IMC_BAR(d, reg)	\
 	pci_read_config_dword((d)->uracu, 0xd4, &(reg))
 #define I10NM_GET_CAPID3_CFG(d, reg)	\
-	pci_read_config_dword((d)->pcu_cr3, 0x90, &(reg))
+	pci_read_config_dword((d)->pcu_cr3,	\
+	res_cfg->type == GNR ? 0x290 : 0x90, &(reg))
+#define I10NM_GET_CAPID5_CFG(d, reg)	\
+	pci_read_config_dword((d)->pcu_cr3,	\
+	res_cfg->type == GNR ? 0x298 : 0x98, &(reg))
 #define I10NM_GET_DIMMMTR(m, i, j)	\
-	readl((m)->mbase + ((m)->hbm_mc ? 0x80c : 0x2080c) + \
+	readl((m)->mbase + ((m)->hbm_mc ? 0x80c :	\
+	(res_cfg->type == GNR ? 0xc0c : 0x2080c)) +	\
 	(i) * (m)->chan_mmio_sz + (j) * 4)
 #define I10NM_GET_MCDDRTCFG(m, i)	\
 	readl((m)->mbase + ((m)->hbm_mc ? 0x970 : 0x20970) + \
 	(i) * (m)->chan_mmio_sz)
 #define I10NM_GET_MCMTR(m, i)		\
-	readl((m)->mbase + ((m)->hbm_mc ? 0xef8 : 0x20ef8) + \
+	readl((m)->mbase + ((m)->hbm_mc ? 0xef8 :	\
+	(res_cfg->type == GNR ? 0xaf8 : 0x20ef8)) +	\
 	(i) * (m)->chan_mmio_sz)
 #define I10NM_GET_AMAP(m, i)		\
-	readl((m)->mbase + ((m)->hbm_mc ? 0x814 : 0x20814) + \
+	readl((m)->mbase + ((m)->hbm_mc ? 0x814 :	\
+	(res_cfg->type == GNR ? 0xc14 : 0x20814)) +	\
 	(i) * (m)->chan_mmio_sz)
 #define I10NM_GET_REG32(m, i, offset)	\
 	readl((m)->mbase + (i) * (m)->chan_mmio_sz + (offset))
@@ -56,7 +65,10 @@
 #define I10NM_GET_HBM_IMC_MMIO_OFFSET(reg)	\
 	((GET_BITFIELD(reg, 0, 10) << 12) + 0x140000)
 
+#define I10NM_GNR_IMC_MMIO_OFFSET	0x24c000
+#define I10NM_GNR_IMC_MMIO_SIZE		0x4000
 #define I10NM_HBM_IMC_MMIO_SIZE		0x9000
+#define I10NM_DDR_IMC_CH_CNT(reg)	GET_BITFIELD(reg, 21, 24)
 #define I10NM_IS_HBM_PRESENT(reg)	GET_BITFIELD(reg, 27, 30)
 #define I10NM_IS_HBM_IMC(reg)		GET_BITFIELD(reg, 29, 29)
 
@@ -324,6 +336,58 @@ static struct pci_dev *pci_get_dev_wrapper(int dom, unsigned int bus,
 	return pdev;
 }
 
+static int i10nm_get_imc_num(struct res_config *cfg)
+{
+	int n, imc_num, chan_num = 0;
+	struct skx_dev *d;
+	u32 reg;
+
+	list_for_each_entry(d, i10nm_edac_list, list) {
+		d->pcu_cr3 = pci_get_dev_wrapper(d->seg, d->bus[res_cfg->pcu_cr3_bdf.bus],
+						 res_cfg->pcu_cr3_bdf.dev,
+						 res_cfg->pcu_cr3_bdf.fun);
+		if (!d->pcu_cr3)
+			continue;
+
+		if (I10NM_GET_CAPID5_CFG(d, reg))
+			continue;
+
+		n = I10NM_DDR_IMC_CH_CNT(reg);
+
+		if (!chan_num) {
+			chan_num = n;
+			edac_dbg(2, "Get DDR CH number: %d\n", chan_num);
+		} else if (chan_num != n) {
+			i10nm_printk(KERN_NOTICE, "Get DDR CH numbers: %d, %d\n", chan_num, n);
+		}
+	}
+
+	switch (cfg->type) {
+	case GNR:
+		/* One channel per memory controller for GNR */
+		imc_num = chan_num;
+
+		if (!imc_num) {
+			i10nm_printk(KERN_ERR, "Invalid DDR MC number\n");
+			return -ENODEV;
+		}
+
+		if (imc_num > I10NM_NUM_DDR_IMC) {
+			i10nm_printk(KERN_ERR, "Need to make I10NM_NUM_DDR_IMC >= %d\n", imc_num);
+			return -EINVAL;
+		}
+
+		if (cfg->ddr_imc_num != imc_num) {
+			cfg->ddr_imc_num = imc_num;
+			edac_dbg(2, "Set DDR MC number: %d", imc_num);
+		}
+
+		return 0;
+	default:
+		return 0;
+	}
+}
+
 static bool i10nm_check_2lm(struct res_config *cfg)
 {
 	struct skx_dev *d;
@@ -446,10 +510,28 @@ static int i10nm_get_ddr_munits(void)
 		edac_dbg(2, "socket%d mmio base 0x%llx (reg 0x%x)\n",
 			 j++, base, reg);
 
+		if (res_cfg->type == GNR) {
+			if (I10NM_GET_IMC_BAR(d, 0, reg)) {
+				i10nm_printk(KERN_ERR, "Failed to get mc0 bar\n");
+				return -ENODEV;
+			}
+
+			base += I10NM_GET_IMC_MMIO_OFFSET(reg) + I10NM_GNR_IMC_MMIO_OFFSET;
+			size  = I10NM_GNR_IMC_MMIO_SIZE;
+		}
+
 		for (i = 0; i < res_cfg->ddr_imc_num; i++) {
-			mdev = pci_get_dev_wrapper(d->seg, d->bus[res_cfg->ddr_mdev_bdf.bus],
-						   res_cfg->ddr_mdev_bdf.dev + i,
-						   res_cfg->ddr_mdev_bdf.fun);
+			if (res_cfg->type == GNR)
+				mdev = pci_get_dev_wrapper(d->seg,
+							   d->bus[res_cfg->ddr_mdev_bdf.bus],
+							   res_cfg->ddr_mdev_bdf.dev + i / 7,
+							   res_cfg->ddr_mdev_bdf.fun + i % 7);
+			else
+				mdev = pci_get_dev_wrapper(d->seg,
+							   d->bus[res_cfg->ddr_mdev_bdf.bus],
+							   res_cfg->ddr_mdev_bdf.dev + i,
+							   res_cfg->ddr_mdev_bdf.fun);
+
 			if (i == 0 && !mdev) {
 				i10nm_printk(KERN_ERR, "No IMC found\n");
 				return -ENODEV;
@@ -459,13 +541,18 @@ static int i10nm_get_ddr_munits(void)
 
 			d->imc[i].mdev = mdev;
 
-			if (I10NM_GET_IMC_BAR(d, i, reg)) {
-				i10nm_printk(KERN_ERR, "Failed to get mc bar\n");
-				return -ENODEV;
+			if (res_cfg->type == GNR) {
+				off = i * I10NM_GNR_IMC_MMIO_SIZE;
+			} else {
+				if (I10NM_GET_IMC_BAR(d, i, reg)) {
+					i10nm_printk(KERN_ERR, "Failed to get mc%d bar\n", i);
+					return -ENODEV;
+				}
+
+				off  = I10NM_GET_IMC_MMIO_OFFSET(reg);
+				size = I10NM_GET_IMC_MMIO_SIZE(reg);
 			}
 
-			off  = I10NM_GET_IMC_MMIO_OFFSET(reg);
-			size = I10NM_GET_IMC_MMIO_SIZE(reg);
 			edac_dbg(2, "mc%d mmio base 0x%llx size 0x%lx (reg 0x%x)\n",
 				 i, base + off, size, reg);
 
@@ -505,9 +592,6 @@ static int i10nm_get_hbm_munits(void)
 	u64 base;
 
 	list_for_each_entry(d, i10nm_edac_list, list) {
-		d->pcu_cr3 = pci_get_dev_wrapper(d->seg, d->bus[res_cfg->pcu_cr3_bdf.bus],
-						 res_cfg->pcu_cr3_bdf.dev,
-						 res_cfg->pcu_cr3_bdf.fun);
 		if (!d->pcu_cr3)
 			return -ENODEV;
 
@@ -647,6 +731,26 @@ static struct res_config spr_cfg = {
 	.offsets_demand_hbm1	= offsets_demand_spr_hbm1,
 };
 
+static struct res_config gnr_cfg = {
+	.type			= GNR,
+	.decs_did		= 0x3252,
+	.busno_cfg_offset	= 0xd0,
+	.ddr_imc_num		= 12,
+	.ddr_chan_num		= 1,
+	.ddr_dimm_num		= 2,
+	.ddr_chan_mmio_sz	= 0x4000,
+	.support_ddr5		= true,
+	.sad_all_bdf		= {0, 13, 0},
+	.pcu_cr3_bdf		= {0, 5, 0},
+	.util_all_bdf		= {0, 13, 1},
+	.uracu_bdf		= {0, 0, 1},
+	.ddr_mdev_bdf		= {0, 5, 1},
+	.sad_all_offset		= 0x300,
+};
+
+/* TODO: Remove this define when upstreaming the patch */
+#define INTEL_FAM6_GRANITERAPIDS_X     0xAD
+
 static const struct x86_cpu_id i10nm_cpuids[] = {
 	X86_MATCH_INTEL_FAM6_MODEL_STEPPINGS(ATOM_TREMONT_D,	X86_STEPPINGS(0x0, 0x3), &i10nm_cfg0),
 	X86_MATCH_INTEL_FAM6_MODEL_STEPPINGS(ATOM_TREMONT_D,	X86_STEPPINGS(0x4, 0xf), &i10nm_cfg1),
@@ -654,6 +758,7 @@ static const struct x86_cpu_id i10nm_cpuids[] = {
 	X86_MATCH_INTEL_FAM6_MODEL_STEPPINGS(ICELAKE_X,		X86_STEPPINGS(0x4, 0xf), &i10nm_cfg1),
 	X86_MATCH_INTEL_FAM6_MODEL_STEPPINGS(ICELAKE_D,		X86_STEPPINGS(0x0, 0xf), &i10nm_cfg1),
 	X86_MATCH_INTEL_FAM6_MODEL_STEPPINGS(SAPPHIRERAPIDS_X,	X86_STEPPINGS(0x0, 0xf), &spr_cfg),
+	X86_MATCH_INTEL_FAM6_MODEL_STEPPINGS(GRANITERAPIDS_X,	X86_STEPPINGS(0x0, 0xf), &gnr_cfg),
 	{}
 };
 MODULE_DEVICE_TABLE(x86cpu, i10nm_cpuids);
@@ -673,7 +778,7 @@ static int i10nm_get_dimm_config(struct mem_ctl_info *mci,
 {
 	struct skx_pvt *pvt = mci->pvt_info;
 	struct skx_imc *imc = pvt->imc;
-	u32 mtr, amap, mcddrtcfg;
+	u32 mtr, amap, mcddrtcfg = 0;
 	struct dimm_info *dimm;
 	int i, j, ndimms;
 
@@ -683,7 +788,10 @@ static int i10nm_get_dimm_config(struct mem_ctl_info *mci,
 
 		ndimms = 0;
 		amap = I10NM_GET_AMAP(imc, i);
-		mcddrtcfg = I10NM_GET_MCDDRTCFG(imc, i);
+
+		if (res_cfg->type != GNR)
+			mcddrtcfg = I10NM_GET_MCDDRTCFG(imc, i);
+
 		for (j = 0; j < imc->num_dimms; j++) {
 			dimm = edac_get_dimm(mci, i, j, 0);
 			mtr = I10NM_GET_DIMMMTR(imc, i, j);
@@ -798,6 +906,10 @@ static int __init i10nm_init(void)
 		i10nm_printk(KERN_ERR, "No memory controllers found\n");
 		return -ENODEV;
 	}
+
+	rc = i10nm_get_imc_num(cfg);
+	if (rc < 0)
+		goto fail;
 
 	mem_cfg_2lm = i10nm_check_2lm(cfg);
 	skx_set_mem_cfg(mem_cfg_2lm);
