@@ -3193,7 +3193,7 @@
                 }
             ],
             "description": "Runtime Firmware Update and Firmware Telemetry driver",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Murugasamy Nachimuthu",
