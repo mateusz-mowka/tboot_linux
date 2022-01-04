@@ -3766,7 +3766,7 @@
                 }
             ],
             "description": "Enables dynamic allocation of MSI-X vectors",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Megha Dey",
