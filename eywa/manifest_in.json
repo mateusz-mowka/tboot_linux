@@ -2543,7 +2543,7 @@
             "config_options": [
                 {
                     "name": " CONFIG_IFT",
-                    "value": "m"
+                    "value": "y"
                 }
             ],
             "contributor": [
