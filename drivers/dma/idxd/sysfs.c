@@ -1055,6 +1055,75 @@ static ssize_t wq_enqcmds_retries_store(struct device *dev, struct device_attrib
 static struct device_attribute dev_attr_wq_enqcmds_retries =
 		__ATTR(enqcmds_retries, 0644, wq_enqcmds_retries_show, wq_enqcmds_retries_store);
 
+static ssize_t wq_op_config_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct idxd_wq *wq = confdev_to_wq(dev);
+	struct idxd_device *idxd = wq->idxd;
+
+	if (!idxd->hw.wq_cap.op_config)
+		return -EOPNOTSUPP;
+
+	return sysfs_emit(buf, "%*pb\n", IDXD_MAX_OPCAP_BITS, wq->opcap_bmap);
+}
+
+static int idxd_verify_supported_opcap(struct idxd_device *idxd, unsigned long *opmask)
+{
+	int bit;
+
+	/*
+	 * The OPCAP is defined as 256 bits that represents each operation the device
+	 * supports per bit. Iterate through all the bits and check if the input mask
+	 * is set for bits that are not set in the OPCAP for the device. If no OPCAP
+	 * bit is set and input mask has the bit set, then return error.
+	 */
+	for_each_set_bit(bit, opmask, IDXD_MAX_OPCAP_BITS) {
+		if (!test_bit(bit, idxd->opcap_bmap))
+			return -EINVAL;
+	}
+
+	return 0;
+}
+
+static ssize_t wq_op_config_store(struct device *dev, struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct idxd_wq *wq = confdev_to_wq(dev);
+	struct idxd_device *idxd = wq->idxd;
+	unsigned long *opmask;
+	int rc;
+
+	if (!idxd->hw.wq_cap.op_config)
+		return -EOPNOTSUPP;
+
+	if (wq->state != IDXD_WQ_DISABLED)
+		return -EPERM;
+
+	opmask = bitmap_zalloc(IDXD_MAX_OPCAP_BITS, GFP_KERNEL);
+	if (!opmask)
+		return -ENOMEM;
+
+	rc = bitmap_parse(buf, count, opmask, IDXD_MAX_OPCAP_BITS);
+	if (rc < 0)
+		goto err;
+
+	rc = idxd_verify_supported_opcap(idxd, opmask);
+	if (rc < 0)
+		goto err;
+
+	bitmap_copy(wq->opcap_bmap, opmask, IDXD_MAX_OPCAP_BITS);
+
+	bitmap_free(opmask);
+	return count;
+
+err:
+	bitmap_free(opmask);
+	return rc;
+}
+
+static struct device_attribute dev_attr_wq_op_config =
+		__ATTR(op_config, 0644, wq_op_config_show, wq_op_config_store);
+
 static struct attribute *idxd_wq_attributes[] = {
 	&dev_attr_wq_clients.attr,
 	&dev_attr_wq_state.attr,
@@ -1072,6 +1141,7 @@ static struct attribute *idxd_wq_attributes[] = {
 	&dev_attr_wq_ats_disable.attr,
 	&dev_attr_wq_occupancy.attr,
 	&dev_attr_wq_enqcmds_retries.attr,
+	&dev_attr_wq_op_config.attr,
 	NULL,
 };
 
@@ -1088,6 +1158,7 @@ static void idxd_conf_wq_release(struct device *dev)
 {
 	struct idxd_wq *wq = confdev_to_wq(dev);
 
+	bitmap_free(wq->opcap_bmap);
 	kfree(wq->wqcfg);
 	kfree(wq);
 }
