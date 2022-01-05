@@ -2540,7 +2540,12 @@
         {
             "branch": "scan_at_field_release",
             "branch_type": "expiring",
-            "config_options": [],
+            "config_options": [
+                {
+                    "name": " CONFIG_IFT",
+                    "value": "m"
+                }
+            ],
             "contributor": [
                 {
                     "name": "Kyung Min Park",
