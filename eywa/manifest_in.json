@@ -1443,58 +1443,6 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "pmt_for_intel_next",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_MFD_INTEL_PMT",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_INTEL_PMT_TELEMETRY",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_INTEL_PMT_WATCHER",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_INTEL_PMT_CRASHLOG",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_INTEL_PMT_CLASS",
-                    "value": "m"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "David E Box",
-                    "email": "david.e.box@intel.com"
-                }
-            ],
-            "description": "Intel Platform Monitoring Technology support",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Van De Groenendaal, Johan",
-                    "email": "johan.van.de.groenendaal@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "pmt",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/debox1/linux-kernel-dev.git",
-            "sdl_contact": [
-                {
-                    "name": "Prestopine, Charles D",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.12"
-        },
-        {
             "branch": "for-intel-next",
             "branch_type": "expiring",
             "config_options": [
