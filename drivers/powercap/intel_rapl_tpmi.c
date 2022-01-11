@@ -9,10 +9,12 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/auxiliary_bus.h>
-#include <linux/module.h>
 #include <linux/io.h>
 #include <linux/intel_tpmi.h>
 #include <linux/intel_rapl.h>
+#include <linux/module.h>
+#include <linux/pm_runtime.h>
+#include <linux/slab.h>
 
 /* 1 header, 10 registers, 5 reserved. 8 bytes for each */
 #define TPMI_RAPL_DOMAIN_SIZE 128
@@ -49,13 +51,23 @@ struct tpmi_rapl_package {
 	int index;		/* index in the RAPL Domain */
 };
 
+struct auxiliary_device **tpmi_rapl_devices;
+
 static struct powercap_control_type *tpmi_control_type;
 
 static int tpmi_rapl_read_raw(int cpu, struct reg_action *ra)
 {
-	if (!ra->reg)
+	unsigned int id = topology_physical_package_id(cpu);
+	struct auxiliary_device *auxdev = tpmi_rapl_devices[id];
+	int ret;
+
+	if (!ra->reg || !auxdev)
 		return -EINVAL;
-	ra->value = readq((void __iomem *)ra->reg);
+
+	ret = intel_tpmi_readq(auxdev, (void __iomem *)ra->reg, &ra->value);
+	if (ret)
+		return ret;
+
 	ra->value &= ra->mask;
 	pr_info("Read 0x%llx at 0x%llx\n", ra->value, ra->reg);
 	return 0;
@@ -63,15 +75,21 @@ static int tpmi_rapl_read_raw(int cpu, struct reg_action *ra)
 
 static int tpmi_rapl_write_raw(int cpu, struct reg_action *ra)
 {
+	unsigned int id = topology_physical_package_id(cpu);
+	struct auxiliary_device *auxdev = tpmi_rapl_devices[id];
 	u64 val;
+	int ret;
 
-	if (!ra->reg)
+	if (!ra->reg || !auxdev)
 		return -EINVAL;
 
-	val = readq((void __iomem *)ra->reg);
+	ret = intel_tpmi_readq(auxdev, (void __iomem *)ra->reg, &val);
+	if (ret)
+		return ret;
+
 	val &= ~ra->mask;
 	val |= ra->value;
-	writeq(val, (void __iomem *)ra->reg);
+	intel_tpmi_writeq(auxdev, val, (void __iomem *)ra->reg);
 	pr_info("Write 0x%llx at 0x%llx\n", val, ra->reg);
 	return 0;
 }
@@ -205,6 +223,11 @@ static int intel_rapl_tpmi_probe(struct auxiliary_device *auxdev, const struct a
 		unsigned int id = topology_physical_package_id(cpu);
 
 		if (id == trp->tpmi_info->package_id) {
+			/*
+			 * Must set auxdevice before registering RAPL package
+			 * in order to make .read_raw/.write_raw callbacks functional
+			 */
+			tpmi_rapl_devices[id] = auxdev;
 			trp->rp = rapl_add_package(cpu, &trp->priv);
 			if (IS_ERR(trp->rp)) {
 				dev_err(&auxdev->dev, "Failed to add RAPL package, %ld\n", PTR_ERR(trp->rp));
@@ -220,6 +243,12 @@ static int intel_rapl_tpmi_probe(struct auxiliary_device *auxdev, const struct a
 	}
 
 	auxiliary_set_drvdata(auxdev, trp);
+
+	pm_runtime_enable(&auxdev->dev);
+	pm_runtime_set_autosuspend_delay(&auxdev->dev, 2000);
+	pm_runtime_use_autosuspend(&auxdev->dev);
+	pm_runtime_put(&auxdev->dev);
+
 	return 0;
 }
 
@@ -228,6 +257,11 @@ static void intel_rapl_tpmi_remove(struct auxiliary_device *auxdev)
 	struct tpmi_rapl_package *trp = auxiliary_get_drvdata(auxdev);
 
 	rapl_remove_package(trp->rp);
+	tpmi_rapl_devices[trp->tpmi_info->package_id] = NULL;
+
+	pm_runtime_get_sync(&auxdev->dev);
+	pm_runtime_put_noidle(&auxdev->dev);
+	pm_runtime_disable(&auxdev->dev);
 }
 
 
@@ -246,11 +280,17 @@ static struct auxiliary_driver intel_rapl_aux_driver = {
 static int intel_rapl_tpmi_init(void)
 {
 	int ret;
+	int nr_pkgs = topology_max_packages();
+
+	tpmi_rapl_devices = kzalloc(nr_pkgs * sizeof(struct auxiliary_device *), GFP_KERNEL);
+	if (!tpmi_rapl_devices)
+		return -ENOMEM;
 
 	tpmi_control_type =
 	    powercap_register_control_type(NULL, "intel-rapl-tpmi", NULL);
 	if (IS_ERR(tpmi_control_type)) {
 		pr_err("failed to register powercap control_type.\n");
+		kfree(tpmi_rapl_devices);
 		return PTR_ERR(tpmi_control_type);
 	}
 
@@ -258,6 +298,7 @@ static int intel_rapl_tpmi_init(void)
 	if (ret < 0) {
 		pr_err("Failed to register platform driver\n");
 		powercap_unregister_control_type(tpmi_control_type);
+		kfree(tpmi_rapl_devices);
 	}
 	return ret;
 }
@@ -266,6 +307,7 @@ static void intel_rapl_tpmi_exit(void)
 {
 	auxiliary_driver_unregister(&intel_rapl_aux_driver);
 	powercap_unregister_control_type(tpmi_control_type);
+	kfree(tpmi_rapl_devices);
 }
 
 module_init(intel_rapl_tpmi_init);
