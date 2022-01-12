@@ -4125,7 +4125,7 @@
                 }
             ],
             "description": "TPMI RAPL patches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Evelyn Fields",
