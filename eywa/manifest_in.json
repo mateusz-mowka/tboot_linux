@@ -4134,7 +4134,7 @@
             ],
             "jira": "NEXT-2756",
             "name": "TPMI_RAPL_support",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/intel-next/intel-next-kernel.git",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/rzhang1/for-intel-next.git",
             "sdl_contact": [
                 {
                     "name": "Charles Prestopine",
