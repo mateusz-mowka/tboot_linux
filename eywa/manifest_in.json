@@ -2746,7 +2746,7 @@
             "last_enabled": "v5.12"
         },
         {
-            "branch": "svos-next-tdx-pull-5.12",
+            "branch": "svos-next-tdx-pull-5.16",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -2760,15 +2760,15 @@
                     "email": "tom.stonecypher@intel.com"
                 }
             ],
-            "description": "SVOS KVM/TDX SEAM loader modifications for v5.12",
-            "enabled": false,
+            "description": "This pull request is for the SVOS TDX modifications for Intel Next v5.16.",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Tom Stonecipher",
                     "email": "tom.stonecypher@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2758",
             "name": "SVOS KVM/TDX",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/svos/sv/kernel/svos_next.git",
             "sdl_contact": [
@@ -2779,7 +2779,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.12"
+            "last_enabled": "v5.16"
         },
         {
             "branch": "idxd-intel-next",
