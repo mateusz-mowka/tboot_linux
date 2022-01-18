@@ -108,7 +108,7 @@ u64 __read_mostly efer_reserved_bits = ~((u64)(EFER_SCE | EFER_LME | EFER_LMA));
 static u64 __read_mostly efer_reserved_bits = ~((u64)EFER_SCE);
 #endif
 
-static u64 __read_mostly cr4_reserved_bits = CR4_RESERVED_BITS;
+static u64 __read_mostly cr4_kvm_reserved_bits = CR4_HOST_RESERVED_BITS;
 
 #define KVM_EXIT_HYPERCALL_VALID_MASK (1 << KVM_HC_MAP_GPA_RANGE)
 
@@ -534,7 +534,7 @@ static int exception_class(struct kvm_vcpu *vcpu, int vector)
 	case PF_VECTOR:
 		return EXCPT_PF;
 	case CP_VECTOR:
-		if (vcpu->arch.cr4_guest_rsvd_bits & X86_CR4_CET)
+		if (vcpu->arch.cr4_host_rsvd_bits & X86_CR4_CET)
 			return EXCPT_BENIGN;
 		return EXCPT_CONTRIBUTORY;
 	case DE_VECTOR:
@@ -1110,10 +1110,10 @@ EXPORT_SYMBOL_GPL(kvm_emulate_xsetbv);
 
 bool kvm_is_valid_cr4(struct kvm_vcpu *vcpu, unsigned long cr4)
 {
-	if (cr4 & cr4_reserved_bits)
+	if (cr4 & cr4_kvm_reserved_bits)
 		return false;
 
-	if (cr4 & vcpu->arch.cr4_guest_rsvd_bits)
+	if (cr4 & vcpu->arch.cr4_host_rsvd_bits)
 		return false;
 
 	return static_call(kvm_x86_is_valid_cr4)(vcpu, cr4);
@@ -12072,7 +12072,7 @@ int kvm_arch_hardware_setup(void *opaque)
 		kvm_cpu_cap_clear(X86_FEATURE_ENQCMD);
 
 #define __kvm_cpu_cap_has(UNUSED_, f) kvm_cpu_cap_has(f)
-	cr4_reserved_bits = __cr4_reserved_bits(__kvm_cpu_cap_has, UNUSED_);
+	cr4_kvm_reserved_bits = __cr4_calc_reserved_bits(__kvm_cpu_cap_has, UNUSED_);
 #undef __kvm_cpu_cap_has
 
 	if (kvm_caps.has_tsc_control) {
@@ -12112,8 +12112,8 @@ int kvm_arch_check_processor_compat(void)
 
 	WARN_ON(!irqs_disabled());
 
-	if (__cr4_reserved_bits(cpu_has, c) !=
-	    __cr4_reserved_bits(cpu_has, &boot_cpu_data))
+	if (__cr4_calc_reserved_bits(cpu_has, c) !=
+	    __cr4_calc_reserved_bits(cpu_has, &boot_cpu_data))
 		return -EIO;
 
 	return static_call(kvm_x86_check_processor_compatibility)();
