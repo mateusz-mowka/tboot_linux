@@ -4295,7 +4295,7 @@ void set_cr4_guest_host_mask(struct vcpu_vmx *vmx)
 	struct kvm_vcpu *vcpu = &vmx->vcpu;
 
 	vcpu->arch.cr4_guest_owned_bits = KVM_POSSIBLE_CR4_GUEST_BITS &
-					  ~vcpu->arch.cr4_guest_rsvd_bits;
+					  ~vcpu->arch.cr4_host_rsvd_bits;
 	if (!enable_ept) {
 		vcpu->arch.cr4_guest_owned_bits &= ~X86_CR4_TLBFLUSH_BITS;
 		vcpu->arch.cr4_guest_owned_bits &= ~X86_CR4_PDPTR_BITS;

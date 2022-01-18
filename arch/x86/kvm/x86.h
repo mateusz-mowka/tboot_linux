@@ -160,7 +160,7 @@ static inline bool x86_exception_has_error_code(struct kvm_vcpu *vcpu,
 		return false;
 
 	if (vector == CP_VECTOR)
-		return !(vcpu->arch.cr4_guest_rsvd_bits & X86_CR4_CET);
+		return !(vcpu->arch.cr4_host_rsvd_bits & X86_CR4_CET);
 
 	return true;
 }
@@ -471,9 +471,9 @@ bool kvm_msr_allowed(struct kvm_vcpu *vcpu, u32 index, u32 type);
 #define  KVM_MSR_RET_INVALID	2	/* in-kernel MSR emulation #GP condition */
 #define  KVM_MSR_RET_FILTERED	3	/* #GP due to userspace MSR filter */
 
-#define __cr4_reserved_bits(__cpu_has, __c)             \
+#define __cr4_calc_reserved_bits(__cpu_has, __c)             \
 ({                                                      \
-	u64 __reserved_bits = CR4_RESERVED_BITS;        \
+	u64 __reserved_bits = CR4_HOST_RESERVED_BITS;        \
                                                         \
 	if (!__cpu_has(__c, X86_FEATURE_XSAVE))         \
 		__reserved_bits |= X86_CR4_OSXSAVE;     \
