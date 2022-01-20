@@ -351,6 +351,158 @@ static int hfi_class_score_show(struct seq_file *s, void *unused)
 }
 DEFINE_SHOW_ATTRIBUTE(hfi_class_score);
 
+/*
+ * Inject an HFI table:
+ *
+ * The file /sys/kernel/debug/intel_hw_feedback/inject_tableX provides
+ * functionality to inject an HFI table to an HFI instance. It can accept up to
+ * 128 numeric entries in the format n,n,n,...,n,n where n are numbers in the
+ * range [0, 255].
+ *
+ * You need to inject the values sequentially per capability, per class, per
+ * row in the HFI table. For instance, if your hardware supports 4 classes, and
+ * performance and energy efficiency, inject the values for the first row of
+ * the HFI table as follows:
+ *
+ *	Pe0,Ee0,Pe1,Ee1,Pe2,Ee2,Pe3,Ee3,
+
+ * Then, append the subsequent rows of the table after the comma (no spaces)
+ * until you have as many rows as you need in the table.
+
+ * You can optionally only provide a few rows of the table. In such case, the
+ * injection functionality will use the provided values preriodically to
+ * populate the whole injected table.
+ *
+ * When composing your table, remember that more than one CPU can point to the
+ * same row in the table.
+ */
+#define HFI_INJECT_TABLE_MAX_ENTRIES 128
+static char hfi_inject_table_input_str[HFI_INJECT_TABLE_MAX_ENTRIES * 4];
+static u8 hfi_inject_table_input_vals[HFI_INJECT_TABLE_MAX_ENTRIES];
+
+static int hfi_inject_table(struct hfi_instance *hfi_instance,
+			    u8 *inj_vals, int inj_len)
+{
+	void *fake_table, *fake_hdr, *fake_data;
+	struct hfi_hdr *hfi_hdr;
+	u64 *fake_timestamp;
+	int i, k = 0;
+
+	fake_table = kzalloc(hfi_features.nr_table_pages << PAGE_SHIFT,
+			     GFP_KERNEL);
+	if (!fake_table)
+		return -ENOMEM;
+
+	/* The timestamp is at the base of the HFI table. */
+	fake_timestamp = (u64 *)fake_table;
+	/* The HFI header is below the time-stamp. */
+	fake_hdr = fake_table + sizeof(*fake_timestamp);
+	/* The HFI data starts below the header. */
+	fake_data = fake_hdr + hfi_features.hdr_size;
+
+	/* Fake timestamp. */
+	*fake_timestamp = *hfi_instance->timestamp + 1;
+
+	/* Fake header. */
+	hfi_hdr = fake_hdr;
+	for (i = 0; i < hfi_features.nr_classes; i++) {
+		hfi_hdr->perf_updated = 5;
+		hfi_hdr->ee_updated = 5;
+		hfi_hdr++;
+	}
+
+	/* Fake data. */
+	for (i = 0; i < HFI_INJECT_TABLE_MAX_ENTRIES; i++) {
+		void *data_ptr = fake_data + i * hfi_features.cpu_stride;
+		int j;
+
+		for (j = 0; j < hfi_features.nr_classes; j++) {
+			struct hfi_cpu_data *data = data_ptr +
+						    j * hfi_features.class_stride;
+
+			/* Keep reusing the same inj_len values until done. */
+			data->perf_cap = inj_vals[k++ % inj_len];
+			data->ee_cap = inj_vals[k++ % inj_len];
+		}
+	}
+
+	memcpy(hfi_instance->local_table, fake_table,
+	       hfi_features.nr_table_pages << PAGE_SHIFT);
+
+	queue_delayed_work(hfi_updates_wq, &hfi_instance->update_work,
+			   HFI_UPDATE_INTERVAL);
+
+	kfree(fake_table);
+
+	return 0;
+}
+
+static int hfi_inject_table_parse_values(char *str, u8 *values)
+{
+	char *key;
+	int i = 0, ret;
+
+	while ((key = strsep(&str, ",")) != NULL) {
+		ret = kstrtou8(key, 10, &values[i]);
+		if (ret)
+			return ret;
+
+		i++;
+	}
+
+	return i;
+}
+
+static ssize_t hfi_inject_table_write(struct file *file, const char __user *ptr,
+				      size_t len, loff_t *off)
+{
+	struct hfi_instance *hfi_instance;
+	int ret;
+
+	hfi_instance = ((struct seq_file *)file->private_data)->private;
+
+	if (*off != 0)
+		return 0;
+
+	if (len > sizeof(hfi_inject_table_input_str))
+		return -E2BIG;
+
+	memset(hfi_inject_table_input_str, 0, sizeof(hfi_inject_table_input_str));
+	memset(hfi_inject_table_input_vals, 0, sizeof(hfi_inject_table_input_vals));
+
+	ret = strncpy_from_user(hfi_inject_table_input_str, ptr, len);
+	if (ret < 0)
+		return ret;
+
+	ret = hfi_inject_table_parse_values(hfi_inject_table_input_str,
+					    hfi_inject_table_input_vals);
+	if (ret < 0)
+		return ret;
+
+	ret = hfi_inject_table(hfi_instance, hfi_inject_table_input_vals, ret);
+
+	return ret ? ret : len;
+}
+
+static int hfi_inject_table_show(struct seq_file *s, void *unused)
+{
+	return 0;
+}
+
+static int hfi_inject_table_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, hfi_inject_table_show, inode->i_private);
+}
+
+static const struct file_operations hfi_inject_table_fops = {
+	.owner = THIS_MODULE,
+	.open = hfi_inject_table_open,
+	.read = seq_read,
+	.write = hfi_inject_table_write,
+	.llseek = seq_lseek,
+	.release = single_release
+};
+
 static struct dentry *hfi_debugfs_dir;
 
 static void hfi_debugfs_unregister(void)
@@ -412,6 +564,10 @@ static void hfi_debugfs_populate_instance(struct hfi_instance *hfi_instance,
 	snprintf(name, 64, "class_score%d", die_id);
 	debugfs_create_file(name, 0444, hfi_debugfs_dir, hfi_instance,
 			    &hfi_class_score_fops);
+
+	snprintf(name, 64, "inject_table%u", die_id);
+	debugfs_create_file(name, 0444, hfi_debugfs_dir, hfi_instance,
+			    &hfi_inject_table_fops);
 }
 
 #else
