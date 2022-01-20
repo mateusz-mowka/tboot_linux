@@ -24,6 +24,7 @@ int shstk_disable(void);
 void reset_thread_shstk(void);
 int setup_signal_shadow_stack(void __user *restorer);
 int restore_signal_shadow_stack(void);
+int wrss_control(bool enable);
 #else
 long cet_prctl(struct task_struct *task, int option,
 	       unsigned long features) { return -EINVAL; }
@@ -37,6 +38,7 @@ static inline int shstk_disable(void) { return -EOPNOTSUPP; }
 static inline void reset_thread_shstk(void) {}
 static inline int setup_signal_shadow_stack(void __user *restorer) { return 0; }
 static inline int restore_signal_shadow_stack(void) { return 0; }
+static inline int wrss_control(bool enable) { return -EOPNOTSUPP; }
 #endif /* CONFIG_X86_SHADOW_STACK */
 
 #endif /* __ASSEMBLY__ */

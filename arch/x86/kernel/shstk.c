@@ -340,6 +340,36 @@ void shstk_free(struct task_struct *tsk)
 	unmap_shadow_stack(shstk->base, shstk->size);
 }
 
+int wrss_control(bool enable)
+{
+	if (!cpu_feature_enabled(X86_FEATURE_SHSTK))
+		return -EOPNOTSUPP;
+
+	/*
+	 * Only enable wrss if shadow stack is enabled. If shadow stack is not
+	 * enabled, wrss will already be disabled, so don't bother clearing it
+	 * when disabling.
+	 */
+	if (!feature_enabled(CET_SHSTK))
+		return -EPERM;
+
+	/* Already enabled/disabled? */
+	if (feature_enabled(CET_WRSS) == enable)
+		return 0;
+
+	fpu_lock_and_load();
+	if (enable) {
+		set_clr_bits_msrl(MSR_IA32_U_CET, CET_WRSS_EN, 0);
+		feature_set(CET_WRSS);
+	} else {
+		set_clr_bits_msrl(MSR_IA32_U_CET, 0, CET_WRSS_EN);
+		feature_clr(CET_WRSS);
+	}
+	fpregs_unlock();
+
+	return 0;
+}
+
 int shstk_disable(void)
 {
 	if (!cpu_feature_enabled(X86_FEATURE_SHSTK))
@@ -351,12 +381,12 @@ int shstk_disable(void)
 
 	fpu_lock_and_load();
 	/* Disable WRSS too when disabling shadow stack */
-	set_clr_bits_msrl(MSR_IA32_U_CET, 0, CET_SHSTK_EN);
+	set_clr_bits_msrl(MSR_IA32_U_CET, 0, CET_SHSTK_EN | CET_WRSS_EN);
 	wrmsrl(MSR_IA32_PL3_SSP, 0);
 	fpregs_unlock();
 
 	shstk_free(current);
-	feature_clr(CET_SHSTK);
+	feature_clr(CET_SHSTK | CET_WRSS);
 
 	return 0;
 }
