@@ -209,6 +209,7 @@ struct idxd_wq {
 	u64 max_xfer_bytes;
 	u32 max_batch_size;
 	bool ats_dis;
+	char driver_name[WQ_NAME_SIZE + 1];
 };
 
 struct idxd_engine {
@@ -539,6 +540,11 @@ static inline int idxd_wq_refcount(struct idxd_wq *wq)
 {
 	return wq->client_count;
 };
+
+static inline int idxd_wq_driver_name_match(struct idxd_wq *wq, struct device *dev)
+{
+	return (strncmp(wq->driver_name, dev->driver->name, strlen(dev->driver->name)) == 0);
+}
 
 #define MODULE_ALIAS_IDXD_DEVICE(type) MODULE_ALIAS("idxd:t" __stringify(type) "*")
 #define IDXD_DEVICES_MODALIAS_FMT "idxd:t%d"
