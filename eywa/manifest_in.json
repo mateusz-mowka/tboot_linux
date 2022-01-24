@@ -1148,7 +1148,7 @@
                 }
             ],
             "description": "intel_rapl/intel_idle/thermal/turbostat support for AlderLake/RaptorLake/MeteorLake and GNR",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Evelyn Fields",
@@ -3559,7 +3559,7 @@
                 }
             ],
             "description": "Enable microcode rollback in intel-next",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
@@ -3577,7 +3577,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "pasid",
