@@ -118,32 +118,6 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "intel-next",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Len Brown",
-                    "email": "len.brown@intel.com"
-                }
-            ],
-            "description": "Len Brown's patches",
-            "enabled": false,
-            "ip_owner": [],
-            "jira": "NEXT-2765",
-            "name": "len-x86",
-            "repourl": "git://linux-os.sc.intel.com/~lenb/linux",
-            "sdl_contact": [
-                {
-                    "name": "Len Brown",
-                    "email": "len.brown@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.15"
-        },
-        {
             "branch": "testing",
             "branch_type": "public",
             "config_options": [],
