@@ -340,9 +340,8 @@ static int idxd_dmaengine_drv_probe(struct idxd_dev *idxd_dev)
 err_dma:
 	__drv_disable_wq(wq);
 err:
-	idxd_wq_free_irq(wq);
-err_drv_name:
 	wq->type = IDXD_WQT_NONE;
+err_drv_name:
 	mutex_unlock(&wq->wq_lock);
 	return rc;
 }
