@@ -154,7 +154,7 @@
                 }
             ],
             "description": "NEXT PM tree",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2766",
             "name": "pm-testing",
@@ -162,7 +162,7 @@
             "sdl_contact": [],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "next",
