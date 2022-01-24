@@ -266,7 +266,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "scs-v5.16",
+            "branch": "scs-v5.17",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -341,7 +341,7 @@
                 }
             ],
             "description": "MMC Subsystem and SCS (eMMC/SD card/SDIO/UFS) driver enabling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Bhaskar",
@@ -350,9 +350,13 @@
                 {
                     "name": "Tomasz Pielaszkiewicz",
                     "email": "tomasz.pielaszkiewicz@intel.com"
+                },
+                {
+                    "name": "Chattopadhyay Arijit",
+                    "email": "arijit.chattopadhyay@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2778",
             "name": "mmc",
             "repourl": "https://github.com/intel-sandbox/ahunter6.next.git",
             "sdl_contact": [
@@ -363,7 +367,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "cse-5.15",
