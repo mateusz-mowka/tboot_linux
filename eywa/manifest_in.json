@@ -1412,7 +1412,7 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "intel-pt-perf-tools-v5.16",
+            "branch": "intel-pt-perf-tools-v5.17",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -1422,14 +1422,14 @@
                 }
             ],
             "description": "Updates to perf tools for Intel PT",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
-                    "name": "Beeman Strong",
-                    "email": "beeman.strong@intel.com"
+                    "name": "Jeyasingh, Stalinselvaraj",
+                    "email": "stalinselvaraj.jeyasingh@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2777",
             "name": "perf-tools",
             "repourl": "https://github.com/intel-sandbox/ahunter6.next.git",
             "sdl_contact": [
@@ -1440,7 +1440,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "for-intel-next",
