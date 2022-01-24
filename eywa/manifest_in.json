@@ -175,7 +175,7 @@
                 }
             ],
             "description": "TPM code",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2767",
             "name": "tpm",
@@ -183,7 +183,7 @@
             "sdl_contact": [],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "for-intel-next",
