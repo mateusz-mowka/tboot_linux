@@ -2079,7 +2079,7 @@
             "last_enabled": "v5.12"
         },
         {
-            "branch": "for_intel_next_v5.16-rc1",
+            "branch": "for_intel_next_v5.17-rc1",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -2118,14 +2118,14 @@
                 }
             ],
             "description": "iommu updates",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2776",
             "name": "iommu",
             "repourl": "ssh://git-ccr-1.devtools.intel.com:29418/iommu_next-siov",
             "sdl_contact": [
@@ -2136,7 +2136,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "intel-next",
