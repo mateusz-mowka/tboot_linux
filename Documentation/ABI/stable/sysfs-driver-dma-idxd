@@ -264,8 +264,8 @@ Description:	Shows the operation capability bits displayed in bitmap format
 		on platforms that support the capability.
 
 What:		/sys/bus/dsa/devices/wq<m>.<n>/driver_name
-Date:		Jan 21, 2022
-KernelVersion:	5.19.0
+Date:		Feb 23, 2023
+KernelVersion:	6.3.0
 Contact:	dmaengine@vger.kernel.org
 Description:	Name of driver to be bounded to the wq.
 
