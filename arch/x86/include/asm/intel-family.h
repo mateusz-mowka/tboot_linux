@@ -108,6 +108,8 @@
 
 #define INTEL_FAM6_GRANITERAPIDS_X	0xAD
 
+#define INTEL_FAM6_SIERRAFOREST_X	0xAF
+
 #define INTEL_FAM6_ALDERLAKE		0x97	/* Golden Cove / Gracemont */
 #define INTEL_FAM6_ALDERLAKE_L		0x9A	/* Golden Cove / Gracemont */
 #define INTEL_FAM6_ALDERLAKE_N		0xBE
