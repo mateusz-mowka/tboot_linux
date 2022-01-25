@@ -1580,7 +1580,7 @@
                 }
             ],
             "description": "Support for hybrid CPUs and Hardware Feedback Interface",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Eliezer Weissman",
@@ -1591,7 +1591,7 @@
                     "email": "muhammad.abozaed@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2780",
             "name": "hybrid",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/ranerica/linux-dev.git",
             "sdl_contact": [
@@ -1602,7 +1602,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "resctrl_selftest",
