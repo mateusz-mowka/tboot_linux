@@ -894,12 +894,8 @@
                 }
             ],
             "description": "EDAC for SPR and IEH for TGL",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
-                {
-                    "name": "Bezbroz, Henrietta",
-                    "email": "henrietta.bezbroz@intel.com"
-                },
                 {
                     "name": "Ahmad, Annie",
                     "email": "quarat-ul-ann.ahmad@intel.com"
@@ -913,7 +909,7 @@
                     "email": "amir.radjai@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2782",
             "name": "edac",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/qzhuo/otc-edac.git",
             "sdl_contact": [
@@ -924,7 +920,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "pmc_core",
