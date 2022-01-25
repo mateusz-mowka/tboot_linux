@@ -3568,14 +3568,14 @@
                 }
             ],
             "description": "Re-enable ENQCMD and PASID",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
                     "email": "ravi.v.shankar@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2781",
             "name": "enqcmd_pasid",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/fyu1/kernel.git",
             "sdl_contact": [
@@ -3586,7 +3586,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "perf-aux-dev-for-intel-next",
