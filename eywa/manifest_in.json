@@ -3846,14 +3846,14 @@
                 }
             ],
             "description": "Enable PASID usage with DMA API",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
-                    "name": "Ashok Raj",
-                    "email": "ashok.raj@intel.com"
+                    "name": "Rupin H Vakharwala",
+                    "email": "rupin.h.vakharwala@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2787",
             "name": "pasid/DMA",
             "repourl": "https://github.com/intel-sandbox/linux-svm-kernel.git",
             "sdl_contact": [
@@ -3864,7 +3864,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "storm",
