@@ -3533,7 +3533,7 @@
                 }
             ],
             "description": "Enable microcode rollback in intel-next",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
