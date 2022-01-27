@@ -3846,7 +3846,7 @@
                 }
             ],
             "description": "Enable PASID usage with DMA API",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Rupin H Vakharwala",
