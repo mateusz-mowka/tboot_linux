@@ -1517,7 +1517,7 @@
             "last_enabled": "v5.13"
         },
         {
-            "branch": "svos-next-pull-5.16",
+            "branch": "svos-next-pull-5.17",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -1540,14 +1540,14 @@
                 }
             ],
             "description": "SVOS Kernel/Driver Changes for v5.15",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Tom Stonecypher",
                     "email": "tom.stonecypher@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2789",
             "name": "SVOS Kernel",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/svos/sv/kernel/svos_next",
             "sdl_contact": [
@@ -1558,7 +1558,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "rneri/hybrid-for-intel-next",
