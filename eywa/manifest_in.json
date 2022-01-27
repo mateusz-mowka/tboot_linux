@@ -3232,7 +3232,7 @@
             "last_enabled": "v5.13"
         },
         {
-            "branch": "pending",
+            "branch": "preview",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -3240,7 +3240,7 @@
                     "value": "m"
                 },
                 {
-                    "name": "CONFIG_CXL_MEM",
+                    "name": "CONFIG_CXL_PCI",
                     "value": "m"
                 },
                 {
@@ -3254,6 +3254,14 @@
                 {
                     "name": "CONFIG_CXL_PMEM",
                     "value": "m"
+                },
+                {
+                    "name": "CONFIG_CXL_MEM",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_CXL_PORT",
+                    "value": "m"
                 }
             ],
             "contributor": [
@@ -3262,10 +3270,10 @@
                     "email": "dan.j.williams@intel.com"
                 }
             ],
-            "description": "CXL Memory Expander support targeting the next merge window",
-            "enabled": false,
+            "description": "CXL Memory Expander support targeting v5.18",
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2792",
             "name": "cxl",
             "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/cxl/cxl",
             "sdl_contact": [
@@ -3276,7 +3284,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "dev-queue",
