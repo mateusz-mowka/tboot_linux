@@ -3784,7 +3784,7 @@
             "last_enabled": "v5.15"
         },
         {
-            "branch": "ppin",
+            "branch": "next-5.17-ppin",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -3794,14 +3794,14 @@
                 }
             ],
             "description": "Updates and extensions to Linux support for \"Protected Processor Inventory Number\"",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Luck, Tony",
                     "email": "tony.luck@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2797",
             "name": "ppin",
             "repourl": "https://github.com/intel-sandbox/agluck-linux.git",
             "sdl_contact": [
@@ -3812,7 +3812,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "dma-api-pasid-intel-next",
