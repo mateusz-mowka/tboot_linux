@@ -3945,7 +3945,7 @@
                 }
             ],
             "description": "LPSS/SMBus Changes",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Bhaskar",
@@ -3964,7 +3964,7 @@
                     "email": "raymond.tan@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2798",
             "name": "LPSS/SMBus",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/jarkkoni/linux.git",
             "sdl_contact": [
@@ -3975,7 +3975,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "libnvdimm-for-next",
