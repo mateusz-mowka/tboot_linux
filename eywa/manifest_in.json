@@ -2531,11 +2531,27 @@
             "branch_type": "expiring",
             "config_options": [
                 {
+                    "name": "CONFIG_INTEL_VSEC",
+                    "value": "m"
+                },
+                {
                     "name": "CONFIG_INTEL_TPMI",
                     "value": "m"
                 },
                 {
-                    "name": "CONFIG_INTEL_RAPL_TPMI",
+                    "name": "CONFIG_INTEL_HPM_DIE_MAP",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_TPMI_PEM",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_SPEED_SELECT_TPMI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_UNCORE_FREQ_CONTROL_TPMI",
                     "value": "m"
                 }
             ],
@@ -2546,14 +2562,14 @@
                 }
             ],
             "description": "Intel TPMI MFD driver",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Chen, Stanley",
                     "email": "stanley.chen@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2800",
             "name": "tpmi",
             "repourl": "https://github.com/intel-sandbox/spandruv.linux.git",
             "sdl_contact": [
@@ -2564,7 +2580,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "slad_v3-rc5",
