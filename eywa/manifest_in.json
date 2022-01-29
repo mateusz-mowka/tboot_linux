@@ -2830,6 +2830,10 @@
                 {
                     "name": "CONFIG_DMATEST",
                     "value": "m"
+                },
+                {
+                    "name": "CONFIG_PAGE_CLEAR_ENGINE",
+                    "value": "m"
                 }
             ],
             "contributor": [
