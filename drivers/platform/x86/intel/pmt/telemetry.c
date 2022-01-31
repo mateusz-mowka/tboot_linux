@@ -15,9 +15,10 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/overflow.h>
+#include <linux/pm_runtime.h>
 
-#include "../vsec.h"
 #include "class.h"
+#include "telemetry.h"
 
 #define TELEM_SIZE_OFFSET	0x0
 #define TELEM_GUID_OFFSET	0x4
@@ -29,6 +30,15 @@
 
 /* Used by client hardware to identify a fixed telemetry entry*/
 #define TELEM_CLIENT_FIXED_BLOCK_GUID	0x10000000
+
+#define NUM_BYTES_QWORD(v)	((v) << 3)
+#define SAMPLE_ID_OFFSET(v)	((v) << 3)
+
+#define PMT_XA_START		0
+#define PMT_XA_MAX		INT_MAX
+#define PMT_XA_LIMIT		XA_LIMIT(PMT_XA_START, PMT_XA_MAX)
+
+static DEFINE_MUTEX(list_lock);
 
 enum telem_type {
 	TELEM_TYPE_PUNIT = 0,
@@ -91,6 +101,61 @@ static struct intel_pmt_namespace pmt_telem_ns = {
 	.pmt_header_decode = pmt_telem_header_decode,
 };
 
+static DEFINE_XARRAY_ALLOC(auxdev_array);
+
+/* Driver API */
+int pmt_telem_read(struct pci_dev *pdev, u32 guid, u16 pos, u16 id, u16 count, u64 *data)
+{
+	struct intel_vsec_device *intel_vsec_dev;
+	struct intel_pmt_entry *entry;
+	struct pmt_telem_priv *priv;
+	unsigned long index;
+	bool found = false;
+	int i, inst = 0;
+	u32 offset;
+
+	xa_for_each(&auxdev_array, index, intel_vsec_dev) {
+		if (pdev == intel_vsec_dev->pcidev) {
+			found = true;
+			break;
+		}
+	}
+	if (!found)
+		return -ENODEV;
+
+	priv = auxiliary_get_drvdata(&intel_vsec_dev->auxdev);
+	found = false;
+
+	for (entry = priv->entry, i = 0; i < priv->num_entries; entry++, i++) {
+		if (entry->guid != guid)
+			continue;
+
+		if (++inst == pos) {
+			found = true;
+			break;
+		}
+	}
+
+	if (!found)
+		return -ENODEV;
+
+	offset = SAMPLE_ID_OFFSET(id);
+
+	if ((offset + NUM_BYTES_QWORD(count)) > entry->size)
+		return -EINVAL;
+
+	pr_debug("%s: Reading id %d, offset 0x%x, count %d, base %px\n",
+		 __func__, id, SAMPLE_ID_OFFSET(id), count, entry->base);
+
+	pm_runtime_get_sync(&entry->pdev->dev);
+	memcpy_fromio(data, entry->base + offset, NUM_BYTES_QWORD(count));
+	pm_runtime_mark_last_busy(&entry->pdev->dev);
+	pm_runtime_put_autosuspend(&entry->pdev->dev);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(pmt_telem_read);
+
 static void pmt_telem_remove(struct auxiliary_device *auxdev)
 {
 	struct pmt_telem_priv *priv = auxiliary_get_drvdata(auxdev);
@@ -98,6 +163,9 @@ static void pmt_telem_remove(struct auxiliary_device *auxdev)
 
 	for (i = 0; i < priv->num_entries; i++)
 		intel_pmt_dev_destroy(&priv->entry[i], &pmt_telem_ns);
+
+	// remove the auxdev list
+	xa_destroy(&auxdev_array);
 }
 
 static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxiliary_device_id *id)
@@ -105,7 +173,7 @@ static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxilia
 	struct intel_vsec_device *intel_vsec_dev = auxdev_to_ivdev(auxdev);
 	struct pmt_telem_priv *priv;
 	size_t size;
-	int i, ret;
+	int i, ret, pmt_id;
 
 	size = struct_size(priv, entry, intel_vsec_dev->num_resources);
 	priv = devm_kzalloc(&auxdev->dev, size, GFP_KERNEL);
@@ -125,6 +193,10 @@ static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxilia
 
 		priv->num_entries++;
 	}
+	// store the auxdev here
+	ret = xa_alloc(&auxdev_array, &pmt_id, intel_vsec_dev, PMT_XA_LIMIT, GFP_KERNEL);
+	if (ret)
+		return ret;
 
 	return 0;
 abort_probe:
