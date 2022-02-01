@@ -818,6 +818,10 @@ struct x86_pmu {
 	union perf_capabilities intel_cap;
 
 	/*
+	 * RDPMC
+	 */
+	unsigned int	rdpmc_usr		:1;
+	/*
 	 * Intel DebugStore bits
 	 */
 	unsigned int	bts			:1,
