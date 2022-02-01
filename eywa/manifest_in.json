@@ -344,7 +344,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "cse-5.15",
+            "branch": "cse-5.17",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -364,16 +364,24 @@
                     "value": "m"
                 },
                 {
-                    "name": "CONFIG_INTEL_MEI_DAL",
+                    "name": "CONFIG_INTEL_MEI_HDCP",
                     "value": "m"
                 },
                 {
-                    "name": "CONFIG_INTEL_MEI_WDT",
+                    "name": "CONFIG_INTEL_MEI_IAF",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_MEI_GSC_PROXY",
                     "value": "m"
                 },
                 {
                     "name": "CONFIG_WATCHDOG_CORE",
                     "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_MEI_WDT",
+                    "value": "m"
                 },
                 {
                     "name": "CONFIG_NFC",
@@ -402,41 +410,25 @@
                 {
                     "name": "CONFIG_NFC_MICROREAD_MEI",
                     "value": "m"
-                },
-                {
-                    "name": "CONFIG_INTEL_MEI_HDCP",
-                    "value": "m"
-                },
-                {
-                    "name": "CONFIG_SAMPLE_INTEL_MEI",
-                    "value": "n"
-                },
-                {
-                    "name": "CONFIG_SAMPLE_INTEL_MEI_DAL_TEST",
-                    "value": "n"
-                },
-                {
-                    "name": "CONFIG_INTEL_MEI_IAF",
-                    "value": "m"
                 }
             ],
             "contributor": [
                 {
-                    "name": "Tomas Winkler",
-                    "email": "tomas.winkler@intel.com"
+                    "name": "Alexander Usyskin",
+                    "email": "alexander.usyskin@intel.com"
                 }
             ],
             "description": "CSE/CSME MEI driver and MEI client drivers",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "William A. Stevens",
                     "email": "William.a.stevens@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2805",
             "name": "mei",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/mesw/linux/linux-mei-pk.git",
+            "repourl": "https://github.com/intel-innersource/drivers.security.cse.drivers.linux-mei-pk.git",
             "sdl_contact": [
                 {
                     "name": "Daniel Ohayon",
@@ -457,7 +449,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "to_eywa_intel_ish",
