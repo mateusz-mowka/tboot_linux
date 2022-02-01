@@ -965,6 +965,7 @@ static const char *config_term_names[__PARSE_EVENTS__TERM_TYPE_NR] = {
 	[PARSE_EVENTS__TERM_TYPE_AUX_OUTPUT]		= "aux-output",
 	[PARSE_EVENTS__TERM_TYPE_AUX_SAMPLE_SIZE]	= "aux-sample-size",
 	[PARSE_EVENTS__TERM_TYPE_METRIC_ID]		= "metric-id",
+	[PARSE_EVENTS__TERM_TYPE_RELOAD]		= "reload",
 };
 
 static bool config_term_shrinked;
@@ -1108,6 +1109,9 @@ do {									   \
 			return -EINVAL;
 		}
 		break;
+	case PARSE_EVENTS__TERM_TYPE_RELOAD:
+		CHECK_TYPE_VAL(NUM);
+		break;
 	default:
 		parse_events_error__handle(err, term->err_term,
 				strdup("unknown term"),
@@ -1161,6 +1165,7 @@ static int config_term_tracepoint(struct perf_event_attr *attr,
 	case PARSE_EVENTS__TERM_TYPE_NOOVERWRITE:
 	case PARSE_EVENTS__TERM_TYPE_AUX_OUTPUT:
 	case PARSE_EVENTS__TERM_TYPE_AUX_SAMPLE_SIZE:
+	case PARSE_EVENTS__TERM_TYPE_RELOAD:
 		return config_term_common(attr, term, err);
 	default:
 		if (err) {
@@ -1282,6 +1287,10 @@ do {								\
 		case PARSE_EVENTS__TERM_TYPE_AUX_SAMPLE_SIZE:
 			ADD_CONFIG_TERM_VAL(AUX_SAMPLE_SIZE, aux_sample_size,
 					    term->val.num, term->weak);
+			break;
+		case PARSE_EVENTS__TERM_TYPE_RELOAD:
+			ADD_CONFIG_TERM_VAL(RELOAD, reload,
+					    term->val.num ? 1 : 0, term->weak);
 			break;
 		default:
 			break;

@@ -27,6 +27,7 @@ enum evsel_term_type {
 	EVSEL__CONFIG_TERM_AUX_OUTPUT,
 	EVSEL__CONFIG_TERM_AUX_SAMPLE_SIZE,
 	EVSEL__CONFIG_TERM_CFG_CHG,
+	EVSEL__CONFIG_TERM_RELOAD,
 };
 
 struct evsel_config_term {
@@ -47,6 +48,7 @@ struct evsel_config_term {
 		u32	      aux_sample_size;
 		u64	      cfg_chg;
 		char	      *str;
+		bool	      reload;
 	} val;
 	bool weak;
 };

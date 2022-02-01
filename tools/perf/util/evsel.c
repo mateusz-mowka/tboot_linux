@@ -1032,6 +1032,8 @@ static void evsel__apply_config_terms(struct evsel *evsel,
 			break;
 		case EVSEL__CONFIG_TERM_CFG_CHG:
 			break;
+		case EVSEL__CONFIG_TERM_RELOAD:
+			attr->reload = term->val.reload ? 1 : 0;
 		default:
 			break;
 		}
