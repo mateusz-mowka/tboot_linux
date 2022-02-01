@@ -155,6 +155,7 @@ int perf_event_attr__fprintf(FILE *fp, struct perf_event_attr *attr,
 	PRINT_ATTRf(aux_sample_size, p_unsigned);
 	PRINT_ATTRf(sig_data, p_unsigned);
 	PRINT_ATTRf(branch_events, p_unsigned);
+	PRINT_ATTRf(reload, p_unsigned);
 
 	return ret;
 }
