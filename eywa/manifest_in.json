@@ -4187,6 +4187,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "intel_next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_X86_SHADOW_STACK",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Rick Edgecombe",
+                    "email": "rick.p.edgecombe@intel.com"
+                }
+            ],
+            "description": "",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2807",
+            "name": "shadow_stacks",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/rpedgeco/linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Rick Edgecombe",
+                    "email": "rick.p.edgecombe@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
