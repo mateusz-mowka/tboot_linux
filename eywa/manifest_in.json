@@ -4204,7 +4204,7 @@
                 }
             ],
             "description": "",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [],
             "jira": "NEXT-2807",
             "name": "shadow_stacks",
