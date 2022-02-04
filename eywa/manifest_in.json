@@ -1755,7 +1755,7 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "satc-5.16-rc1",
+            "branch": "satc-synced-5.17-rc1",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -1765,14 +1765,14 @@
                 }
             ],
             "description": "Enable ATS for the devices in SATC table",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2811",
             "name": "ATS/SATC",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/chenyian/kernel-works.git",
             "sdl_contact": [
@@ -1783,7 +1783,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "iommu",
