@@ -4203,7 +4203,7 @@
                     "email": "rick.p.edgecombe@intel.com"
                 }
             ],
-            "description": "",
+            "description": "Shadow stack feature",
             "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2807",
