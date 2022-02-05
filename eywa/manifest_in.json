@@ -1765,7 +1765,7 @@
                 }
             ],
             "description": "Enable ATS for the devices in SATC table",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
