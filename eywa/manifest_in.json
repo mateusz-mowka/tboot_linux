@@ -1755,7 +1755,7 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "satc-synced-5.17-rc1",
+            "branch": "satc-synced-with-intel-next-8a4e26ca",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -1765,7 +1765,7 @@
                 }
             ],
             "description": "Enable ATS for the devices in SATC table",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
