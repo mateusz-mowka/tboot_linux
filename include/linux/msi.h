@@ -158,6 +158,16 @@ struct msi_desc_data {
 	union msi_instance_cookie	icookie;
 };
 
+/*
+ * device_msi_desc - Device MSI specific MSI descriptor data
+ * @priv_iomem:			Pointer to device specific private io memory
+ * @hwirq:			The hardware irq number in the device domain
+ */
+struct device_msi_desc {
+	void __iomem	*priv_iomem;
+	u16		hwirq;
+};
+
 #define MSI_MAX_INDEX		((unsigned int)USHRT_MAX)
 
 /**
@@ -199,6 +209,7 @@ struct msi_desc {
 		struct pci_msi_desc	pci;
 		struct msi_desc_data	data;
 	};
+	struct device_msi_desc          device_msi;
 };
 
 /*
