@@ -889,6 +889,12 @@ int __msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev,
 	if (ret)
 		return ret;
 
+	if (ops->msi_alloc_store) {
+		ret = ops->msi_alloc_store(domain, dev, nvec);
+		if (ret)
+			return ret;
+	}
+
 	/*
 	 * This flag is set by the PCI layer as we need to activate
 	 * the MSI entries before the PCI layer enables MSI in the
@@ -1003,6 +1009,7 @@ void __msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
 	struct msi_domain_info *info = domain->host_data;
 	struct irq_data *irqd;
 	struct msi_desc *desc;
+	struct msi_domain_ops *ops = info->ops;
 	int i;
 
 	/* Only handle MSI entries which have an interrupt associated */
@@ -1019,6 +1026,9 @@ void __msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
 			msi_sysfs_remove_desc(dev, desc);
 		desc->irq = 0;
 	}
+
+	if (ops->msi_free_store)
+		ops->msi_free_store(domain, dev);
 }
 
 static void msi_domain_free_msi_descs(struct msi_domain_info *info,
