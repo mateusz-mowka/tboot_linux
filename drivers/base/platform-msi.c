@@ -350,3 +350,130 @@ int platform_msi_device_domain_alloc(struct irq_domain *domain, unsigned int vir
 
 	return msi_domain_populate_irqs(domain->parent, dev, virq, nr_irqs, &data->arg);
 }
+
+#ifdef CONFIG_DEVICE_MSI
+/*
+ * Device specific MSI domain infrastructure for devices which have their
+ * own resource management and interrupt chip. These devices are not
+ * related to PCI and contrary to platform MSI they do not share a common
+ * resource and interrupt chip. They provide their own domain specific
+ * resource management and interrupt chip.
+ */
+
+/**
+ * device_msi_alloc_irqs - Allocate MSI interrupts for a device
+ * @dev:       Pointer to the device
+ * @nvec:      Number of vectors
+ *
+ * Allocates the required number of MSI descriptors and the corresponding
+ * interrupt descriptors.
+ */
+static int device_msi_alloc_irqs(struct irq_domain *domain, struct device *dev, int nvecs)
+{
+	struct msi_desc desc;
+	int i, ret = 0;
+
+	memset(&desc, 0, sizeof(desc));
+	desc.nvec_used = 1;
+
+	for (i = 0 ; i < nvecs; i++) {
+		desc.affinity = NULL;
+		desc.msi_index = i;
+		ret = msi_add_msi_desc(dev, &desc);
+		if (ret)
+			goto fail;
+	}
+
+	ret = __msi_domain_alloc_irqs(domain, dev, nvecs);
+	if (!ret)
+		return 0;
+
+fail:
+	return ret;
+}
+
+int dev_msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev, int nvecs)
+{
+	int ret;
+
+	ret = msi_setup_device_data(dev);
+	if (ret)
+		return ret;
+
+	return msi_domain_alloc_irqs(domain, dev, nvecs);
+}
+EXPORT_SYMBOL_GPL(dev_msi_domain_alloc_irqs);
+
+void dev_msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
+{
+	msi_domain_free_irqs(domain, dev);
+}
+EXPORT_SYMBOL_GPL(dev_msi_domain_free_irqs);
+
+static void device_msi_update_dom_ops(struct msi_domain_info *info)
+{
+       if (!info->ops->domain_alloc_irqs)
+               info->ops->domain_alloc_irqs = device_msi_alloc_irqs;
+       if (!info->ops->msi_prepare)
+               info->ops->msi_prepare = arch_msi_prepare;
+}
+/**
+ * device_msi_create_msi_irq_domain - Create an irq domain for devices
+ * @fwnode:    Firmware node of the interrupt controller
+ * @info:      MSI domain info to configure the new domain
+ * @parent:    Parent domain
+ */
+struct irq_domain *device_msi_create_irq_domain(struct fwnode_handle *fn,
+                                               struct msi_domain_info *info,
+                                               struct irq_domain *parent)
+{
+       struct irq_domain *domain;
+
+       if (info->flags & MSI_FLAG_USE_DEF_CHIP_OPS)
+               platform_msi_update_chip_ops(info);
+
+       if (info->flags & MSI_FLAG_USE_DEF_DOM_OPS)
+               device_msi_update_dom_ops(info);
+
+       msi_domain_set_default_info_flags(info);
+
+       domain = msi_create_irq_domain(fn, info, parent);
+       if (domain)
+               irq_domain_update_bus_token(domain, DOMAIN_BUS_DEVICE_MSI);
+       return domain;
+}
+
+#ifdef CONFIG_PCI
+#include <linux/pci.h>
+
+/**
+ * pci_subdevice_msi_create_irq_domain - Create an irq domain for subdevices
+ * @pdev:      Pointer to PCI device for which the subdevice domain is created
+ * @info:      MSI domain info to configure the new domain
+ */
+struct irq_domain *pci_subdevice_msi_create_irq_domain(struct pci_dev *pdev,
+                                                      struct msi_domain_info *info)
+{
+       struct irq_domain *domain, *pdev_msi;
+       struct fwnode_handle *fn;
+
+       /*
+        * Retrieve the MSI domain of the underlying PCI device's MSI
+        * domain. The PCI device domain's parent domain is also the parent
+        * domain of the new subdevice domain.
+        */
+       pdev_msi = dev_get_msi_domain(&pdev->dev);
+       if (!pdev_msi)
+               return NULL;
+
+       fn = irq_domain_alloc_named_fwnode(dev_name(&pdev->dev));
+       if (!fn)
+               return NULL;
+       domain = device_msi_create_irq_domain(fn, info, pdev_msi->parent);
+       if (!domain)
+               irq_domain_free_fwnode(fn);
+       return domain;
+}
+EXPORT_SYMBOL_GPL(pci_subdevice_msi_create_irq_domain);
+#endif /* CONFIG_PCI */
+#endif /* CONFIG_DEVICE_MSI */
