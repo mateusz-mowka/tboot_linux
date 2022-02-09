@@ -2425,7 +2425,7 @@ static inline void intel_clear_masks(struct perf_event *event, int idx)
 static void intel_pmu_disable_fixed(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
-	u64 ctrl_val, mask;
+	u64 ctrl_val, mask = 0;
 	int idx = hwc->idx;
 
 	if (is_topdown_idx(idx)) {
@@ -2438,11 +2438,13 @@ static void intel_pmu_disable_fixed(struct perf_event *event)
 		if (*(u64 *)cpuc->active_mask & INTEL_PMC_OTHER_TOPDOWN_BITS(idx))
 			return;
 		idx = INTEL_PMC_IDX_FIXED_SLOTS;
+		if (x86_pmu.attr_perf_metrics_clear)
+			mask |= 0x1ULL << 14;
 	}
 
 	intel_clear_masks(event, idx);
 
-	mask = 0xfULL << ((idx - INTEL_PMC_IDX_FIXED) * 4);
+	mask |= 0xfULL << ((idx - INTEL_PMC_IDX_FIXED) * 4);
 	rdmsrl(hwc->config_base, ctrl_val);
 	ctrl_val &= ~mask;
 	wrmsrl(hwc->config_base, ctrl_val);
@@ -2755,6 +2757,8 @@ static void intel_pmu_enable_fixed(struct perf_event *event)
 			return;
 
 		idx = INTEL_PMC_IDX_FIXED_SLOTS;
+		if (x86_pmu.attr_perf_metrics_clear)
+			bits |= 0x1ULL << 14;
 	}
 
 	intel_set_masks(event, idx);
@@ -5558,10 +5562,56 @@ static DEVICE_ATTR(allow_tsx_force_abort, 0644,
 		   show_sysctl_tfa,
 		   set_sysctl_tfa);
 
+static void update_perf_metrics(void *ignored)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+
+	/*
+	 * check if perf metrics is used
+	 * and if so force schedule out for all event types all contexts
+	 */
+	if (*(u64 *)cpuc->active_mask & INTEL_PMC_MSK_TOPDOWN)
+		perf_pmu_resched(x86_get_pmu(smp_processor_id()));
+}
+
+static ssize_t perf_metrics_rdpmc_auto_clear_show(struct device *cdev,
+						  struct device_attribute *attr,
+						  char *buf)
+{
+	return snprintf(buf, 40, "%d\n", x86_pmu.attr_perf_metrics_clear);
+}
+
+static ssize_t perf_metrics_rdpmc_auto_clear_store(struct device *cdev,
+						   struct device_attribute *attr,
+						   const char *buf, size_t count)
+{
+	bool val;
+	ssize_t ret;
+
+	ret = kstrtobool(buf, &val);
+	if (ret)
+		return ret;
+
+	/* no change */
+	if (val == x86_pmu.attr_perf_metrics_clear)
+		return count;
+
+	x86_pmu.attr_perf_metrics_clear = val;
+
+	cpus_read_lock();
+	on_each_cpu(update_perf_metrics, NULL, 1);
+	cpus_read_unlock();
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(perf_metrics_rdpmc_auto_clear);
+
 static struct attribute *intel_pmu_attrs[] = {
 	&dev_attr_freeze_on_smi.attr,
 	&dev_attr_allow_tsx_force_abort.attr,
 	&dev_attr_cet_shadow_stack_call_chain.attr,
+	&dev_attr_perf_metrics_rdpmc_auto_clear.attr,
 	NULL,
 };
 
@@ -5602,6 +5652,10 @@ default_is_visible(struct kobject *kobj, struct attribute *attr, int i)
 	if (attr == &dev_attr_cet_shadow_stack_call_chain.attr)
 		return 0;
 #endif
+
+	/*TODO: Check the enumeration here. For now, always enable */
+	if (attr == &dev_attr_perf_metrics_rdpmc_auto_clear.attr)
+		return attr->mode;
 
 	return attr->mode;
 }
