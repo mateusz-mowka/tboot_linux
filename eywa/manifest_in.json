@@ -1405,7 +1405,7 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "823d24529c7a17d39222d1c9c88f7718aa243930",
             "last_enabled": "v5.17"
         },
         {
