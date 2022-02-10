@@ -4,7 +4,7 @@
 
 latest_linus_tag=$(git describe --tags origin/linus)
 latest_tag=$(git describe --tags)
-previous_tag=$(git for-each-ref --sort=committerdate | grep refs/tags/intel | sed "s/.*refs\/tags\///g"  |tail -2 | head -1)
+previous_tag=$(git for-each-ref --sort=committerdate | grep refs/tags/intel-[0-9].[0-9] | sed "s/.*refs\/tags\///g"  |tail -2 | head -1)
 release_notes_file=$latest_tag.release-notes
 
 #get major version of the kernel to find out if this is first release
