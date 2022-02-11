@@ -4249,6 +4249,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "thermal_intel_next",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Pandruvada Srinivas",
+                    "email": "srinivas.pandruvada@intel.com"
+                }
+            ],
+            "description": "",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Hermerding Jim G",
+                    "email": "jim.g.hermerding@intel.com"
+                }
+            ],
+            "jira": "NEXT-2819",
+            "name": "thermal_management",
+            "repourl": "https://github.com/intel-sandbox/spandruv.linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Prestopine Charles D",
+                    "email": "charles.d.prestopine@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
