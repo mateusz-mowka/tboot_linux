@@ -4230,7 +4230,7 @@
                 }
             ],
             "description": "KVM: IPI virtualization support",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Neiger Gil",
