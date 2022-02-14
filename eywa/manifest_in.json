@@ -4280,6 +4280,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "sep_socwatch_linux_5_17",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Viswanathan Swedhana",
+                    "email": "swedhana.viswanathan@intel.com"
+                }
+            ],
+            "description": "SoCWatch and SEP drivers",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Benmlih Faycal",
+                    "email": "faycal.benmlih@intel.com"
+                }
+            ],
+            "jira": "NEXT-2823",
+            "name": "sep_socwatch",
+            "repourl": "https://github.com/mchinth/linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Kalinin Alexei V",
+                    "email": "alexei.v.kalinin@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
