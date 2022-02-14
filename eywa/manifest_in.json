@@ -3397,7 +3397,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "dmwr-5.16-rc1",
+            "branch": "dmwr-5.17-rc3",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -3407,7 +3407,7 @@
                 }
             ],
             "description": "Enable PCIe Deferrable Memory Write (DMWr)",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
@@ -3425,7 +3425,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.17"
         },
         {
             "branch": "for-intel-next",
