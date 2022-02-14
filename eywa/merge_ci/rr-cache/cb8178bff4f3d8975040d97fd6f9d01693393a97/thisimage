@@ -50,7 +50,6 @@
 #include <asm/asm.h>
 #include <asm/bugs.h>
 #include <asm/cpu.h>
-#include <asm/hreset.h>
 #include <asm/mce.h>
 #include <asm/msr.h>
 #include <asm/memtype.h>
@@ -507,24 +506,6 @@ out:
 	 * previous boot (e.g., via kexec).
 	 */
 	cr4_clear_bits(X86_CR4_UMIP);
-}
-
-u32 hreset_features;
-
-static __always_inline void setup_hreset(struct cpuinfo_x86 *c)
-{
-	if (!cpu_has(c, X86_FEATURE_HRESET))
-		return;
-
-	hreset_features = cpuid_ebx(CPUID_HRESET_LEAF_EAX);
-	wrmsrl(MSR_IA32_HW_HRESET_ENABLE, hreset_features);
-	pr_info_once("x86/cpu: Intel History Reset (HRESET) activated\n");
-}
-
-void hreset_reload(void)
-{
-	if (hreset_features)
-		wrmsrl(MSR_IA32_HW_HRESET_ENABLE, hreset_features);
 }
 
 static __always_inline void setup_lass(struct cpuinfo_x86 *c)
@@ -1783,15 +1764,14 @@ static void identify_cpu(struct cpuinfo_x86 *c)
 	/* Disable the PN if appropriate */
 	squash_the_stupid_serial_number(c);
 
-	/* Set up SMEP/SMAP/UMIP/HRESET */
+	/* Set up SMEP/SMAP/UMIP */
 	setup_smep(c);
 	setup_smap(c);
 	setup_umip(c);
-	setup_hreset(c);
+	setup_lass(c);
 
 	/* Set up User Interrupts */
 	setup_uintr(c);
-	setup_lass(c);
 
 	/* Enable FSGSBASE instructions if available. */
 	if (cpu_has(c, X86_FEATURE_FSGSBASE)) {
