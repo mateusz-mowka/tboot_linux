@@ -2835,7 +2835,7 @@
                 }
             ],
             "description": "Intel combined Accelerator driver (DSA & IAX)",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Rajesh Pamujula",
@@ -3858,7 +3858,7 @@
                 }
             ],
             "description": "Enable PASID usage with DMA API",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Rupin H Vakharwala",
