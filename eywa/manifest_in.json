@@ -344,6 +344,37 @@
             "last_enabled": "v5.17"
         },
         {
+            "branch": "tdx_kvm_kvm_ipiv_fixup",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "description": "Fixup between amx_tmul_kvm and tdx_kvm",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "jira": "NEXT-2824",
+            "name": "fixup_tdx_kvm_ipiv_kvm_fixup",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
+            "sdl_contact": [
+                {
+                    "name": "Charles Prestopine",
+                    "email": "charles.d.prestopine@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
+        },
+        {
             "branch": "cse-5.17",
             "branch_type": "expiring",
             "config_options": [
@@ -4230,7 +4261,7 @@
                 }
             ],
             "description": "KVM: IPI virtualization support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Neiger Gil",
@@ -4309,37 +4340,6 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.17"
-        },
-        {
-            "branch": "tdx_kvm_kvm_ipiv_fixup",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Fixup between amx_tmul_kvm and tdx_kvm",
-            "enabled": true,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "NEXT-2824",
-            "name": "fixup_tdx_kvm_ipiv_kvm_fixup",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
         }
