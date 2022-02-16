@@ -708,6 +708,7 @@ static void idxd_groups_clear_state(struct idxd_device *idxd)
 			group->tc_b = -1;
 		}
 		group->desc_progress_limit = 0;
+		group->batch_progress_limit = 0;
 	}
 }
 

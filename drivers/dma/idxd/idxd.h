@@ -96,6 +96,7 @@ struct idxd_group {
 	int tc_a;
 	int tc_b;
 	int desc_progress_limit;
+	int batch_progress_limit;
 };
 
 struct idxd_pmu {

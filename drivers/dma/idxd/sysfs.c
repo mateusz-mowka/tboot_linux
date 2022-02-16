@@ -482,6 +482,44 @@ static struct device_attribute dev_attr_group_desc_progress_limit =
 		__ATTR(desc_progress_limit, 0644, group_desc_progress_limit_show,
 		       group_desc_progress_limit_store);
 
+static ssize_t group_batch_progress_limit_show(struct device *dev,
+					       struct device_attribute *attr,
+					       char *buf)
+{
+	struct idxd_group *group = confdev_to_group(dev);
+	struct idxd_device *idxd = group->idxd;
+
+	if (idxd->hw.version < DEVICE_VERSION_2)
+		return -EOPNOTSUPP;
+
+	return sysfs_emit(buf, "%d\n", group->batch_progress_limit);
+}
+
+static ssize_t group_batch_progress_limit_store(struct device *dev,
+						struct device_attribute *attr,
+						const char *buf, size_t count)
+{
+	struct idxd_group *group = confdev_to_group(dev);
+	struct idxd_device *idxd = group->idxd;
+	int val, rc;
+
+	if (idxd->hw.version < DEVICE_VERSION_2)
+		return -EOPNOTSUPP;
+
+	rc = kstrtoint(buf, 10, &val);
+	if (rc < 0)
+		return -EINVAL;
+
+	if (val & ~GENMASK(1, 0))
+		return -EINVAL;
+
+	group->batch_progress_limit = val;
+	return count;
+}
+
+static struct device_attribute dev_attr_group_batch_progress_limit =
+		__ATTR(batch_progress_limit, 0644, group_batch_progress_limit_show,
+		       group_batch_progress_limit_store);
 static struct attribute *idxd_group_attributes[] = {
 	&dev_attr_group_work_queues.attr,
 	&dev_attr_group_engines.attr,
@@ -494,6 +532,7 @@ static struct attribute *idxd_group_attributes[] = {
 	&dev_attr_group_traffic_class_a.attr,
 	&dev_attr_group_traffic_class_b.attr,
 	&dev_attr_group_desc_progress_limit.attr,
+	&dev_attr_group_batch_progress_limit.attr,
 	NULL,
 };
 
