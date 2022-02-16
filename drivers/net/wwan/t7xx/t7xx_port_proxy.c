@@ -70,6 +70,18 @@ static const struct t7xx_port_conf t7xx_md_port_conf[] = {
 		.name = "MBIM",
 		.port_type = WWAN_PORT_MBIM,
 	}, {
+#ifdef CONFIG_WWAN_DEBUGFS
+		.tx_ch = PORT_CH_MD_LOG_TX,
+		.rx_ch = PORT_CH_MD_LOG_RX,
+		.txq_index = 7,
+		.rxq_index = 7,
+		.txq_exp_index = 7,
+		.rxq_exp_index = 7,
+		.path_id = CLDMA_ID_MD,
+		.ops = &t7xx_trace_port_ops,
+		.name = "mdlog",
+	}, {
+#endif
 		.tx_ch = PORT_CH_CONTROL_TX,
 		.rx_ch = PORT_CH_CONTROL_RX,
 		.txq_index = Q_IDX_CTRL,
@@ -192,6 +204,16 @@ int t7xx_port_enqueue_skb(struct t7xx_port *port, struct sk_buff *skb)
 
 	wake_up_all(&port->rx_wq);
 	return 0;
+}
+
+int t7xx_port_mtu(struct t7xx_port *port)
+{
+	enum cldma_id path_id = port->port_conf->path_id;
+	int tx_qno = t7xx_port_get_queue_no(port);
+	struct cldma_ctrl *md_ctrl;
+
+	md_ctrl = port->t7xx_dev->md->md_ctrl[path_id];
+	return md_ctrl->tx_ring[tx_qno].pkt_size;
 }
 
 static int t7xx_port_send_raw_skb(struct t7xx_port *port, struct sk_buff *skb)

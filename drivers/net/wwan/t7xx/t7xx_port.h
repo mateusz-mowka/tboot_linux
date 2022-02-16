@@ -122,10 +122,15 @@ struct t7xx_port {
 	int				rx_length_th;
 	bool				chan_enable;
 	struct task_struct		*thread;
+#ifdef CONFIG_WWAN_DEBUGFS
+	struct t7xx_trace		*trace;
+	struct dentry			*debugfs_dir;
+#endif
 };
 
 struct sk_buff *t7xx_port_alloc_skb(int payload);
 struct sk_buff *t7xx_ctrl_alloc_skb(int payload);
+int t7xx_port_mtu(struct t7xx_port *port);
 int t7xx_port_enqueue_skb(struct t7xx_port *port, struct sk_buff *skb);
 int t7xx_port_send_skb(struct t7xx_port *port, struct sk_buff *skb, unsigned int pkt_header,
 		       unsigned int ex_msg);
