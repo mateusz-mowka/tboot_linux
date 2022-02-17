@@ -135,7 +135,7 @@
             "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/rafael/linux-pm.git",
             "sdl_contact": [],
             "status": "public",
-            "stuck_at_ref": "9b044ca4ac33454a5fdf1254867bde83228eedcc",
+            "stuck_at_ref": "",
             "last_enabled": "v5.17"
         },
         {
