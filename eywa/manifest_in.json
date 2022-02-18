@@ -2115,7 +2115,7 @@
                 }
             ],
             "description": "iommu updates",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
@@ -2132,7 +2132,7 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "046804c672bca21dd07db84ffebf9abea3f8a185",
             "last_enabled": "v5.17"
         },
         {
