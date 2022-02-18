@@ -4291,7 +4291,7 @@
                     "email": "srinivas.pandruvada@intel.com"
                 }
             ],
-            "description": "",
+            "description": "Thermal management fixes and enhancements",
             "enabled": true,
             "ip_owner": [
                 {
