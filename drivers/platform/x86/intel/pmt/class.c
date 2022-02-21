@@ -9,12 +9,12 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/intel_vsec.h>
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/pci.h>
 #include <linux/pm_runtime.h>
 
-#include "../vsec.h"
 #include "class.h"
 
 #define PMT_XA_START		1
