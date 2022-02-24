@@ -377,7 +377,6 @@ EXPORT_SYMBOL_GPL(ioasid_get);
  */
 void ioasid_free(ioasid_t ioasid)
 {
-	bool free = false;
 	struct ioasid_data *ioasid_data;
 
 	spin_lock(&ioasid_allocator_lock);
