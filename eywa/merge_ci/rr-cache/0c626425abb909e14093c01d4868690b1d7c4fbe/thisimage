@@ -456,8 +456,10 @@ static __init int setup_disable_smap(char *arg)
 }
 __setup("nosmap", setup_disable_smap);
 
-static int __init setup_disable_lass(char *arg)
+static int clear_cr4_lass __ro_after_init;
+int __init setup_disable_lass(char *arg)
 {
+	clear_cr4_lass = cpu_feature_enabled(X86_FEATURE_LASS);
 	setup_clear_cpu_cap(X86_FEATURE_LASS);
 	return 0;
 }
@@ -524,11 +526,11 @@ void hreset_reload(void)
 		wrmsrl(MSR_IA32_HW_HRESET_ENABLE, hreset_features);
 }
 
-static __always_inline void setup_lass(struct cpuinfo_x86 *c)
+	static __always_inline void setup_lass(struct cpuinfo_x86 *c)
 {
 	if (cpu_feature_enabled(X86_FEATURE_LASS))
 		cr4_set_bits(X86_CR4_LASS);
-	else
+	else if (clear_cr4_lass)
 		cr4_clear_bits(X86_CR4_LASS);
 }
 
