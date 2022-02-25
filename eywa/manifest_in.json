@@ -2132,7 +2132,7 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "3fb6671d04d386f6264a2c03dad40667e30a1b7f",
             "last_enabled": "v5.17"
         },
         {
