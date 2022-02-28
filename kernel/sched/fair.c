@@ -10474,7 +10474,12 @@ get_sd_balance_interval(struct sched_domain *sd, int cpu_busy)
 {
 	unsigned long interval = sd->balance_interval;
 
-	if (cpu_busy)
+	/*
+	 * If classes of tasks are supported, do not wait too long to let a
+	 * busy CPU do load balancing. It may want to swap tasks with other
+	 * CPUs that have classes of tasks of higher priority.
+	 */
+	if (!sched_task_classes_enabled() && cpu_busy)
 		interval *= sd->busy_factor;
 
 	/* scale ms to jiffies */
