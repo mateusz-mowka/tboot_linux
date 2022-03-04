@@ -1722,7 +1722,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "dlb2-for-intel-next-v5.16-rc5",
+            "branch": "dlb2-for-intel-next-v5.17-rc6",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -1765,7 +1765,7 @@
                 }
             ],
             "description": "The dlb2 driver is a kernel module that supports configuration and use of the DLB 2.0 device",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Niall Mcdonnell",
