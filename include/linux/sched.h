@@ -1540,6 +1540,11 @@ struct task_struct {
 	 * of a task.
 	 */
 	unsigned int			ipcc_cntr : 14;
+	/*
+	 * Type of task as read when entering kernel mode. classid is
+	 * only updated in user ticks.
+	 */
+	unsigned int			ipcc_raw;
 #endif
 
 	/*

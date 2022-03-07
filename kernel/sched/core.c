@@ -4427,6 +4427,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	p->ipcc				= IPC_CLASS_UNCLASSIFIED;
 	p->ipcc_tmp			= IPC_CLASS_UNCLASSIFIED;
 	p->ipcc_cntr			= 0;
+	p->ipcc_raw			= IPC_CLASS_UNCLASSIFIED;
 #endif
 	INIT_LIST_HEAD(&p->se.group_node);
 
