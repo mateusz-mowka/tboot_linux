@@ -1515,6 +1515,11 @@ struct task_struct {
 	 * of a task
 	 */
 	char				class_debounce_counter;
+	/*
+	 * Type of task as read when entering kernel mode. classid is
+	 * only updated in user ticks.
+	 */
+	char				class_raw;
 #endif
 
 	/*

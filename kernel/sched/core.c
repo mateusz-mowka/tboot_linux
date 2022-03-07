@@ -4307,7 +4307,9 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	p->class			= TASK_CLASS_UNCLASSIFIED;
 	p->class_candidate		= TASK_CLASS_UNCLASSIFIED;
 	p->class_debounce_counter	= 0;
+	p->class_raw			= TASK_CLASS_UNCLASSIFIED;
 #endif
+
 	INIT_LIST_HEAD(&p->se.group_node);
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
