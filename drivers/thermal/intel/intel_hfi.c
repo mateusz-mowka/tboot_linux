@@ -338,6 +338,32 @@ static int hfi_state_show(struct seq_file *s, void *unused)
 }
 DEFINE_SHOW_ATTRIBUTE(hfi_state);
 
+static int hfi_class_score_show(struct seq_file *s, void *unused)
+{
+#ifdef CONFIG_IPC_CLASSES
+	struct hfi_instance *hfi_instance = s->private;
+	int cpu, j;
+
+	seq_puts(s, "CPU\t");
+	for (j = 0; j < hfi_features.nr_classes; j++)
+		seq_printf(s, " C%d\t", j);
+	seq_puts(s, "\n");
+
+	for_each_cpu(cpu, hfi_instance->cpus) {
+		seq_printf(s, "%4d", cpu);
+		for (j = 0; j < hfi_features.nr_classes; j++)
+			seq_printf(s, "\t%3lu",
+				   intel_hfi_get_ipcc_score(j, cpu));
+
+		seq_puts(s, "\n");
+	}
+#else
+	seq_puts(s, "IPC classes not enabled. Select CONFIG_IPC_CLASSES=y.\n");
+#endif
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(hfi_class_score);
+
 static struct dentry *hfi_debugfs_dir;
 
 static void hfi_debugfs_unregister(void)
@@ -374,6 +400,10 @@ static void hfi_debugfs_populate_instance(struct hfi_instance *hfi_instance,
 	snprintf(name, 64, "hw_state%u", die_id);
 	debugfs_create_file(name, 0444, hfi_debugfs_dir, hfi_instance,
 			    &hfi_state_fops);
+
+	snprintf(name, 64, "class_score%d", die_id);
+	debugfs_create_file(name, 0444, hfi_debugfs_dir, hfi_instance,
+			    &hfi_class_score_fops);
 }
 
 #else
