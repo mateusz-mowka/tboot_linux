@@ -110,6 +110,7 @@ available subsections can be seen below.
    xillybus
    zorro
    hte/index
+   crypto/index
 
 .. only::  subproject and html
 
