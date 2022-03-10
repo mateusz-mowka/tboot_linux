@@ -900,6 +900,175 @@ static struct crypto_alg iaa_comp_deflate = {
 	}
 };
 
+static int iaa_comp_acompress(struct acomp_req *req)
+{
+	struct crypto_tfm *tfm = req->base.tfm;
+	dma_addr_t src_addr, dst_addr;
+	int nr_sgs, cpu, ret = 0;
+	struct iaa_wq *iaa_wq;
+	u32 compression_crc;
+	struct idxd_wq *wq;
+	struct device *dev;
+	u64 start_time_ns;
+
+	if (!iaa_crypto_enabled) {
+		void *src, *dst;
+
+		pr_debug("iaa_crypto disabled, using "
+			 "deflate-generic compression\n");
+		src = kmap_atomic(sg_page(req->src)) + req->src->offset;
+		dst = kmap_atomic(sg_page(req->dst)) + req->dst->offset;
+
+		ret = crypto_comp_compress(deflate_generic_tfm,
+					   src, req->slen, dst, &req->dlen);
+		kunmap_atomic(src);
+		kunmap_atomic(dst);
+
+		return ret;
+	}
+
+	cpu = get_cpu();
+	wq = *per_cpu_ptr(wq_table, cpu);
+	put_cpu();
+	if (!wq) {
+		pr_debug("no wq configured for cpu=%d\n", cpu);
+		ret = -ENODEV;
+		goto out;
+	}
+	iaa_wq = wq->private_data;
+
+	dev = &wq->idxd->pdev->dev;
+
+	nr_sgs = dma_map_sg(dev, req->src, sg_nents(req->src), DMA_TO_DEVICE);
+	if (nr_sgs <= 0 || nr_sgs > 1) {
+		dev_dbg(dev, "couldn't map src sg for iaa device %d,"
+			" wq %d: ret=%d\n", iaa_wq->iaa_device->idxd->id,
+			iaa_wq->wq->id, ret);
+		ret = -EIO;
+		goto out;
+	}
+	src_addr = sg_dma_address(req->src);
+	dev_dbg(dev, "dma_map_sg, src_addr %llx, nr_sgs %d, req->src %p,"
+		" req->slen %d, sg_dma_len(sg) %d\n", src_addr, nr_sgs,
+		req->src, req->slen, sg_dma_len(req->src));
+
+	nr_sgs = dma_map_sg(dev, req->dst, sg_nents(req->dst), DMA_FROM_DEVICE);
+	if (nr_sgs <= 0 || nr_sgs > 1) {
+		dev_dbg(dev, "couldn't map dst sg for iaa device %d,"
+			" wq %d: ret=%d\n", iaa_wq->iaa_device->idxd->id,
+			iaa_wq->wq->id, ret);
+		ret = -EIO;
+		goto err_map_dst;
+	}
+	dst_addr = sg_dma_address(req->dst);
+	dev_dbg(dev, "dma_map_sg, dst_addr %llx, nr_sgs %d, req->dst %p,"
+		" req->dlen %d, sg_dma_len(sg) %d\n", dst_addr, nr_sgs,
+		req->dst, req->dlen, sg_dma_len(req->dst));
+
+	start_time_ns = ktime_get_ns();
+	ret = iaa_compress(tfm, wq, src_addr, req->slen, dst_addr, &req->dlen, &compression_crc);
+
+	if (iaa_verify_compress) {
+		dma_sync_sg_for_device(dev, req->dst, 1, DMA_FROM_DEVICE);
+		dma_sync_sg_for_device(dev, req->src, 1, DMA_TO_DEVICE);
+		ret = iaa_compress_verify(tfm, wq, src_addr, req->slen, dst_addr, &req->dlen, compression_crc);
+	}
+
+	if (ret != 0)
+		dev_dbg(dev, "asynchronous compress failed ret=%d\n", ret);
+
+	dma_unmap_sg(dev, req->dst, sg_nents(req->dst), DMA_FROM_DEVICE);
+err_map_dst:
+	dma_unmap_sg(dev, req->src, sg_nents(req->src), DMA_TO_DEVICE);
+out:
+	return ret;
+}
+
+static int iaa_comp_adecompress(struct acomp_req *req)
+{
+	struct crypto_tfm *tfm = req->base.tfm;
+	dma_addr_t src_addr, dst_addr;
+	int nr_sgs, cpu, ret = 0;
+	struct iaa_wq *iaa_wq;
+	struct device *dev;
+	struct idxd_wq *wq;
+	u64 start_time_ns;
+	void *src, *dst;
+
+	if (!iaa_crypto_enabled) {
+		pr_debug("iaa_crypto disabled, using deflate-generic"
+			 " decompression\n");
+		src = kmap_atomic(sg_page(req->src)) + req->src->offset;
+		dst = kmap_atomic(sg_page(req->dst)) + req->dst->offset;
+
+		ret = crypto_comp_decompress(deflate_generic_tfm,
+					     src, req->slen, dst, &req->dlen);
+		kunmap_atomic(src);
+		kunmap_atomic(dst);
+		return ret;
+	}
+
+	cpu = get_cpu();
+	wq = *per_cpu_ptr(wq_table, cpu);
+	put_cpu();
+	if (!wq) {
+		pr_debug("no wq configured for cpu=%d\n", cpu);
+		ret = -ENODEV;
+		goto out;
+	}
+	iaa_wq = wq->private_data;
+
+	dev = &wq->idxd->pdev->dev;
+
+	nr_sgs = dma_map_sg(dev, req->src, sg_nents(req->src), DMA_TO_DEVICE);
+	if (nr_sgs <= 0 || nr_sgs > 1) {
+		dev_dbg(dev, "couldn't map src sg for iaa device %d,"
+			" wq %d: ret=%d\n", iaa_wq->iaa_device->idxd->id,
+			iaa_wq->wq->id, ret);
+		ret = -EIO;
+		goto out;
+	}
+	src_addr = sg_dma_address(req->src);
+	dev_dbg(dev, "dma_map_sg, src_addr %llx, nr_sgs %d, req->src %p,"
+		" req->slen %d, sg_dma_len(sg) %d\n", src_addr, nr_sgs,
+		req->src, req->slen, sg_dma_len(req->src));
+
+	nr_sgs = dma_map_sg(dev, req->dst, sg_nents(req->dst), DMA_FROM_DEVICE);
+	if (nr_sgs <= 0 || nr_sgs > 1) {
+		dev_dbg(dev, "couldn't map dst sg for iaa device %d,"
+			" wq %d: ret=%d\n", iaa_wq->iaa_device->idxd->id,
+			iaa_wq->wq->id, ret);
+		ret = -EIO;
+		goto err_map_dst;
+	}
+	dst_addr = sg_dma_address(req->dst);
+	dev_dbg(dev, "dma_map_sg, dst_addr %llx, nr_sgs %d, req->dst %p,"
+		" req->dlen %d, sg_dma_len(sg) %d\n", dst_addr, nr_sgs,
+		req->dst, req->dlen, sg_dma_len(req->dst));
+
+	start_time_ns = ktime_get_ns();
+	ret = iaa_decompress(tfm, wq, src_addr, req->slen, dst_addr, &req->dlen);
+	if (ret != 0)
+		dev_dbg(dev, "asynchronous decompress failed ret=%d\n", ret);
+
+	dma_unmap_sg(dev, req->dst, sg_nents(req->dst), DMA_FROM_DEVICE);
+err_map_dst:
+	dma_unmap_sg(dev, req->src, sg_nents(req->src), DMA_TO_DEVICE);
+out:
+	return ret;
+}
+
+static struct acomp_alg iaa_acomp_deflate = {
+	.compress		= iaa_comp_acompress,
+	.decompress		= iaa_comp_adecompress,
+	.base			= {
+		.cra_name		= "deflate",
+		.cra_driver_name	= "iaa_crypto",
+		.cra_module		= THIS_MODULE,
+		.cra_priority           = IAA_ALG_PRIORITY,
+	}
+};
+
 static int iaa_register_compression_device(void)
 {
 	int ret;
@@ -910,12 +1079,24 @@ static int iaa_register_compression_device(void)
 		return ret;
 	}
 
+	ret = crypto_register_acomp(&iaa_acomp_deflate);
+	if (ret) {
+		pr_err("deflate algorithm acomp registration failed (%d)\n", ret);
+		goto err_unregister_alg_deflate;
+	}
+
+	return ret;
+
+err_unregister_alg_deflate:
+	crypto_unregister_alg(&iaa_comp_deflate);
+
 	return ret;
 }
 
 static void iaa_unregister_compression_device(void)
 {
 	crypto_unregister_alg(&iaa_comp_deflate);
+	crypto_unregister_acomp(&iaa_acomp_deflate);
 }
 
 static int iaa_crypto_probe(struct idxd_dev *idxd_dev)
