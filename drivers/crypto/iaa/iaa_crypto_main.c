@@ -13,6 +13,7 @@
 
 #include "idxd.h"
 #include "iaa_crypto.h"
+#include "iaa_crypto_stats.h"
 
 #ifdef pr_fmt
 #undef pr_fmt
@@ -512,6 +513,7 @@ static inline int check_completion(struct device *dev,
 			ret = -ETIMEDOUT;
 			dev_dbg(dev, "%s timed out, size=0x%x\n",
 				op_str, comp->output_size);
+			update_completion_timeout_errs();
 			goto out;
 		}
 
@@ -522,6 +524,7 @@ static inline int check_completion(struct device *dev,
 			dev_dbg(dev, "compressed > uncompressed size,"
 				" not compressing, size=0x%x\n",
 				comp->output_size);
+			update_completion_comp_buf_overflow_errs();
 			goto out;
 		}
 
@@ -529,6 +532,8 @@ static inline int check_completion(struct device *dev,
 		dev_dbg(dev, "iaa %s status=0x%x, error=0x%x, size=0x%x\n",
 			op_str, comp->status, comp->error_code, comp->output_size);
 		print_hex_dump(KERN_INFO, "cmp-rec: ", DUMP_PREFIX_OFFSET, 8, 1, comp, 64, 0);
+		update_completion_einval_errs();
+
 		goto out;
 	}
 out:
@@ -594,6 +599,12 @@ static int iaa_compress(struct crypto_tfm *tfm,	struct idxd_wq *wq,
 	}
 
 	*dlen = idxd_desc->iax_completion->output_size;
+
+	/* Update stats */
+	update_total_comp_calls();
+	update_total_comp_bytes_out(*dlen);
+	update_wq_comp_calls(wq);
+	update_wq_comp_bytes(wq, *dlen);
 
 	*compression_crc = idxd_desc->iax_completion->crc;
 
@@ -744,6 +755,12 @@ static int iaa_decompress(struct crypto_tfm *tfm, struct idxd_wq *wq,
 	*dlen = idxd_desc->iax_completion->output_size;
 
 	idxd_free_desc(wq, idxd_desc);
+
+	/* Update stats */
+	update_total_decomp_calls();
+	update_total_decomp_bytes_in(slen);
+	update_wq_decomp_calls(wq);
+	update_wq_decomp_bytes(wq, slen);
 out:
 	return ret;
 err:
@@ -806,6 +823,7 @@ static int iaa_comp_compress(struct crypto_tfm *tfm,
 
 	start_time_ns = ktime_get_ns();
 	ret = iaa_compress(tfm, wq, src_addr, slen, dst_addr, dlen, &compression_crc);
+	update_max_comp_delay_ns(start_time_ns);
 	if (iaa_verify_compress) {
 		dma_sync_single_for_device(dev, dst_addr, *dlen, DMA_FROM_DEVICE);
 		dma_sync_single_for_device(dev, src_addr, slen, DMA_TO_DEVICE);
@@ -876,6 +894,7 @@ static int iaa_comp_decompress(struct crypto_tfm *tfm,
 
 	start_time_ns = ktime_get_ns();
 	ret = iaa_decompress(tfm, wq, src_addr, slen, dst_addr, dlen);
+	update_max_decomp_delay_ns(start_time_ns);
 	if (ret != 0)
 		dev_dbg(dev, "synchronous decompress failed ret=%d\n", ret);
 
@@ -967,6 +986,7 @@ static int iaa_comp_acompress(struct acomp_req *req)
 
 	start_time_ns = ktime_get_ns();
 	ret = iaa_compress(tfm, wq, src_addr, req->slen, dst_addr, &req->dlen, &compression_crc);
+	update_max_acomp_delay_ns(start_time_ns);
 
 	if (iaa_verify_compress) {
 		dma_sync_sg_for_device(dev, req->dst, 1, DMA_FROM_DEVICE);
@@ -1048,6 +1068,7 @@ static int iaa_comp_adecompress(struct acomp_req *req)
 
 	start_time_ns = ktime_get_ns();
 	ret = iaa_decompress(tfm, wq, src_addr, req->slen, dst_addr, &req->dlen);
+	update_max_decomp_delay_ns(start_time_ns);
 	if (ret != 0)
 		dev_dbg(dev, "asynchronous decompress failed ret=%d\n", ret);
 
@@ -1176,6 +1197,38 @@ static struct idxd_device_driver iaa_crypto_driver = {
 	.type = dev_types,
 };
 
+int wq_stats_show(struct seq_file *m, void *v)
+{
+	struct iaa_device *iaa_device;
+
+	mutex_lock(&iaa_devices_lock);
+
+	global_stats_show(m);
+
+	list_for_each_entry(iaa_device, &iaa_devices, list)
+		device_stats_show(m, iaa_device);
+
+	mutex_unlock(&iaa_devices_lock);
+
+	return 0;
+}
+
+int iaa_crypto_stats_reset(void *data, u64 value)
+{
+	struct iaa_device *iaa_device;
+
+	reset_iaa_crypto_stats();
+
+	mutex_lock(&iaa_devices_lock);
+
+	list_for_each_entry(iaa_device, &iaa_devices, list)
+		reset_device_stats(iaa_device);
+
+	mutex_unlock(&iaa_devices_lock);
+
+	return 0;
+}
+
 static int __init iaa_crypto_init_module(void)
 {
 	int ret = 0;
@@ -1208,6 +1261,9 @@ static int __init iaa_crypto_init_module(void)
 		goto err_crypto_register;
 	}
 
+	if (iaa_crypto_debugfs_init())
+		pr_warn("debugfs init failed, stats not available\n");
+
 	pr_debug("initialized\n");
 out:
 	return ret;
@@ -1223,6 +1279,7 @@ err_driver_register:
 
 static void __exit iaa_crypto_cleanup_module(void)
 {
+	iaa_crypto_debugfs_cleanup();
 	idxd_driver_unregister(&iaa_crypto_driver);
 	iaa_unregister_compression_device();
 	free_percpu(wq_table);
