@@ -32,8 +32,98 @@ static unsigned int cpus_per_iaa;
 /* Per-cpu lookup table for balanced wqs */
 static struct idxd_wq * __percpu *wq_table;
 
+/* If enabled, IAA hw crypto is being used, software deflate otherwise */
+static bool iaa_crypto_enabled;
+
 static LIST_HEAD(iaa_devices);
 static DEFINE_MUTEX(iaa_devices_lock);
+
+static int iaa_wqs_get(struct iaa_device *iaa_device)
+{
+	struct iaa_wq *iaa_wq;
+	int n_wqs = 0;
+
+	list_for_each_entry(iaa_wq, &iaa_device->wqs, list) {
+		idxd_wq_get(iaa_wq->wq);
+		n_wqs++;
+	}
+
+	return n_wqs;
+}
+
+static void iaa_wqs_put(struct iaa_device *iaa_device)
+{
+	struct iaa_wq *iaa_wq;
+
+	list_for_each_entry(iaa_wq, &iaa_device->wqs, list)
+		idxd_wq_put(iaa_wq->wq);
+}
+
+static int iaa_all_wqs_get(void)
+{
+	struct iaa_device *iaa_device;
+	int n_wqs = 0;
+	int ret;
+
+	mutex_lock(&iaa_devices_lock);
+	list_for_each_entry(iaa_device, &iaa_devices, list) {
+		ret = iaa_wqs_get(iaa_device);
+		if (ret < 0) {
+			mutex_unlock(&iaa_devices_lock);
+			return ret;
+		}
+		n_wqs += ret;
+	}
+	mutex_unlock(&iaa_devices_lock);
+
+	return n_wqs;
+}
+
+static void iaa_all_wqs_put(void)
+{
+	struct iaa_device *iaa_device;
+
+	mutex_lock(&iaa_devices_lock);
+	list_for_each_entry(iaa_device, &iaa_devices, list)
+		iaa_wqs_put(iaa_device);
+	mutex_unlock(&iaa_devices_lock);
+}
+
+static int iaa_crypto_enable(const char *val, const struct kernel_param *kp)
+{
+	int ret = 0;
+
+	if (val[0] == '0') {
+		iaa_crypto_enabled = false;
+		iaa_all_wqs_put();
+	} else if (val[0] == '1') {
+		ret = iaa_all_wqs_get();
+		if (ret == 0) {
+			pr_debug("no wqs available, not enabling iaa_crypto\n");
+			return ret;
+		} else if (ret < 0) {
+			pr_debug("iaa_crypto enable failed: ret=%d\n", ret);
+			return ret;
+		}
+		iaa_crypto_enabled = true;
+	} else {
+		pr_debug("iaa_crypto failed, bad enable val: ret=%d\n", -EINVAL);
+		return -EINVAL;
+	}
+
+	pr_info("iaa_crypto now %s\n",
+		iaa_crypto_enabled ? "ENABLED" : "DISABLED");
+
+	return ret;
+}
+
+static const struct kernel_param_ops enable_ops = {
+	.set = iaa_crypto_enable,
+	.get = param_get_bool,
+};
+
+module_param_cb(iaa_crypto_enable, &enable_ops, &iaa_crypto_enabled, 0644);
+MODULE_PARM_DESC(iaa_crypto_enable, "Enable (value = 1) or disable (value = 0) iaa_crypto");
 
 /*
  * Given a cpu, find the closest IAA instance.  The idea is to try to
