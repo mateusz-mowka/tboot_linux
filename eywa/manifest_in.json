@@ -2487,7 +2487,7 @@
             "branch_type": "expiring",
             "config_options": [
                 {
-                    "name": "CONFIG_IFT",
+                    "name": "CONFIG_INTEL_IFS",
                     "value": "m"
                 }
             ],
@@ -2497,7 +2497,7 @@
                     "email": "jithu.joseph@intel.com"
                 }
             ],
-            "description": "scan-at-field device driver",
+            "description": "Enable In Field Scan device driver",
             "enabled": true,
             "ip_owner": [
                 {
@@ -2506,7 +2506,7 @@
                 }
             ],
             "jira": "NEXT-2795",
-            "name": "scan-at-field",
+            "name": "In Field Scan ",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/kyungmin/iommu.git",
             "sdl_contact": [
                 {
