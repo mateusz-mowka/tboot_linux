@@ -216,6 +216,10 @@ enum ppfear_regs {
 #define TGL_LPM_PRI_OFFSET			0x1C7C
 #define TGL_LPM_NUM_MAPS			6
 
+/* Tigerlake PSON residency register */
+#define TGL_PSON_RESIDENCY_OFFSET		0x18f8
+#define TGL_PSON_RES_COUNTER_STEP		0x7A
+
 /* Extended Test Mode Register 3 (CNL and later) */
 #define ETR3_OFFSET				0x1048
 #define ETR3_CF9GR				BIT(20)
@@ -303,6 +307,8 @@ struct pmc_reg_map {
 	const u32 lpm_residency_offset;
 	const u32 lpm_status_offset;
 	const u32 lpm_live_status_offset;
+	const u32 pson_residency_offset;
+	const u32 pson_residency_counter_step;
 	const u32 etr3_offset;
 };
 
@@ -339,6 +345,7 @@ struct pmc_dev {
 	int num_lpm_modes;
 	int lpm_en_modes[LPM_MAX_NUM_MODES];
 	u32 *lpm_req_regs;
+	struct platform_device *pdev;
 };
 
 #define pmc_for_each_mode(i, mode, pmcdev)		\
