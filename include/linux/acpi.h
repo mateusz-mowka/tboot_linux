@@ -763,6 +763,8 @@ static inline u64 acpi_arch_get_root_pointer(void)
 
 int acpi_get_local_address(acpi_handle handle, u32 *addr);
 
+void acpi_init_properties(struct acpi_device *adev);
+
 #else	/* !CONFIG_ACPI */
 
 #define acpi_disabled 1
@@ -1041,6 +1043,9 @@ static inline u32 acpi_osc_ctx_get_pci_control(struct acpi_osc_context *context)
 static inline u32 acpi_osc_ctx_get_cxl_control(struct acpi_osc_context *context)
 {
 	return 0;
+}
+static inline void acpi_init_properties(struct acpi_device *adev)
+{
 }
 
 #endif	/* !CONFIG_ACPI */
