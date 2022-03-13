@@ -230,4 +230,9 @@ static __always_inline bool guest_pv_has(struct kvm_vcpu *vcpu,
 	return vcpu->arch.pv_cpuid.features & (1u << kvm_feature);
 }
 
+static __always_inline bool cet_kernel_ibt_supported(void)
+{
+	return HAS_KERNEL_IBT && kvm_cpu_cap_has(X86_FEATURE_IBT);
+}
+
 #endif

@@ -1480,6 +1480,7 @@ static const u32 msrs_to_save_all[] = {
 	MSR_IA32_XSS,
 	MSR_ARCH_LBR_CTL, MSR_ARCH_LBR_DEPTH,
 	MSR_IA32_U_CET, MSR_IA32_PL3_SSP, MSR_KVM_GUEST_SSP,
+	MSR_IA32_S_CET,
 };
 
 static u32 msrs_to_save[ARRAY_SIZE(msrs_to_save_all)];
@@ -6911,6 +6912,10 @@ static void kvm_init_msr_list(void)
 			if (!kvm_cet_user_supported())
 				continue;
 			break;
+		case MSR_IA32_S_CET:
+			if (!cet_kernel_ibt_supported())
+				continue;
+			break;
 		default:
 			break;
 		}
@@ -11953,7 +11958,13 @@ int kvm_arch_hardware_setup(void *opaque)
 	/* Update CET features now as kvm_caps.supported_xss is finalized. */
 	if (!kvm_cet_user_supported()) {
 		kvm_cpu_cap_clear(X86_FEATURE_SHSTK);
-		kvm_cpu_cap_clear(X86_FEATURE_IBT);
+		/* If CET user bit is disabled due to cmdline option such as
+		 * noxsaves, but kernel IBT is on, this means we can expose
+		 * kernel IBT alone to guest since CET user mode msrs are not
+		 * passed through to guest.
+		 */
+		if (!cet_kernel_ibt_supported())
+			kvm_cpu_cap_clear(X86_FEATURE_IBT);
 	}
 
 	/*
