@@ -942,7 +942,7 @@
                 }
             ],
             "status": "intel confidential",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "36fa110176fe137bbb4ff024e32cfef019a6ae9f",
             "last_enabled": "v5.17"
         },
         {
