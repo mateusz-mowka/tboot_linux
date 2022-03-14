@@ -1395,3 +1395,15 @@ static int sgx_updatesvn(void)
 
 	return ret;
 }
+
+void sgx_update_cpusvn_intel(void)
+{
+	sgx_lock_epc();
+	if (sgx_zap_pages())
+		goto out;
+
+	sgx_updatesvn();
+
+out:
+	sgx_unlock_epc();
+}
