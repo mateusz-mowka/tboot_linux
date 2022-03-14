@@ -1445,7 +1445,7 @@ err_irq:
 	return rc;
 }
 
-int __drv_enable_wq(struct idxd_wq *wq)
+int drv_enable_wq(struct idxd_wq *wq)
 {
 	struct idxd_device *idxd = wq->idxd;
 	struct device *dev = &idxd->pdev->dev;
@@ -1583,9 +1583,9 @@ err_map_portal:
 err:
 	return rc;
 }
-EXPORT_SYMBOL_GPL(__drv_enable_wq);
+EXPORT_SYMBOL_GPL(drv_enable_wq);
 
-void __drv_disable_wq(struct idxd_wq *wq)
+void drv_disable_wq(struct idxd_wq *wq)
 {
 	struct idxd_device *idxd = wq->idxd;
 	struct device *dev = &idxd->pdev->dev;
@@ -1602,10 +1602,12 @@ void __drv_disable_wq(struct idxd_wq *wq)
 	idxd_wq_free_irq(wq);
 	idxd_wq_reset(wq);
 	percpu_ref_exit(&wq->wq_active);
+
+	idxd_wq_free_irq(wq);
 	wq->type = IDXD_WQT_NONE;
 	wq->client_count = 0;
 }
-EXPORT_SYMBOL_GPL(__drv_disable_wq);
+EXPORT_SYMBOL_GPL(drv_disable_wq);
 
 int idxd_device_drv_probe(struct idxd_dev *idxd_dev)
 {
