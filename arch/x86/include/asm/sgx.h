@@ -431,4 +431,10 @@ int sgx_virt_einit(void __user *sigstruct, void __user *token,
 int sgx_set_attribute(unsigned long *allowed_attributes,
 		      unsigned int attribute_fd);
 
+#ifdef CONFIG_X86_SGX
+extern void sgx_update_cpusvn_intel(void);
+#else
+static inline void sgx_update_cpusvn_intel(void) {}
+#endif
+
 #endif /* _ASM_X86_SGX_H */
