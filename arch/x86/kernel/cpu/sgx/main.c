@@ -413,6 +413,7 @@ void sgx_reclaim_direct(void)
 		sgx_reclaim_pages();
 }
 
+void sgx_update_cpusvn_intel(void);
 static int ksgxd(void *p)
 {
 	int srcu_idx;
@@ -424,7 +425,14 @@ static int ksgxd(void *p)
 	 * required for SECS pages, whose child pages blocked EREMOVE.
 	 */
 	__sgx_sanitize_pages(&sgx_dirty_page_list);
-	WARN_ON(__sgx_sanitize_pages(&sgx_dirty_page_list));
+	if (!WARN_ON(!list_empty(&sgx_dirty_page_list))) {
+		/*
+		 * Do SVN update for kexec(). It should complete without error, for
+		 * all EPC pages are unused at this point.
+		 */
+		if (cpuid_eax(SGX_CPUID) & SGX_CPUID_EUPDATESVN)
+			sgx_update_cpusvn_intel();
+	}
 
 	while (!kthread_should_stop()) {
 		if (try_to_freeze())
