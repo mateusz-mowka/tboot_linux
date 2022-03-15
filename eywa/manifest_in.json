@@ -4373,6 +4373,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "pson_counter",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Rajvi Jingar",
+                    "email": "rajvi.jingar@intel.com"
+                }
+            ],
+            "description": "add PSON residency counter in debugfs",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Rajvi Jingar",
+                    "email": "rajvi.jingar@intel.com"
+                }
+            ],
+            "jira": "NEXT-2833",
+            "name": "pson_counter",
+            "repourl": "https://github.com/intel-sandbox/linux-kernel-rjingar.git",
+            "sdl_contact": [
+                {
+                    "name": "Rajvi Jingar",
+                    "email": "rajvi.jingar@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
