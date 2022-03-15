@@ -370,12 +370,16 @@ static bool intel_vsec_walk_vdvsec(struct pci_dev *pdev,
 	mem.end = mem.start + 0x20;
 	mem.flags = IORESOURCE_MEM;
 
+	dev_dbg(&pdev->dev, "Entry  %pr", &mem);
 	sram_header = devm_ioremap_resource(&pdev->dev, &mem);
 	if (IS_ERR(sram_header))
 		return PTR_ERR(sram_header);
 
 	pmwrbase_addr = readl(sram_header + PMWRBASE_OFFSET);
 	lpm_telemetry_offset = readl(sram_header + READ_LPM_TELEM_OFFSET);
+	dev_dbg(&pdev->dev, " PMWRBASE ADDRESS is 0x%x\n", pmwrbase_addr);
+	dev_dbg(&pdev->dev, " lpm_telemetry_offset is 0x%x\n",
+		lpm_telemetry_offset);
 
 	do {
 		struct intel_vsec_header header;
@@ -388,9 +392,12 @@ static bool intel_vsec_walk_vdvsec(struct pci_dev *pdev,
 		res.end = res.start + 0x10 - 1;
 		res.flags = IORESOURCE_MEM;
 
+		dev_dbg(&pdev->dev, "Entry  %pr", &res);
 		dvsec_addr = devm_ioremap_resource(&pdev->dev, &res);
-		if (IS_ERR(dvsec_addr))
+		if (IS_ERR(dvsec_addr)){
+			dev_dbg(&pdev->dev, "No virtual dvsec is supported\n");
 			return PTR_ERR(dvsec_addr);
+		}
 
 		hdr = readl(dvsec_addr + PCI_DVSEC_HEADER1);
 		vid = PCI_DVSEC_HEADER1_VID(hdr);
@@ -406,6 +413,17 @@ static bool intel_vsec_walk_vdvsec(struct pci_dev *pdev,
 		header.tbir = INTEL_DVSEC_TABLE_BAR(table);
 		header.offset = INTEL_DVSEC_TABLE_OFFSET(table);
 		header.offset >>= TABLE_OFFSET_SHIFT;
+
+		dev_dbg(&pdev->dev, "header id = %d\n", header.id);
+		dev_dbg(&pdev->dev, "header rev = %d\n", header.rev);
+		dev_dbg(&pdev->dev, "header length = 0x%x\n", header.length);
+		dev_dbg(&pdev->dev, "header num_entries = %d\n",
+			header.num_entries);
+		dev_dbg(&pdev->dev, "header entry_size = 0x%x\n",
+			header.entry_size);
+		dev_dbg(&pdev->dev, "header bar = %d\n", header.tbir);
+		dev_dbg(&pdev->dev, "header disc offset = 0x%x\n",
+			header.offset);
 
 		ret = intel_vsec_add_dev(pdev, &header, info);
 		if (ret)
