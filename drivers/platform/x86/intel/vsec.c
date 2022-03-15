@@ -32,6 +32,10 @@
 #define INTEL_DVSEC_TABLE_OFFSET(x)	((x) & GENMASK(31, 3))
 #define TABLE_OFFSET_SHIFT		3
 
+/* Intel Virtual DVSEC capability vendor space offsets */
+#define PMWRBASE_OFFSET			0x14
+#define READ_LPM_TELEM_OFFSET		0x1C
+
 static DEFINE_IDA(intel_vsec_ida);
 static DEFINE_IDA(intel_vsec_sdsi_ida);
 
@@ -50,6 +54,10 @@ struct intel_vsec_header {
 	u16	length;
 	u16	id;
 	u8	num_entries;
+	u16	cap_id;
+	u8	cap_ver;
+	u32	next_cap_offset;
+	u32	venid;
 	u8	entry_size;
 	u8	tbir;
 	u32	offset;
@@ -346,6 +354,71 @@ static bool intel_vsec_walk_vsec(struct pci_dev *pdev,
 	return have_devices;
 }
 
+static bool intel_vsec_walk_vdvsec(struct pci_dev *pdev,
+				   struct intel_vsec_platform_info *info)
+{
+	struct resource mem = {0};
+	void __iomem *sram_header;
+	u32 table, hdr, offset = 0x00;
+	u32 lpm_telemetry_offset;
+	u32 pmwrbase_addr;
+	bool have_devices = false;
+	int count = 0;
+	u16 vid;
+
+	mem.start = pdev->resource[0].start;
+	mem.end = mem.start + 0x20;
+	mem.flags = IORESOURCE_MEM;
+
+	sram_header = devm_ioremap_resource(&pdev->dev, &mem);
+	if (IS_ERR(sram_header))
+		return PTR_ERR(sram_header);
+
+	pmwrbase_addr = readl(sram_header + PMWRBASE_OFFSET);
+	lpm_telemetry_offset = readl(sram_header + READ_LPM_TELEM_OFFSET);
+
+	do {
+		struct intel_vsec_header header;
+		void __iomem *dvsec_addr = NULL;
+		struct resource res = {0};
+		int ret;
+
+		res.start = pdev->resource[0].start + lpm_telemetry_offset +
+			    offset;
+		res.end = res.start + 0x10 - 1;
+		res.flags = IORESOURCE_MEM;
+
+		dvsec_addr = devm_ioremap_resource(&pdev->dev, &res);
+		if (IS_ERR(dvsec_addr))
+			return PTR_ERR(dvsec_addr);
+
+		hdr = readl(dvsec_addr + PCI_DVSEC_HEADER1);
+		vid = PCI_DVSEC_HEADER1_VID(hdr);
+		if (vid != PCI_VENDOR_ID_INTEL)
+			continue;
+
+		header.id = readw(dvsec_addr + PCI_DVSEC_HEADER2);
+		header.rev = PCI_DVSEC_HEADER1_REV(hdr);
+		header.length = PCI_DVSEC_HEADER1_LEN(hdr);
+		table = readl(dvsec_addr + INTEL_DVSEC_TABLE);
+		header.num_entries = readb(dvsec_addr + INTEL_DVSEC_ENTRIES);
+		header.entry_size = readb(dvsec_addr + INTEL_DVSEC_SIZE);
+		header.tbir = INTEL_DVSEC_TABLE_BAR(table);
+		header.offset = INTEL_DVSEC_TABLE_OFFSET(table);
+		header.offset >>= TABLE_OFFSET_SHIFT;
+
+		ret = intel_vsec_add_dev(pdev, &header, info);
+		if (ret)
+			continue;
+
+		offset = 0x10;
+		count++;
+		have_devices = true;
+	} while(count < 2);
+
+	return have_devices;
+}
+
 static int intel_vsec_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct intel_vsec_platform_info *info;
@@ -368,6 +441,10 @@ static int intel_vsec_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 
 	if (info && (info->quirks & VSEC_QUIRK_NO_DVSEC) &&
 	    intel_vsec_walk_header(pdev, info))
+		have_devices = true;
+
+	if (info && (info->quirks & VSEC_QUIRK_VDVSEC) &&
+	    intel_vsec_walk_vdvsec(pdev, info))
 		have_devices = true;
 
 	if (!have_devices)
@@ -419,11 +496,17 @@ static const struct intel_vsec_platform_info dg1_info = {
 	.quirks = VSEC_QUIRK_NO_DVSEC | VSEC_QUIRK_EARLY_HW,
 };
 
+/* ADL_PCH Shared SRAM */
+static const struct intel_vsec_platform_info adl_pch_info = {
+	.quirks = VSEC_QUIRK_VDVSEC | VSEC_QUIRK_TABLE_SHIFT,
+};
+
 #ifdef CONFIG_PM_SLEEP
 static const struct dev_pm_ops intel_vsec_pm_ops = {};
 #endif
 
 #define PCI_DEVICE_ID_INTEL_VSEC_ADL		0x467d
+#define PCI_DEVICE_ID_INTEL_VSEC_ADL_PCH	0x51ef
 #define PCI_DEVICE_ID_INTEL_VSEC_DG1		0x490e
 #define PCI_DEVICE_ID_INTEL_VSEC_MTL_M		0x7d0d
 #define PCI_DEVICE_ID_INTEL_VSEC_MTL_S		0xad0d
@@ -432,6 +515,7 @@ static const struct dev_pm_ops intel_vsec_pm_ops = {};
 #define PCI_DEVICE_ID_INTEL_VSEC_TGL		0x9a0d
 static const struct pci_device_id intel_vsec_pci_ids[] = {
 	{ PCI_DEVICE_DATA(INTEL, VSEC_ADL, &tgl_info) },
+	{ PCI_DEVICE_DATA(INTEL, VSEC_ADL_PCH, &adl_pch_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_DG1, &dg1_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_MTL_M, &mtl_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_MTL_S, &mtl_info) },

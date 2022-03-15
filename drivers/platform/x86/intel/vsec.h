@@ -23,6 +23,9 @@ enum intel_vsec_quirks {
 
 	/* Platforms requiring quirk in the auxiliary driver */
 	VSEC_QUIRK_EARLY_HW	= BIT(4),
+
+	/* Virtual DVSEC */
+	VSEC_QUIRK_VDVSEC	= BIT(5),
 };
 
 /* Platform specific data */
