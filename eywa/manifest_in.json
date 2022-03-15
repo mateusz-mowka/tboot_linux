@@ -4342,6 +4342,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "next-5.17-splitlock",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "description": "Split lock changes",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "jira": "NEXT-2830",
+            "name": "splitlock",
+            "repourl": "https://github.com/intel-sandbox/agluck-linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
