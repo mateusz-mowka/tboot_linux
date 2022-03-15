@@ -3232,7 +3232,7 @@
                 }
             ],
             "status": "intel confidential",
-            "stuck_at_ref": "ca3730bce0c9dc8534d45575fe69a65bde587cb6",
+            "stuck_at_ref": "",
             "last_enabled": "v5.17"
         },
         {
