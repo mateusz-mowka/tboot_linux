@@ -50,6 +50,15 @@
 
 static const struct t7xx_port_conf t7xx_md_port_conf[] = {
 	{
+		.tx_ch = PORT_CH_AP_GNSS_TX,
+		.rx_ch = PORT_CH_AP_GNSS_RX,
+		.txq_index = Q_IDX_CTRL,
+		.rxq_index = Q_IDX_CTRL,
+		.path_id = CLDMA_ID_AP,
+		.ops = &wwan_sub_port_ops,
+		.name = "t7xx_ap_gnss",
+		.port_type = WWAN_PORT_AT,
+	}, {
 		.tx_ch = PORT_CH_UART2_TX,
 		.rx_ch = PORT_CH_UART2_RX,
 		.txq_index = Q_IDX_AT_CMD,
@@ -89,6 +98,14 @@ static const struct t7xx_port_conf t7xx_md_port_conf[] = {
 		.path_id = CLDMA_ID_MD,
 		.ops = &ctl_port_ops,
 		.name = "t7xx_ctrl",
+	}, {
+		.tx_ch = PORT_CH_AP_CONTROL_TX,
+		.rx_ch = PORT_CH_AP_CONTROL_RX,
+		.txq_index = Q_IDX_CTRL,
+		.rxq_index = Q_IDX_CTRL,
+		.path_id = CLDMA_ID_AP,
+		.ops = &ctl_port_ops,
+		.name = "t7xx_ap_ctrl",
 	},
 };
 
@@ -438,6 +455,9 @@ static void t7xx_proxy_init_all_ports(struct t7xx_modem *md)
 		if (port_conf->tx_ch == PORT_CH_CONTROL_TX)
 			md->core_md.ctl_port = port;
 
+		if (port_conf->tx_ch == PORT_CH_AP_CONTROL_TX)
+			md->core_ap.ctl_port = port;
+
 		port->t7xx_dev = md->t7xx_dev;
 		port->dev = &md->t7xx_dev->pdev->dev;
 		spin_lock_init(&port->port_update_lock);
@@ -491,6 +511,7 @@ int t7xx_port_proxy_init(struct t7xx_modem *md)
 	if (ret)
 		return ret;
 
+	t7xx_cldma_set_recv_skb(md->md_ctrl[CLDMA_ID_AP], t7xx_port_proxy_recv_skb);
 	t7xx_cldma_set_recv_skb(md->md_ctrl[CLDMA_ID_MD], t7xx_port_proxy_recv_skb);
 	return 0;
 }
