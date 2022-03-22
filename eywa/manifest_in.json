@@ -4404,6 +4404,97 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "mtl_dids_linus_rc",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_VMD",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_CORE",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_BLK_DEV_NVME",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_MULTIPATH",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_HWMON",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_FABRICS",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_RDMA",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_FC",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_TCP",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_TARGET",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_TARGET_PASSTHRU",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_TARGET_LOOP",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_TARGET_RDMA",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_TARGET_FC",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_TARGET_FCLOOP",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_NVME_TARGET_TCP",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Francisco Munoz Ruiz",
+                    "email": "francisco.munoz.ruiz@intel.com"
+                }
+            ],
+            "description": "Add DIDs 8086:7D0B and 8086:AD0B for Intel MTL-M/S SKU's",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Nirmal Patel",
+                    "email": "nirmal.patel@intel.com"
+                }
+            ],
+            "jira": "NEXT-2835",
+            "name": "DIDs8086",
+            "repourl": "https://github.com/franciscomunoz/os.linux.intelnext.kernel.git",
+            "sdl_contact": [],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
