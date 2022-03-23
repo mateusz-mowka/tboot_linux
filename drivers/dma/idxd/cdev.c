@@ -124,27 +124,35 @@ static void idxd_file_dev_release(struct device *dev)
 
 	/* Wait for in-flight operations to complete. */
 	if (wq_shared(wq)) {
+		dev_dbg(dev, "%s: swq drain pasid\n", __func__);
 		idxd_device_drain_pasid(idxd, ctx->pasid);
 	} else {
 		if (device_user_pasid_enabled(idxd)) {
+			dev_dbg(dev, "%s: dwq disable pasid\n", __func__);
 			/* The wq disable in the disable pasid function will drain the wq */
 			rc = idxd_wq_disable_pasid(wq);
 			if (rc < 0)
 				dev_err(dev, "wq disable pasid failed.\n");
 		} else {
+			dev_dbg(dev, "%s: dwq drain wq\n", __func__);
 			idxd_wq_drain(wq);
 		}
 	}
 
 	if (ctx->sva) {
+		dev_dbg(dev, "evl drain pasid\n");
 		idxd_cdev_evl_drain_pasid(wq, ctx->pasid);
+		dev_dbg(dev, "%s: iommu_sva_unbind_device called\n", __func__);
 		iommu_sva_unbind_device(ctx->sva);
+		dev_dbg(dev, "%s: iommu_sva_unbind_device done\n", __func__);
 		idxd_xa_pasid_remove(ctx);
 	}
 	kfree(ctx);
+	dev_dbg(dev, "take wq lock and put wq\n");
 	mutex_lock(&wq->wq_lock);
 	idxd_wq_put(wq);
 	mutex_unlock(&wq->wq_lock);
+	dev_dbg(dev, "%s exit...\n", __func__);
 }
 
 static struct device_type idxd_cdev_file_type = {
@@ -351,6 +359,7 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
 {
 	struct idxd_device *idxd = wq->idxd;
+	struct device *dev = &idxd->pdev->dev;
 	struct idxd_evl *evl = idxd->evl;
 	union evl_status_reg status;
 	u16 h, t, size;
@@ -360,6 +369,7 @@ static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
 	if (!evl)
 		return;
 
+	dev_dbg(dev, "%s starts\n", __func__);
 	spin_lock(&evl->lock);
 	status.bits = ioread64(idxd->reg_base + IDXD_EVLSTATUS_OFFSET);
 	t = status.tail;
@@ -373,8 +383,10 @@ static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
 		h = (h + 1) % size;
 	}
 	spin_unlock(&evl->lock);
+	dev_dbg(dev, "%s drain workqueue\n", __func__);
 
 	drain_workqueue(wq->wq);
+	dev_dbg(dev, "%s exit\n", __func__);
 }
 
 static int idxd_cdev_release(struct inode *node, struct file *filep)

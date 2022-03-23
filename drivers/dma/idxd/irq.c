@@ -240,6 +240,7 @@ static void idxd_evl_fault_work(struct work_struct *work)
 	u8 *status = (u8 *)cr + idxd->data->cr_status_off;
 	u8 *result = (u8 *)cr + idxd->data->cr_result_off;
 	bool *bf;
+	u64 *tmp_cr =(u64 *)cr;
 
 	mm = iommu_sva_find(entry_head->pasid);
 	if (IS_ERR_OR_NULL(mm)) {
@@ -247,6 +248,20 @@ static void idxd_evl_fault_work(struct work_struct *work)
 			entry_head->pasid);
 		kfree(fault);
 		return;
+	}
+
+	{
+		int i;
+		u64 *ptr;
+
+		ptr =  (u64 *)entry_head;
+
+		dev_dbg(dev, "Event Log Entry Dump: \n");
+		for (i = 0; i < __EVL_ENT_SIZE(idxd) / 8; i++) {
+			dev_dbg(dev, "EVL[%d]: %#llx\n", i, *ptr);
+			ptr++;
+		}
+		dev_dbg(dev, "Batch ID: %u\n", entry_head->batch_id);
 	}
 
 	switch (fault->status) {
@@ -278,9 +293,22 @@ static void idxd_evl_fault_work(struct work_struct *work)
 		break;
 	}
 
-	if (copy_size)
+	if (copy_size) {
+		tmp_cr[3] = 0xdeadbeef;
 		copied = access_remote_vm(mm, entry_head->fault_addr, cr, copy_size,
 					  FOLL_WRITE | FOLL_REMOTE);
+		{
+			int i;
+			u64 *ptr = cr;
+
+			dev_dbg(dev, "op: %#x CR to be written to user:\n",
+				entry_head->operation);
+			for (i = 0; i < 4; i++) {
+				dev_dbg(dev, "CR[%d]: %#llx\n", i, *ptr);
+				ptr++;
+			}
+		}
+	}
 
 	switch (fault->status) {
 	case DSA_COMP_CRA_XLAT:
@@ -473,6 +501,7 @@ irqreturn_t idxd_misc_thread(int vec, void *data)
 	}
 
 	if (cause & IDXD_INTC_EVL) {
+		dev_dbg(dev, "EVL interrupt\n");
 		val |= IDXD_INTC_EVL;
 		process_evl_entries(idxd);
 	}
