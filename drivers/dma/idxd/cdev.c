@@ -356,6 +356,7 @@ failed:
 static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
 {
 	struct idxd_device *idxd = wq->idxd;
+	struct device *dev = &idxd->pdev->dev;
 	struct idxd_evl *evl = idxd->evl;
 	union evl_status_reg status;
 	u16 h, t, size;
@@ -365,6 +366,7 @@ static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
 	if (!evl)
 		return;
 
+	dev_dbg(dev, "%s starts\n", __func__);
 	spin_lock(&evl->lock);
 	status.bits = ioread64(idxd->reg_base + IDXD_EVLSTATUS_OFFSET);
 	t = status.tail;
@@ -378,8 +380,10 @@ static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
 		h = (h + 1) % size;
 	}
 	spin_unlock(&evl->lock);
+	dev_dbg(dev, "%s drain workqueue\n", __func__);
 
 	drain_workqueue(wq->wq);
+	dev_dbg(dev, "%s exit\n", __func__);
 }
 
 static int idxd_cdev_release(struct inode *node, struct file *filep)

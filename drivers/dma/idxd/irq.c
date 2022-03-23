@@ -233,6 +233,21 @@ static void idxd_evl_fault_work(struct work_struct *work)
 	u8 *result = (u8 *)cr + idxd->data->cr_result_off;
 	int copied, copy_size;
 	bool *bf;
+	u64 *tmp_cr =(u64 *)cr;
+
+	{
+		int i;
+		u64 *ptr;
+
+		ptr =  (u64 *)entry_head;
+
+		dev_dbg(dev, "Event Log Entry Dump: \n");
+		for (i = 0; i < __EVL_ENT_SIZE(idxd) / 8; i++) {
+			dev_dbg(dev, "EVL[%d]: %#llx\n", i, *ptr);
+			ptr++;
+		}
+		dev_dbg(dev, "Batch ID: %u\n", entry_head->batch_id);
+	}
 
 	switch (fault->status) {
 	case DSA_COMP_CRA_XLAT:
@@ -272,6 +287,21 @@ static void idxd_evl_fault_work(struct work_struct *work)
 	 */
 	copied = idxd_copy_cr(wq, entry_head->pasid, entry_head->fault_addr,
 			      cr, copy_size);
+	{
+		tmp_cr[3] = 0xdeadbeef;
+		{
+			int i;
+			u64 *ptr = cr;
+
+			dev_dbg(dev, "op: %#x CR to be written to user:\n",
+				entry_head->operation);
+			for (i = 0; i < 4; i++) {
+				dev_dbg(dev, "CR[%d]: %#llx\n", i, *ptr);
+				ptr++;
+			}
+		}
+	}
+
 	/*
 	 * The task that triggered the page fault is unknown currently
 	 * because multiple threads may share the user address
@@ -472,6 +502,7 @@ irqreturn_t idxd_misc_thread(int vec, void *data)
 	}
 
 	if (cause & IDXD_INTC_EVL) {
+		dev_dbg(dev, "EVL interrupt\n");
 		val |= IDXD_INTC_EVL;
 		process_evl_entries(idxd);
 	}
