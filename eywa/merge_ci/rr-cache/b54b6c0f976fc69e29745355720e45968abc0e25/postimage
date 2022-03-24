@@ -1467,7 +1467,7 @@ void __init acpi_ghes_init(void)
 	if (!svos_enable_ras_errorcorrect) {
 		printk_once(KERN_CRIT
 			"SVOS RAS not enabled - shutting down ghes\n");
-		return -ENODEV;
+		return;
 	}
 
 	sdei_init();
