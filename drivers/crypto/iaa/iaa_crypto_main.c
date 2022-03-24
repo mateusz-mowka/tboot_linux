@@ -235,10 +235,8 @@ static struct iaa_device *add_iaa_device(struct idxd_device *idxd)
 
 	iaa_device->idxd = idxd;
 
-	if (iaa_aecs_alloc(iaa_device) < 0) {
-		iaa_device_free(iaa_device);
+	if (iaa_aecs_alloc(iaa_device) < 0)
 		return NULL;
-	}
 
 	list_add_tail(&iaa_device->list, &iaa_devices);
 
