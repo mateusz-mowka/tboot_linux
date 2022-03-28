@@ -2085,13 +2085,19 @@ irqreturn_t dmar_fault(int irq, void *dev_id)
 		int type;
 		u32 data;
 		bool pasid_present;
+		u64 fault_record[2];
 
 		/* highest 32 bits */
 		data = readl(iommu->reg + reg +
 				fault_index * PRIMARY_FAULT_REG_LEN + 12);
 		if (!(data & DMA_FRCD_F))
 			break;
-
+		fault_record[0] = readq(iommu->reg + reg +
+					fault_index * PRIMARY_FAULT_REG_LEN);
+		fault_record[1] = readq(iommu->reg + reg +
+					fault_index * PRIMARY_FAULT_REG_LEN + 8);
+		pr_alert("DMAR Fault Rec: %d %llx : %llx", fault_index,
+			 fault_record[0], fault_record[1]);
 		if (!ratelimited) {
 			fault_reason = dma_frcd_fault_reason(data);
 			type = dma_frcd_type(data);
