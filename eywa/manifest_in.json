@@ -4495,6 +4495,190 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "sof-for-next-5.17",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_SND_SOC_SOF_TOPLEVEL",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_PCI_DEV",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_PCI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_ACPI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_ACPI_DEV",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_CLIENT",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_DEVELOPER_SUPPORT",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_INTEL_USER_FRIENDLY_LONG_NAMES",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_HDA_INTEL",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_HDA_LINK",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SOUNDWIRE",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SOUNDWIRE_INTEL",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE_LINK_BASELINE",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_HDA_CODEC_REALTEK",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_HDA_CODEC_HDMI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_HDA_GENERIC",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT700",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT700_SDW",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT711",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT711_SDW",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT711_SDCA_SDW",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT1308_SDW",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT715",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT715_SDW",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT715_SDCA_SDW",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_RT1316_SDW",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_DEVELOPER_SUPPORT",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_DEBUG",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_DEBUG_VERBOSE_IPC",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_DEBUG_ENABLE_DEBUGFS_CACHE",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_DEBUG_ENABLE_IPC4_FW_TRACE",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_INTEL_TOPLEVEL",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_INTEL_MTL",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_SOF_METEORLAKE",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_SND_SOC_INTEL_SOUNDWIRE_SOF_MACH",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Bard Liao",
+                    "email": "yung-chuan.liao@linux.intel.com"
+                }
+            ],
+            "description": "SOF audio driver w/ MTL support for 5.17",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kar Leong Wong",
+                    "email": "kar.leong.wong@intel.com"
+                }
+            ],
+            "jira": "NEXT-2838",
+            "name": "SOF_audio",
+            "repourl": "https://github.com/bardliao/os.linux.intelnext.kernel.git",
+            "sdl_contact": [
+                {
+                    "name": "Karol Filipiak",
+                    "email": "karol.filipiak@intel.com"
+                },
+                {
+                    "name": "Mengdong Lin",
+                    "email": "mengdong.lin@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
