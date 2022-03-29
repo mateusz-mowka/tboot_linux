@@ -119,6 +119,8 @@
 #define INTEL_FAM6_METEORLAKE_L		0xAA
 #define INTEL_FAM6_METEORLAKE		0xAB
 
+#define INTEL_FAM6_LUNARLAKE_M		0xBD	/* Lion Cove / Skymont */
+
 /* "Small Core" Processors (Atom) */
 
 #define INTEL_FAM6_ATOM_BONNELL		0x1C /* Diamondville, Pineview */
