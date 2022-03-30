@@ -4679,6 +4679,37 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "kvm_lass",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Paul Lai",
+                    "email": "paul.c.lai@intel.com"
+                }
+            ],
+            "description": "Expose LASS to VM guest",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Vedvyas Shanbhogue",
+                    "email": "vedvyas.shanbhogue@intel.com"
+                }
+            ],
+            "jira": "NEXT-2839",
+            "name": "KVM LASS",
+            "repourl": "https://github.com/intel-plai/kvm_lass.git",
+            "sdl_contact": [
+                {
+                    "name": "Vedvyas Shanbhogue",
+                    "email": "vedvyas.shanbhogue@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
