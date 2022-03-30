@@ -22,12 +22,12 @@ fi
 LOGNAME=$(echo eywa/intel-next-merge-$DATE.log | sed "s/.log//g")
 baseversion=$(grep "Resetting master to" $LOGNAME.log | uniq  | sed "s/Resetting master to //gi")
 baseversion=$(echo $baseversion | sed "s/v//g")
-#Add github remote this will eventually become origin after the final transition July 4th 2021
-git remote | grep intel_next_github
+#Mirror to gitlab which we transition customers to github
+git remote | grep intel_next_gitlab
 if [ $? -ne 0 ]; then
-	git remote add intel_next_github https://github.com/intel-innersource/os.linux.intelnext.kernel.git
+	git remote add intel_next_gitlab ssh://git@gitlab.devtools.intel.com:29418/intel-next/intel-next-kernel.git
 fi
-git fetch intel_next_github
+git fetch intel_next_gitlab
 
 #intel next tag
 git ls-remote --tags | grep  -q "refs/tags/intel-$baseversion-$DATE"
@@ -38,8 +38,8 @@ if [ $? -ne 0 ]; then
         echo "Pushing master branch upstream ..."
         git push origin -f master:master intel-$baseversion-$DATE || \
         die "Unable to push kernel master branch upstream"
-        git push intel_next_github -f master:master intel-$baseversion-$DATE || \
-        die "Unable to push kernel master branch to github"
+        git push intel_next_gitlab -f master:master intel-$baseversion-$DATE || \
+        die "Unable to push kernel master branch to gitlab"
 else
         echo "Intel next tag: intel-$baseversion-$DATE already pushed" 
 fi
@@ -52,12 +52,12 @@ git merge --ff-only v$baseversion
 echo "Pushing linus branch upstream ..."
 git push origin linus:linus
 git push origin linus:linus v$baseversion
-#push remaining branches to github
-echo "Mirroring remaining branches to github"
-git push intel_next_github linus:linus
-git push intel_next_github linus:linus v$baseversion
+#push remaining branches to gitlab
+echo "Mirroring remaining branches to gitlab"
+git push intel_next_gitlab linus:linus
+git push intel_next_gitlab linus:linus v$baseversion
 #mirror branches to github
-git push intel_next_github -f ssh_git_gitlab_devtools_intel_com_29418_intel_next_intel_next_kernel_git/configs:configs
-git push intel_next_github -f ssh_git_gitlab_devtools_intel_com_29418_intel_next_intel_next_kernel_git/eywa:eywa
-git push intel_next_github -f ssh_git_gitlab_devtools_intel_com_29418_intel_next_intel_next_kernel_git/packaging:packaging
+git push intel_next_gitlab -f ssh_git_gitlab_devtools_intel_com_29418_intel_next_intel_next_kernel_git/configs:configs
+git push intel_next_gitlab -f ssh_git_gitlab_devtools_intel_com_29418_intel_next_intel_next_kernel_git/eywa:eywa
+git push intel_next_gitlab -f ssh_git_gitlab_devtools_intel_com_29418_intel_next_intel_next_kernel_git/packaging:packaging
 git checkout master
