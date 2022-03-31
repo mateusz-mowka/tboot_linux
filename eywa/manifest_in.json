@@ -4710,6 +4710,42 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.17"
+        },
+        {
+            "branch": "svos-next-tdx-pull-5.17",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_SVOS",
+                    "value": "n"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Eric D Fagerburg",
+                    "email": "eric.d.fagerburg@intel.com"
+                }
+            ],
+            "description": "SVOS TDX Modifications for v5.17",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Tom Stonecypher",
+                    "email": "tom.stonecypher@intel.com"
+                }
+            ],
+            "jira": "NEXT-2841",
+            "name": "SVOS_TDX",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/svos/sv/kernel/svos_next",
+            "sdl_contact": [
+                {
+                    "name": "Tom Stonecypher",
+                    "email": "tom.stonecypher@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.17"
         }
     ]
 }
