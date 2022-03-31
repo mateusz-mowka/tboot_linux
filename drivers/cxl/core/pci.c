@@ -125,6 +125,16 @@ int cxl_await_media_ready(struct cxl_dev_state *cxlds)
 		active = FIELD_GET(CXL_DVSEC_MEM_ACTIVE, temp);
 		if (active)
 			break;
+
+		md_status = readq(cxlds->regs.memdev + CXLMDEV_STATUS_OFFSET);
+		if (CXLMDEV_READY(md_status)) {
+			dev_info(&pdev->dev,
+				 "SIMICS WORKAROUND: %s:%d Force MEM_ACTIVE\n",
+				 __func__, __LINE__);
+			active = true;
+			break;
+		}
+
 		msleep(1000);
 	}
 
