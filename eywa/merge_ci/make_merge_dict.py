@@ -16,7 +16,7 @@ def get_branches(manifest):
     branches = [] 
     project_base_name="topic_intel_next"
     #we don't want buildbot to trigger on eywa or upstream linux changes
-    eywa_branch = r"ssh://git@gitlab.devtools.intel.com:29418/intel-next/intel-next-kernel.git"
+    eywa_branch = r"https://github.com/intel-innersource/os.linux.intelnext.kernel.git"
     upstream_repo=r"https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
     blacklist =[eywa_branch,upstream_repo]
     for item in manifest["topic_branches"]:
