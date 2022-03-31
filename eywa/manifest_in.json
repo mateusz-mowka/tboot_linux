@@ -4691,7 +4691,7 @@
                 }
             ],
             "description": "Expose LASS to VM guest",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Vedvyas Shanbhogue",
