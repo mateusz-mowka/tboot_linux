@@ -530,6 +530,9 @@ struct thread_struct {
 	 */
 	u32			pkru;
 
+	unsigned long		features;
+	unsigned long		features_locked;
+
 	/* Floating point and extended processor state */
 	struct fpu		fpu;
 	/*

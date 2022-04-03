@@ -367,6 +367,10 @@ void arch_setup_new_exec(void)
 		task_clear_spec_ssb_noexec(current);
 		speculation_ctrl_update(read_thread_flags());
 	}
+
+	/* Reset thread features on exec */
+	current->thread.features = 0;
+	current->thread.features_locked = 0;
 }
 
 #ifdef CONFIG_X86_IOPL_IOPERM
