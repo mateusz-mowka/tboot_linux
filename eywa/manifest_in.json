@@ -27,7 +27,7 @@
             "description": "intel-next scripts and patches",
             "enabled": false,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2843",
             "name": "eywa",
             "repourl": "https://github.com/intel-innersource/os.linux.intelnext.kernel.git",
             "sdl_contact": [],
@@ -48,7 +48,7 @@
             "description": "intel-next scripts and patches",
             "enabled": false,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2844",
             "name": "configs",
             "repourl": "https://github.com/intel-innersource/os.linux.intelnext.kernel.git",
             "sdl_contact": [],
@@ -69,7 +69,7 @@
             "description": "intel-next scripts and patches",
             "enabled": false,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2845",
             "name": "packaging",
             "repourl": "https://github.com/intel-innersource/os.linux.intelnext.kernel.git",
             "sdl_contact": [],
@@ -104,7 +104,7 @@
                     "email": "kyle.d.pelton@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2847",
             "name": "branding",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
             "sdl_contact": [
@@ -130,7 +130,7 @@
             "description": "NEXT PM tree",
             "enabled": false,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2848",
             "name": "pm-testing",
             "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/rafael/linux-pm.git",
             "sdl_contact": [],
@@ -151,7 +151,7 @@
             "description": "TPM code",
             "enabled": false,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2849",
             "name": "tpm",
             "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/jarkko/linux-tpmdd.git",
             "sdl_contact": [],
@@ -765,7 +765,7 @@
                     "email": "eric.thian.aun.tan@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2850",
             "name": "lpss_gpio",
             "repourl": "https://github.com/intel-sandbox/ashevche.linux.kernel",
             "sdl_contact": [
@@ -980,7 +980,7 @@
                     "email": "christopher.j.lake@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2851",
             "name": "pmc_core",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/gkammela/pmc_core-intel-next.git",
             "sdl_contact": [
@@ -1152,7 +1152,7 @@
                     "email": "evelyn.fields@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2852",
             "name": "rapl/idle",
             "repourl": "https://github.com/intel-sandbox/rzhang1.git",
             "sdl_contact": [
@@ -3583,7 +3583,7 @@
                     "email": "ashok.raj@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2853",
             "name": "microcode_rollback",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
             "sdl_contact": [
