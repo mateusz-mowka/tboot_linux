@@ -149,7 +149,7 @@
                 }
             ],
             "description": "TPM code",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2849",
             "name": "tpm",
@@ -157,7 +157,7 @@
             "sdl_contact": [],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "for-intel-next",
