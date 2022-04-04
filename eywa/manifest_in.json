@@ -3576,7 +3576,7 @@
                 }
             ],
             "description": "Enable microcode rollback in intel-next",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
@@ -3594,7 +3594,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "pasid",
