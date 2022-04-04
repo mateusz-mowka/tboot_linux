@@ -3475,10 +3475,6 @@
                     "value": "m"
                 },
                 {
-                    "name": "CONFIG_INTEL_QEP",
-                    "value": "y"
-                },
-                {
                     "name": "CONFIG_MFD_INTEL_LPSS_ACPI",
                     "value": "m"
                 },
@@ -3502,7 +3498,7 @@
                 }
             ],
             "description": "Add support for Intel Raptor Lake PCH-S, Intel Meteor Lake PCH-P",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Bhaskar, Rajesh",
@@ -3521,7 +3517,7 @@
                     "email": "raymond.tan@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2855",
             "name": "lpss",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/jarkkoni/linux.git",
             "sdl_contact": [
@@ -3532,7 +3528,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.15"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "cpuid",
