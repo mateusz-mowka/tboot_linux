@@ -969,7 +969,7 @@
                 }
             ],
             "description": "Lakefield, Raptor Lake, Alder Lake N and MTL support for PMC core driver and new AVX512 cpuid support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Mark Charney",
@@ -991,7 +991,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "intel_th-for-intel-next",
