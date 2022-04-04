@@ -25,7 +25,7 @@
                 }
             ],
             "description": "intel-next scripts and patches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2843",
             "name": "eywa",
@@ -46,7 +46,7 @@
                 }
             ],
             "description": "intel-next scripts and patches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2844",
             "name": "configs",
@@ -67,7 +67,7 @@
                 }
             ],
             "description": "intel-next scripts and patches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2845",
             "name": "packaging",
@@ -75,7 +75,7 @@
             "sdl_contact": [],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "intel_next_branding",
@@ -97,7 +97,7 @@
                 }
             ],
             "description": "Custom intel-next logo on bootup",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
@@ -115,7 +115,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "testing",
