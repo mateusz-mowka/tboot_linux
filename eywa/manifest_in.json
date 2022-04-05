@@ -3301,14 +3301,14 @@
             ],
             "contributor": [
                 {
-                    "name": "cxl_linux",
-                    "email": "cxl-linux@eclists.intel.com"
+                    "name": "Dan J Williams",
+                    "email": "dan.j.williams@intel.com"
                 }
             ],
             "description": "CXL Memory Expander support targeting v5.18",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2865",
             "name": "cxl",
             "repourl": "https://github.com/intel-sandbox/cxl.git",
             "sdl_contact": [
@@ -3319,7 +3319,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "dev-queue",
