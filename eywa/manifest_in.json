@@ -2115,7 +2115,7 @@
                 }
             ],
             "description": "iommu updates",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
