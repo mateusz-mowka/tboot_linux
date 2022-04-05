@@ -4477,7 +4477,7 @@
                 }
             ],
             "description": "Add DIDs 8086:7D0B and 8086:AD0B for Intel MTL-M/S SKU's",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Nirmal Patel",
@@ -4485,12 +4485,12 @@
                 }
             ],
             "jira": "",
-            "name": "DIDs8086",
+            "name": "MTLDIDs",
             "repourl": "https://github.com/franciscomunoz/os.linux.intelnext.kernel.git",
             "sdl_contact": [],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "sof-for-next-5.17",
