@@ -1145,7 +1145,7 @@
                 }
             ],
             "description": "intel_rapl/intel_idle/thermal/turbostat support for AlderLake/RaptorLake/MeteorLake and GNR",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Evelyn Fields",
