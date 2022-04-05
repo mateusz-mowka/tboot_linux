@@ -4381,14 +4381,14 @@
                 }
             ],
             "description": "add PSON residency counter in debugfs",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajvi Jingar",
                     "email": "rajvi.jingar@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2866",
             "name": "pson_counter",
             "repourl": "https://github.com/intel-sandbox/linux-kernel-rjingar.git",
             "sdl_contact": [
@@ -4399,7 +4399,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "mtl_dids_linus_rc",
