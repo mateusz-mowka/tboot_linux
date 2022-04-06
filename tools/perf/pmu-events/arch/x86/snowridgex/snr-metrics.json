@@ -1,0 +1,300 @@
+[
+    {
+        "BriefDescription": "Counts the number of issue slots  that were not consumed by the backend due to frontend stalls.",
+        "MetricExpr": "TOPDOWN_FE_BOUND.ALL / (4 * CPU_CLK_UNHALTED.CORE)",
+        "MetricGroup": "TopdownL1",
+        "MetricName": "Frontend_Bound",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the total number of issue slots that were not consumed by the backend because allocation is stalled due to a mispredicted jump or a machine clear",
+        "MetricExpr": "( TOPDOWN_BAD_SPECULATION.MISPREDICT + TOPDOWN_BAD_SPECULATION.MONUKE ) / (4 * CPU_CLK_UNHALTED.CORE)",
+        "MetricGroup": "TopdownL1",
+        "MetricName": "Bad_Speculation",
+        "PublicDescription": "Counts the total number of issue slots that were not consumed by the backend because allocation is stalled due to a mispredicted jump or a machine clear. Only issue slots wasted due to fast nukes such as memory ordering nukes are counted. Other nukes are not accounted for. Counts all issue slots blocked during this recovery window including relevant microcode flows and while uops are not yet available in the instruction queue (IQ). Also includes the issue slots that were consumed by the backend but were thrown away because they were younger than the mispredict or machine clear.",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the total number of issue slots  that were not consumed by the backend due to backend stalls",
+        "MetricConstraint": "NO_NMI_WATCHDOG",
+        "MetricExpr": "TOPDOWN_BE_BOUND.ALL / (4 * CPU_CLK_UNHALTED.CORE)",
+        "MetricGroup": "TopdownL1",
+        "MetricName": "Backend_Bound",
+        "PublicDescription": "Counts the total number of issue slots  that were not consumed by the backend due to backend stalls.  Note that uops must be available for consumption in order for this event to count.  If a uop is not available (IQ is empty), this event will not count.   The rest of these subevents count backend stalls, in cycles, due to an outstanding request which is memory bound vs core bound.   The subevents are not slot based events and therefore can not be precisely added or subtracted from the Backend_Bound_Aux subevents which are slot based.",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the total number of issue slots  that were not consumed by the backend due to backend stalls",
+        "MetricExpr": "TOPDOWN_BE_BOUND.ALL / (4 * CPU_CLK_UNHALTED.CORE)",
+        "MetricGroup": "TopdownL1",
+        "MetricName": "Backend_Bound_Aux",
+        "PublicDescription": "Counts the total number of issue slots  that were not consumed by the backend due to backend stalls.  Note that UOPS must be available for consumption in order for this event to count.  If a uop is not available (IQ is empty), this event will not count.  All of these subevents count backend stalls, in slots, due to a resource limitation.   These are not cycle based events and therefore can not be precisely added or subtracted from the Backend_Bound subevents which are cycle based.  These subevents are supplementary to Backend_Bound and can be used to analyze results from a resource perspective at allocation.  ",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the numer of issue slots  that result in retirement slots. ",
+        "MetricExpr": "TOPDOWN_RETIRING.ALL / (4 * CPU_CLK_UNHALTED.CORE)",
+        "MetricGroup": "TopdownL1",
+        "MetricName": "Retiring",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "",
+        "MetricExpr": "CPU_CLK_UNHALTED.CORE",
+        "MetricGroup": " ",
+        "MetricName": "CLKS",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "",
+        "MetricExpr": "CPU_CLK_UNHALTED.CORE_P",
+        "MetricGroup": " ",
+        "MetricName": "CLKS_P",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "",
+        "MetricExpr": "4 * CPU_CLK_UNHALTED.CORE",
+        "MetricGroup": " ",
+        "MetricName": "SLOTS",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Instructions Per Cycle",
+        "MetricExpr": "INST_RETIRED.ANY / CPU_CLK_UNHALTED.CORE",
+        "MetricGroup": " ",
+        "MetricName": "IPC",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Cycles Per Instruction",
+        "MetricExpr": "CPU_CLK_UNHALTED.CORE / INST_RETIRED.ANY",
+        "MetricGroup": " ",
+        "MetricName": "CPI",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Uops Per Instruction",
+        "MetricExpr": "UOPS_RETIRED.ALL / INST_RETIRED.ANY",
+        "MetricGroup": " ",
+        "MetricName": "UPI",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percentage of total non-speculative loads with a store forward or unknown store address block",
+        "MetricExpr": "100 * LD_BLOCKS.DATA_UNKNOWN / MEM_UOPS_RETIRED.ALL_LOADS",
+        "MetricGroup": "",
+        "MetricName": "Store_Fwd_Blocks",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percentage of total non-speculative loads with a address aliasing block",
+        "MetricExpr": "100 * LD_BLOCKS.4K_ALIAS / MEM_UOPS_RETIRED.ALL_LOADS",
+        "MetricGroup": "",
+        "MetricName": "Address_Alias_Blocks",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percentage of total non-speculative loads that are splits",
+        "MetricExpr": "100 * MEM_UOPS_RETIRED.SPLIT_LOADS / MEM_UOPS_RETIRED.ALL_LOADS",
+        "MetricGroup": "",
+        "MetricName": "Load_Splits",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Instructions per Branch (lower number means higher occurance rate)",
+        "MetricExpr": "INST_RETIRED.ANY / BR_INST_RETIRED.ALL_BRANCHES",
+        "MetricGroup": " ",
+        "MetricName": "IpBranch",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Instruction per (near) call (lower number means higher occurance rate)",
+        "MetricExpr": "INST_RETIRED.ANY / BR_INST_RETIRED.CALL",
+        "MetricGroup": " ",
+        "MetricName": "IpCall",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Instructions per Load",
+        "MetricExpr": "INST_RETIRED.ANY / MEM_UOPS_RETIRED.ALL_LOADS",
+        "MetricGroup": " ",
+        "MetricName": "IpLoad",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Instructions per Store",
+        "MetricExpr": "INST_RETIRED.ANY / MEM_UOPS_RETIRED.ALL_STORES",
+        "MetricGroup": " ",
+        "MetricName": "IpStore",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Number of Instructions per non-speculative Branch Misprediction",
+        "MetricExpr": "INST_RETIRED.ANY / BR_MISP_RETIRED.ALL_BRANCHES",
+        "MetricGroup": " ",
+        "MetricName": "IpMispredict",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Instructions per Far Branch",
+        "MetricExpr": "INST_RETIRED.ANY / ( BR_INST_RETIRED.FAR_BRANCH / 2 )",
+        "MetricGroup": " ",
+        "MetricName": "IpFarBranch",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Ratio of all branches which mispredict",
+        "MetricExpr": "BR_MISP_RETIRED.ALL_BRANCHES / BR_INST_RETIRED.ALL_BRANCHES",
+        "MetricGroup": " ",
+        "MetricName": "Branch_Mispredict_Ratio",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Ratio between Mispredicted branches and unknown branches",
+        "MetricExpr": "BR_MISP_RETIRED.ALL_BRANCHES / BACLEARS.ANY",
+        "MetricGroup": " ",
+        "MetricName": "Branch_Mispredict_to_Unknown_Branch_Ratio",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percentage of all uops which are ucode ops",
+        "MetricExpr": "100 * UOPS_RETIRED.MS / UOPS_RETIRED.ALL",
+        "MetricGroup": " ",
+        "MetricName": "Microcode_Uop_Ratio",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percentage of all uops which are FPDiv uops",
+        "MetricExpr": "100 * UOPS_RETIRED.FPDIV / UOPS_RETIRED.ALL",
+        "MetricGroup": " ",
+        "MetricName": "FPDiv_Uop_Ratio",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percentage of all uops which are IDiv uops",
+        "MetricExpr": "100 * UOPS_RETIRED.IDIV / UOPS_RETIRED.ALL",
+        "MetricGroup": " ",
+        "MetricName": "IDiv_Uop_Ratio",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percentage of all uops which are x87 uops",
+        "MetricExpr": "100 * UOPS_RETIRED.X87 / UOPS_RETIRED.ALL",
+        "MetricGroup": " ",
+        "MetricName": "X87_Uop_Ratio",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Average Frequency Utilization relative nominal frequency",
+        "MetricExpr": "CPU_CLK_UNHALTED.CORE / CPU_CLK_UNHALTED.REF_TSC",
+        "MetricGroup": " ",
+        "MetricName": "Turbo_Utilization",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Fraction of cycles spent in Kernel mode",
+        "MetricExpr": "CPU_CLK_UNHALTED.CORE_P:k / CPU_CLK_UNHALTED.CORE_P",
+        "MetricGroup": " ",
+        "MetricName": "Kernel_Utilization",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Average CPU Utilization",
+        "MetricExpr": "CPU_CLK_UNHALTED.REF_TSC / msr@tsc@",
+        "MetricGroup": " ",
+        "MetricName": "CPU_Utilization",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Cycle cost per L2 hit",
+        "MetricExpr": "MEM_BOUND_STALLS.LOAD_L2_HIT / MEM_LOAD_UOPS_RETIRED.L2_HIT",
+        "MetricGroup": " ",
+        "MetricName": "Cycles_per_Demand_Load_L2_Hit",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Cycle cost per LLC hit",
+        "MetricExpr": "MEM_BOUND_STALLS.LOAD_LLC_HIT / MEM_LOAD_UOPS_RETIRED.L3_HIT",
+        "MetricGroup": " ",
+        "MetricName": "Cycles_per_Demand_Load_L3_Hit",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Cycle cost per DRAM hit",
+        "MetricExpr": "MEM_BOUND_STALLS.LOAD_DRAM_HIT / MEM_LOAD_UOPS_RETIRED.DRAM_HIT",
+        "MetricGroup": " ",
+        "MetricName": "Cycles_per_Demand_Load_DRAM_Hit",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percent of instruction miss cost that hit in the L2",
+        "MetricExpr": "100 * MEM_BOUND_STALLS.IFETCH_L2_HIT / ( MEM_BOUND_STALLS.IFETCH )",
+        "MetricGroup": " ",
+        "MetricName": "Inst_Miss_Cost_L2Hit_Percent",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percent of instruction miss cost that hit in the L3",
+        "MetricExpr": "100 * MEM_BOUND_STALLS.IFETCH_LLC_HIT / ( MEM_BOUND_STALLS.IFETCH )",
+        "MetricGroup": " ",
+        "MetricName": "Inst_Miss_Cost_L3Hit_Percent",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Percent of instruction miss cost that hit in DRAM",
+        "MetricExpr": "100 * MEM_BOUND_STALLS.IFETCH_DRAM_HIT / ( MEM_BOUND_STALLS.IFETCH )",
+        "MetricGroup": " ",
+        "MetricName": "Inst_Miss_Cost_DRAMHit_Percent",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "load ops retired per 1000 instruction",
+        "MetricExpr": "1000 * MEM_UOPS_RETIRED.ALL_LOADS / INST_RETIRED.ANY",
+        "MetricGroup": " ",
+        "MetricName": "MemLoadPKI",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "C1 residency percent per core",
+        "MetricExpr": "(cstate_core@c1\\-residency@ / msr@tsc@) * 100",
+        "MetricGroup": "Power",
+        "MetricName": "C1_Core_Residency"
+    },
+    {
+        "BriefDescription": "C3 residency percent per core",
+        "MetricExpr": "(cstate_core@c3\\-residency@ / msr@tsc@) * 100",
+        "MetricGroup": "Power",
+        "MetricName": "C3_Core_Residency"
+    },
+    {
+        "BriefDescription": "C6 residency percent per core",
+        "MetricExpr": "(cstate_core@c6\\-residency@ / msr@tsc@) * 100",
+        "MetricGroup": "Power",
+        "MetricName": "C6_Core_Residency"
+    },
+    {
+        "BriefDescription": "C2 residency percent per package",
+        "MetricExpr": "(cstate_pkg@c2\\-residency@ / msr@tsc@) * 100",
+        "MetricGroup": "Power",
+        "MetricName": "C2_Pkg_Residency"
+    },
+    {
+        "BriefDescription": "C3 residency percent per package",
+        "MetricExpr": "(cstate_pkg@c3\\-residency@ / msr@tsc@) * 100",
+        "MetricGroup": "Power",
+        "MetricName": "C3_Pkg_Residency"
+    },
+    {
+        "BriefDescription": "C6 residency percent per package",
+        "MetricExpr": "(cstate_pkg@c6\\-residency@ / msr@tsc@) * 100",
+        "MetricGroup": "Power",
+        "MetricName": "C6_Pkg_Residency"
+    },
+    {
+        "BriefDescription": "C10 residency percent per package",
+        "MetricExpr": "(cstate_pkg@c10\\-residency@ / msr@tsc@) * 100",
+        "MetricGroup": "Power",
+        "MetricName": "C10_Pkg_Residency"
+    }
+]
