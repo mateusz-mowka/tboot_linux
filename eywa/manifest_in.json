@@ -375,7 +375,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "cse-5.17",
+            "branch": "cse-5.18",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -441,6 +441,10 @@
                 {
                     "name": "CONFIG_NFC_MICROREAD_MEI",
                     "value": "m"
+                },
+                {
+                    "name": "CONFIG_SAMPLE_INTEL_MEI ",
+                    "value": "n"
                 }
             ],
             "contributor": [
@@ -450,14 +454,14 @@
                 }
             ],
             "description": "CSE/CSME MEI driver and MEI client drivers",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "William A. Stevens",
                     "email": "William.a.stevens@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2867",
             "name": "mei",
             "repourl": "https://github.com/intel-innersource/drivers.security.cse.drivers.linux-mei-pk.git",
             "sdl_contact": [
@@ -480,7 +484,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "to_eywa_intel_ish",
