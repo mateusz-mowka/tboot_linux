@@ -4434,10 +4434,6 @@
                     "value": "y"
                 },
                 {
-                    "name": "CONFIG_FABRICS",
-                    "value": "y"
-                },
-                {
                     "name": "CONFIG_NVME_RDMA",
                     "value": "y"
                 },
