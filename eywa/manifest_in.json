@@ -4492,7 +4492,7 @@
                     "email": "nirmal.patel@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2871",
             "name": "MTLDIDs",
             "repourl": "https://github.com/franciscomunoz/os.linux.intelnext.kernel.git",
             "sdl_contact": [],
