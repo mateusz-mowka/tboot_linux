@@ -3219,14 +3219,14 @@
                 }
             ],
             "description": "Intel OOBMSM device support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Van De Groenendaal, Johan",
                     "email": "johan.van.de.groenendaal@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2869",
             "name": "oobmsm",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/debox1/linux-kernel-dev.git",
             "sdl_contact": [
@@ -3237,7 +3237,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "for-intel-next",
