@@ -2502,7 +2502,7 @@
                 }
             ],
             "description": "Enable In Field Scan device driver",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Philip Abraham",
