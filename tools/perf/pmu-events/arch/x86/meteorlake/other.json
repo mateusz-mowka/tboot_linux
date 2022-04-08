@@ -1,0 +1,1077 @@
+[
+    {
+        "BriefDescription": "Counts the number of times the Branch Target Buffer (BTB) predicted a taken branch",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xe8",
+        "EventName": "BTCLEAR.ANY",
+        "SampleAfterValue": "1000003",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of unhalted cycles a Core is blocked due to a lock In Progress issued by another core",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x63",
+        "EventName": "BUS_LOCK.BLOCKED_CYCLES",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of unhalted cycles a Core is blocked due to an Accepted lock it issued, includes both split and non-split lock cycles.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x63",
+        "EventName": "BUS_LOCK.LOCK_CYCLES",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of non-split locks such as UC locks issued by a Core (does not include cache locks)",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x63",
+        "EventName": "BUS_LOCK.NON_SPLIT_LOCKS",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of split locks issued by a Core",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x63",
+        "EventName": "BUS_LOCK.SPLIT_LOCKS",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x8",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-internal event only.  Count the number of CMP snoops issued to another core in the same module that result in a HITM response to this core",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb8",
+        "EventName": "CMP_SNOOP.HITM",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-internal event only.  Count the number of CMP snoops issued to another core in the same module",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb8",
+        "EventName": "CMP_SNOOP.ISSUED",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the L2 Prefetchers are at throttle level 0",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x32",
+        "EventName": "DYNAMIC_PREFETCH_THROTTLER.LEVEL0_SOC",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the L2 Prefetcher throttle level is at 1",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x32",
+        "EventName": "DYNAMIC_PREFETCH_THROTTLER.LEVEL1_SOC",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the L2 Prefetcher throttle level is at 2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x32",
+        "EventName": "DYNAMIC_PREFETCH_THROTTLER.LEVEL2_SOC",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the L2 Prefetcher throttle level is at 3",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x32",
+        "EventName": "DYNAMIC_PREFETCH_THROTTLER.LEVEL3_SOC",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x8",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the L2 Prefetcher throttle level is at 4",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x32",
+        "EventName": "DYNAMIC_PREFETCH_THROTTLER.LEVEL4_SOC",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x10",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the total number of cycles that decoder queue can accept bytes but fetch is stalling for reasons including but not limited to iTLB and icache miss (eg. sidedoors to frontend: BTB update, glob update, isnoop, do_snoop)",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x86",
+        "EventName": "FETCH_STALL.ANY",
+        "SampleAfterValue": "1000003",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the fetch stalls due to an ITLB miss. This is a cummulative count of cycles stalled for all ITLB misses.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x86",
+        "EventName": "FETCH_STALL.ITLB_MISS",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of core cycles during which interrupts are masked (disabled). Increments by 1 each core cycle that EFLAGS.IF is 0, regardless of whether interrupts are pending or not.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xcb",
+        "EventName": "HW_INTERRUPTS.MASKED",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of core cycles during which there are pending interrupts but interrupts are masked (disabled).",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xcb",
+        "EventName": "HW_INTERRUPTS.PENDING_AND_MASKED",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of hardware interrupts received by the processor.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xcb",
+        "EventName": "HW_INTERRUPTS.RECEIVED",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of uops executed on All Integer ports",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb3",
+        "EventName": "INT_UOPS_EXECUTED.ALL",
+        "SampleAfterValue": "1000003",
+        "UMask": "0xff",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of uops executed on a load port.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb3",
+        "EventName": "INT_UOPS_EXECUTED.LD",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of uops executed on Integer port 0",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb3",
+        "EventName": "INT_UOPS_EXECUTED.P0",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x8",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of uops executed on Integer port 1",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb3",
+        "EventName": "INT_UOPS_EXECUTED.P1",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x10",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of uops executed on Integer port 2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb3",
+        "EventName": "INT_UOPS_EXECUTED.P2",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x20",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of uops executed on Integer port 3",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb3",
+        "EventName": "INT_UOPS_EXECUTED.P3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x40",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of uops executed on a Store address port.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb3",
+        "EventName": "INT_UOPS_EXECUTED.STA",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of uops executed on an Integer store data and jump port",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb3",
+        "EventName": "INT_UOPS_EXECUTED.STD_JMP",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of LBR entries recorded. Requires LBRs to be enabled in IA32_LBR_CTL.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xe4",
+        "EventName": "LBR_INSERTS.ANY",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles in which a live lock breaker has occurred.  Using Edge detect, can count the number of occurrences of the live lock breaker.  LIVE_LOCK_BREAKER is an Intel Private event and implementation is open for negotiation.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x33",
+        "EventName": "LIVE_LOCK_BREAKER.ANY",
+        "SampleAfterValue": "1000003",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of LLC prefetches that were  throttled due to Dynamic Prefetch Throttling.  The throttle requestor/source could be from the uncore/SOC or the Dead Block Predictor. Counts on a per core basis.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x29",
+        "EventName": "LLC_PREFETCHES_THROTTLED.DPT",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of LLC prefetches throttled due to Demand Throttle Prefetcher.  DTP Global Triggered with no Local Override. Counts on a per core basis.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x29",
+        "EventName": "LLC_PREFETCHES_THROTTLED.DTP",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of LLC prefetches not throttled by DTP due to local override.  These prefetches may still be throttled due to another throttler mechanism. Counts on a per core basis.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x29",
+        "EventName": "LLC_PREFETCHES_THROTTLED.DTP_OVERRIDE",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of LLC prefetches throttled due to LLC hit rate in &amp;amp;amp;lt;insert knob name here&amp;gt;. Counts on a per core basis.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x29",
+        "EventName": "LLC_PREFETCHES_THROTTLED.HIT_RATE",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x10",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of LLC prefetches throttled due to exceeding the XQ threshold set by either XQ_THRESOLD_DTP or LLC_XQ_THRESHOLD. Counts on a per core basis.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x29",
+        "EventName": "LLC_PREFETCHES_THROTTLED.XQ_THRESH",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x8",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the Memory Bandwidth Enforcement is requested by IDI to be Zero, effectively no throttle",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2c",
+        "EventName": "MBE_THROTTLE.LEVEL0",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the Memory Bandwidth Enforcement is requested by IDI to be 10 to 12",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2c",
+        "EventName": "MBE_THROTTLE.LEVEL10_12",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x10",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the Memory Bandwidth Enforcement is requested by IDI to be 13-14",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2c",
+        "EventName": "MBE_THROTTLE.LEVEL13_14",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x20",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the Memory Bandwidth Enforcement is requested by IDI to be 15",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2c",
+        "EventName": "MBE_THROTTLE.LEVEL15",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x40",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the Memory Bandwidth Enforcement is requested by IDI to be 1 to 3.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2c",
+        "EventName": "MBE_THROTTLE.LEVEL1_3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the Memory Bandwidth Enforcement is requested by IDI to be 4 to 6.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2c",
+        "EventName": "MBE_THROTTLE.LEVEL4_6",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of cycles the Memory Bandwidth Enforcement is requested by IDI to be 7 to 9",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2c",
+        "EventName": "MBE_THROTTLE.LEVEL7_9",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x8",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Filter bit to be used in combination with the other umasks in this event.  If ThrottleFilter == 0, then the subevent MBE_THROTTLE.LEVEL[x] will increment when MBE level requested is x.  If ThrottleFilter ==1, then MBE_THROTTLE.LEVEL[x] will increment only when MBE level is x AND the uarch throttle signal is being sent.  If all umasks are set including this filter bit, 0xFF, then the count should == PMEVT.MBA_THROT_REQ.  (MBE is aka Memory Bandwidth Allocation,MBA)",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2c",
+        "EventName": "MBE_THROTTLE.THROTTLE_FILTER",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x80",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the transactions of request type and response type specified in MSR_SNOOP_RESP0",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "MODULE_SNOOP_RESP.MSR_SNOOP_RESP0",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the transactions of request type and response type specified in MSR_SNOOP_RESP1",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "MODULE_SNOOP_RESP.MSR_SNOOP_RESP1",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of transactions of the request type and response type specified in MSR_OFFCORE_RESP0.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb7",
+        "EventName": "OFFCORE_RESP.MSR_OFFCORE_RESP0",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of transactions of the request type and response type specified in MSR_OFFCORE_RESP1.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xb7",
+        "EventName": "OFFCORE_RESP.MSR_OFFCORE_RESP1",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-internal event only. Count of cycles when core RSV Stall was asserted due to any throttle request.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xce",
+        "EventName": "PMEVT.RSV_THROT_CYCLES",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x3",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-internal event only. Not for use outside of the architecture team. Counts the number of cycles a given core has requested to throttled due to MBA (Memory BW Allocation) event",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xce",
+        "EventName": "PMEVT.THROT_REQ_MBE",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-internal event only. Count of cycles when PM related throttle requests are active. Subset of sources can be masked via PMA_CR_THROTTLE_CFG[PMEVT_MASK0].\r\nNote that these events are relevant to RSVTHROT_REQ_ANY if DCF_EN_FUSE is set to 0.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xce",
+        "EventName": "PMEVT.THROT_REQ_PM0",
+        "SampleAfterValue": "1000003",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-internal event only. Count of cycles when PM related throttle requests are active. Subset of sources can be masked via PMA_CR_THROTTLE_CFG[PMEVT_MASK1].\r\nNote that these events are relevant to RSVTHROT_REQ_ANY if DCF_EN_FUSE is set to 0.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xce",
+        "EventName": "PMEVT.THROT_REQ_PM1",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of times a PT Overflow is detected.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x70",
+        "EventName": "PT_OVERFLOW.ANY",
+        "SampleAfterValue": "1000003",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of issue slots in a UMWAIT or TPAUSE instruction where no uop issues due to the instruction putting the CPU into the C0.1 activity state. For Tremont, UMWAIT and TPAUSE will only put the CPU into C0.1 activity state (not C0.2 activity state)",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x75",
+        "EventName": "SERIALIZATION.C01_MS_SCB",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number issue slots not consumed  due to a  color request for an FCW or MXCSR control register when all 4 colors (copies) are already in use.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x75",
+        "EventName": "SERIALIZATION.COLOR_STALLS",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x8",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of issue slots where no uop could issue due to an IQ scoreboard that stalls allocation until a specified older uop retires or (in the cae of jump scoreboard) executes. Commonly executed instructions with iq scoreboards include LFENCE and MFENCE",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x75",
+        "EventName": "SERIALIZATION.IQ_JEU_SCB",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of instances that the HDR -Data Seperation, a predicted wake up cycle value, was earlier than the actual incoming U2C packet time",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x37",
+        "EventName": "U2C_HDR_DATA_SEPARATION.EARLY",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of instances that the HDR -Data Seperation, a predicted wake up cycle value, was later than the actual incoming U2C packet time",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x37",
+        "EventName": "U2C_HDR_DATA_SEPARATION.LATE",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of instances that the HDR -Data Seperation, a predicted wake up cycle value, was the same as the actual incoming U2C packet time",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x37",
+        "EventName": "U2C_HDR_DATA_SEPARATION.ONTIME",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-Internal Counts the number of times a micro-break point event occurs.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x97",
+        "EventName": "UBRKPT_TRIGGER.ANY",
+        "SampleAfterValue": "1000003",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-internal event. Counts the number of times a specific micro IP address was decoded.  Only useful when setting up a custom uocde patch to track MS usage at speed.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x96",
+        "EventName": "UIP_MATCH.FIRST_UIP",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Arch-internal event. Counts the number of times a specific micro IP address was decoded.  Only useful when setting up a custom uocde patch to track MS usage at speed.",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x96",
+        "EventName": "UIP_MATCH.SECOND_UIP",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of XQ promotions",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xf4",
+        "EventName": "XQ_PROMOTION.ALL",
+        "SampleAfterValue": "1000003",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of requests that were promoted in the XQ to a demand code read",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xf4",
+        "EventName": "XQ_PROMOTION.CRDS",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of requests that were promoted in the XQ to a demand read",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xf4",
+        "EventName": "XQ_PROMOTION.DRDS",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Counts the number of requests that were promoted in the XQ to a demand RFO",
+        "Counter": "0,1,2,3",
+        "EventCode": "0xf4",
+        "EventName": "XQ_PROMOTION.RFOS",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_atom"
+    },
+    {
+        "BriefDescription": "Number of occurrences where a microcode assist is invoked by hardware.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xc1",
+        "EventName": "ASSISTS.ANY",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "100003",
+        "UMask": "0x1f",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Count all other microcode assist beyond FP, AVX_TILE_MIX and A/D assists (counted by their own sub-events). This includes assists at uop writeback like AVX* load/store (non-FP) assists, Null Assist in SNC (due to lack of FP precision format convert with FMA3x3 uarch) or assists generated by ROB (like assists to due to Missprediction for FSW register - fixed in SNC)",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xc1",
+        "EventName": "ASSISTS.HARDWARE",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "100003",
+        "UMask": "0x4",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Page access/dirty assists.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xc1",
+        "EventName": "ASSISTS.PAGE_A_D",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "100003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xc1",
+        "EventName": "ASSISTS.PAGE_FAULT",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x8",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x82",
+        "EventName": "BPU.BTCLEAR_CYCLES",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x82",
+        "EventName": "BPU.RSB_FULL",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x28",
+        "EventName": "CORE_POWER.LEVEL_BASELINE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x3",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x28",
+        "EventName": "CORE_POWER.LICENSE_0",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x28",
+        "EventName": "CORE_POWER.LICENSE_1",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x28",
+        "EventName": "CORE_POWER.LICENSE_2",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x4",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x28",
+        "EventName": "CORE_POWER.LICENSE_3",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x8",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Core cycles where the core was running in a manner where Turbo may be clipped to the Non-AVX turbo schedule.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x28",
+        "EventName": "CORE_POWER.LVL0_TURBO_LICENSE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x7",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Core cycles where the core was running in a manner where Turbo may be clipped to the AVX2 turbo schedule.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x28",
+        "EventName": "CORE_POWER.LVL1_TURBO_LICENSE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "200003",
+        "UMask": "0x18",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Hit snoop reply with data, line invalidated.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.I_FWD_FE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x20",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "HitM snoop reply with data, line invalidated.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.I_FWD_M",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x10",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Hit snoop reply without sending the data, line invalidated.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.I_HIT_FSE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Line not found snoop reply",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.MISS",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Hit snoop reply with data, line kept in Shared state.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.S_FWD_FE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x40",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "HitM snoop reply with data, line kept in Shared state",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.S_FWD_M",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x8",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Hit snoop reply without sending the data, line kept in Shared state.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.S_HIT_FSE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_core"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xb7",
+        "EventName": "EXE.MOCLEAR",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "2000003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xcb",
+        "EventName": "HW_INTERRUPTS.MASKED",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "100003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xcb",
+        "EventName": "HW_INTERRUPTS.PENDING_AND_MASKED",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "100003",
+        "UMask": "0x4",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Number of hardware interrupts received by the processor.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xcb",
+        "EventName": "HW_INTERRUPTS.RECEIVED",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "203",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts number of cache lines that are dropped and not written back to L3 as they are deemed to be less likely to be reused shortly",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2f",
+        "EventName": "IDI_MISC.WB_DOWNGRADE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x4",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "WBM2E or WBEF2E  transactions sent by the core to IDI",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2f",
+        "EventName": "IDI_MISC.WB_TO_E",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts number of cache lines that are allocated and written back to L3 with the intention that they are more likely to be reused shortly",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2f",
+        "EventName": "IDI_MISC.WB_UPGRADE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x2f",
+        "EventName": "IDI_MISC.WRITEPULL_DROP",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x10",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "A Snoop external (to core) misses L1 Instruction Cache",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x8b",
+        "EventName": "L1I_SNOOP_RESPONSE.EXT_CLEAN",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x4",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "External Snoop to L1I (all 3 caches) which Hits",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x8b",
+        "EventName": "L1I_SNOOP_RESPONSE.EXT_HIT",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x8",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Internal Snoop to L1I (all 3 caches) which misses",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x8b",
+        "EventName": "L1I_SNOOP_RESPONSE.INT_CLEAN",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Internal Snoop to L1I (all 3 caches) which Hits",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x8b",
+        "EventName": "L1I_SNOOP_RESPONSE.INT_HIT",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xe0",
+        "EventName": "MICROCODE.MODEL_SPECIFIC",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "400009",
+        "Unit": "cpu_core"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xa5",
+        "EventName": "RS_EMPTY.BAD_SPEC_ANY",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts end of periods where the Reservation Station (RS) was empty.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "CounterMask": "1",
+        "EdgeDetect": "1",
+        "EventCode": "0xa5",
+        "EventName": "RS_EMPTY.COUNT",
+        "Invert": "1",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "100003",
+        "UMask": "0x7",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Cycles when Reservation Station (RS) is empty for the thread.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xa5",
+        "EventName": "RS_EMPTY.CYCLES",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x7",
+        "Unit": "cpu_core"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xa5",
+        "EventName": "RS_EMPTY.OTHER",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x4",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xa5",
+        "EventName": "RS_EMPTY.RESOURCE",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts number of partial evictions of FB allocated for streaming loads (i.e. before all chunks for FB are read)",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x50",
+        "EventName": "STREAMING_ACCESS.PARTIAL_LOAD_EVICTIONS",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x4",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts number of partial evictions of FB allocated for streaming stores(i.e. before FB is full)",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x50",
+        "EventName": "STREAMING_ACCESS.PARTIAL_STORE_EVICTIONS",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x8",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts the number of load Software Prefetch requests that miss all on-chip caches. This account for all load sw prefetches, that is NTA, T0, T1, and T2. Each request is counted twice.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x4b",
+        "EventName": "SW_PREFETCH_MISS.LOAD",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts the number of PREFETCHW requests that miss all on-chip caches. Each request is counted twice.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x4b",
+        "EventName": "SW_PREFETCH_MISS.PREFETCHW",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xec",
+        "EventName": "THREADS_ACTIVE.IN_C0E1",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "2000003",
+        "UMask": "0x10",
+        "Unit": "cpu_core"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xec",
+        "EventName": "THREADS_ACTIVE.IN_C0E2",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "2000003",
+        "UMask": "0x20",
+        "Unit": "cpu_core"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xec",
+        "EventName": "THREADS_ACTIVE.THREAD",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "2000003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Number of software prefetch initiated page walks that were not successfully completed.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x18",
+        "EventName": "TLB_MISC.SW_PREFETCH_FAULT",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "TBD",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "CounterMask": "1",
+        "EventCode": "0x2d",
+        "EventName": "XQ.FULL_CYCLES",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Cycles with at XQ occupancy over threshold threshold set with TAP_CR_ EEC_EVENTS.THRESHOLD CR (default threshold 19).",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "CounterMask": "1",
+        "EventCode": "0x2d",
+        "EventName": "XQ.OCCUPANCY_OVER_THRESHOLD",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x2",
+        "Unit": "cpu_core"
+    }
+]
