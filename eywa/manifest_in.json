@@ -3585,7 +3585,7 @@
             ],
             "jira": "NEXT-2853",
             "name": "microcode_rollback",
-            "repourl": "  https://github.com/intel-sandbox/kernel",
+            "repourl": "https://github.com/intel-sandbox/kernel",
             "sdl_contact": [
                 {
                     "name": "Ashok Raj",
