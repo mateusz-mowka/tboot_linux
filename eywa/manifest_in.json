@@ -4202,7 +4202,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "pks-pmem-intel-next-2022-01-26",
+            "branch": "pks-pmem-for-intel-next-5.18-rc2",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -4212,9 +4212,9 @@
                 }
             ],
             "description": "PKS development targeting the v5.18 merge window",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2878",
             "name": "pks",
             "repourl": "https://github.com/intel-sandbox/iweiny-0day-linux-kernel.git",
             "sdl_contact": [
@@ -4225,7 +4225,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "intel_next",
