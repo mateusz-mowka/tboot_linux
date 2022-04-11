@@ -921,7 +921,7 @@
                 }
             ],
             "description": "EDAC for SPR and IEH for TGL",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ahmad, Annie",
@@ -934,9 +934,13 @@
                 {
                     "name": "Radjai, Amir",
                     "email": "amir.radjai@intel.com"
+                },
+                {
+                    "name": "Levy, Tomer",
+                    "email": "tomer.levy@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2875",
             "name": "edac",
             "repourl": "https://github.com/intel-sandbox/qzhuo-linux.git",
             "sdl_contact": [
@@ -947,7 +951,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "pmc_core",
