@@ -3420,9 +3420,9 @@
                 }
             ],
             "description": "MediateTek 5G WWAN device driver",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2879",
             "name": "WWAN",
             "repourl": "https://github.com/intel-innersource/drivers.wireless.wwan.drivers.mtk-5g-wwan.git",
             "sdl_contact": [
@@ -3433,7 +3433,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "dmwr-5.17-rc3",
