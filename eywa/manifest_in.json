@@ -587,7 +587,7 @@
             "last_enabled": "v5.18"
         },
         {
-            "branch": "for-eywa",
+            "branch": "for-next",
             "branch_type": "internal nonexpiring",
             "config_options": [
                 {
@@ -758,7 +758,7 @@
                 }
             ],
             "description": "LPSS/GPIO enabling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Bhaskar",
