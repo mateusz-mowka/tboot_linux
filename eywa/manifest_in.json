@@ -587,7 +587,7 @@
             "last_enabled": "v5.18"
         },
         {
-            "branch": "for-next",
+            "branch": "intel/for-next",
             "branch_type": "internal nonexpiring",
             "config_options": [
                 {
