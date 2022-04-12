@@ -2163,7 +2163,7 @@
                 }
             ],
             "description": "TDX KVM support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Isaku Yamahata",
