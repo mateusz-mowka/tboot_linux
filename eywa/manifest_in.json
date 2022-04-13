@@ -106,7 +106,7 @@
             ],
             "jira": "NEXT-2847",
             "name": "branding",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel.git",
             "sdl_contact": [
                 {
                     "name": "Charles Prestopine",
@@ -4776,6 +4776,37 @@
                 {
                     "name": "Rajvi Jingar",
                     "email": "rajvi.jingar@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
+        },
+        {
+            "branch": "r8152_wakeup_debug",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "description": "Custom intel-next logo on bootup",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "jira": "NEXT-2888",
+            "name": "r8152_dyndbg",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel.git",
+            "sdl_contact": [
+                {
+                    "name": "Charles Prestopine",
+                    "email": "charles.d.prestopine@intel.com"
                 }
             ],
             "status": "public",
