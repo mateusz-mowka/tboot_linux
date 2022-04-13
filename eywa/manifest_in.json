@@ -1517,7 +1517,7 @@
             "last_enabled": "v5.13"
         },
         {
-            "branch": "svos-next-pull-5.17",
+            "branch": "svos-next-pull-5.18",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -1527,27 +1527,23 @@
                 {
                     "name": "CONFIG_SVFS_ACPI",
                     "value": "n"
-                },
-                {
-                    "name": "CONFIG_SVOS_RAS_ERRORCORRECT",
-                    "value": "n"
                 }
             ],
             "contributor": [
                 {
-                    "name": "Eric D Fagerburg",
-                    "email": "eric.d.fagerburg@intel.com"
+                    "name": "Adam Preble",
+                    "email": "adam.c.preble@intel.com"
                 }
             ],
-            "description": "SVOS Kernel/Driver Changes for v5.15",
-            "enabled": false,
+            "description": "SVOS Kernel/Driver Changes for v5.18",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Tom Stonecypher",
                     "email": "tom.stonecypher@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2891",
             "name": "SVOS Kernel",
             "repourl": "ssh://git@gitlab.devtools.intel.com:29418/svos/sv/kernel/svos_next",
             "sdl_contact": [
@@ -1558,7 +1554,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "rneri/hybrid-for-intel-next",
