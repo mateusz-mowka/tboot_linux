@@ -2113,7 +2113,7 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "ac1010a2dd1835d7cb7c00e23f185331dbcbf5e3",
             "last_enabled": "v5.18"
         },
         {
