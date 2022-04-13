@@ -344,37 +344,6 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "tdx_kvm_kvm_ipiv_fixup",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Fixup between amx_tmul_kvm and tdx_kvm",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "fixup_tdx_kvm_ipiv_kvm_fixup",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.17"
-        },
-        {
             "branch": "cse-5.18",
             "branch_type": "expiring",
             "config_options": [
@@ -1663,42 +1632,6 @@
             "last_enabled": "v5.12"
         },
         {
-            "branch": "sle_support_v5.14",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_X86_SLE_SUPPORT",
-                    "value": "n"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Workarounds for the SLE emulation environment used by validation teams for 5.14",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "kyle.d.pelton@intel.com",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "Workarounds for SLE",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.14"
-        },
-        {
             "branch": "lass-5.17-rc3",
             "branch_type": "expiring",
             "config_options": [],
@@ -2296,68 +2229,6 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "fixups",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Reverts 5befc7c26e5a nvme: implement non-mdts command limits which is breaking simics nvme driver",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "fixups",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.15"
-        },
-        {
-            "branch": "sgx-bootless-fixup",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "resolve merge marker conflict",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "sgx-bootless-fixup",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.16"
-        },
-        {
             "branch": "sgx-bootless-next-v5.16-rc2",
             "branch_type": "expiring",
             "config_options": [],
@@ -2736,37 +2607,6 @@
             "last_enabled": "v5.13"
         },
         {
-            "branch": "fixup_kvm_features_kvm_tdx",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Temporary fixup patch for kvm_features/TDX-kvm",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "fixup_kvm_features_tdx_kvm",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.12"
-        },
-        {
             "branch": "svos-next-tdx-pull-5.16",
             "branch_type": "expiring",
             "config_options": [
@@ -2895,130 +2735,6 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "idxd_fixup_cet",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Fixup between cet and idxd branches",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "idxd_fixup_cet",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.12"
-        },
-        {
-            "branch": "idxd_fixup_tdx_kvm",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Fixup between idxd and tdx_kvm branches",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "idxd_fixup_tdx_kvm",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.presopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.12"
-        },
-        {
-            "branch": "idxd_fixup_iommu",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Fixup between idxd and iommu branches",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "idxd_fixup_iommu",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.12"
-        },
-        {
-            "branch": "idxd_iommu_vtd_fixup",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Reverts 4565cd4effe7 Disable SVM when ATS/PRI/PASID are not enabled in the device",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.petlon@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "idxd_iommu_vtd_fixup",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.12"
-        },
-        {
             "branch": "amx-for-intel-next-5-12-rc2",
             "branch_type": "expiring",
             "config_options": [],
@@ -3043,37 +2759,6 @@
                 {
                     "name": "Jing Liu",
                     "email": "jing2.liu@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.12"
-        },
-        {
-            "branch": "fixup_tdx_kvm_amx_kvm",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Fixup between amx_tmul_kvm and tdx_kvm",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "fixup_tdx_kvm_amx_kvm",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
                 }
             ],
             "status": "intel confidential",
@@ -3789,37 +3474,6 @@
                 {
                     "name": "Kai Svahn",
                     "email": "kai.svahn@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.15"
-        },
-        {
-            "branch": "idxd_fixup",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Fixes build error in idxd introduced by dma-next branch.",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.petlon@intel.com"
-                }
-            ],
-            "jira": "",
-            "name": "idxd_fixup",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/otc-power-management-enabling-team/otc-power-kernel.git",
-            "sdl_contact": [
-                {
-                    "name": "Charles Prestopine",
-                    "email": "charles.d.prestopine@intel.com"
                 }
             ],
             "status": "intel confidential",
