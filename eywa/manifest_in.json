@@ -4442,7 +4442,7 @@
                     "email": "kyle.d.pelton@intel.com"
                 }
             ],
-            "description": "Custom intel-next logo on bootup",
+            "description": "Small dyndebug patch for r8152 usb net driver to debug issues with spurious wakeups.",
             "enabled": true,
             "ip_owner": [
                 {
