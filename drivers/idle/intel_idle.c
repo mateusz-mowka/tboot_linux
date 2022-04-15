@@ -1443,6 +1443,7 @@ static const struct x86_cpu_id intel_idle_ids[] __initconst = {
 	X86_MATCH_INTEL_FAM6_MODEL(ICELAKE_D,		&idle_cpu_icx),
 	X86_MATCH_INTEL_FAM6_MODEL(ALDERLAKE,		&idle_cpu_adl),
 	X86_MATCH_INTEL_FAM6_MODEL(ALDERLAKE_L,		&idle_cpu_adl_l),
+	X86_MATCH_INTEL_FAM6_MODEL(ALDERLAKE_N,		&idle_cpu_adl_l),
 	X86_MATCH_INTEL_FAM6_MODEL(RAPTORLAKE,		&idle_cpu_rpl),
 	X86_MATCH_INTEL_FAM6_MODEL(RAPTORLAKE_P,	&idle_cpu_rpl),
 	X86_MATCH_INTEL_FAM6_MODEL(METEORLAKE,		&idle_cpu_mtl),
