@@ -3269,6 +3269,7 @@ out:
 }
 
 #define WAKE_ANY (WAKE_PHY | WAKE_MAGIC | WAKE_UCAST | WAKE_BCAST | WAKE_MCAST)
+#define WAKE_DEFAULT (WAKE_PHY <<5)
 
 static u32 __rtl_get_wol(struct r8152 *tp)
 {
@@ -9717,10 +9718,12 @@ static int rtl8152_probe(struct usb_interface *intf,
 
 	intf->needs_remote_wakeup = 1;
 
-	if (!rtl_can_wakeup(tp))
+	if (!rtl_can_wakeup(tp)) {
 		__rtl_set_wol(tp, 0);
-	else
+	} else {
+		__rtl_set_wol(tp, WAKE_DEFAULT);
 		tp->saved_wolopts = __rtl_get_wol(tp);
+	}
 
 	tp->rtl_ops.init(tp);
 #if IS_BUILTIN(CONFIG_USB_RTL8152)
