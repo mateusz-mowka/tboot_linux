@@ -3852,7 +3852,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "pks-pmem-for-intel-next-5.18-rc2",
+            "branch": "pks-pmem-for-intel-next-5.18-rc3",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
