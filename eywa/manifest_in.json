@@ -4462,6 +4462,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.18"
+        },
+        {
+            "branch": "r8152_wol_fix",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "description": "r8152 usb NIC wake on lan fix",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "jira": "NEXT-2896",
+            "name": "r8152_wol_fix",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
+            "sdl_contact": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
         }
     ]
 }
