@@ -1572,7 +1572,7 @@
                 }
             ],
             "description": "Support for hybrid CPUs and Hardware Feedback Interface",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Eliezer Weissman",
