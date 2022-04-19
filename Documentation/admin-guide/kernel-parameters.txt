@@ -5970,6 +5970,12 @@
 
 	tdfx=		[HW,DRM]
 
+	tdx_init_rsvd_mem
+			[X86-64, TDX]
+			Build TDMR/PAMT for memory range reserved by "mem="
+			when initializing TDX module so that adding a page
+			in reserved memory range to TDX module or TD won't fail.
+
 	test_suspend=	[SUSPEND]
 			Format: { "mem" | "standby" | "freeze" }[,N]
 			Specify "mem" (for Suspend-to-RAM) or "standby" (for

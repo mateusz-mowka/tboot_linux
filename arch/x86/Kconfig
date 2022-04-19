@@ -1961,6 +1961,13 @@ config INTEL_TDX_HOST
 
 	  If unsure, say N.
 
+config INTEL_TDX_HOST_OLD
+	bool "Intel Trust Domain Externsions (TDX) host support (old)"
+	default n
+	depends on INTEL_TDX_HOST
+	help
+	  Initialize TDX module at boot time.
+
 config INTEL_TDX_HOST_DEBUG
 	tristate "TDX host debugfs"
 	default n
