@@ -2710,14 +2710,14 @@
                 }
             ],
             "description": "Intel combined Accelerator driver (DSA & IAX)",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajesh Pamujula",
                     "email": "rajesh.s.pamujula@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2899",
             "name": "idxd",
             "repourl": "https://github.com/intel-sandbox/idxd.git",
             "sdl_contact": [
@@ -2728,7 +2728,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "amx-for-intel-next-5-12-rc2",
