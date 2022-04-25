@@ -26,6 +26,7 @@
  *		_G	- parts with extra graphics on
  *		_X	- regular server parts
  *		_D	- micro server parts
+ *		_N,_P	- other mobile parts
  *
  *		Historical OPTDIFFs:
  *
@@ -107,8 +108,6 @@
 
 #define INTEL_FAM6_GRANITERAPIDS_X	0xAD
 
-#define INTEL_FAM6_SIERRAFOREST_X	0xAF
-
 #define INTEL_FAM6_ALDERLAKE		0x97	/* Golden Cove / Gracemont */
 #define INTEL_FAM6_ALDERLAKE_L		0x9A	/* Golden Cove / Gracemont */
 <<<<<<<
@@ -123,6 +122,8 @@
 #define INTEL_FAM6_METEORLAKE_X		0xAC
 #define INTEL_FAM6_METEORLAKE_L		0xAA
 #define INTEL_FAM6_METEORLAKE		0xAB
+
+#define INTEL_FAM6_LUNARLAKE_M		0xBD	/* Lion Cove / Skymont */
 
 #define INTEL_FAM6_METEORLAKE_X		0xAC
 #define INTEL_FAM6_METEORLAKE_L		0xAA
@@ -154,6 +155,8 @@
 #define INTEL_FAM6_ATOM_TREMONT_D	0x86 /* Jacobsville */
 #define INTEL_FAM6_ATOM_TREMONT		0x96 /* Elkhart Lake */
 #define INTEL_FAM6_ATOM_TREMONT_L	0x9C /* Jasper Lake */
+
+#define INTEL_FAM6_ATOM_CRESTMONT_D	0xB6 /* Grand Ridge */
 
 /* Xeon Phi */
 
