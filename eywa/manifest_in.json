@@ -2358,7 +2358,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "intel_nxt_v518",
+            "branch": "next-5.18-ifs",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -2368,8 +2368,8 @@
             ],
             "contributor": [
                 {
-                    "name": "Jithu Joseph",
-                    "email": "jithu.joseph@intel.com"
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
                 }
             ],
             "description": "Enable In Field Scan device driver",
@@ -2382,7 +2382,7 @@
             ],
             "jira": "NEXT-2872",
             "name": "In Field Scan ",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/kyungmin/iommu.git",
+            "repourl": "https://github.com/intel-sandbox/agluck-linux.git",
             "sdl_contact": [
                 {
                     "name": "Ashok Raj",
