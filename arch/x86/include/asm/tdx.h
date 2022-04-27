@@ -147,6 +147,23 @@ struct tdsysinfo_struct {
 	};
 } __packed __aligned(TDSYSINFO_STRUCT_ALIGNMENT);
 
+/* TDX module update request */
+struct tmu_req {
+	const void *module;	/* Pointer to TDX module binary */
+	const void *signature;	/* Pointer to TDX module signature struct */
+	int module_size;
+	int signature_size;
+};
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+int tdx_module_update(const struct tmu_req *req);
+#else /* !CONFIG_INTEL_TDX_MODULE_UPDATE */
+static inline int tdx_module_update(const struct tmu_req *req)
+{
+	return -EOPNOTSUPP;
+}
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
+
 bool platform_tdx_enabled(void);
 int tdx_init(void);
 const struct tdsysinfo_struct *tdx_get_sysinfo(void);

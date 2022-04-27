@@ -1899,3 +1899,11 @@ static void tdx_module_sysfs_deinit(void)
 	sysfs_registered = false;
 }
 #endif
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+int tdx_module_update(const struct tmu_req *req)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tdx_module_update);
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
