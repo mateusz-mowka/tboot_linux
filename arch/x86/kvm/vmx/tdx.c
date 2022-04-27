@@ -31,10 +31,11 @@
 static u64 hkid_mask __ro_after_init;
 static u8 hkid_start_pos __ro_after_init;
 
-/* Protect created_tds and tdx_in_update */
+/* Protect 3 variables right below */
 static DEFINE_SPINLOCK(tdx_update_lock);
 static unsigned int created_tds;
 static bool tdx_in_update;
+static RAW_NOTIFIER_HEAD(tdx_update_chain);
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
 /* Fake device for request_firmware */
@@ -250,6 +251,62 @@ static inline bool is_td_created(struct kvm_tdx *kvm_tdx)
 	return kvm_tdx->tdr.added;
 }
 
+#define TDX_UPDATE_START	0
+#define TDX_UPDATE_END		1
+
+static int tdx_update_notifier_call(struct notifier_block *nb,
+				    unsigned long action, void *data)
+{
+	struct vcpu_tdx *tdx = container_of(nb, struct vcpu_tdx, update_nb);
+
+	if (action == TDX_UPDATE_START) {
+		kvm_make_request(KVM_REQ_TDX_UPDATE, &tdx->vcpu);
+		kvm_vcpu_kick(&tdx->vcpu);
+	} else if (action == TDX_UPDATE_END) {
+		kvm_clear_request(KVM_REQ_TDX_UPDATE, &tdx->vcpu);
+	} else {
+		WARN_ON_ONCE(1);
+	}
+
+	return NOTIFY_OK;
+}
+
+static int register_tdx_update(struct notifier_block *nb)
+{
+	int ret;
+
+	spin_lock(&tdx_update_lock);
+	ret = raw_notifier_chain_register(&tdx_update_chain, nb);
+	if (!ret && tdx_in_update)
+		tdx_update_notifier_call(nb, TDX_UPDATE_START, NULL);
+	spin_unlock(&tdx_update_lock);
+	return ret;
+}
+
+static int unregister_tdx_update(struct notifier_block *nb)
+{
+	int ret;
+
+	spin_lock(&tdx_update_lock);
+	ret = raw_notifier_chain_unregister(&tdx_update_chain, nb);
+	if (!ret && tdx_in_update)
+		tdx_update_notifier_call(nb, TDX_UPDATE_END, NULL);
+	spin_unlock(&tdx_update_lock);
+	return ret;
+}
+
+int tdx_update_notifier_call_chain(int update)
+{
+	int ret;
+
+	if (update != TDX_UPDATE_START && update != TDX_UPDATE_END)
+		return -EINVAL;
+
+	ret = raw_notifier_call_chain(&tdx_update_chain, update, NULL);
+
+	return notifier_to_errno(ret);
+}
+
 static inline int created_tds_inc(void)
 {
 	int ret = 0;
@@ -282,6 +339,7 @@ static inline unsigned int td_creation_block(void)
 
 	spin_lock(&tdx_update_lock);
 	tdx_in_update = true;
+	WARN_ON_ONCE(tdx_update_notifier_call_chain(TDX_UPDATE_START));
 	ret = created_tds;
 	spin_unlock(&tdx_update_lock);
 
@@ -292,6 +350,7 @@ static inline void td_creation_unblock(void)
 {
 	spin_lock(&tdx_update_lock);
 	tdx_in_update = false;
+	WARN_ON_ONCE(tdx_update_notifier_call_chain(TDX_UPDATE_END));
 	spin_unlock(&tdx_update_lock);
 }
 
@@ -860,6 +919,9 @@ int tdx_vcpu_create(struct kvm_vcpu *vcpu)
 	tdx->host_state_need_save = true;
 	tdx->host_state_need_restore = false;
 
+	tdx->update_nb.notifier_call = tdx_update_notifier_call;
+	WARN_ON(register_tdx_update(&tdx->update_nb));
+
 	return 0;
 
 free_tdvpx:
@@ -994,6 +1056,7 @@ void tdx_vcpu_free(struct kvm_vcpu *vcpu)
 	 */
 	tdx_flush_vp_on_cpu(vcpu);
 	WARN_ON(vcpu->cpu != -1);
+	unregister_tdx_update(&tdx->update_nb);
 }
 
 void tdx_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)

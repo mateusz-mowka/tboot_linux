@@ -10770,6 +10770,10 @@ static int vcpu_run(struct kvm_vcpu *vcpu)
 			break;
 		}
 
+		/* Kick vCPUs out of KVM_RUN ioctl. */
+		if (kvm_test_request(KVM_REQ_TDX_UPDATE, vcpu))
+			return -EAGAIN;
+
 		if (__xfer_to_guest_mode_work_pending()) {
 			kvm_vcpu_srcu_read_unlock(vcpu);
 			r = xfer_to_guest_mode_handle_work(vcpu);
@@ -12714,6 +12718,9 @@ static inline bool kvm_vcpu_has_events(struct kvm_vcpu *vcpu)
 		return true;
 
 	if (kvm_test_request(KVM_REQ_TRIPLE_FAULT, vcpu))
+		return true;
+
+	if (kvm_test_request(KVM_REQ_TDX_UPDATE, vcpu))
 		return true;
 
 	return false;

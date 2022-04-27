@@ -132,6 +132,8 @@ struct vcpu_tdx {
 
 	struct list_head cpu_list;
 
+	struct notifier_block update_nb;
+
 	union {
 		struct {
 			union {
