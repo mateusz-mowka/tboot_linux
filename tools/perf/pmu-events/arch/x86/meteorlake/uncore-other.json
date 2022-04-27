@@ -1,0 +1,1387 @@
+[
+    {
+        "BriefDescription": "A2F Rsp Opcode Monitoring; Umask decides the opcode to monitor; Compare event",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_UFIBRIDGE_A2F_RSP_OPCODE_MONITORING",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "F2A Req Opcode Monitoring; Umask decides the opcode to monitor; Compare Event",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1E",
+        "EventName": "UNC_UFIBRIDGE_F2A_REQ_OPCODE_MONITORING",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "F2A Rsp Opcode Monitoring; Umask decides the opcode to monitor; Compare Event",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1F",
+        "EventName": "UNC_UFIBRIDGE_F2A_RSP_OPCODE_MONITORING",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC1 Occupancy Count; Umask value will vary",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OCCUPANCY_COUNT_VC1",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC2 Occupancy Count; Umask value will vary",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x4",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OCCUPANCY_COUNT_VC2",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC3 Occupancy Count; Umask value will vary",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x5",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OCCUPANCY_COUNT_VC3",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Rsp VC0 Occupancy Count; Umask value will vary",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X8",
+        "EventName": "UNC_UFIBRIDGE_A2F_RSP_OCCUPANCY_COUNT_VC0",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Data VC0 Occupancy Count; Umask value will vary",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xB",
+        "EventName": "UNC_UFIBRIDGE_A2F_DATA_OCCUPANCY_COUNT_VC0",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Count Local Clockticks",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1",
+        "EventName": "UNC_UFIBRIDGE_COUNT_LOCAL_CLOCKTICKS",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "ItoMWr opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_RFO",
+        "PerPkg": "1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC0 Enqueue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x6",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_ENQUEUE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC0 Dequeue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_DEQUEUE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Rsp VC0 Enqueue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X9",
+        "EventName": "UNC_UFIBRIDGE_A2F_RSP_ENQUEUE_VC0",
+        "PerPkg": "1",
+        "UMask": "0X1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Rsp VC0 Dequeue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0XA",
+        "EventName": "UNC_UFIBRIDGE_A2F_RSP_DEQUEUE_VC0",
+        "PerPkg": "1",
+        "UMask": "0X1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Data VC0 Enqueue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xC",
+        "EventName": "UNC_UFIBRIDGE_A2F_DATA_ENQUEUE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Data VC0 Dequeue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xD",
+        "EventName": "UNC_UFIBRIDGE_A2F_DATA_DEQUEUE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Full VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_FULL_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Rsp_Full VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xF",
+        "EventName": "UNC_UFIBRIDGE_A2F_RSP_FULL_VC0",
+        "PerPkg": "1",
+        "UMask": "0X1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Empty VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_EMPTY_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Rsp_Empty VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_UFIBRIDGE_A2F_RSP_EMPTY_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Data_Empty VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x13",
+        "EventName": "UNC_UFIBRIDGE_A2F_DATA_EMPTY_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Number of A2F coherent requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x14",
+        "EventName": "UNC_UFIBRIDGE_NUMBER_OF_A2F_COHERENT_REQ",
+        "PerPkg": "1",
+        "UMask": "0X1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Number of F2A snoops received",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x15",
+        "EventName": "UNC_UFIBRIDGE_NUMBER_OF_F2A_Snoops_REQ",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req NoC Credit Not Available VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_NOC_CREDIT_NOT_AVAILABLE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Rsp NoC Credit Not Available VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x17",
+        "EventName": "UNC_UFIBRIDGE_A2F_RSP_NOC_CREDIT_NOT_AVAILABLE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Data NoC Credit Not Available VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x18",
+        "EventName": "UNC_UFIBRIDGE_A2F_DATA_NOC_CREDIT_NOT_AVAILABLE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "F2A Req Host credit not available VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x19",
+        "EventName": "UNC_UFIBRIDGE_F2A_REQ_HOST_CREDIT_NOT_AVAILABLE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "F2A Rsp Host credit not available VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1A",
+        "EventName": "UNC_UFIBRIDGE_F2A_RSP_HOST_CREDIT_NOT_AVAILABLE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "F2A Data Host credit not available VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1B",
+        "EventName": "UNC_UFIBRIDGE_F2A_DATA_HOST_CREDIT_NOT_AVAILABLE_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Non fatal errors",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x20",
+        "EventName": "UNC_UFIBRIDGE_NON_FATAL_ERRORS",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "GO messages",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x21",
+        "EventName": "UNC_UFIBRIDGE_IDI_F2A_RSP_GO_MSGS",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Rsp Hit messages",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X22",
+        "EventName": "UNC_UFIBRIDGE_IDI_A2F_RSP_HIT_MSGS",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "No od Go-ack insertions",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X23",
+        "EventName": "UNC_UFIBRIDGE_IDI_A2F_RSP_GO_ACK_INSERTIONS",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F request latency",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X24",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_LATENCY",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F request latency compare hit",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x25",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_LATENCY_COMPARE_HIT",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req Opcode Monitoring; Umask decides the opcode to monitor; Compare event",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_CLFLUSH",
+        "PerPkg": "1",
+        "UMask": "0x18",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "FSRDCURR opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_FSRDCURR",
+        "PerPkg": "1",
+        "UMask": "0x1D",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC1 Enqueue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x6",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_ENQUEUE_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC1 Dequeue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_DEQUEUE_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Full VC1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_FULL_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Data_Full VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_UFIBRIDGE_A2F_DATA_FULL_VC0",
+        "PerPkg": "1",
+        "UMask": "0X2",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Empty VC1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_EMPTY_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Number of A2F non-coherent requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x14",
+        "EventName": "UNC_UFIBRIDGE_NUMBER_OF_A2F_NONCOHERENT_REQ",
+        "PerPkg": "1",
+        "UMask": "0X2",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req NoC Credit Not Available VC1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_NOC_CREDIT_NOT_AVAILABLE_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "fatal errors",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x20",
+        "EventName": "UNC_UFIBRIDGE_FATAL_ERRORS",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "FSRDCURRPTL opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_FSRDCURRPTL",
+        "PerPkg": "1",
+        "UMask": "0x3D",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "WiLPTL opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_WILPTL",
+        "PerPkg": "1",
+        "UMask": "0x3F",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC2 Enqueue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x6",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_ENQUEUE_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC2 Dequeue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_DEQUEUE_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Full VC2",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_FULL_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Empty VC2",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_EMPTY_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Number of A2F mbox(opgroup = 11) requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x14",
+        "EventName": "UNC_UFIBRIDGE_NUMBER_OF_A2F_MBOX_REQ",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req NoC Credit Not Available VC2",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_NOC_CREDIT_NOT_AVAILABLE_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "secure errors",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x20",
+        "EventName": "UNC_UFIBRIDGE_SECURE_ERRORS",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC3 Enqueue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x6",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_ENQUEUE_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC3 Dequeue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_DEQUEUE_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Full VC3",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_FULL_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Empty VC3",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_EMPTY_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Number of A2F 32B requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x14",
+        "EventName": "UNC_UFIBRIDGE_NUMBER_OF_A2F_32B_REQ",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req NoC Credit Not Available VC3",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_NOC_CREDIT_NOT_AVAILABLE_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "Cache flush opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_I2MWr",
+        "PerPkg": "1",
+        "UMask": "0x9",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "RFO opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_SPECI2M",
+        "PerPkg": "1",
+        "UMask": "0xA",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "WcilF opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_WCILF",
+        "PerPkg": "1",
+        "UMask": "0xC",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "WCiL opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_WCIL",
+        "PerPkg": "1",
+        "UMask": "0xD",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC All Enqueue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x6",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_ENQUEUE_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req VC All Dequeue",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_DEQUEUE_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Full VC All",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_FULL_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F_Req_Empty VC All",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_EMPTY_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "A2F Req NoC Credit Not Available VC All",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_NOC_CREDIT_NOT_AVAILABLE_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "WiL opcode",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_UFIBRIDGE_A2F_REQ_OPCODE_MONITORING_WIL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "UFIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC0 read completion command FIFO occupancy count",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x14",
+        "EventName": "UNC_CMIBRIDGE_RD_CPL_FIFO_OCCUPANCY_COUNT_VC0",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC1 read completion command FIFO occupancy count",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x15",
+        "EventName": "UNC_CMIBRIDGE_RD_CPL_FIFO_OCCUPANCY_COUNT_VC1",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC2 read completion command FIFO occupancy count",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_CMIBRIDGE_RD_CPL_FIFO_OCCUPANCY_COUNT_VC2",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC3 read completion command FIFO occupancy count",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X17",
+        "EventName": "UNC_CMIBRIDGE_RD_CPL_FIFO_OCCUPANCY_COUNT_VC3",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC0 read completion data command FIFO occupancy count",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X18",
+        "EventName": "UNC_CMIBRIDGE_RD_CPL_DATA_FIFO_OCCUPANCY_COUNT_VC0",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC1 read completion data command FIFO occupancy count",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X19",
+        "EventName": "UNC_CMIBRIDGE_RD_CPL_DATA_FIFO_OCCUPANCY_COUNT_VC1",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC2 read completion data command FIFO occupancy count",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X1A",
+        "EventName": "UNC_CMIBRIDGE_RD_CPL_DATA_FIFO_OCCUPANCY_COUNT_VC2",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC3 read completion data command FIFO occupancy count",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X1B",
+        "EventName": "UNC_CMIBRIDGE_RD_CPL_DATA_FIFO_OCCUPANCY_COUNT_VC3",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Count Local Clockticks",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1",
+        "EventName": "UNC_CMIBRIDGE_COUNT_LOCAL_CLOCKTICKS",
+        "PerPkg": "1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC0 read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_READ_REQUESTS_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC0 non-posted read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_NON_POSTED_READ_REQUESTS_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Response channel - valid VC0 response",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x4",
+        "EventName": "UNC_CMIBRIDGE_VALID_RSP_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Read completion channel - valid read completion dat VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x5",
+        "EventName": "UNC_CMIBRIDGE_VALID_READ_CPL_DATA_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "unable to send valid write request due to lack of credits VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_CMIBRIDGE_INVALID_WRITE_REQ_DUE_TO_LACK_OF_CREDITS_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Request channel - read requests stalled",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x8",
+        "EventName": "UNC_CMIBRIDGE_READ_REQS_STALLED",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Request channel - Number of 32B transactions VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x9",
+        "EventName": "UNC_CMIBRIDGE_32B_REQ_LEN_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC0 read completion buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_EMPTY_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC0 read completion buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xF",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_FULL_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC0 read completion data buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_EMPTY_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC0 read completion data buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_FULL_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC0 response buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X12",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_EMPTY_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC0 response buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X13",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_FULL_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Interleaved transactions VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CMIBRIDGE_INTERLEAVED_TRANSACTIONS_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Non- Interleaved transactions VC0",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CMIBRIDGE_NON_INTERLEAVED_TRANSACTIONS_VC0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC0 write requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_WRITE_REQUESTS_VC0",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC1 read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_READ_REQUESTS_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC1 non-posted read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_NON_POSTED_READ_REQUESTS_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Response channel - valid VC1 response",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x4",
+        "EventName": "UNC_CMIBRIDGE_VALID_RSP_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Read completion channel - valid read completion dat VC1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x5",
+        "EventName": "UNC_CMIBRIDGE_VALID_READ_CPL_DATA_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "unable to send valid write request due to lack of credits VC1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_CMIBRIDGE_INVALID_WRITE_REQ_DUE_TO_LACK_OF_CREDITS_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Request channel - write requests stalled",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x8",
+        "EventName": "UNC_CMIBRIDGE_WRITE_REQS_STALLED",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Request channel - Number of 32B transactions VC1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x9",
+        "EventName": "UNC_CMIBRIDGE_32B_REQ_LEN_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC1 read completion buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_EMPTY_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC1 read completion buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xF",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_FULL_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC1 read completion data buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_EMPTY_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC1 read completion data buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_FULL_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC1 response buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X12",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_EMPTY_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC1 response buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X13",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_FULL_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Interleaved transactions VC1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CMIBRIDGE_INTERLEAVED_TRANSACTIONS_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Non- Interleaved transactions VC1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CMIBRIDGE_NON_INTERLEAVED_TRANSACTIONS_VC1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC1 write requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_WRITE_REQUESTS_VC1",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC2 read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_READ_REQUESTS_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC2 non-posted read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_NON_POSTED_READ_REQUESTS_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Response channel - valid VC2 response",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x4",
+        "EventName": "UNC_CMIBRIDGE_VALID_RSP_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Read completion channel - valid read completion dat VC2",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x5",
+        "EventName": "UNC_CMIBRIDGE_VALID_READ_CPL_DATA_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "unable to send valid write request due to lack of credits VC2",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_CMIBRIDGE_INVALID_WRITE_REQ_DUE_TO_LACK_OF_CREDITS_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Request channel - Number of 32B transactions VC2",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x9",
+        "EventName": "UNC_CMIBRIDGE_32B_REQ_LEN_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC2 read completion buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_EMPTY_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC2 read completion buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xF",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_FULL_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC2 read completion data buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_EMPTY_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC2 read completion data buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_FULL_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC2 response buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X12",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_EMPTY_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC2 response buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X13",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_FULL_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Interleaved transactions VC2",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CMIBRIDGE_INTERLEAVED_TRANSACTIONS_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Non- Interleaved transactions VC2",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CMIBRIDGE_NON_INTERLEAVED_TRANSACTIONS_VC2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC2 write requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_WRITE_REQUESTS_VC2",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC3 read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_READ_REQUESTS_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC3 non-postedread requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_NON_POSTED_READ_REQUESTS_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Response channel - valid VC3 response",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x4",
+        "EventName": "UNC_CMIBRIDGE_VALID_RSP_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Read completion channel - valid read completion dat VC3",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x5",
+        "EventName": "UNC_CMIBRIDGE_VALID_READ_CPL_DATA_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "unable to send valid write request due to lack of credits VC3",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_CMIBRIDGE_INVALID_WRITE_REQ_DUE_TO_LACK_OF_CREDITS_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Request channel - Number of 32B transactions VC3",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x9",
+        "EventName": "UNC_CMIBRIDGE_32B_REQ_LEN_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC3 read completion buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_EMPTY_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC3 read completion buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xF",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_FULL_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC3 read completion data buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_EMPTY_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC3 read completion data buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_FULL_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC3 response buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X12",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_EMPTY_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC3 response buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X13",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_FULL_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Interleaved transactions VC3",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CMIBRIDGE_INTERLEAVED_TRANSACTIONS_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Non- Interleaved transactions VC3",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CMIBRIDGE_NON_INTERLEAVED_TRANSACTIONS_VC3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC3 write requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_WRITE_REQUESTS_VC3",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC all read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_READ_REQUESTS_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC all non-posted read requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_NON_POSTED_READ_REQUESTS_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Response channel - valid VC All response",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x4",
+        "EventName": "UNC_CMIBRIDGE_VALID_RSP_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Read completion channel - valid read completion dat VC All",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x5",
+        "EventName": "UNC_CMIBRIDGE_VALID_READ_CPL_DATA_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "unable to send valid write request due to lack of credits VC All",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x7",
+        "EventName": "UNC_CMIBRIDGE_INVALID_WRITE_REQ_DUE_TO_LACK_OF_CREDITS_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Request channel - Number of 32B transactions VC All",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x9",
+        "EventName": "UNC_CMIBRIDGE_32B_REQ_LEN_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC All read completion buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xE",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_EMPTY_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC All read completion buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0xF",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_FIFO_FULL_VC4",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC All read completion data buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X10",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_EMPTY_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC All read completion data buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_CMIBRIDGE_READ_CPL_DATA_FIFO_FULL_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC All response buffer empty",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X12",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_EMPTY_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "VC All response buffer full",
+        "CounterType": "PGMABLE",
+        "EventCode": "0X13",
+        "EventName": "UNC_CMIBRIDGE_RSP_FIFO_FULL_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Interleaved transactions VC All",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CMIBRIDGE_INTERLEAVED_TRANSACTIONS_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Non- Interleaved transactions VC4",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CMIBRIDGE_NON_INTERLEAVED_TRANSACTIONS_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xF",
+        "Unit": "CMIBRIDGE"
+    },
+    {
+        "BriefDescription": "Total number of VC all write requests",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x2",
+        "EventName": "UNC_CMIBRIDGE_TOTAL_VALID_WRITE_REQUESTS_VC_ALL",
+        "PerPkg": "1",
+        "UMask": "0xFF",
+        "Unit": "CMIBRIDGE"
+    }
+]
