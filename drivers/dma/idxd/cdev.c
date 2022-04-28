@@ -909,8 +909,12 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 
 	dump_idpte(idxd, &idpte);
 
-	for (i = 0; i < IDPT_STRIDES; i++)
+	dev_dbg(dev, "IDPTE from create\n");
+	for (i = 0; i < IDPT_STRIDES; i++) {
 		iowrite64(idpte.bits[i], idxd->reg_base + offset + i * sizeof(u64));
+		dev_dbg(dev, "IDPTE[%#x][%u]: %#llx\n",
+			offset - idxd->idpt_offset , i, idpte.bits[i]);
+	}
 
 	idxd->idpte_data[index] = idpte_data;
 
@@ -1026,6 +1030,17 @@ static int idxd_add_submitter(struct idxd_device *idxd,
 		if (idpte.type == IDPTE_TYPE_SASS)
 			idpte.submit_pasid = submitter_pasid(sn);
 		iowrite64(idpte.bits[0], idxd->reg_base + offset);
+
+	{
+		int i;
+		struct device *dev = &idxd->pdev->dev;
+
+		dev_dbg(dev, "IDPTE from attach\n");
+		for (i = 0; i < IDPT_STRIDES; i++)
+			dev_dbg(dev, "IDPTE[%#x][%u]: %#llx\n",
+				offset - idxd->idpt_offset, i, idpte.bits[i]);
+	}
+
 	}
 
 	list_add_tail(&sn->list, &idpte_data->submit_list);
