@@ -1579,14 +1579,7 @@ static int alloc_and_construct_tdmrs(void)
 	return ret;
 }
 
-/*
- * Detect and initialize the TDX module.
- *
- * Return -ENODEV when the TDX module is not loaded, 0 when it
- * is successfully initialized, or other error when it fails to
- * initialize.
- */
-static int init_tdx_module(void)
+static int init_tdx_module_common(void)
 {
 	int ret;
 
@@ -1613,7 +1606,21 @@ static int init_tdx_module(void)
 	if (ret)
 		return ret;
 
-	ret = __tdx_get_sysinfo(&tdx_sysinfo, tdx_cmr_array, &tdx_cmr_num);
+	return __tdx_get_sysinfo(&tdx_sysinfo, tdx_cmr_array, &tdx_cmr_num);
+}
+
+/*
+ * Detect and initialize the TDX module.
+ *
+ * Return -ENODEV when the TDX module is not loaded, 0 when it
+ * is successfully initialized, or other error when it fails to
+ * initialize.
+ */
+static int init_tdx_module(void)
+{
+	int ret;
+
+	ret = init_tdx_module_common();
 	if (ret)
 		return ret;
 
