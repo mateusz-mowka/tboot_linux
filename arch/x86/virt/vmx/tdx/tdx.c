@@ -1936,7 +1936,7 @@ static void tdx_module_sysfs_deinit(void)
 #endif
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
-static bool can_preserve_td(void)
+static bool can_preserve_td(const struct seam_sigstruct *sigstruct)
 {
 	u64 ret;
 
@@ -1966,6 +1966,11 @@ static bool can_preserve_td(void)
 	 */
 	if (tdx_module_status != TDX_MODULE_INITIALIZED) {
 		pr_err("TD-preserving: TDX module hasn't been initialized\n");
+		return false;
+	}
+
+	if (sigstruct->seamsvn < p_seamldr_info.tcb_info.tcb_svn.seamsvn) {
+		pr_err("TD-preserving: Cannot downgrade SEAMSVN\n");
 		return false;
 	}
 
@@ -2140,7 +2145,7 @@ int tdx_module_update(const struct tmu_req *req)
 	}
 
 	/* Check if TD-preserving is supported */
-	if (req->preserving && !can_preserve_td()) {
+	if (req->preserving && !can_preserve_td(req->signature)) {
 		ret = -ENODEV;
 		goto free;
 	}
