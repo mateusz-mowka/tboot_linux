@@ -1678,7 +1678,8 @@ static void shutdown_tdx_module(void)
 	tdx_module_sysfs_deinit();
 }
 
-static int __tdx_init_cpuslocked(void)
+static int init_tdx_module_via_handoff_data(void);
+static int __tdx_init_cpuslocked(bool preserving)
 {
 	int ret;
 
@@ -1695,7 +1696,10 @@ static int __tdx_init_cpuslocked(void)
 		return -EINVAL;
 	}
 
-	ret = init_tdx_module();
+	if (preserving)
+		ret = init_tdx_module_via_handoff_data();
+	else
+		ret = init_tdx_module();
 	if (ret == -ENODEV) {
 		pr_info("TDX module is not loaded.\n");
 		return ret;
@@ -1736,7 +1740,7 @@ static int __tdx_init(void)
 	 * any CPU from going offline during the initialization.
 	 */
 	cpus_read_lock();
-	ret = __tdx_init_cpuslocked();
+	ret = __tdx_init_cpuslocked(false);
 	cpus_read_unlock();
 
 	/*
@@ -2143,6 +2147,29 @@ static int tdx_prepare_handoff_data(u16 req_hv)
 	return ret;
 }
 
+static int init_tdx_module_via_handoff_data(void)
+{
+	int ret;
+
+	ret = init_tdx_module_common();
+	if (ret)
+		goto out;
+
+	ret = seamcall(TDH_SYS_UPDATE, 0, 0, 0, 0, NULL);
+	if (ret) {
+		pr_info("Failed to load handoff data");
+		goto out;
+	}
+
+	tdx_module_status = TDX_MODULE_INITIALIZED;
+	pr_info("TDX module initialized.\n");
+	return 0;
+
+out:
+	pr_info("Failed to initialize TDX module.\n");
+	return ret;
+}
+
 int tdx_module_update(const struct tmu_req *req)
 {
 	int ret;
@@ -2185,7 +2212,7 @@ int tdx_module_update(const struct tmu_req *req)
 	/* Initialize TDX module after a successful update */
 	if (!ret) {
 		tdx_module_status = TDX_MODULE_UNKNOWN;
-		ret = __tdx_init_cpuslocked();
+		ret = __tdx_init_cpuslocked(req->preserving);
 	}
 
 unlock:
@@ -2196,4 +2223,9 @@ free:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(tdx_module_update);
+#else /* CONFIG_INTEL_TDX_MODULE_UPDATE */
+static int init_tdx_module_via_handoff_data(void)
+{
+	return -EOPNOTSUPP;
+}
 #endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */

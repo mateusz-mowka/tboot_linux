@@ -58,6 +58,7 @@
 #define TDH_SYS_LP_SHUTDOWN	44
 #define TDH_SYS_CONFIG		45
 #define TDH_SYS_SHUTDOWN	52
+#define TDH_SYS_UPDATE		53
 
 struct tee_tcb_svn {
 	u16	seamsvn;
