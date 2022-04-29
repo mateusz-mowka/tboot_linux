@@ -1829,7 +1829,7 @@
             ],
             "jira": "NEXT-2856",
             "name": "SPI-NOR/PCI/Thunderbolt/USB4",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/mwesterb/linux.git",
+            "repourl": "https://github.com/intel-sandbox/mwesterb-linux.git",
             "sdl_contact": [
                 {
                     "name": "Kai Svahn",
