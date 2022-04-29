@@ -107,6 +107,14 @@ struct seamldr_params {
 	u64	mod_pages_pa_list[SEAMLDR_MAX_NR_MODULE_PAGES];
 } __packed __aligned(SEAMLDR_PARAMS_ALIGNMENT);
 
+/* P-SEAMLDR SEAMCALL leaf function */
+#define P_SEAMLDR_SEAMCALL_BASE		BIT_ULL(63)
+#define P_SEAMCALL_SEAMLDR_INFO		(P_SEAMLDR_SEAMCALL_BASE | 0x0)
+#define P_SEAMCALL_SEAMLDR_INSTALL	(P_SEAMLDR_SEAMCALL_BASE | 0x1)
+
+/* P-SEAMLDR SEAMCALL error codes */
+#define P_SEAMCALL_NO_ENTROPY		0x8000000000030001
+
 /*
  * Do not put any hardware-defined TDX structure representations below this
  * comment!

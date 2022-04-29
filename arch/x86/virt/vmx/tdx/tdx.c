@@ -243,6 +243,7 @@ struct seamcall_ctx {
 	u64 r8;
 	u64 r9;
 	atomic_t err;
+	u64 seamcall_ret;
 };
 
 static int vmcs_load(u64 vmcs_pa)
@@ -372,6 +373,7 @@ static void seamcall_smp_call_function(void *data)
 	ret = seamcall(sc->fn, sc->rcx, sc->rdx, sc->r8, sc->r9, &out);
 	if (sc->fn == TDH_SYS_LP_INIT)
 		tsx_ctrl_restore(tsx_ctrl);
+	sc->seamcall_ret = ret;
 	if (ret)
 		atomic_set(&sc->err, -EFAULT);
 }
@@ -1641,19 +1643,9 @@ static void shutdown_tdx_module(void)
 	tdx_module_sysfs_deinit();
 }
 
-static int __tdx_init(void)
+static int __tdx_init_cpuslocked(void)
 {
 	int ret;
-
-	/*
-	 * Initializing the TDX module requires running some code on
-	 * all MADT-enabled CPUs.  If not all MADT-enabled CPUs are
-	 * online, it's not possible to initialize the TDX module.
-	 *
-	 * For simplicity temporarily disable CPU hotplug to prevent
-	 * any CPU from going offline during the initialization.
-	 */
-	cpus_read_lock();
 
 	/*
 	 * Check whether all MADT-enabled CPUs are online and return
@@ -1665,14 +1657,13 @@ static int __tdx_init(void)
 	 */
 	if (disabled_cpus || num_online_cpus() != num_processors) {
 		pr_err("Unable to initialize the TDX module when there's offline CPU(s).\n");
-		ret = -EINVAL;
-		goto out;
+		return -EINVAL;
 	}
 
 	ret = init_tdx_module();
 	if (ret == -ENODEV) {
 		pr_info("TDX module is not loaded.\n");
-		goto out;
+		return ret;
 	}
 
 	/*
@@ -1689,12 +1680,27 @@ static int __tdx_init(void)
 	if (ret) {
 		pr_info("Failed to initialize TDX module.  Shut it down.\n");
 		shutdown_tdx_module();
-		ret = -EFAULT;
-		goto out;
+		return -EFAULT;
 	}
 
 	pr_info("TDX module initialized.\n");
-out:
+	return ret;
+}
+
+static int __tdx_init(void)
+{
+	int ret;
+
+	/*
+	 * Initializing the TDX module requires running some code on
+	 * all MADT-enabled CPUs.  If not all MADT-enabled CPUs are
+	 * online, it's not possible to initialize the TDX module.
+	 *
+	 * For simplicity temporarily disable CPU hotplug to prevent
+	 * any CPU from going offline during the initialization.
+	 */
+	cpus_read_lock();
+	ret = __tdx_init_cpuslocked();
 	cpus_read_unlock();
 
 	/*
@@ -1956,16 +1962,75 @@ free:
 	return ERR_PTR(-ENOMEM);
 }
 
+/*
+ * Load a TDX module into SEAM range.
+ *
+ * TDX module loading may fail due to no enough entropy to generate random
+ * number. Retry can solve the problem. Experiments show that 3 times can
+ * always work.
+ */
+static int seamldr_install(const struct seamldr_params *params)
+{
+	int cpu, retry = 3;
+	struct seamcall_ctx sc = { .fn = P_SEAMCALL_SEAMLDR_INSTALL,
+				   .rcx = __pa(params) };
+
+retry:
+	/*
+	 * Don't use on_each_cpu() since P-SEAMLDR seamcalls can be invoked
+	 * by only one CPU at a time. See Intel TDX CPU architectural
+	 * specification for more details.
+	 */
+	for_each_online_cpu(cpu) {
+		smp_call_function_single(cpu, seamcall_smp_call_function, &sc,
+					 true);
+		if (sc.seamcall_ret)
+			break;
+	}
+
+	if (sc.seamcall_ret == P_SEAMCALL_NO_ENTROPY && retry--)
+		goto retry;
+
+	if (sc.seamcall_ret) {
+		pr_err("SEAMLDR.INSTALL failed with %llx\n", sc.seamcall_ret);
+		return -EIO;
+	}
+	return 0;
+}
+
 int tdx_module_update(const struct tmu_req *req)
 {
+	int ret;
 	struct seamldr_params *params;
 
 	params = alloc_seamldr_params(req);
 	if (IS_ERR(params))
 		return PTR_ERR(params);
 
+	/* Prevent TDX module initialization */
+	mutex_lock(&tdx_module_lock);
+	/*
+	 * Loading TDX module requires invoking SEAMCALLs on all
+	 * MADT-enabled CPUs. Bail out if some CPUs are offline.
+	 */
+	cpus_read_lock();
+	if (disabled_cpus || num_online_cpus() != num_processors) {
+		ret = -EPERM;
+		goto unlock;
+	}
+
+	ret = seamldr_install(params);
+	/* Initialize TDX module after a successful update */
+	if (!ret) {
+		tdx_module_status = TDX_MODULE_UNKNOWN;
+		ret = __tdx_init_cpuslocked();
+	}
+
+unlock:
+	cpus_read_unlock();
+	mutex_unlock(&tdx_module_lock);
 	free_seamldr_params(params);
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(tdx_module_update);
 #endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
