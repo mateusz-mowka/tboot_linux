@@ -2125,6 +2125,24 @@ static int verify_hash(const void *module, int module_size,
 	return ret;
 }
 
+/*
+ * Shut down TDX module and prepare handoff data for the next TDX module.
+ * Following a successful TDH_SYS_SHUTDOWN, no further TDX module interface
+ * functions can be called.
+ */
+static int tdx_prepare_handoff_data(u16 req_hv)
+{
+	int ret;
+
+	/* tdx_module_status is protected by tdx_module_lock */
+	lockdep_assert_held(&tdx_module_lock);
+	ret = seamcall(TDH_SYS_SHUTDOWN, req_hv, 0, 0, 0, NULL);
+	if (!ret)
+		tdx_module_status = TDX_MODULE_SHUTDOWN;
+
+	return ret;
+}
+
 int tdx_module_update(const struct tmu_req *req)
 {
 	int ret;
@@ -2154,7 +2172,13 @@ int tdx_module_update(const struct tmu_req *req)
 	/* Check if TD-preserving is supported */
 	if (req->preserving && !can_preserve_td(req->signature)) {
 		ret = -ENODEV;
-		goto free;
+		goto unlock;
+	}
+
+	if (req->preserving) {
+		ret = tdx_prepare_handoff_data(sig->min_update_hv);
+		if (ret)
+			goto unlock;
 	}
 
 	ret = seamldr_install(params);
