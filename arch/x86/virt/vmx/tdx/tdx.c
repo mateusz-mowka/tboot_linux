@@ -48,6 +48,9 @@ enum tdx_module_status_t {
 
 static u32 tdx_keyid_start __ro_after_init;
 static u32 tdx_keyid_num __ro_after_init;
+static u64 tdx_features0;
+
+static struct p_seamldr_info p_seamldr_info;
 
 static enum tdx_module_status_t tdx_module_status;
 /* Prevent concurrent attempts on TDX detection and initialization */
@@ -592,6 +595,14 @@ static int __tdx_get_sysinfo(struct tdsysinfo_struct *tdsysinfo,
 		tdsysinfo->vendor_id, tdsysinfo->major_version,
 		tdsysinfo->minor_version, tdsysinfo->build_date,
 		tdsysinfo->build_num);
+
+	ret = seamcall(TDH_SYS_RD, 0, TDX_MD_FEATURES0, 0, 0, &out);
+	if (!ret)
+		tdx_features0 = out.r8;
+	else
+		tdx_features0 = 0;
+	pr_info("TDX module: features0: %llx\n", tdx_features0);
+
 	tdx_module_sysfs_init();
 
 	/*
@@ -1925,6 +1936,42 @@ static void tdx_module_sysfs_deinit(void)
 #endif
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+static bool can_preserve_td(void)
+{
+	u64 ret;
+
+	lockdep_assert_held(&tdx_module_lock);
+
+	ret = seamcall(P_SEAMCALL_SEAMLDR_INFO, __pa(&p_seamldr_info), 0, 0, 0,
+		       NULL);
+	if (ret) {
+		pr_err("Failed to get p_seamldr_info\n");
+		return false;
+	}
+
+
+	if (!p_seamldr_info.num_remaining_updates) {
+		pr_err("TD-preserving: No remaining update slot\n");
+		return false;
+	}
+
+	if (!(tdx_features0 & TDX_FEATURES0_TD_PRES)) {
+		pr_err("TD-preserving: TDX module doesn't support\n");
+		return false;
+	}
+
+	/*
+	 * Cannot create handoff data if the existing module hasn't
+	 * been initialized.
+	 */
+	if (tdx_module_status != TDX_MODULE_INITIALIZED) {
+		pr_err("TD-preserving: TDX module hasn't been initialized\n");
+		return false;
+	}
+
+	return true;
+}
+
 static inline int get_pamt_entry_size(const struct seam_sigstruct *sig)
 {
 	WARN_ON_ONCE(sig->pamt_entry_size_4K != sig->pamt_entry_size_2M ||
@@ -2090,6 +2137,12 @@ int tdx_module_update(const struct tmu_req *req)
 	if (disabled_cpus || num_online_cpus() != num_processors) {
 		ret = -EPERM;
 		goto unlock;
+	}
+
+	/* Check if TD-preserving is supported */
+	if (req->preserving && !can_preserve_td()) {
+		ret = -ENODEV;
+		goto free;
 	}
 
 	ret = seamldr_install(params);
