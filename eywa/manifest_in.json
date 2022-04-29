@@ -3681,9 +3681,9 @@
                 }
             ],
             "description": "Receive reworks to the filesystem-DAX facility that decouples it from block-devices",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2904",
             "name": "libnvdimm",
             "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/nvdimm/nvdimm",
             "sdl_contact": [
@@ -3694,7 +3694,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "cpuid-for-intel-next",
