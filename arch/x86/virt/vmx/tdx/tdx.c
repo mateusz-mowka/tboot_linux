@@ -1901,8 +1901,70 @@ static void tdx_module_sysfs_deinit(void)
 #endif
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+static void free_seamldr_params(struct seamldr_params *params)
+{
+	int i;
+
+	for (i = 0; i < params->num_module_pages; i++)
+		free_page((unsigned long)__va(params->mod_pages_pa_list[i]));
+	free_page((unsigned long)__va(params->sigstruct_pa));
+	free_page((unsigned long)params);
+}
+
+/* Allocate and populate a seamldr_params */
+static struct seamldr_params *alloc_seamldr_params(const struct tmu_req *req)
+{
+	struct seamldr_params *params;
+	unsigned long page;
+	int i;
+
+	BUILD_BUG_ON(sizeof(struct seamldr_params) != PAGE_SIZE);
+	if ((req->module_size >> PAGE_SHIFT) > SEAMLDR_MAX_NR_MODULE_PAGES ||
+	    req->signature_size != SEAMLDR_SIGSTRUCT_SIZE)
+		return ERR_PTR(-EINVAL);
+
+	params = (struct seamldr_params *)get_zeroed_page(GFP_KERNEL);
+	if (!params)
+		return ERR_PTR(-ENOMEM);
+
+	params->scenario = SEAMLDR_SCENARIO_LOAD;
+	params->num_module_pages = req->module_size >> PAGE_SHIFT;
+
+	/*
+	 * Module binary can take up to 496 pages. These pages needn't be
+	 * contiguous. Allocate pages one-by-one to reduce the possibility
+	 * of failure.
+	 */
+	for (i = 0; i < params->num_module_pages; i++) {
+		page = __get_free_page(GFP_KERNEL);
+		if (!page)
+			goto free;
+		memcpy((void *)page, req->module + (i << PAGE_SHIFT),
+		       min((int)PAGE_SIZE, req->module_size - (i << PAGE_SHIFT)));
+		params->mod_pages_pa_list[i] = __pa(page);
+	}
+
+	page = __get_free_page(GFP_KERNEL);
+	if (!page)
+		goto free;
+	memcpy((void *)page, req->signature, req->signature_size);
+	params->sigstruct_pa = __pa(page);
+
+	return params;
+free:
+	free_seamldr_params(params);
+	return ERR_PTR(-ENOMEM);
+}
+
 int tdx_module_update(const struct tmu_req *req)
 {
+	struct seamldr_params *params;
+
+	params = alloc_seamldr_params(req);
+	if (IS_ERR(params))
+		return PTR_ERR(params);
+
+	free_seamldr_params(params);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tdx_module_update);
