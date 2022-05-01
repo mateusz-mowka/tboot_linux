@@ -22,6 +22,8 @@
 
 #include <sys/types.h>
 
+#pragma pack(1)
+
 #define SDSI_DEV		"intel_vsec.sdsi"
 #define AUX_DEV_PATH		"/sys/bus/auxiliary/devices/"
 #define SDSI_PATH		(AUX_DEV_DIR SDSI_DEV)
@@ -49,6 +51,7 @@ struct availability {
 	uint64_t reserved:48;
 	uint64_t available:3;
 	uint64_t threshold:3;
+	uint64_t reserved2:10;
 };
 
 struct sdsi_regs {
@@ -63,8 +66,40 @@ struct sdsi_regs {
 	uint64_t socket_id;
 };
 
+#define CONTENT_TYPE_LK_ENC		0xD
+#define CONTENT_TYPE_LK_BLOB_ENC	0xE
+
+struct state_certificate {
+	uint32_t content_type;
+	uint32_t region_rev_id;
+	uint32_t header_size;
+	uint32_t total_size;
+	uint32_t key_size;
+	uint32_t num_licenses;
+};
+
+// License Group Types
+#define LBT_ONE_TIME_UPGRADE	1
+#define LBT_METERED_UPGRADE	2
+#define LBT_TIMED_UPGRADE	3
+
+struct license_region {
+	uint32_t type;
+	uint64_t id;
+	uint64_t ppin;
+	uint64_t previous_ppin;
+	uint32_t rev_id;
+	uint32_t num_bundles;
+};
+
+struct bundle_encoding {
+	uint32_t encoding;
+	uint32_t encoding_rsvd[7];
+};
+
 struct sdsi_dev {
 	struct sdsi_regs regs;
+	struct state_certificate sc;
 	char *dev_name;
 	char *dev_path;
 	int guid;
@@ -168,13 +203,38 @@ static int sdsi_read_reg(struct sdsi_dev *s)
 	return 0;
 }
 
+static char *license_blob_type(uint32_t type)
+{
+	switch (type) {
+	case LBT_ONE_TIME_UPGRADE:
+		return "One Time Upgrade";
+	case LBT_METERED_UPGRADE:
+		return "Metered Upgrade";
+	case LBT_TIMED_UPGRADE:
+		return "Time Upgrade";
+	default:
+		return "Unknown Upgrade Type";
+	}
+}
+
+static void get_feature(uint32_t encoding, char *feature)
+{
+	char *name = (char *)&encoding;
+
+	feature[3] = name[0];
+	feature[2] = name[1];
+	feature[1] = name[2];
+	feature[0] = name[3];
+}
+
 static int sdsi_certificate_dump(struct sdsi_dev *s)
 {
-	uint64_t state_certificate[512] = {0};
-	bool first_instance;
-	uint64_t previous;
+	struct state_certificate *sc;
+	uint64_t data[512] = {0};
 	FILE *cert_ptr;
-	int i, ret, size;
+	uint32_t count = 0;
+	int ret, size;
+	uint32_t offset = 0;
 
 	ret = sdsi_update_registers(s);
 	if (ret)
@@ -198,32 +258,63 @@ static int sdsi_certificate_dump(struct sdsi_dev *s)
 		return -1;
 	}
 
-	size = fread(state_certificate, 1, sizeof(state_certificate), cert_ptr);
+	size = fread(data, 1, sizeof(data), cert_ptr);
 	if (!size) {
 		fprintf(stderr, "Could not read 'state_certificate' file\n");
 		fclose(cert_ptr);
 		return -1;
 	}
+	fclose(cert_ptr);
 
-	printf("%3d: 0x%lx\n", 0, state_certificate[0]);
-	previous = state_certificate[0];
-	first_instance = true;
+	sc = (struct state_certificate *)data;
 
-	for (i = 1; i < (int)(round_up(size, sizeof(uint64_t))/sizeof(uint64_t)); i++) {
-		if (state_certificate[i] == previous) {
-			if (first_instance) {
-				puts("*");
-				first_instance = false;
-			}
+	/* Print register info for this guid */
+	printf("\n");
+	printf("State certificate for device %s\n", s->dev_name);
+	printf("\n");
+	printf("Content Type:          %s\n", sc->content_type == CONTENT_TYPE_LK_ENC ? "Licencse Key Encoding" :
+					      (sc->content_type == CONTENT_TYPE_LK_BLOB_ENC ? "License Key + Group Encoding" : "Unknown"));
+	printf("Region Revision ID:    %d\n", sc->region_rev_id);
+	printf("Header Size:           %d\n", sc->header_size * 4);
+	printf("Total Size:            %d\n", sc->total_size);
+	printf("OEM Key Size:          %d\n", sc->key_size * 4);
+	printf("Number of Licenses:    %d\n", sc->num_licenses);
+
+	void *body = ((void *)data) + 0x14 + (sc->num_licenses * 4) + 4;
+	uint64_t *ic = body + 4;
+	printf("License Group Info:    \n");
+	printf("    License Key Revision ID:    0x%x\n", *(uint32_t *)body);
+	printf("    License Key Image Content:  0x%lx%lx%lx%lx%lx%lx\n", ic[5], ic[4], ic[3], ic[2], ic[1], ic[0]);
+	while (count++ < sc->num_licenses) {
+		uint32_t *body_size_p = (uint32_t *)(((void *)data) + 0x14 + count * 4);
+		uint32_t body_size = *body_size_p;
+		struct license_region *lr = (void *)(ic) + 48 + offset;
+		struct bundle_encoding *be = (void *)(lr) + sizeof(struct license_region);
+		char feature[5];
+		uint32_t enc;
+
+		printf("    Group %d:    \n", count - 1);
+		printf("        License Group size:         %u\n", (body_size & 0x7fffffff) * 4);
+		printf("        License is valid:           %s\n", !!(body_size & 0x80000000) ? "Yes" : "No");
+		printf("        License Group Type:         %s\n", license_blob_type(lr->type));
+		printf("        License Group ID:           0x%lx\n", lr->id);
+		printf("        PPIN:                       0x%lx\n", lr->ppin);
+		printf("        Previous PPIN:              0x%lx\n", lr->previous_ppin);
+		printf("        Group Revision ID:          %u\n", lr->rev_id);
+		printf("        Number of Features:         %u\n", lr->num_bundles);
+		feature[4] = '\0';
+		if (lr->num_bundles > 6) { /* FIXME: Determine max number */
+			fprintf(stderr, "        ERROR: More than 6 features reported. Skipping.\n");
+			offset += (body_size & 0x7fffffff) * 4;
 			continue;
 		}
-		printf("%3d: 0x%lx\n", i, state_certificate[i]);
-		previous = state_certificate[i];
-		first_instance = true;
-	}
-	printf("%3d\n", i);
 
-	fclose(cert_ptr);
+		for (enc = 0; enc < lr->num_bundles; enc++) {
+			get_feature(be[enc].encoding, feature);
+			printf("                 Feature %d:         %s\n", enc, feature);
+		}
+		offset += (body_size & 0x7fffffff) * 4;
+	};
 
 	return 0;
 }
