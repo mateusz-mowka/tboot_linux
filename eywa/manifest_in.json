@@ -1086,7 +1086,7 @@
                 }
             ],
             "description": "USB Type-C/DWC3 ",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Abdul Rahman Ismail",
