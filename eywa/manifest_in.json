@@ -4505,7 +4505,7 @@
                 }
             ],
             "description": "x86 microcode fix for https://bugzilla.kernel.org/show_bug.cgi?id=215841",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
