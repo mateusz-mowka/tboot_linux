@@ -496,7 +496,7 @@
             "last_enabled": "v5.13"
         },
         {
-            "branch": "for-eywa",
+            "branch": "for-intel-next",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -544,7 +544,7 @@
             ],
             "jira": "NEXT-2864",
             "name": "usb-xhci",
-            "repourl": "ssh://git-amr-4.devtools.intel.com:29418/otc_usb-xhci.git",
+            "repourl": "https://github.com/intel-sandbox/mnyman-linux.git",
             "sdl_contact": [
                 {
                     "name": "Kai Svahn",
