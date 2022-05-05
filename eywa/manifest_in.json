@@ -4555,6 +4555,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.18"
+        },
+        {
+            "branch": "hybrid_cat",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Fenghua Yu",
+                    "email": "fenghua.yu@intel.com"
+                }
+            ],
+            "description": "hybrid cat feature",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Ravi Shankar",
+                    "email": "ravi.v.shankar@intel.com"
+                }
+            ],
+            "jira": "NEXT-2906",
+            "name": "hyrbid_cat",
+            "repourl": "https://github.com/intel-sandbox/kernel",
+            "sdl_contact": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
         }
     ]
 }
