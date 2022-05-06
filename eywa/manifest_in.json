@@ -535,7 +535,7 @@
                 }
             ],
             "description": "USB host support and fixes",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Abdul Rahman Ismail",
@@ -552,7 +552,7 @@
                 }
             ],
             "status": "intel confidential",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "3f725e7f835956d6aac28aaeecbed2778f80ff80",
             "last_enabled": "v5.18"
         },
         {
