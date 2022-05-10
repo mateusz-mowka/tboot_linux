@@ -1470,12 +1470,18 @@ static void __iommu_flush_dev_iotlb(struct device_domain_info *info,
 				    u64 addr, unsigned int mask)
 {
 	u16 sid, qdep;
+	ioasid_t pasid;
 
 	if (!info || !info->ats_enabled)
 		return;
 
 	sid = info->bus << 8 | info->devfn;
 	qdep = info->ats_qdep;
+	pasid = iommu_get_pasid_from_domain(info->dev, &info->domain->domain);
+	if (pasid != INVALID_IOASID) {
+		qi_flush_dev_iotlb_pasid(info->iommu, sid, info->pfsid,
+					 pasid, qdep, addr, mask);
+	}
 	qi_flush_dev_iotlb(info->iommu, sid, info->pfsid,
 			   qdep, addr, mask);
 	quirk_extra_dev_tlb_flush(info, addr, mask, PASID_RID2PASID, qdep);
@@ -1505,6 +1511,7 @@ void iommu_flush_iotlb_psi(struct intel_iommu *iommu,
 	unsigned int mask = ilog2(aligned_pages);
 	uint64_t addr = (uint64_t)pfn << VTD_PAGE_SHIFT;
 	u16 did = domain_id_iommu(domain, iommu);
+	struct iommu_domain *iommu_domain = &domain->domain;
 
 	BUG_ON(pages == 0);
 
@@ -1513,6 +1520,9 @@ void iommu_flush_iotlb_psi(struct intel_iommu *iommu,
 
 	if (domain->use_first_level) {
 		qi_flush_piotlb(iommu, did, PASID_RID2PASID, addr, pages, ih);
+		/* flush additional kernel DMA PASIDs attached */
+		if (iommu_domain->dma_pasid)
+			qi_flush_piotlb(iommu, did, iommu_domain->dma_pasid, addr, pages, ih);
 	} else {
 		unsigned long bitmask = aligned_pages - 1;
 
@@ -4070,12 +4080,19 @@ static void dmar_remove_one_dev_info(struct device *dev)
 	struct dmar_domain *domain = info->domain;
 	struct intel_iommu *iommu = info->iommu;
 	unsigned long flags;
+	ioasid_t pasid;
 
 	if (!dev_is_real_dma_subdevice(info->dev)) {
-		if (dev_is_pci(info->dev) && sm_supported(iommu))
+		if (dev_is_pci(info->dev) && sm_supported(iommu)) {
 			intel_pasid_tear_down_entry(iommu, info->dev,
 					PASID_RID2PASID, false);
 
+			pasid = iommu_get_pasid_from_domain(info->dev,
+							    &info->domain->domain);
+			if (pasid != INVALID_IOASID)
+				intel_pasid_tear_down_entry(iommu, info->dev,
+							    pasid, false);
+		}
 		iommu_disable_pci_caps(info);
 		domain_context_clear(info);
 	}
