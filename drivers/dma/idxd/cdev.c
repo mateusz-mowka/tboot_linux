@@ -12,6 +12,7 @@
 #include <linux/fs.h>
 #include <linux/poll.h>
 #include <linux/iommu.h>
+#include <linux/xarray.h>
 #include <uapi/linux/idxd.h>
 #include "registers.h"
 #include "idxd.h"
@@ -37,6 +38,7 @@ struct idxd_user_context {
 	unsigned int pasid;
 	unsigned int flags;
 	struct iommu_sva *sva;
+	u64 counters[COUNTER_MAX];
 };
 
 static void idxd_cdev_dev_release(struct device *dev)
@@ -67,6 +69,36 @@ static inline struct idxd_wq *inode_wq(struct inode *inode)
 	struct idxd_cdev *idxd_cdev = inode_idxd_cdev(inode);
 
 	return idxd_cdev->wq;
+}
+
+void idxd_user_counter_increment(struct idxd_wq *wq, u32 pasid, int index)
+{
+	struct idxd_user_context *ctx;
+
+	if (index >= COUNTER_MAX)
+		return;
+
+	mutex_lock(&wq->uc_lock);
+	ctx = xa_load(&wq->upasid_xa, pasid);
+	if (!ctx) {
+		mutex_unlock(&wq->uc_lock);
+		return;
+	}
+	ctx->counters[index]++;
+	mutex_unlock(&wq->uc_lock);
+}
+
+static void idxd_xa_pasid_remove(struct idxd_user_context *ctx)
+{
+	struct idxd_wq *wq = ctx->wq;
+	void *ptr;
+
+	mutex_lock(&wq->uc_lock);
+	ptr = xa_cmpxchg(&wq->upasid_xa, ctx->pasid, ctx, NULL, GFP_KERNEL);
+	if (ptr != (void *)ctx)
+		dev_warn(&wq->idxd->pdev->dev, "xarray cmpxchg failed for pasid %u\n",
+			 ctx->pasid);
+	mutex_unlock(&wq->uc_lock);
 }
 
 static int idxd_cdev_open(struct inode *inode, struct file *filp)
@@ -109,20 +141,27 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 
 		pasid = iommu_sva_get_pasid(sva);
 		if (pasid == IOMMU_PASID_INVALID) {
-			iommu_sva_unbind_device(sva);
 			rc = -EINVAL;
-			goto failed;
+			goto failed_get_pasid;
 		}
 
 		ctx->sva = sva;
 		ctx->pasid = pasid;
+
+		mutex_lock(&wq->uc_lock);
+		rc = xa_insert(&wq->upasid_xa, pasid, ctx, GFP_KERNEL);
+		mutex_unlock(&wq->uc_lock);
+		if (rc < 0) {
+			dev_err(dev, "PASID entry already exist in xarray.\n");
+			goto failed_xa_insert;
+		}
 
 		if (wq_dedicated(wq)) {
 			rc = idxd_wq_set_pasid(wq, pasid);
 			if (rc < 0) {
 				iommu_sva_unbind_device(sva);
 				dev_err(dev, "wq set pasid failed: %d\n", rc);
-				goto failed;
+				goto failed_set_pasid;
 			}
 		}
 	}
@@ -131,6 +170,13 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 	mutex_unlock(&wq->wq_lock);
 	return 0;
 
+ failed_set_pasid:
+	if (device_user_pasid_enabled(idxd))
+		idxd_xa_pasid_remove(ctx);
+ failed_xa_insert:
+ failed_get_pasid:
+	if (device_user_pasid_enabled(idxd))
+		iommu_sva_unbind_device(sva);
  failed:
 	mutex_unlock(&wq->wq_lock);
 	kfree(ctx);
@@ -194,6 +240,7 @@ static int idxd_cdev_release(struct inode *node, struct file *filep)
 	if (ctx->sva) {
 		idxd_cdev_evl_drain_pasid(wq, ctx->pasid);
 		iommu_sva_unbind_device(ctx->sva);
+		idxd_xa_pasid_remove(ctx);
 	}
 
 	kfree(ctx);
