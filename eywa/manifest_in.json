@@ -1355,7 +1355,7 @@
             "last_enabled": "v5.18"
         },
         {
-            "branch": "amx",
+            "branch": "amx_intel-next",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
