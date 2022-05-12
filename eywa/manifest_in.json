@@ -4021,7 +4021,7 @@
             ],
             "jira": "NEXT-2912",
             "name": "splitlock",
-            "repourl": "https://github.com/intel-sandbox/agluck-linux.git",
+            "repourl": "https://github.com/intel-sandbox/kernel",
             "sdl_contact": [
                 {
                     "name": "Tony Luck",
