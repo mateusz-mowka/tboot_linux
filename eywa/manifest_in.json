@@ -3759,7 +3759,7 @@
             "last_enabled": "v5.18"
         },
         {
-            "branch": "vmd",
+            "branch": "debox_pm_for_intel_next",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -3769,16 +3769,16 @@
                 }
             ],
             "description": "VMD patches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "David Box",
                     "email": "david.e.box@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2915",
             "name": "vmd",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/debox1/linux-kernel-dev.git",
+            "repourl": "https://github.com/intel-sandbox/debox1.linux.git",
             "sdl_contact": [
                 {
                     "name": "David Box",
@@ -3787,7 +3787,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "tpmi-rapl-5.16-final",
