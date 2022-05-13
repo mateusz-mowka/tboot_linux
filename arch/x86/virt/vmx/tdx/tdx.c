@@ -56,9 +56,13 @@ static DEFINE_MUTEX(tdx_module_lock);
 static struct tdsysinfo_struct tdx_sysinfo;
 
 #ifdef CONFIG_SYSFS
+static bool sysfs_registered;
 static int tdx_module_sysfs_init(void);
+static void tdx_module_sysfs_deinit(void);
 #else
+#define sysfs_registered 0
 static inline int tdx_module_sysfs_init(void) { return 0; }
+static inline void tdx_module_sysfs_deinit(void) { }
 #endif
 
 static struct cmr_info tdx_cmr_array[MAX_CMRS] __aligned(CMR_INFO_ARRAY_ALIGNMENT);
@@ -1552,6 +1556,7 @@ static void shutdown_tdx_module(void)
 	seamcall_on_each_cpu(&sc);
 
 	tdx_module_status = TDX_MODULE_SHUTDOWN;
+	tdx_module_sysfs_deinit();
 }
 
 static int __tdx_init(void)
@@ -1793,9 +1798,22 @@ static int tdx_module_sysfs_init(void)
 	if (!tdx_module_kobj)
 		return -EINVAL;
 
+	if (sysfs_registered)
+		return 0;
+
 	ret = sysfs_create_group(tdx_module_kobj, &tdx_module_attr_group);
 	if (ret)
 		pr_err("Sysfs exporting tdx module attributes failed %d\n", ret);
+	sysfs_registered = true;
 	return ret;
+}
+
+static void tdx_module_sysfs_deinit(void)
+{
+	if (!tdx_module_kobj)
+		return;
+
+	sysfs_remove_group(tdx_module_kobj, &tdx_module_attr_group);
+	sysfs_registered = false;
 }
 #endif
