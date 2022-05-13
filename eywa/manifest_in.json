@@ -3759,37 +3759,6 @@
             "last_enabled": "v5.18"
         },
         {
-            "branch": "pmc_core_fixup",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "description": "Revert aspm/vmd patches",
-            "enabled": true,
-            "ip_owner": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "jira": "NEXT-2917",
-            "name": "pmc_core_fixup",
-            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
-            "sdl_contact": [
-                {
-                    "name": "Kyle Pelton",
-                    "email": "kyle.d.pelton@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.18"
-        },
-        {
             "branch": "debox_pm_for_intel_next",
             "branch_type": "expiring",
             "config_options": [],
