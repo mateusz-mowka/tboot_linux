@@ -3693,7 +3693,7 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "d43fae7c4d3e6dfee9d26287907dbe8e27ff8846",
             "last_enabled": "v5.18"
         },
         {
