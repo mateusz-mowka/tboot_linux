@@ -4603,7 +4603,7 @@
                 }
             ],
             "description": "Workarounds for the SLE emulation environment used by validation teams for 5.18",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
