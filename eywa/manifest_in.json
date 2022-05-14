@@ -106,7 +106,7 @@
             ],
             "jira": "NEXT-2847",
             "name": "branding",
-            "repourl": "https://github.com/intel-sandbox/otc_power_kernel.git",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
             "sdl_contact": [
                 {
                     "name": "Charles Prestopine",
@@ -4452,7 +4452,7 @@
             ],
             "jira": "NEXT-2888",
             "name": "r8152_dyndbg",
-            "repourl": "https://github.com/intel-sandbox/otc_power_kernel.git",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
             "sdl_contact": [
                 {
                     "name": "Charles Prestopine",
@@ -4505,7 +4505,7 @@
                 }
             ],
             "description": "x86 microcode fix for https://bugzilla.kernel.org/show_bug.cgi?id=215841",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
@@ -4612,7 +4612,7 @@
             ],
             "jira": "NEXT-2913",
             "name": "Workarounds for SLE",
-            "repourl": "https://github.com/intel-sandbox/otc_power_kernel.git",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
             "sdl_contact": [
                 {
                     "name": "Charles Prestopine",
