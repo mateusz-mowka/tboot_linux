@@ -967,7 +967,7 @@
                 }
             ],
             "status": "intel confidential",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "a6789a6d33e5",
             "last_enabled": "v5.18"
         },
         {
@@ -3769,7 +3769,7 @@
                 }
             ],
             "description": "VMD patches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "David Box",
