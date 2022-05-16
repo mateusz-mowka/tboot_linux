@@ -2477,7 +2477,7 @@
                 }
             ],
             "status": "intel confidential",
-            "stuck_at_ref": "45256297d5f13db45dce221b94a9045cf450f75a",
+            "stuck_at_ref": "",
             "last_enabled": "v5.18"
         },
         {
@@ -4612,6 +4612,37 @@
             ],
             "jira": "NEXT-2913",
             "name": "Workarounds for SLE",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
+            "sdl_contact": [
+                {
+                    "name": "Charles Prestopine",
+                    "email": "charles.d.prestopine@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
+        },
+        {
+            "branch": "oobmsm_tpmi_fixup",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "description": "Patch is needed in order to fix compilation issue between the two branches",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "jira": "NEXT-2919",
+            "name": "oobmsm_tpmi_fixup",
             "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
             "sdl_contact": [
                 {
