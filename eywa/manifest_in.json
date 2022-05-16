@@ -2477,7 +2477,7 @@
                 }
             ],
             "status": "intel confidential",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "45256297d5f13db45dce221b94a9045cf450f75a",
             "last_enabled": "v5.18"
         },
         {
@@ -4634,7 +4634,7 @@
                 }
             ],
             "description": "Patch is needed in order to fix compilation issue between the two branches",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
