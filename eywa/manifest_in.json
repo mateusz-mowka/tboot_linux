@@ -3769,7 +3769,7 @@
                 }
             ],
             "description": "VMD patches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "David Box",
