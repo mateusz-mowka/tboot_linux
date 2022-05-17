@@ -28,6 +28,11 @@
 static u64 hkid_mask __ro_after_init;
 static u8 hkid_start_pos __ro_after_init;
 
+/* Protect created_tds and tdx_in_update */
+static DEFINE_SPINLOCK(tdx_update_lock);
+static unsigned int created_tds;
+static bool tdx_in_update;
+
 #define TDX_MAX_NR_CPUID_CONFIGS					\
 	((sizeof(struct tdsysinfo_struct) -				\
 		offsetof(struct tdsysinfo_struct, cpuid_configs))	\
@@ -195,6 +200,51 @@ static inline bool is_td_vcpu_created(struct vcpu_tdx *tdx)
 static inline bool is_td_created(struct kvm_tdx *kvm_tdx)
 {
 	return kvm_tdx->tdr.added;
+}
+
+static inline int created_tds_inc(void)
+{
+	int ret = 0;
+
+	spin_lock(&tdx_update_lock);
+	if (tdx_in_update)
+		/*
+		 * Don't need to make userspace VMMs aware of TDX module
+		 * update. return -EINTR to let them retry.
+		 */
+		ret = -EINTR;
+	else
+		created_tds++;
+	spin_unlock(&tdx_update_lock);
+
+	return ret;
+}
+
+static inline void created_tds_dec(void)
+{
+	spin_lock(&tdx_update_lock);
+	created_tds--;
+	spin_unlock(&tdx_update_lock);
+}
+
+/* Block TD creation and return the number of created TDs */
+static inline unsigned int td_creation_block(void)
+{
+	unsigned int ret;
+
+	spin_lock(&tdx_update_lock);
+	tdx_in_update = true;
+	ret = created_tds;
+	spin_unlock(&tdx_update_lock);
+
+	return ret;
+}
+
+static inline void td_creation_unblock(void)
+{
+	spin_lock(&tdx_update_lock);
+	tdx_in_update = false;
+	spin_unlock(&tdx_update_lock);
 }
 
 static inline void tdx_hkid_free(struct kvm_tdx *kvm_tdx)
@@ -502,6 +552,7 @@ void tdx_vm_free(struct kvm *kvm)
 
 	free_page(kvm_tdx->tdr.va);
 	kfree(kvm_tdx->binding_slots);
+	created_tds_dec();
 }
 
 static int tdx_do_tdh_mng_key_config(void *param)
@@ -602,6 +653,10 @@ int tdx_vm_init(struct kvm *kvm)
 		if (ret)
 			goto free_tdcs;
 	}
+
+	ret = created_tds_inc();
+	if (ret)
+		goto free_tdcs;
 
 	/*
 	 * Acquire global lock to avoid TDX_OPERAND_BUSY:
