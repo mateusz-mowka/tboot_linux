@@ -4536,7 +4536,7 @@
                 }
             ],
             "description": "Add patch for iommu and idxd linker error",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
