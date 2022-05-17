@@ -3347,3 +3347,25 @@ int iommu_get_hw_info(struct device *dev, struct iommu_hw_info *info)
 	return ops->hw_info(dev, info);
 }
 EXPORT_SYMBOL_GPL(iommu_get_hw_info);
+
+ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain)
+{
+	struct iommu_domain *tdomain;
+	struct iommu_group *group;
+	unsigned long index;
+	ioasid_t pasid = INVALID_IOASID;
+
+	group = iommu_group_get(dev);
+	if (!group)
+		return pasid;
+
+	xa_for_each(&group->pasid_array, index, tdomain) {
+		if (domain == tdomain) {
+			pasid = index;
+			break;
+		}
+	}
+	iommu_group_put(group);
+
+	return pasid;
+}

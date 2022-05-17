@@ -735,6 +735,7 @@ iommu_alloc_nested_domain(struct bus_type *bus, struct iommu_domain *s2_domain,
 			  unsigned long s1_ptr, union iommu_stage1_config *cfg);
 void iommu_domain_cache_inv(struct iommu_domain *domain,
 			    struct iommu_cache_invalidate_info *inv_info);
+ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain);
 #else /* CONFIG_IOMMU_API */
 
 struct iommu_ops {};
@@ -1154,6 +1155,9 @@ static inline int
 iommu_get_hw_info(struct device *dev, struct iommu_hw_info *info)
 {
 	return -EINVAL;
+static ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain)
+{
+	return INVALID_IOASID;
 }
 #endif /* CONFIG_IOMMU_API */
 
