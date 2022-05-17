@@ -2360,6 +2360,10 @@ static void prepare_vmcs02_early(struct vcpu_vmx *vmx, struct loaded_vmcs *vmcs0
 		if (guest_efer != host_efer)
 			exec_control |= VM_ENTRY_LOAD_IA32_EFER;
 	}
+
+	if (cpu_has_vmx_arch_lbr())
+		exec_control &= ~VM_ENTRY_LOAD_IA32_LBR_CTL;
+
 	vm_entry_controls_set(vmx, exec_control);
 
 	/*
@@ -2374,6 +2378,10 @@ static void prepare_vmcs02_early(struct vcpu_vmx *vmx, struct loaded_vmcs *vmcs0
 		exec_control |= VM_EXIT_LOAD_IA32_EFER;
 	else
 		exec_control &= ~VM_EXIT_LOAD_IA32_EFER;
+
+	if (cpu_has_vmx_arch_lbr())
+		exec_control &= ~VM_EXIT_CLEAR_IA32_LBR_CTL;
+
 	vm_exit_controls_set(vmx, exec_control);
 
 	/*
