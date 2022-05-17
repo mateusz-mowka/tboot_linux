@@ -750,6 +750,7 @@ void iommu_detach_device_pasid(struct iommu_domain *domain,
 struct iommu_domain *
 iommu_get_domain_for_dev_pasid(struct device *dev, ioasid_t pasid,
 			       unsigned int type);
+ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain);
 #else /* CONFIG_IOMMU_API */
 
 struct iommu_ops {};

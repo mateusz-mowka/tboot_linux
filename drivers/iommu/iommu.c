@@ -3486,6 +3486,28 @@ struct iommu_domain *iommu_domain_alloc_user(struct device *dev,
 }
 EXPORT_SYMBOL_NS_GPL(iommu_domain_alloc_user, IOMMUFD_INTERNAL);
 
+ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain)
+{
+	struct iommu_domain *tdomain;
+	struct iommu_group *group;
+	unsigned long index;
+	ioasid_t pasid = INVALID_IOASID;
+
+	group = iommu_group_get(dev);
+	if (!group)
+		return pasid;
+
+	xa_for_each(&group->pasid_array, index, tdomain) {
+		if (domain == tdomain) {
+			pasid = index;
+			break;
+		}
+	}
+	iommu_group_put(group);
+
+	return pasid;
+}
+
 /**
  * iommu_iotlb_sync_user - flush hardware caches for a user domain
  * @domain - the user iommu domain
