@@ -3862,7 +3862,7 @@
                 }
             ],
             "description": "PKS development targeting the v5.18 merge window",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [],
             "jira": "NEXT-2878",
             "name": "pks",
