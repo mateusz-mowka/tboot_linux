@@ -4653,6 +4653,37 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.18"
+        },
+        {
+            "branch": "bitops",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Alexandr Lobakin",
+                    "email": "alexandr.lobakin@intel.com"
+                }
+            ],
+            "description": "optimize out non-atomic bitops on compile-time constants",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Alexander Lobakin",
+                    "email": "alexandr.lobakin@intel.com"
+                }
+            ],
+            "jira": "NEXT-2923",
+            "name": "bitops",
+            "repourl": "https://github.com/alobakin/linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Alexander Lobakin",
+                    "email": "alexandr.lobakin@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
         }
     ]
 }
