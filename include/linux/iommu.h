@@ -115,6 +115,8 @@ struct iommu_domain {
 			int users;
 		};
 	};
+	ioasid_t dma_pasid;		/* Used for DMA requests with PASID */
+	atomic_t dma_pasid_users;
 };
 
 static inline bool iommu_is_dma_domain(struct iommu_domain *domain)
