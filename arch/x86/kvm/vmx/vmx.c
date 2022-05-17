@@ -4851,8 +4851,12 @@ static void vmx_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)
 
 	vmx_update_fb_clear_dis(vcpu, vmx);
 
-	if (!init_event && cpu_has_vmx_arch_lbr())
-		vmcs_write64(GUEST_IA32_LBR_CTL, 0);
+	if (!init_event) {
+		if (cpu_has_vmx_arch_lbr())
+			vmcs_write64(GUEST_IA32_LBR_CTL, 0);
+	} else {
+		disable_arch_lbr_ctl(vcpu);
+	}
 }
 
 static void vmx_enable_irq_window(struct kvm_vcpu *vcpu)
@@ -8026,6 +8030,8 @@ static int vmx_smi_allowed(struct kvm_vcpu *vcpu, bool for_injection)
 
 static int vmx_enter_smm(struct kvm_vcpu *vcpu, union kvm_smram *smram)
 {
+	struct lbr_desc *lbr_desc = vcpu_to_lbr_desc(vcpu);
+	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 
 	/*
@@ -8042,11 +8048,22 @@ static int vmx_enter_smm(struct kvm_vcpu *vcpu, union kvm_smram *smram)
 	vmx->nested.smm.vmxon = vmx->nested.vmxon;
 	vmx->nested.vmxon = false;
 	vmx_clear_hlt(vcpu);
+
+	if (kvm_cpu_cap_has(X86_FEATURE_ARCH_LBR) &&
+	    test_bit(INTEL_PMC_IDX_FIXED_VLBR, pmu->pmc_in_use) &&
+	    lbr_desc->event && guest_cpuid_has(vcpu, X86_FEATURE_LM)) {
+		u64 ctl = vmcs_read64(GUEST_IA32_LBR_CTL);
+
+		smram->smram64.arch_lbr_ctl = ctl;
+		vmcs_write64(GUEST_IA32_LBR_CTL, ctl & ~ARCH_LBR_CTL_LBREN);
+	}
+
 	return 0;
 }
 
 static int vmx_leave_smm(struct kvm_vcpu *vcpu, const union kvm_smram *smram)
 {
+	struct lbr_desc *lbr_desc = vcpu_to_lbr_desc(vcpu);
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	int ret;
 
@@ -8063,6 +8080,17 @@ static int vmx_leave_smm(struct kvm_vcpu *vcpu, const union kvm_smram *smram)
 		vmx->nested.nested_run_pending = 1;
 		vmx->nested.smm.guest_mode = false;
 	}
+
+	if (kvm_cpu_cap_has(X86_FEATURE_ARCH_LBR) &&
+	    guest_cpuid_has(vcpu, X86_FEATURE_LM)) {
+		u64 ctl = smram->smram64.arch_lbr_ctl;
+
+		vmcs_write64(GUEST_IA32_LBR_CTL, ctl | ARCH_LBR_CTL_LBREN);
+
+		if (intel_pmu_lbr_is_enabled(vcpu) && !lbr_desc->event)
+			intel_pmu_create_guest_lbr_event(vcpu);
+	}
+
 	return 0;
 }
 
