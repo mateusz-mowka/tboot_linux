@@ -3769,7 +3769,7 @@
                 }
             ],
             "description": "VMD patches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "David Box",
@@ -4135,7 +4135,7 @@
                 }
             ],
             "description": "Add DIDs 8086:7D0B and 8086:AD0B for Intel MTL-M/S SKU's",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Nirmal Patel",
@@ -4634,7 +4634,7 @@
                 }
             ],
             "description": "Patch is needed in order to fix compilation issue between the two branches",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
