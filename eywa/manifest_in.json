@@ -4665,7 +4665,7 @@
                 }
             ],
             "description": "optimize out non-atomic bitops on compile-time constants",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Alexander Lobakin",
