@@ -2904,7 +2904,7 @@
                 }
             ],
             "description": "Intel OOBMSM device support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Van De Groenendaal, Johan",
