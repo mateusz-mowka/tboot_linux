@@ -68,6 +68,15 @@ static inline void tdx_module_sysfs_deinit(void) { }
 static struct cmr_info tdx_cmr_array[MAX_CMRS] __aligned(CMR_INFO_ARRAY_ALIGNMENT);
 static int tdx_cmr_num;
 
+/*
+ * TDMRs/PAMTs don't change across TDX module updates. Save and reuse them
+ * in initialization of TDX modules loaded at runtime.
+ */
+static struct tdmr_info *tdx_tdmr_array;
+static int tdx_tdmr_array_sz;
+static int tdx_tdmr_num;
+static int tdx_pamt_entry_size;
+
 /* TDX module global KeyID.  Used in TDH.SYS.CONFIG ABI. */
 static u32 __read_mostly tdx_global_keyid;
 
@@ -1509,6 +1518,55 @@ static void tdx_trace_seamcalls(u64 level)
 	}
 }
 
+static void free_tdmrs_pamts(void)
+{
+	if (!tdx_tdmr_num)
+		return;
+
+	/*
+	 * Part of PAMT may already have been initialized by
+	 * TDX module.  Flush cache before returning PAMT back
+	 * to the kernel.
+	 */
+	wbinvd_on_all_cpus();
+	tdmrs_free_pamt_all(tdx_tdmr_array, tdx_tdmr_num);
+	free_pages_exact(tdx_tdmr_array, tdx_tdmr_array_sz);
+	tdx_tdmr_array = NULL;
+	tdx_tdmr_num = 0;
+	tdx_pamt_entry_size = 0;
+}
+
+static int alloc_and_construct_tdmrs(void)
+{
+	int ret;
+
+	/*
+	 * To avoid having to modify the page allocator to distinguish
+	 * TDX and non-TDX memory allocation, convert all memory regions
+	 * in memblock to TDX memory to make sure all pages managed by
+	 * the page allocator are TDX memory.
+	 *
+	 * Sanity check all memory regions are fully covered by CMRs to
+	 * make sure they are truly convertible.
+	 */
+	ret = check_memblock_tdx_convertible();
+	if (ret)
+		return ret;
+
+	/* Prepare enough space to construct TDMRs */
+	tdx_tdmr_array = alloc_tdmr_array(&tdx_tdmr_array_sz);
+	if (!tdx_tdmr_array)
+		return -ENOMEM;
+
+	tdx_pamt_entry_size = tdx_sysinfo.pamt_entry_size;
+	/* Construct TDMRs to cover all memory regions in memblock */
+	ret = construct_tdmrs_memeblock(tdx_tdmr_array, &tdx_tdmr_num);
+	if (!ret)
+		pr_info("%lu pages allocated for PAMT.\n",
+			tdmrs_get_pamt_pages(tdx_tdmr_array, tdx_tdmr_num));
+	return ret;
+}
+
 /*
  * Detect and initialize the TDX module.
  *
@@ -1518,9 +1576,6 @@ static void tdx_trace_seamcalls(u64 level)
  */
 static int init_tdx_module(void)
 {
-	struct tdmr_info *tdmr_array;
-	int tdmr_array_sz;
-	int tdmr_num;
 	int ret;
 
 	/*
@@ -1534,7 +1589,7 @@ static int init_tdx_module(void)
 	 */
 	ret = tdx_module_init_global();
 	if (ret)
-		goto out;
+		return ret;
 
 	if (trace_boot_seamcalls)
 		tdx_trace_seamcalls(DEBUGCONFIG_TRACE_ALL);
@@ -1544,36 +1599,17 @@ static int init_tdx_module(void)
 	/* Logical-cpu scope initialization */
 	ret = tdx_module_init_cpus();
 	if (ret)
-		goto out;
+		return ret;
 
 	ret = __tdx_get_sysinfo(&tdx_sysinfo, tdx_cmr_array, &tdx_cmr_num);
 	if (ret)
-		goto out;
+		return ret;
 
-	/*
-	 * To avoid having to modify the page allocator to distinguish
-	 * TDX and non-TDX memory allocation, convert all memory regions
-	 * in memblock to TDX memory to make sure all pages managed by
-	 * the page allocator are TDX memory.
-	 *
-	 * Sanity check all memory regions are fully covered by CMRs to
-	 * make sure they are truly convertible.
-	 */
-	ret = check_memblock_tdx_convertible();
-	if (ret)
-		goto out;
-
-	/* Prepare enough space to construct TDMRs */
-	tdmr_array = alloc_tdmr_array(&tdmr_array_sz);
-	if (!tdmr_array) {
-		ret = -ENOMEM;
-		goto out;
+	if (!tdx_tdmr_num) {
+		ret = alloc_and_construct_tdmrs();
+		if (ret)
+			return ret;
 	}
-
-	/* Construct TDMRs to cover all memory regions in memblock */
-	ret = construct_tdmrs_memeblock(tdmr_array, &tdmr_num);
-	if (ret)
-		goto out_free_tdmrs;
 
 	/*
 	 * Reserve the first TDX KeyID as global KeyID to protect
@@ -1582,9 +1618,9 @@ static int init_tdx_module(void)
 	tdx_global_keyid = tdx_keyid_start;
 
 	/* Pass the TDMRs and the global KeyID to the TDX module */
-	ret = config_tdx_module(tdmr_array, tdmr_num, tdx_global_keyid);
+	ret = config_tdx_module(tdx_tdmr_array, tdx_tdmr_num, tdx_global_keyid);
 	if (ret)
-		goto out_free_pamts;
+		return ret;
 
 	/*
 	 * Hardware doesn't guarantee cache coherency across different
@@ -1602,34 +1638,14 @@ static int init_tdx_module(void)
 	/* Config the key of global KeyID on all packages */
 	ret = config_global_keyid();
 	if (ret)
-		goto out_free_pamts;
+		return ret;
 
 	/* Initialize TDMRs to complete the TDX module initialization */
-	ret = init_tdmrs(tdmr_array, tdmr_num);
+	ret = init_tdmrs(tdx_tdmr_array, tdx_tdmr_num);
 	if (ret)
-		goto out_free_pamts;
+		return ret;
 
 	tdx_module_status = TDX_MODULE_INITIALIZED;
-out_free_pamts:
-	if (ret) {
-		/*
-		 * Part of PAMT may already have been initialized by
-		 * TDX module.  Flush cache before returning PAMT back
-		 * to the kernel.
-		 */
-		wbinvd_on_all_cpus();
-		tdmrs_free_pamt_all(tdmr_array, tdmr_num);
-	} else
-		pr_info("%lu pages allocated for PAMT.\n",
-				tdmrs_get_pamt_pages(tdmr_array, tdmr_num));
-out_free_tdmrs:
-	/*
-	 * The array of TDMRs is freed no matter the initialization is
-	 * successful or not.  They are not needed anymore after the
-	 * module initialization.
-	 */
-	free_pages_exact(tdmr_array, tdmr_array_sz);
-out:
 	return ret;
 }
 
@@ -1680,6 +1696,7 @@ static int __tdx_init_cpuslocked(void)
 	if (ret) {
 		pr_info("Failed to initialize TDX module.  Shut it down.\n");
 		shutdown_tdx_module();
+		free_tdmrs_pamts();
 		return -EFAULT;
 	}
 
@@ -1907,6 +1924,14 @@ static void tdx_module_sysfs_deinit(void)
 #endif
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+static inline int get_pamt_entry_size(const struct seam_sigstruct *sig)
+{
+	WARN_ON_ONCE(sig->pamt_entry_size_4K != sig->pamt_entry_size_2M ||
+		     sig->pamt_entry_size_4K != sig->pamt_entry_size_1G);
+	/* Per TDX loader spec, 0 means PAMT entry size is 16 bytes. */
+	return sig->pamt_entry_size_4K ? : 16;
+}
+
 static void free_seamldr_params(struct seamldr_params *params)
 {
 	int i;
@@ -1928,6 +1953,14 @@ static struct seamldr_params *alloc_seamldr_params(const struct tmu_req *req)
 	if ((req->module_size >> PAGE_SHIFT) > SEAMLDR_MAX_NR_MODULE_PAGES ||
 	    req->signature_size != SEAMLDR_SIGSTRUCT_SIZE)
 		return ERR_PTR(-EINVAL);
+
+	/* Check if PAMTs can be reused */
+	if (tdx_pamt_entry_size &&
+	    (tdx_pamt_entry_size != get_pamt_entry_size(req->signature))) {
+		pr_err("Cannot reuse PAMTs: entry size old %d new %d\n",
+		       tdx_pamt_entry_size, get_pamt_entry_size(req->signature));
+		return ERR_PTR(-EINVAL);
+	}
 
 	params = (struct seamldr_params *)get_zeroed_page(GFP_KERNEL);
 	if (!params)
