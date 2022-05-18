@@ -8,5 +8,5 @@ rpm/deb binaires for the latest kernel are published most business days to Githu
 ## Support
 Please email intel-next-maintainers@eclists.intel.com for questions or support.
 ## More Infomation
-Visit our 1source Github wiki page for more documentation: https://github.com/intel-innersource/os.linux.intelnext.kernel/wiki
+Visit our Intelpedia page for more documentation: https://intelpedia.intel.com/IntelNext
 
