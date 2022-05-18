@@ -4665,7 +4665,7 @@
                 }
             ],
             "description": "optimize out non-atomic bitops on compile-time constants",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Alexander Lobakin",
@@ -4682,6 +4682,37 @@
                 }
             ],
             "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
+        },
+        {
+            "branch": "bitops_fixup",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "description": "Patch is needed in order for bitops to merge",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "jira": "NEXT-2926",
+            "name": "bitops_fixup",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
+            "sdl_contact": [
+                {
+                    "name": "Charles Prestopine",
+                    "email": "charles.d.prestopine@intel.com"
+                }
+            ],
+            "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.18"
         }
