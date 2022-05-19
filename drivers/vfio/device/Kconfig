@@ -1,0 +1,6 @@
+config VFIO_DEVICE_IDXD
+	tristate "VFIO device driver for Intel IDXD"
+	depends on VFIO && X86_64
+	default n
+	help
+	  VFIO based device driver for Intel Accelerator Devices driver.
