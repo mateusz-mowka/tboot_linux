@@ -22,7 +22,6 @@ echo $rule >>$release_notes_file
 
 echo "This release is based on upstream $latest_linus_tag and is release number $nth_release of this cycle." >>$release_notes_file
 echo  >>$release_notes_file
-echo "Gitlab git repo: ssh://git@gitlab.devtools.intel.com:29418/intel-next/intel-next-kernel.git" >>$release_notes_file
 echo "Github 1Source git repo: https://github.com/intel-innersource/os.linux.intelnext.kernel.git" >>$release_notes_file
 echo  >>$release_notes_file
 echo "branch: master"  >>$release_notes_file
@@ -31,8 +30,7 @@ echo >>$release_notes_file
 cat >> $release_notes_file << EOF
 For more information about intel next visit: http://goto.intel.com/intelnext
 
-Links to Intel Next binaries are avaliable on Gitlab: https://gitlab.devtools.intel.com/intel-next/intel-next-kernel/-/releases
-and also on Github 1Source: https://github.com/intel-innersource/os.linux.intelnext.kernel/releases
+Links to Intel Next binaries are avaliable on Github 1Source: https://github.com/intel-innersource/os.linux.intelnext.kernel/releases
 Intel Next validation results: http://mozart.sh.intel.com:8080/dashboard/quick_entrance/LTP-DDT/Lab/all
 $rule
 EOF
