@@ -1,0 +1,220 @@
+perf-intel-pnp(1)
+=================
+
+NAME
+----
+perf-intel-pnp - Support for Intel Processor PnP (Power and Performance)
+excursion within perf tools
+
+SYNOPSIS
+--------
+[verse]
+'perf stat' -e pnp_excursion_monitor/*/
+
+DESCRIPTION
+-----------
+
+Some users are very sensitive to frequency variations while running their
+workload. They tend to set cpufreq scaling_max_freq and scaling_min_freq
+to the same value. Also some users set scaling_min_freq to prevent drop of
+frequency below this frequency.
+
+But there are several events, which cause hardware to limit frequency
+below the user frequency limits. Some of those events are triggered
+from user actions like changing maximum RAPL (Running Average Power Limit)
+power limit. Some events are purely hardware events like (prochot) hot
+processor.
+
+Intel PnP excursion monitor (PEM) gives capability to monitor performance
+excursion due to frequency drop below user-defined frequency and duration.
+Here "duration" acts as a filter to stop accounting for drops below this
+duration as some drops are not that significant and are just noise.
+
+For example admin sets 2GHz frequency threshold, 10ms as duration and
+want to check if the prochot events are the cause. Every time the
+frequency drops below 2GHz for at least 10ms, hardware will increment
+counter for the interval the performance was constrained due to
+prochot. If there are several excursions below 10ms, they will not be
+added to the count.
+
+Using the pref event list, admin can choose which events to monitor.
+As long as the frequency threshold and duration is common, every event
+can be monitored at the same time without perf multiplexing.
+
+Each counter is 32 bit and unit is 1 ms so will wrap around in ~49 days.
+
+Quick start
+----------
+
+The simplest thing to monitor pnp_excursion_monitor/any.
+
+For example the below command, will monitor frequency excursion below
+1800MHz for 10 ms. When this event happens processor will record
+how long this condition was valid and presents a counter.
+
+This command is sleeping for 60 seconds to monitor the event for one min::
+
+ #perf stat -e pnp_excursion_monitor/any,frequency_threshold=1800,duration=10/ sleep 60
+ Performance counter stats for 'system wide':
+
+                 100      pnp_excursion_monitor/any,frequency_threshold=1800,duration=10/
+
+      60.001309986 seconds time elapsed
+
+
+Above results shows that performance was limited for total 100ms. This 100ms includes
+all excursions, which were active for at least 10ms.
+
+config terms
+~~~~~~~~~~~~
+
+frequency_threshold
+
+Frequency threshold in MHz. This is the frequency below which excursion needs to
+be monitored. This is a mandatory parameter.
+
+duration
+
+Duration in milliseconds. This is the duration for which frequency drop will
+cause system to record as an event. This is a mandatory parameter.
+
+There is no unique settings for above terms for each event. So if a perf command
+is specified with two events with different frequency_threshold and duration
+, they must be part of two perf groups. Events in a group share
+frequency_threshold and duration. If each event in a group specified
+different values, then this is an error condition.
+
+Examples
+
+If a user wants to monitor one event::
+
+ perf stat -e pnp_excursion_monitor/any,frequency_threshold=1800,duration=10/ sleep 100
+
+If a user wants to monitor more events with common config terms, they must be in the
+same group::
+
+ perf stat -e "{pnp_excursion_monitor/any,frequency_threshold=1800,duration=10/,pnp_excursion_monitor/thermal/}" sleep 100
+
+If a user wants to count events with different frequency and duration, they must be
+in different groups. In this case perf multiplexing is triggered::
+
+ perf stat -e "{pnp_excursion_monitor/any,frequency_threshold=1800,duration=10/,pnp_excursion_monitor/thermal/}"
+ -e "{pnp_excursion_monitor/prochot,frequency_threshold=1000,duration=100/,pnp_excursion_monitor/pl1_mmio/}" sleep 100
+
+Events
+~~~~~~
+
+pnp_excursion_monitor/any/
+
+Duration for which core frequency excursion occurred because of any listed
+or unlisted reasons.
+
+pnp_excursion_monitor/itbm_3/
+
+Duration for which core frequency excursion occurred because of Intel
+Turbo Boost Max 3.0.
+
+pnp_excursion_monitor/sst_pp/
+
+Duration for which core frequency excursion occurred because of Intel
+Speed Select Technology - Performance profile feature.
+
+pnp_excursion_monitor/pmax/
+
+Duration for which core frequency excursion occurred because of PMAX
+detector. PMAX detector is an on-die circuit that detects voltage drop
+beyond certain thresholds.
+
+pnp_excursion_monitor/fast_rapl/
+
+Duration for which core frequency excursion occurred because of fast RAPL.
+Fast_RAPL is a mechanism that regulates power consumption between PL2 and
+PMAX levels.
+
+pnp_excursion_monitor/pl1_msr_tpmi/
+
+Duration for which core frequency excursion occurred due to RAPL (Running Average
+Power Limit) power limit 1 set via RAPL MSR or TPMI interface
+(E.g. powercap/intel-rapl*/constraint_0_power_limit_uw).
+
+pnp_excursion_monitor/pl1_mmio/
+
+Duration for which core frequency excursion occurred due to RAPL (Running Average
+Power Limit) power limit 1 set via RAPL MMIO interface
+(E.g. powercap/intel-rapl-mmio*/constraint_0_power_limit_uw).
+
+pnp_excursion_monitor/pl1_peci/
+
+Duration for which core frequency excursion occurred due to RAPL (Running Average
+Power Limit) power limit 1 set via PECI (Platform Environment Control Interface)
+interface.
+
+pnp_excursion_monitor/pl2_msr_tpmi/
+
+Duration for which core frequency excursion occurred due to RAPL (Running Average
+Power Limit) power limit 2 set via RAPL MSR or TPMI interface
+(E.g. powercap/intel-rapl*/constraint_1_power_limit_uw).
+
+pnp_excursion_monitor/pl2_mmio/
+
+Duration for which core frequency excursion occurred due to RAPL (Running Average
+Power Limit) power limit 2 set via RAPL MMIO interface
+(E.g. powercap/intel-rapl-mmio*/constraint_0_power_limit_uw).
+
+pnp_excursion_monitor/pl2_peci/
+
+Duration for which core frequency excursion occurred due to RAPL (Running Average
+Power Limit) power limit 2 set via RAPL PECI interface.
+
+pnp_excursion_monitor/psys_pl1_msr_tpmi/
+
+Duration for which core frequency excursion occurred due to PSys (Platform RAPL)
+power limit 1 set via PSys MSR or TPMI interface
+(E.g. powercap/intel-rapl*/constraint_0_power_limit_uw for attribute name=psys).
+
+pnp_excursion_monitor/psys_pl1_mmio/
+
+Duration for which core frequency excursion occurred due to PSys (Platform RAPL)
+power limit 1 set via PSys MMIO interface
+(E.g. powercap/intel-rapl-mmio*/constraint_0_power_limit_uw for attribute name=psys).
+
+pnp_excursion_monitor/psys_pl1_peci/
+
+Duration for which core frequency excursion occurred due to PSys (Platform RAPL)
+power limit 1 set via PSys PECI interface.
+
+pnp_excursion_monitor/psys_pl2_msr_tpmi/
+
+Duration for which core frequency excursion occurred due to PSys (Platform RAPL)
+power limit 2 set via PSys MSR or TPMI interface
+(E.g. powercap/intel-rapl*/constraint_1_power_limit_uw for attribute name=psys).
+
+pnp_excursion_monitor/psys_pl2_mmio/
+
+Duration for which core frequency excursion occurred due to PSys (Platform RAPL)
+power limit 2 set via PSys MMIO interface
+(E.g. powercap/intel-rapl-mmio*/constraint_1_power_limit_uw for attribute name=psys).
+
+pnp_excursion_monitor/psys_pl2_peci/
+
+Duration for which core frequency excursion occurred due to PSys (Platform RAPL)
+power limit 2 set via PSys PECI interface.
+
+pnp_excursion_monitor/thermal/
+
+Duration for which core frequency excursion occurred because of reaching thermal
+limits.
+
+pnp_excursion_monitor/prochot/
+
+Duration for which core frequency excursion occurred due to external PROCHOT
+(Processor Hot) assertion.
+
+pnp_excursion_monitor/hot_vr/
+
+Duration for which core frequency excursion occurred due hot voltage regulators.
+
+pnp_excursion_monitor/peci_pstate/
+
+Duration for which core frequency excursion occurred due to P-state request from
+PECI.
