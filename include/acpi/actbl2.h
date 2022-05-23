@@ -51,6 +51,7 @@
 #define ACPI_SIG_SDEV           "SDEV"	/* Secure Devices table */
 #define ACPI_SIG_SVKL           "SVKL"	/* Storage Volume Key Location Table */
 #define ACPI_SIG_TDEL           "TDEL"	/* TD Event Log Table */
+#define ACPI_SIG_CCEL           "CCEL"	/* Confidential Computing (CC) Event Log Table */
 
 /*
  * All tables must be byte-packed to match the ACPI specification, since
@@ -2606,6 +2607,30 @@ struct acpi_table_tdel {
 	u32 reserved;
 	u64 log_area_minimum_length;
 	u64 log_area_start_address;
+};
+
+/*******************************************************************************
+ *
+ * CCEL - CC-Event Log
+ *        From: "Guest-Host-Communication Interface (GHCI) for Intel
+ *        Trust Domain Extensions (Intel TDX) v1.0".
+ *        February 2022
+ *
+ ******************************************************************************/
+
+struct acpi_table_ccel {
+	struct acpi_table_header header;	/* Common ACPI table header */
+	u8  cc_type;
+	u8  cc_sub_type;
+	u16 reserved;
+	u64 log_area_minimum_length;
+	u64 log_area_start_address;
+};
+
+enum acpi_ccel_type {
+	ACPI_CCEL_TYPE_RESERVED = 0,
+	ACPI_CCEL_TYPE_SEV = 1,
+	ACPI_CCEL_TYPE_TDX = 2
 };
 
 /* Reset to default packing */
