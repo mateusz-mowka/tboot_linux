@@ -4653,6 +4653,42 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.18"
+        },
+        {
+            "branch": "svos-next-tdx-pull-5.18",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_SVOS",
+                    "value": "n"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Sergio Perez Gonzalez",
+                    "email": "sergio.perez.gonzalez@intel.com"
+                }
+            ],
+            "description": "SVOS TDX Modifications for v5.18",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Sergio Perez Gonzalez",
+                    "email": "sergio.perez.gonzalez@intel.com"
+                }
+            ],
+            "jira": "NEXT-2928",
+            "name": "svos_tdx",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/svos/sv/kernel/svos_next",
+            "sdl_contact": [
+                {
+                    "name": "Sergio Perez Gonzalez",
+                    "email": "sergio.perez.gonzalez@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
         }
     ]
 }
