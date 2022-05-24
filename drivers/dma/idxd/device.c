@@ -241,6 +241,7 @@ out:
 	dev_dbg(dev, "WQ %d disabled\n", wq->id);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(idxd_wq_disable);
 
 void idxd_wq_drain(struct idxd_wq *wq)
 {
