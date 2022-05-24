@@ -15,8 +15,47 @@ enum {
 	IDXD_VDEV_TYPE_MAX
 };
 
+static int idxd_vdcm_open(struct vfio_device *vdev)
+{
+	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
+	struct idxd_device *idxd = vidxd->wq->idxd;
+	struct device *dev = vdev->dev;
+	struct device *pasid_dev = &idxd->pdev->dev;
+	ioasid_t pasid;
+
+	if (!device_user_pasid_enabled(idxd))
+		return -ENODEV;
+
+	pasid = ioasid_alloc(NULL, 1,
+			     (1U << pasid_dev->iommu->pasid_bits) - 1, vidxd, 0);
+	if (pasid == INVALID_IOASID) {
+		dev_err(dev, "Unable to allocate pasid\n");
+		return -ENODEV;
+	}
+
+	mutex_lock(&vidxd->dev_lock);
+	vidxd->pasid = pasid;
+	vfio_device_set_pasid(vdev, pasid);
+	vidxd_init(vidxd);
+	mutex_unlock(&vidxd->dev_lock);
+	return 0;
+}
+
+static void idxd_vdcm_close(struct vfio_device *vdev)
+{
+	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
+
+	mutex_lock(&vidxd->dev_lock);
+	vidxd_shutdown(vidxd);
+	vfio_device_set_pasid(vdev, IOMMU_PASID_INVALID);
+	ioasid_put(NULL, vidxd->pasid);
+	mutex_unlock(&vidxd->dev_lock);
+}
+
 static const struct vfio_device_ops idxd_vdev_ops = {
 	.name = "vfio-vdev",
+	.open_device = idxd_vdcm_open,
+	.close_device = idxd_vdcm_close,
 };
 
 static struct idxd_wq *find_wq_by_type(struct idxd_device *idxd, u32 type)
