@@ -957,6 +957,8 @@ static int __init resctrl_late_init(void)
 
 	check_quirks();
 
+	iordt_init();
+
 	if (!get_rdt_resources())
 		return -ENODEV;
 
@@ -980,6 +982,8 @@ static int __init resctrl_late_init(void)
 
 	for_each_mon_capable_rdt_resource(r)
 		pr_info("%s monitoring detected\n", r->name);
+
+	iordt_show();
 
 	return 0;
 }
