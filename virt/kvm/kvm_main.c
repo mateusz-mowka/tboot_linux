@@ -1265,6 +1265,7 @@ out_err:
 		mmu_notifier_unregister(&kvm->mmu_notifier, current->mm);
 #endif
 out_err_no_mmu_notifier:
+	kvm_arch_flush_shadow_all(kvm);
 	kvm_arch_destroy_vm(kvm);
 out_err_no_arch_destroy_vm:
 	hardware_disable_all();
