@@ -205,6 +205,57 @@ void intel_hfi_update_task_class(struct task_struct *curr, bool smt_siblings_idl
 
 	curr->class = msr.split.classid;
 }
+
+static void get_one_hfi_cap(struct hfi_instance *hfi_instance, s16 index,
+			    struct hfi_cpu_data *hfi_caps, int class)
+{
+	struct hfi_cpu_data *caps;
+
+	/* Find the capabilities of @cpu */
+	caps = hfi_instance->data + index * hfi_features.cpu_stride +
+	       class * hfi_features.class_stride;
+	memcpy(hfi_caps, caps, sizeof(*hfi_caps));
+}
+
+int intel_hfi_get_task_class_score(int class, int cpu)
+{
+	struct hfi_cpu_info *info = &per_cpu(hfi_cpu_info, cpu);
+	struct hfi_instance *instance;
+	struct hfi_cpu_data caps;
+	unsigned long flags;
+	int c, i = 1, cap;
+
+	if (cpu < 0 || cpu >= nr_cpu_ids)
+		return -EINVAL;
+
+	if (class == TASK_CLASS_UNCLASSIFIED)
+		return -EINVAL;
+
+	if (class >= (int)hfi_features.nr_classes)
+		return -EINVAL;
+
+	instance = info->hfi_instance;
+	if (!instance)
+		return -ENOENT;
+
+	raw_spin_lock_irqsave(&instance->table_lock, flags);
+	/*
+	 * TODO: Per CPU variables could be used here to avoid having to
+	 * iterate the CPU's siblings mask.
+	 */
+	for_each_cpu(c, topology_sibling_cpumask(cpu)) {
+		if (c == cpu) {
+			get_one_hfi_cap(instance, info->index, &caps, class);
+			break;
+		}
+		i++;
+	}
+
+	cap = caps.perf_cap / i;
+	raw_spin_unlock_irqrestore(&instance->table_lock, flags);
+
+	return cap;
+}
 #endif /* CONFIG_INTEL_THREAD_DIRECTOR */
 
 static void get_hfi_caps(struct hfi_instance *hfi_instance,
