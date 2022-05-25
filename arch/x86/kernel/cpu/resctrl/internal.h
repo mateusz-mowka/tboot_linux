@@ -240,6 +240,10 @@ extern int max_name_width, max_data_width;
 int __init rdtgroup_init(void);
 void __exit rdtgroup_exit(void);
 
+void __init iordt_init(void);
+void __init iordt_show(void);
+void __exit iordt_free(void);
+
 /**
  * struct rftype - describe each file in the resctrl file system
  * @name:	File name
@@ -387,6 +391,8 @@ struct rdt_hw_resource {
 	unsigned int		mbm_width;
 	bool			cdp_enabled;
 };
+
+bool iordt_enabled(void);
 
 static inline struct rdt_hw_resource *resctrl_to_arch_res(struct rdt_resource *r)
 {
