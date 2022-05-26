@@ -827,18 +827,18 @@ struct acpi_table_dss {
  ******************************************************************************/
 
 struct acpi_table_rcs {
-	u16 type;		/* Type 1="RCS" */
-	u16 length;		/* Total length of the table in bytes */
-	u16 channel_type;	/* Type of channel controlled */
-	u8  id;			/* ID for this RCS under this RMUD */
-	u8  channel_count;	/* Number of channels */
+	u16 type;			/* Type 1="RCS" */
+	u16 length;			/* Total length of the table in bytes */
+	u16 channel_type;		/* Type of channel controlled */
+	u8  rcs_enumeration_id;		/* ID for this RCS under this RMUD */
+	u8  channel_count;		/* Number of channels */
 	u64 flags;
-	u16 rmid_block_offset;	/* Offset from RCS block MMIO RMID location */
-	u16 clos_block_offset;	/* Offset from RCS block MMIO CLOS location */
-	u16 block_bdf;		/* RCS hosting I/O block BDF */
-	u8  block_bar_number;	/* RCS hosting IO/ block BAR number */
+	u16 rmid_block_offset;		/* RMID tagging fields offset */
+	u16 clos_block_offset;		/* CLOS tagging fields offset */
+	u16 rcs_block_bdf;		/* I/O block BDF */
+	u8  rcs_block_bar_number;	/* IO/ block BAR number */
 	u8  reserved[9];
-	u64 block_mmio_location;/* RCH hosting I/O block MMIO BAR location */
+	u64 rcs_block_mmio_location;	/* I/O block MMIO BAR location */
 };
 
 /* Flags for protection_flags field above */
