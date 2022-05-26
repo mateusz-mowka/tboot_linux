@@ -390,6 +390,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEMORY_ACTIVITY.FB_NOT_FULL",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x47",
@@ -400,6 +401,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEMORY_ACTIVITY.L1M_PENDING",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x47",
@@ -410,6 +412,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEMORY_ACTIVITY.L2M_PENDING",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "CounterMask": "4",
@@ -421,6 +424,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEMORY_ACTIVITY.L3M_PENDING",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "CounterMask": "8",
@@ -444,7 +448,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "MEMORY_ACTIVITY.STALLS_L2_MISS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "CounterMask": "5",
@@ -456,7 +460,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "MEMORY_ACTIVITY.STALLS_L3_MISS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "CounterMask": "9",
@@ -468,6 +472,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEMORY_ORDERING.MD_DONE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x09",
@@ -478,6 +483,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEMORY_ORDERING.MD_NUKE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x09",
@@ -510,6 +516,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEMORY_ORDERING.SPEC_LOCK_NUKE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x09",
@@ -648,7 +655,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "Retired instructions with at least 1 store uop. This PEBS event is the trigger for stores sampled by the PEBS Store Facility.",
+        "BriefDescription": "Retired memory store access operations. A PDist event for PEBS Store Latency Facility.",
         "CollectPEBSRecord": "2",
         "Data_LA": "1",
         "EventCode": "0xcd",

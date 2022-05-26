@@ -729,7 +729,6 @@
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xcc",
         "EventName": "ROB_MISC_EVENTS.REGION_ENTRY",
-        "PEBS": "1",
         "PEBScounters": "0,1,2,3,4,5,6,7",
         "SampleAfterValue": "200003",
         "UMask": "0x4",
@@ -741,7 +740,6 @@
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xcc",
         "EventName": "ROB_MISC_EVENTS.REGION_EXIT",
-        "PEBS": "1",
         "PEBScounters": "0,1,2,3,4,5,6,7",
         "SampleAfterValue": "200003",
         "UMask": "0x8",
@@ -1360,7 +1358,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "CPU_CLK_UNHALTED.C0_WAIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xec",
@@ -1393,7 +1391,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "CPU_CLK_UNHALTED.PAUSE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xec",
@@ -1404,7 +1402,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "CPU_CLK_UNHALTED.PAUSE_INST",
         "Counter": "0,1,2,3,4,5,6,7",
         "CounterMask": "1",
         "EdgeDetect": "1",
@@ -1653,7 +1651,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INST_DECODED.UNFUSED",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x75",
@@ -1697,7 +1695,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INST_RETIRED.MACRO_FUSED",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xc0",
@@ -1730,7 +1728,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INST_RETIRED.REP_ITERATION",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xc0",
@@ -1797,7 +1795,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INT_MISC.SMT_STALLS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xad",
@@ -1808,7 +1806,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INT_MISC.UNKNOWN_BRANCH_CYCLES",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xad",
@@ -1833,7 +1831,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INT_VEC_RETIRED.128BIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe7",
@@ -1844,7 +1842,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INT_VEC_RETIRED.256BIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe7",
@@ -1877,7 +1875,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INT_VEC_RETIRED.MUL_256",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe7",
@@ -1888,7 +1886,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INT_VEC_RETIRED.SHUFFLES",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe7",
@@ -1899,7 +1897,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INT_VEC_RETIRED.VNNI_128",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe7",
@@ -1910,7 +1908,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "INT_VEC_RETIRED.VNNI_256",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe7",
@@ -1976,7 +1974,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "LD_BLOCKS.STORE_EARLY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x03",
@@ -2055,6 +2053,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "LSD_REPLAY.ABORTS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x7f",
@@ -2155,6 +2154,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MISC_RETIRED.MEM_FAULT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xcc",
@@ -2165,6 +2165,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MISC_RETIRED.PT_OVERFLOW",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xcc",
@@ -2208,6 +2209,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "RESOURCE_STALLS.GIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xa2",
@@ -2269,7 +2271,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "TOPDOWN.MEMORY_BOUND_SLOTS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xa4",
@@ -2555,6 +2557,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "UOPS_ISSUED.MRN_LDCHECK",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xae",
@@ -2578,6 +2581,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "UOPS_RETIRED.CORE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xc2",
@@ -2600,7 +2604,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "Retired uops except the last uop of each instruction.",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xc2",
@@ -2611,7 +2615,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "UOPS_RETIRED.MS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xc2",

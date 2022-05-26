@@ -303,7 +303,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "DECODE.REGEN",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x87",
@@ -360,6 +360,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "DSB_FILL.FB_STALL_OT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x62",
@@ -696,7 +697,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "FRONTEND_RETIRED.MS_FLOWS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xc6",
@@ -726,7 +727,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "FRONTEND_RETIRED.UNKNOWN_BRANCH",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xc6",
@@ -741,7 +742,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "ICACHE_DATA.HIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x80",
@@ -807,7 +808,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "ICACHE_TAG.STALLS_INUSE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x83",
@@ -818,7 +819,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "ICACHE_TAG.STALL_ISB",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x83",
@@ -853,6 +854,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "IDQ.DSB_STREAM_CACHE",
         "Counter": "0,1,2,3",
         "EventCode": "0x79",
         "EventName": "IDQ.DSB_STREAM_CACHE",

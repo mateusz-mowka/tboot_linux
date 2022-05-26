@@ -253,6 +253,17 @@
         "Unit": "cpu_atom"
     },
     {
+        "BriefDescription": "Counts the number of page walks completed due to instruction fetch misses to any page size.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0x85",
+        "EventName": "ITLB_MISSES.WALK_COMPLETED",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "200003",
+        "UMask": "0xe",
+        "Unit": "cpu_atom"
+    },
+    {
         "BriefDescription": "Counts the number of page walks completed due to instruction fetch misses to a 1G page.",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
@@ -364,6 +375,7 @@
         "Unit": "cpu_atom"
     },
     {
+        "BriefDescription": "DTLB_HWPF_MISSES.STLB_HIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x14",
@@ -374,7 +386,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "DTLB_HWPF_MISSES.WALK_COMPLETED",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x14",
@@ -385,6 +397,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "DTLB_HWPF_MISSES.WALK_COMPLETED_1GB",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x14",
@@ -395,6 +408,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "DTLB_HWPF_MISSES.WALK_COMPLETED_2M_4M",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x14",
@@ -405,6 +419,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "DTLB_HWPF_MISSES.WALK_COMPLETED_4K",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x14",
@@ -415,6 +430,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "DTLB_HWPF_MISSES.WALK_PENDING",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x14",
@@ -592,6 +608,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "EPT.EPDE_HIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x10",
@@ -602,6 +619,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "EPT.EPDE_MISS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x10",
@@ -612,6 +630,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "EPT.EPDPE_HIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x10",
@@ -622,6 +641,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "EPT.EPDPE_MISS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x10",
@@ -632,6 +652,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "EPT.HLAT_RESTART",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x10",

@@ -716,6 +716,7 @@
         "BriefDescription": "Counts the number of load ops retired that hit in the L3 cache.",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
+        "Data_LA": "1",
         "EventCode": "0xd1",
         "EventName": "MEM_LOAD_UOPS_RETIRED.L3_HIT",
         "PEBS": "1",
@@ -728,6 +729,7 @@
         "BriefDescription": "Counts the number of load ops retired that hit in the L3 cache in which no snoop was required.",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
+        "Data_LA": "1",
         "EventCode": "0xd1",
         "EventName": "MEM_LOAD_UOPS_RETIRED.L3_HIT_NO_SNOOP",
         "PEBS": "1",
@@ -740,6 +742,7 @@
         "BriefDescription": "Counts the number of load ops retired that hit in the L3 cache in which a snoop was required and it hit and forwarded data, it hit and did not forward data, or it hit and the forwarded data was modified.",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
+        "Data_LA": "1",
         "EventCode": "0xd1",
         "EventName": "MEM_LOAD_UOPS_RETIRED.L3_HIT_SNOOP_HIT",
         "PEBS": "1",
@@ -752,6 +755,7 @@
         "BriefDescription": "Counts the number of load ops retired that hit in the L3 cache in which a snoop was required and it missed.",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
+        "Data_LA": "1",
         "EventCode": "0xd1",
         "EventName": "MEM_LOAD_UOPS_RETIRED.L3_HIT_SNOOP_MISS",
         "PEBS": "1",
@@ -1402,6 +1406,7 @@
         "Unit": "cpu_atom"
     },
     {
+        "BriefDescription": "DL1_CACHE.EXPLICIT_EVICTIONS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x51",
@@ -1412,7 +1417,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "L1D.HWPF_ACCESS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x51",
@@ -1423,7 +1428,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "L1D.HWPF_MISS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x51",
@@ -1503,6 +1508,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.E_ANY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1524,6 +1530,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.E_SNOOP2S",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1534,6 +1541,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.I_ANY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1555,6 +1563,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.I_SNOOP2S",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1565,6 +1574,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.M_ANY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1575,6 +1585,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.M_SNOOP2I",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1585,6 +1596,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.M_SNOOP2S",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1595,6 +1607,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.S_ANY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1616,6 +1629,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L1D_SNOOP_RESPONSE.S_SNOOP2S",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x41",
@@ -1736,7 +1750,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "All L2 requests.[This event is alias to L2_RQSTS.REFERENCES]",
+        "BriefDescription": "All accesses to L2 cache[This event is alias to L2_RQSTS.REFERENCES]",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x24",
@@ -1780,7 +1794,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "Demand Data Read requests",
+        "BriefDescription": "Demand Data Read access L2 cache",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x24",
@@ -1813,6 +1827,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L2_RQSTS.ALL_HWPF",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x24",
@@ -1834,6 +1849,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L2_RQSTS.ALL_SWPF",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x24",
@@ -1877,7 +1893,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "Demand Data Read miss L2, no rejects",
+        "BriefDescription": "Demand Data Read miss L2 cache",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x24",
@@ -1910,6 +1926,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "L2_RQSTS.HWPF_MISS",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x24",
@@ -1942,7 +1959,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "All L2 requests.[This event is alias to L2_REQUEST.ALL]",
+        "BriefDescription": "All accesses to L2 cache[This event is alias to L2_REQUEST.ALL]",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x24",
@@ -2515,6 +2532,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEM_STORE_MISC_RETIRED.NON_DRAM",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x45",
@@ -2525,6 +2543,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEM_STORE_MISC_RETIRED.UC",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x45",
@@ -2535,6 +2554,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEM_STORE_MISC_RETIRED.UNKNOWN_SOURCE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x45",
@@ -2545,7 +2565,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "MEM_STORE_RETIRED.L2_HIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x44",
@@ -2556,6 +2576,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEM_STORE_RETIRED.L3_HIT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x44",
@@ -2566,6 +2587,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEM_STORE_RETIRED.L3_XSNP",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x44",
@@ -2576,6 +2598,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEM_STORE_RETIRED.LOCAL_MEMORY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x44",
@@ -2596,7 +2619,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "MEM_UOP_RETIRED.LOAD",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe5",
         "EventName": "MEM_UOP_RETIRED.LOAD",
@@ -2606,7 +2629,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "MEM_UOP_RETIRED.STA",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe5",
         "EventName": "MEM_UOP_RETIRED.STA",
@@ -3050,6 +3073,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "SQ_MISC.BUS_LOCK",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x2c",
@@ -3082,6 +3106,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "SQ_MISC.SNP_CYCLES",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x2c",

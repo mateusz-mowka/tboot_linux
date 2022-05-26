@@ -385,17 +385,6 @@
         "Unit": "cpu_atom"
     },
     {
-        "BriefDescription": "Filter bit to be used in combination with the other umasks in this event.  If ThrottleFilter == 0, then the subevent MBE_THROTTLE.LEVEL[x] will increment when MBE level requested is x.  If ThrottleFilter ==1, then MBE_THROTTLE.LEVEL[x] will increment only when MBE level is x AND the uarch throttle signal is being sent.  If all umasks are set including this filter bit, 0xFF, then the count should == PMEVT.MBA_THROT_REQ.  (MBE is aka Memory Bandwidth Allocation,MBA)",
-        "CollectPEBSRecord": "2",
-        "Counter": "0,1,2,3,4,5,6,7",
-        "EventCode": "0x2c",
-        "EventName": "MBE_THROTTLE.THROTTLE_FILTER",
-        "PEBScounters": "0,1,2,3,4,5,6,7",
-        "SampleAfterValue": "1000003",
-        "UMask": "0x80",
-        "Unit": "cpu_atom"
-    },
-    {
         "BriefDescription": "Counts the transactions of request type and response type specified in MSR_SNOOP_RESP0.",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
@@ -726,28 +715,6 @@
         "Unit": "cpu_atom"
     },
     {
-        "BriefDescription": "Counts the number of transactions of the request type and response type specified in MSR_OFFCORE_RESP0.",
-        "CollectPEBSRecord": "2",
-        "Counter": "0,1,2,3,4,5,6,7",
-        "EventCode": "0xb7",
-        "EventName": "OFFCORE_RESP.MSR_OFFCORE_RESP0",
-        "PEBScounters": "0,1,2,3,4,5,6,7",
-        "SampleAfterValue": "1000003",
-        "UMask": "0x1",
-        "Unit": "cpu_atom"
-    },
-    {
-        "BriefDescription": "Counts the number of transactions of the request type and response type specified in MSR_OFFCORE_RESP1.",
-        "CollectPEBSRecord": "2",
-        "Counter": "0,1,2,3,4,5,6,7",
-        "EventCode": "0xb7",
-        "EventName": "OFFCORE_RESP.MSR_OFFCORE_RESP1",
-        "PEBScounters": "0,1,2,3,4,5,6,7",
-        "SampleAfterValue": "1000003",
-        "UMask": "0x2",
-        "Unit": "cpu_atom"
-    },
-    {
         "BriefDescription": "Counts the number of times a PT Overflow is detected.",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
@@ -845,7 +812,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "ASSISTS.PAGE_FAULT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xc1",
@@ -856,7 +823,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "BPU.BTCLEAR_CYCLES",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x82",
@@ -867,6 +834,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "BPU.RSB_FULL",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x82",
@@ -877,7 +845,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "CORE_POWER.LEVEL_BASELINE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x28",
@@ -888,7 +856,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "CORE_POWER.LICENSE_0",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x28",
@@ -899,7 +867,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "CORE_POWER.LICENSE_1",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x28",
@@ -910,7 +878,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "CORE_POWER.LICENSE_2",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x28",
@@ -921,7 +889,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "CORE_POWER.LICENSE_3",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x28",
@@ -951,6 +919,39 @@
         "PEBScounters": "0,1,2,3",
         "SampleAfterValue": "200003",
         "UMask": "0x18",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "CORE_SNOOP_RESPONSE.CODE_RSP_SFWDFE",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.CODE_RSP_SFWDFE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0xc0",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "CORE_SNOOP_RESPONSE.CODE_RSP_SFWDM",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.CODE_RSP_SFWDM",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x88",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "CORE_SNOOP_RESPONSE.CODE_RSP_SHITFSE",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x27",
+        "EventName": "CORE_SNOOP_RESPONSE.CODE_RSP_SHITFSE",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x84",
         "Unit": "cpu_core"
     },
     {
@@ -1031,6 +1032,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "EXE.MOCLEAR",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xb7",
@@ -1041,7 +1043,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "HW_INTERRUPTS.MASKED",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xcb",
@@ -1052,7 +1054,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "HW_INTERRUPTS.PENDING_AND_MASKED",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xcb",
@@ -1107,6 +1109,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "IDI_MISC.WRITEPULL_DROP",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "EventCode": "0x2f",
@@ -1161,7 +1164,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "MICROCODE.MODEL_SPECIFIC",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xe0",
@@ -1358,6 +1361,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "RS_EMPTY.BAD_SPEC_ANY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xa5",
@@ -1393,6 +1397,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "RS_EMPTY.OTHER",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xa5",
@@ -1403,7 +1408,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "RS_EMPTY.RESOURCE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xa5",
@@ -1458,6 +1463,7 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "THREADS_ACTIVE.THREAD",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xec",
@@ -1479,7 +1485,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "TBD",
+        "BriefDescription": "XQ.FULL_CYCLES",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",
         "CounterMask": "1",
