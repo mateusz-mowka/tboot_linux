@@ -358,8 +358,8 @@ union wqcfg {
 	u32 bits[8];
 } __packed;
 
-#define WQCFG_PASID_IDX                2
-#define WQCFG_PRIVL_IDX		2
+#define WQCFG_PASID_IDX		2
+#define WQCFG_PRIV_IDX		2
 #define WQCFG_OCCUP_IDX		6
 
 #define WQCFG_OCCUP_MASK	0xffff
