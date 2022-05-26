@@ -34,6 +34,11 @@
 #define VIDXD_MAX_MSIX_ENTRIES		VIDXD_MAX_MSIX_VECS
 #define VIDXD_MAX_WQS			1
 
+enum {
+	IDXD_VDCM_READ = 0,
+	IDXD_VDCM_WRITE,
+};
+
 struct vdcm_idxd {
 	struct vfio_device vdev;
 	struct idxd_device *idxd;
