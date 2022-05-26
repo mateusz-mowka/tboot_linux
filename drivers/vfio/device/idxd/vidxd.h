@@ -58,7 +58,43 @@ static inline struct vdcm_idxd *vdev_to_vidxd(struct vfio_device *vdev)
 	return container_of(vdev, struct vdcm_idxd, vdev);
 }
 
+static inline struct device *vidxd_dev(struct vdcm_idxd *vidxd)
+{
+	return wq_confdev(vidxd->wq);
+}
+
+static inline u64 get_reg_val(void *buf, int size)
+{
+	u64 val = 0;
+
+	switch (size) {
+	case 8:
+		val = *(u64 *)buf;
+		break;
+	case 4:
+		val = *(u32 *)buf;
+		break;
+	case 2:
+		val = *(u16 *)buf;
+		break;
+	case 1:
+		val = *(u8 *)buf;
+		break;
+	}
+
+	return val;
+}
+
+static inline u8 vidxd_state(struct vdcm_idxd *vidxd)
+{
+	union gensts_reg *gensts = (union gensts_reg *)(vidxd->bar0 + IDXD_GENSTATS_OFFSET);
+
+	return gensts->state;
+}
+
 void vidxd_init(struct vdcm_idxd *vidxd);
 void vidxd_shutdown(struct vdcm_idxd *vidxd);
+int vidxd_cfg_read(struct vdcm_idxd *vidxd, unsigned int pos, void *buf, unsigned int count);
+int vidxd_cfg_write(struct vdcm_idxd *vidxd, unsigned int pos, void *buf, unsigned int size);
 
 #endif
