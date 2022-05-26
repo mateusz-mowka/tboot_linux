@@ -132,11 +132,40 @@ sdsi_memcpy64_fromio(u64 *to, const u64 __iomem *from, size_t count_bytes)
 		to[i] = readq(&from[i]);
 }
 
+static void print_control(u64 control)
+{
+	pr_debug("\n"
+		"SDSi CONTROL REGISTER:\n"
+		"RUN_BUSY:      %lu\n"
+		"READ_WRITE:    %lu\n"
+		"SOM:           %lu\n"
+		"EOM:           %lu\n"
+		"OWNER:         0x%lx\n"
+		"COMPLETE:      %lu\n"
+		"READY:         %lu\n"
+		"STATUS:        0x%lx\n"
+		"PACKET_SIZE:   %lu\n"
+		"MSG_SIZE:      %lu\n"
+		"\n",
+		FIELD_GET(CTRL_RUN_BUSY, control),
+		FIELD_GET(CTRL_READ_WRITE, control),
+		FIELD_GET(CTRL_SOM, control),
+		FIELD_GET(CTRL_EOM, control),
+		FIELD_GET(CTRL_OWNER, control),
+		FIELD_GET(CTRL_COMPLETE, control),
+		FIELD_GET(CTRL_READY, control),
+		FIELD_GET(CTRL_STATUS, control),
+		FIELD_GET(CTRL_PACKET_SIZE, control),
+		FIELD_GET(CTRL_MSG_SIZE, control));
+}
+
 static inline void sdsi_complete_transaction(struct sdsi_priv *priv)
 {
 	u64 control = FIELD_PREP(CTRL_COMPLETE, 1);
 
 	lockdep_assert_held(&priv->mb_lock);
+
+	dev_dbg(priv->dev, "%s: Setting complete bit\n", __func__);
 	writeq(control, priv->control_addr);
 }
 
@@ -162,6 +191,8 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 
 	lockdep_assert_held(&priv->mb_lock);
 
+	dev_dbg(priv->dev, "%s\n", __func__);
+
 	/* Format and send the read command */
 	control = FIELD_PREP(CTRL_EOM, 1) |
 		  FIELD_PREP(CTRL_SOM, 1) |
@@ -177,15 +208,20 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 		u32 packet_size;
 
 		/* Poll on ready bit */
+		dev_dbg(priv->dev, "%s: Packet %d\n", __func__, loop);
+		dev_dbg(priv->dev, "%s: Polling ready bit\n", __func__);
 		ret = readq_poll_timeout(priv->control_addr, control, control & CTRL_READY,
 					 MBOX_POLLING_PERIOD_US, MBOX_TIMEOUT_US);
-		if (ret)
+		if (ret) {
+			dev_dbg(priv->dev, "%s: Polling ready bit timed out, error %d\n", __func__, ret);
 			break;
+		}
 
 		eom = FIELD_GET(CTRL_EOM, control);
 		status = FIELD_GET(CTRL_STATUS, control);
 		packet_size = FIELD_GET(CTRL_PACKET_SIZE, control);
 		message_size = FIELD_GET(CTRL_MSG_SIZE, control);
+		print_control(control);
 
 		ret = sdsi_status_to_errno(status);
 		if (ret)
@@ -239,10 +275,11 @@ static int sdsi_mbox_cmd_write(struct sdsi_priv *priv, struct sdsi_mbox_info *in
 
 	lockdep_assert_held(&priv->mb_lock);
 
+	dev_dbg(priv->dev, "%s\n", __func__);
+
 	/* Write rest of the payload */
 	sdsi_memcpy64_toio(priv->mbox_addr + SDSI_SIZE_CMD, info->payload + 1,
 			   info->size - SDSI_SIZE_CMD);
-
 	/* Format and send the write command */
 	control = FIELD_PREP(CTRL_EOM, 1) |
 		  FIELD_PREP(CTRL_SOM, 1) |
@@ -275,11 +312,17 @@ static int sdsi_mbox_acquire(struct sdsi_priv *priv, struct sdsi_mbox_info *info
 
 	lockdep_assert_held(&priv->mb_lock);
 
+	dev_dbg(priv->dev, "%s\n", __func__);
+
 	/* Check mailbox is available */
 	control = readq(priv->control_addr);
+	print_control(control);
 	owner = FIELD_GET(CTRL_OWNER, control);
-	if (owner != MBOX_OWNER_NONE)
+	if (owner != MBOX_OWNER_NONE) {
+		dev_dbg(priv->dev, "%s: Cannot acquire mailbox: Owner is 0x%x\n",
+		       __func__, owner);
 		return -EBUSY;
+	}
 
 	/*
 	 * If there has been no recent transaction and no one owns the mailbox,
@@ -288,6 +331,7 @@ static int sdsi_mbox_acquire(struct sdsi_priv *priv, struct sdsi_mbox_info *info
 	 */
 	do {
 		/* Write first qword of payload */
+		dev_dbg(priv->dev, "%s: Writing first Qword 0x%llx\n", __func__, info->payload[0]);
 		writeq(info->payload[0], priv->mbox_addr);
 
 		/* Check for ownership */
@@ -297,6 +341,7 @@ static int sdsi_mbox_acquire(struct sdsi_priv *priv, struct sdsi_mbox_info *info
 
 		if (FIELD_GET(CTRL_OWNER, control) == MBOX_OWNER_NONE &&
 		    retries++ < MBOX_ACQUIRE_NUM_RETRIES) {
+			dev_dbg(priv->dev, "%s: Did not acquire, delaying for 0.5s\n", __func__);
 			msleep(MBOX_ACQUIRE_RETRY_DELAY_MS);
 			continue;
 		}
@@ -304,6 +349,11 @@ static int sdsi_mbox_acquire(struct sdsi_priv *priv, struct sdsi_mbox_info *info
 		/* Either we got it or someone else did. */
 		break;
 	} while (true);
+
+	if (!ret)
+		dev_dbg(priv->dev, "%s: Mailbox acquired\n", __func__);
+	else
+		dev_dbg(priv->dev, "%s: Did not acquire mailbox, error %d\n", __func__, ret);
 
 	return ret;
 }
@@ -313,6 +363,8 @@ static int sdsi_mbox_write(struct sdsi_priv *priv, struct sdsi_mbox_info *info)
 	int ret;
 
 	lockdep_assert_held(&priv->mb_lock);
+
+	dev_dbg(priv->dev, "%s\n", __func__);
 
 	ret = sdsi_mbox_acquire(priv, info);
 	if (ret)
@@ -326,6 +378,8 @@ static int sdsi_mbox_read(struct sdsi_priv *priv, struct sdsi_mbox_info *info, s
 	int ret;
 
 	lockdep_assert_held(&priv->mb_lock);
+
+	dev_dbg(priv->dev, "%s\n", __func__);
 
 	ret = sdsi_mbox_acquire(priv, info);
 	if (ret)
@@ -377,11 +431,22 @@ static ssize_t provision_akc_write(struct file *filp, struct kobject *kobj,
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct sdsi_priv *priv = dev_get_drvdata(dev);
+	int ret;
 
+	dev_dbg(priv->dev, "****** Start %s ******\n", __func__);
+
+	dev_dbg(priv->dev, "loff:	%lld\n"
+		"count:	%ld\n",
+		off, count);
 	if (off)
 		return -ESPIPE;
 
-	return sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_AKC);
+	dev_dbg(priv->dev, "****** End %s ******\n"
+		"\n", __func__);
+
+	ret = sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_AKC);
+
+	return ret;
 }
 static BIN_ATTR_WO(provision_akc, SDSI_SIZE_WRITE_MSG);
 
@@ -391,11 +456,22 @@ static ssize_t provision_cap_write(struct file *filp, struct kobject *kobj,
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct sdsi_priv *priv = dev_get_drvdata(dev);
+	int ret;
 
+	dev_dbg(priv->dev, "****** Start %s ******\n", __func__);
+
+	dev_dbg(priv->dev, "loff:	%lld\n"
+		"count:	%ld\n",
+		off, count);
 	if (off)
 		return -ESPIPE;
 
-	return sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_CAP);
+	dev_dbg(priv->dev, "****** End %s ******\n"
+		"\n", __func__);
+
+	ret = sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_CAP);
+
+	return ret;
 }
 static BIN_ATTR_WO(provision_cap, SDSI_SIZE_WRITE_MSG);
 
@@ -447,8 +523,19 @@ state_certificate_read(struct file *filp, struct kobject *kobj,
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct sdsi_priv *priv = dev_get_drvdata(dev);
+	int ret;
 
-	return certificate_read(SDSI_CMD_READ_STATE, priv, buf, off, count);
+	dev_dbg(priv->dev, "****** Start %s ******\n", __func__);
+
+	dev_dbg(priv->dev, "loff:	%lld\n"
+		"count:	%ld\n",
+		off, count);
+	ret = certificate_read(SDSI_CMD_READ_STATE, priv, buf, off, count);
+
+	dev_dbg(priv->dev, "****** End %s ******\n"
+		"\n", __func__);
+
+	return ret;
 }
 static BIN_ATTR(state_certificate, 0400, state_certificate_read, NULL, SDSI_SIZE_READ_MSG);
 
@@ -459,8 +546,19 @@ meter_certificate_read(struct file *filp, struct kobject *kobj,
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct sdsi_priv *priv = dev_get_drvdata(dev);
+	int ret;
 
-	return certificate_read(SDSI_CMD_READ_METER, priv, buf, off, count);
+	dev_dbg(priv->dev, "****** Start %s ******\n", __func__);
+
+	dev_dbg(priv->dev, "loff:	%lld\n"
+		"count:	%ld\n",
+		off, count);
+	ret = certificate_read(SDSI_CMD_READ_METER, priv, buf, off, count);
+
+	dev_dbg(priv->dev, "****** End %s ******\n"
+		"\n", __func__);
+
+	return ret;
 }
 static BIN_ATTR(meter_certificate, 0400, meter_certificate_read, NULL, SDSI_SIZE_READ_MSG);
 
@@ -599,6 +697,17 @@ static int sdsi_map_mbox_registers(struct sdsi_priv *priv, struct pci_dev *paren
 
 	res.end = res.start + size * sizeof(u32) - 1;
 	res.flags = IORESOURCE_MEM;
+
+	dev_info(priv->dev, "\n"
+		"DISCOVERY TABLE:\n"
+		"Access Type:   %s\n"
+		"Size:          %d\n"
+		"Tbir:          %d\n"
+		"Offset:        0x%x\n"
+		"Resource:      %pR\n"
+		"\n",
+		access_type == ACCESS_TYPE_LOCAL ? "LOCAL" : "BARID",
+		size, tbir, offset, &res);
 
 	priv->control_addr = devm_ioremap_resource(priv->dev, &res);
 	if (IS_ERR(priv->control_addr))
