@@ -1,8 +1,20 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
+#define pr_fmt(fmt)	"iordt: " fmt
 
 #include <linux/acpi.h>
+
+#define IORDT_DEV_TYPE_DSS		0
+#define IORDT_DEV_TYPE_RCS		1
+#define IORDT_CHMS_SIZE			16
+#define IORDT_VC_NUM			8
+#define IORDT_CHMS_CHANNEL_VALID	(1 << 7)
+#define IORDT_CHMS_CHANNEL_SHARED	(1 << 6)
+#define IORDT_CHMS_CHANNEL_VAL		~(IORDT_CHMS_CHANNEL_VALID |	\
+					IORDT_CHMS_CHANNEL_SHARED)
+#define IORDT_RCS_NUM			64
+#define IORDT_DSS_NUM			64
+#define IORDT_RMUD_NUM			32
 
 #define IORDT_RCS_AQ	(1 << 0)
 #define IORDT_RCS_RTS	(1 << 1)
@@ -13,26 +25,32 @@
 
 /*
  * iordt_rcs - Describe RCS
- * @channels_type:		0: PCIe or CXL.IO	1: CXL.cache
+ * @channel_type:		0: PCIe or CXL.IO	1: CXL.cache
  * @rcs_enumeration_id: 	ID for this RCS under this RMUD
  * @channel_count:		Number of channels under this link
  * @flags:			flags under this link
+ * @regw:			Register width 2B or 4B
  * @rmid_block_offset:		RMID offset from the MMIO location
  * @clos_block_offset:		CLOS offset from the MMIO location
  * @rcs_block_bdf:		I/O block BDF
  * @rcs_block_bar_number:	IO/ block BAR number
  * @rcs_block_mmio_location:	I/O block MMIO BAR location
+ * @closid_base:		Mapped CLOSID MMIO base
+ * @rmid_base:			Mapped RMID MMIO base
  */
 struct iordt_rcs {
-	u16 channels_type;
+	u16 channel_type;
 	u8  rcs_enumeration_id;
 	u8  channel_count;
 	u64 flags;
+	u8  regw;
 	u16 rmid_block_offset;
 	u16 clos_block_offset;
 	u16 rcs_block_bdf;
 	u8  rcs_block_bar_number;
 	u64 rcs_block_mmio_location;
+	void __iomem *closid_base;
+	void __iomem *rmid_base;
 } *iordt_rcs;
 
 struct iordt_chms_vc {
@@ -47,7 +65,8 @@ struct iordt_chms_vc {
  */
 struct iordt_chms {
 	u8  rcs_enumeration_id;
-	struct iordt_chms_vc  vc[8];
+	u8  vc_num;
+	struct iordt_chms_vc vc[IORDT_VC_NUM];
 };
 
 /*
@@ -119,17 +138,6 @@ static bool __init irdt_enabled(void)
 	       cpu_feature_enabled(X86_FEATURE_CAT_L3_IO);
 }
 
-#define IORDT_DEV_TYPE_DSS		0
-#define IORDT_DEV_TYPE_RCS		1
-#define IORDT_CHMS_SIZE			16
-#define IORDT_VC_NUM			8
-#define IORDT_CHMS_CHANNEL_VALID	(1 << 7)
-#define IORDT_CHMS_CHANNEL_SHARED	(1 << 6)
-#define IORDT_CHMS_CHANNEL_VAL		~(IORDT_CHMS_CHANNEL_VALID |	\
-					IORDT_CHMS_CHANNEL_SHARED)
-#define IORDT_RCS_NUM			64
-#define IORDT_DSS_NUM			64
-#define IORDT_RMUD_NUM			32
 struct iordt_rmud init_rmud[IORDT_RMUD_NUM] __initdata;
 struct iordt_dss init_dss[IORDT_DSS_NUM] __initdata;
 struct iordt_rcs init_rcs[IORDT_RCS_NUM] __initdata;
@@ -168,6 +176,7 @@ dss_enumerate(struct acpi_table_dss *acpi_dss, struct iordt_dss *dss,
 
 			chms[chms_idx].vc[vc_idx].shared = shared;
 			chms[chms_idx].vc[vc_idx].channel = channel;
+			chms[chms_idx].vc_num++;
 		}
 	}
 	dss->chms_num = chms_num;
@@ -178,13 +187,51 @@ dss_enumerate(struct acpi_table_dss *acpi_dss, struct iordt_dss *dss,
 	return 0;
 }
 
+static int rcs_setup(struct iordt_rcs *rcs, struct acpi_table_rcs *acpi_rcs)
+{
+	void __iomem *base;
+	unsigned long addr;
+	int size;
+
+	rcs->channel_type = acpi_rcs->channel_type;
+	rcs->rcs_enumeration_id = acpi_rcs->rcs_enumeration_id;
+	rcs->channel_count = acpi_rcs->channel_count;
+	rcs->flags = acpi_rcs->flags;
+	rcs->regw = rcs->flags & IORDT_RCS_REGW ? 2 : 4;
+	rcs->rmid_block_offset = acpi_rcs->rmid_block_offset;
+	rcs->clos_block_offset = acpi_rcs->clos_block_offset;
+	rcs->rcs_block_bdf = acpi_rcs->rcs_block_bdf;
+	rcs->rcs_block_bar_number = acpi_rcs->rcs_block_bar_number;
+	rcs->rcs_block_mmio_location = acpi_rcs->rcs_block_mmio_location;
+
+	size = rcs->channel_count * rcs->regw;
+	addr = rcs->rcs_block_mmio_location + rcs->clos_block_offset;
+	base = ioremap(addr, size);
+	if (!base) {
+		pr_err("Cannot map RCS CLOS block MMIO location %lx\n",
+		       (unsigned long)rcs->rcs_block_mmio_location);
+		return -ENOMEM;
+	}
+	rcs->closid_base = base;
+	addr = rcs->rcs_block_mmio_location + rcs->rmid_block_offset;
+	base = ioremap(addr, size);
+	if (!base) {
+		pr_err("Cannot map RCS RMID block MMIO location %lx\n",
+		       (unsigned long)rcs->rcs_block_mmio_location);
+		return -ENOMEM;
+	}
+	rcs->rmid_base = base;
+
+	return 0;
+}
+
 static int __init
 rcs_enumerate(struct acpi_table_rcs *acpi_rcs, struct iordt_rcs *rcs,
 	      int dss_rcs_num, u16 *length)
 {
 	*length = acpi_rcs->length;
 
-	return 0;
+	return rcs_setup(rcs, acpi_rcs);
 }
 
 static int __init
@@ -259,6 +306,10 @@ static void iordt_rmud_free(struct iordt_rmud *rmud, int rmud_num)
 
 	/* Free all allocated RCS and DSS memory. */
 	for (i = 0; i < rmud_num; i++) {
+		for (j = 0; j < rmud->rcs_num; j++) {
+			iounmap(rmud->rcs[j].closid_base);
+			iounmap(rmud->rcs[j].rmid_base);
+		}
 		kfree(rmud->rcs);
 		for (j = 0; j < rmud->dss_num; j++)
 			kfree(rmud->dss[j].chms);
@@ -285,6 +336,51 @@ rmud_copy(struct iordt_rmud *rmud, struct acpi_table_rmud *acpi_rmud)
 	rmud->max_closid = acpi_rmud->max_clos;
 	rmud->max_rmid = acpi_rmud->max_rmid;
 	rmud->segment = acpi_rmud->segment;
+}
+
+static int rcs_find(struct iordt_rmud *rmud, u8 rcs_enumeration_id,
+		    struct iordt_rcs **rcs)
+{
+	int i;
+
+	for (i = 0; i < rmud->rcs_num; i++) {
+		if (rmud->rcs[i].rcs_enumeration_id == rcs_enumeration_id) {
+			/* Find RCS that matches rcs_enumeration_id. */
+			*rcs = &rmud->rcs[i];
+
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static int rcs_channel_read(struct iordt_rcs *rcs, int channel,
+			    u32 *val, u16 offset)
+{
+	void __iomem *base, *p;
+	unsigned long addr;
+	int size;
+
+	if (channel >= rcs->channel_count)
+		return -EINVAL;
+
+	size = rcs->channel_count * rcs->regw;
+	addr = rcs->rcs_block_mmio_location + offset;
+	base = ioremap(addr, size);
+	if (!base) {
+		pr_err("Cannot map RCS CLOS block MMIO location %lx\n",
+		       (unsigned long)rcs->rcs_block_mmio_location);
+		return -ENOMEM;
+	}
+	p = (void *)(base + channel * rcs->regw);
+	if (rcs->regw == 2)
+		*val = *(u16 *)p;
+	else
+		*val = *(u32 *)p;
+	iounmap(base);
+
+	return 0;
 }
 
 static int __init rmud_enumerate(struct acpi_table_irdt *acpi_irdt)
