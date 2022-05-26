@@ -298,10 +298,9 @@ static void del_iaa_wq(struct iaa_device *iaa_device, struct idxd_wq *wq)
 			dev_dbg(dev, "removed wq %p from iaa_device %p, n_wq %d, nr_iaa %d\n",
 				wq, iaa_device, iaa_device->n_wq, nr_iaa);
 
-			if (iaa_device->n_wq == 0) {
+			if (iaa_device->n_wq == 0)
 				del_iaa_device(iaa_device);
-				break;
-			}
+			break;
 		}
 	}
 }
