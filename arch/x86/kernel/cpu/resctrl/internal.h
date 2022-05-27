@@ -230,6 +230,8 @@ struct rdtgroup {
 #define RF_CTRL_INFO			(RFTYPE_INFO | RFTYPE_CTRL)
 #define RF_MON_INFO			(RFTYPE_INFO | RFTYPE_MON)
 #define RF_TOP_INFO			(RFTYPE_INFO | RFTYPE_TOP)
+#define RFTYPE_IORDT			BIT(10)
+#define RF_IORDT_INFO			(RFTYPE_INFO | RFTYPE_IORDT)
 #define RF_CTRL_BASE			(RFTYPE_BASE | RFTYPE_CTRL)
 
 /* List of all resource groups */
@@ -411,6 +413,8 @@ extern struct rdtgroup rdtgroup_default;
 DECLARE_STATIC_KEY_FALSE(rdt_alloc_enable_key);
 
 extern struct dentry *debugfs_resctrl;
+
+extern struct rftype *iordt_info_files;
 
 enum resctrl_res_level {
 	RDT_RESOURCE_L3,
