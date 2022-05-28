@@ -1600,15 +1600,98 @@ static struct rftype res_common_files[] = {
 
 };
 
+static int rdtgroup_channel_show(struct kernfs_open_file *of,
+				 struct seq_file *seq, void *v)
+{
+	struct iordt_chan *channel;
+
+	for_each_iordt_channel(channel) {
+		char buf[16];
+
+		sprintf(buf, "%d", channel->channel);
+		if (!strcmp(of->kn->name, buf)) {
+			struct iordt_vc *vc;
+
+			/*
+			 * Find the channel and show its info:
+			 * Domain:Bus:Device.Function.VC<vc#>
+			 * Domain:Bus:Device.Function.VC<vc#>
+			 *  ...
+			 */
+			list_for_each_entry(vc, &channel->list, list) {
+				seq_printf(seq, "%x:%02x:%02x.%01x.VC%01x\n",
+					   channel->segment,
+					   PCI_BUS_NUM(vc->bdf),
+					   PCI_SLOT(vc->bdf),
+					   PCI_FUNC(vc->bdf),
+					   vc->vc_channel);
+			}
+
+			return 0;
+		}
+	}
+
+	return 0;
+}
+
+int rdtgroup_channel_info_files_setup(struct iordt_chan *channel)
+{
+	struct rftype *file;
+
+	file = &channel->file;
+	file->name = kzalloc(IORDT_CHANNEL_NAME_LEN, GFP_KERNEL);
+	if (!file->name)
+		return -ENOMEM;
+
+	sprintf(file->name, "%d", channel->channel);
+	file->mode = 0444;
+	file->kf_ops = &rdtgroup_kf_single_ops;
+	file->seq_show = rdtgroup_channel_show;
+	file->fflags = RF_IORDT_INFO;
+
+	return 0;
+}
+
+static int rdtgroup_add_files_io(struct kernfs_node *kn)
+{
+	struct iordt_chan *channel;
+	struct rftype *rfts, *rft;
+	int ret = 0;
+
+	if (iordt_channel_num <= 0)
+		return 0;
+
+	/* Add files for all channels. */
+	rfts = &iordt_channel[0].file;
+	for_each_iordt_channel(channel) {
+		rft = &channel->file;
+		ret = rdtgroup_add_file(kn, &channel->file);
+		if (ret)
+			goto error;
+	}
+
+	return 0;
+
+error:
+	pr_warn("Failed to add %s, err=%d\n", rft->name, ret);
+	while (--rft >= rfts)
+		kernfs_remove_by_name(kn, rft->name);
+
+	return ret;
+}
+
 static int rdtgroup_add_files(struct kernfs_node *kn, unsigned long fflags)
 {
 	struct rftype *rfts, *rft;
 	int ret, len;
 
+	lockdep_assert_held(&rdtgroup_mutex);
+
+	if (fflags == RF_IORDT_INFO)
+		return rdtgroup_add_files_io(kn);
+
 	rfts = res_common_files;
 	len = ARRAY_SIZE(res_common_files);
-
-	lockdep_assert_held(&rdtgroup_mutex);
 
 	for (rft = rfts; rft < rfts + len; rft++) {
 		if (rft->fflags && ((fflags & rft->fflags) == rft->fflags)) {
@@ -1804,6 +1887,14 @@ static int rdtgroup_create_info_dir(struct kernfs_node *parent_kn)
 		fflags =  r->fflags | RF_MON_INFO;
 		sprintf(name, "%s_MON", r->name);
 		ret = rdtgroup_mkdir_info_resdir(r, name, fflags);
+		if (ret)
+			goto out_destroy;
+	}
+
+	if (iordt_enabled()) {
+		fflags = RF_IORDT_INFO;
+		sprintf(name, "IO");
+		ret = rdtgroup_mkdir_info_resdir(NULL, name, fflags);
 		if (ret)
 			goto out_destroy;
 	}

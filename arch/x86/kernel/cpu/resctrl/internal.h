@@ -424,7 +424,24 @@ DECLARE_STATIC_KEY_FALSE(rdt_alloc_enable_key);
 
 extern struct dentry *debugfs_resctrl;
 
-extern struct rftype *iordt_info_files;
+struct iordt_chan {
+	int channel;
+	u16 bdf;
+	struct rdtgroup *rdtgrp;
+	struct rftype file;
+	void __iomem *closid_addr;
+	void __iomem *rmid_addr;
+};
+
+#define IORDT_CHANNEL_NUM	1024
+#define IORDT_CHANNEL_NAME_LEN	8
+
+extern struct iordt_chan iordt_channel[IORDT_CHANNEL_NUM];
+extern int iordt_channel_num;
+#define for_each_iordt_channel(channel)					\
+	for (channel = iordt_channel;					\
+	     channel < iordt_channel + iordt_channel_num; channel++)
+int rdtgroup_channel_info_files_setup(struct iordt_chan *channel);
 
 enum resctrl_res_level {
 	RDT_RESOURCE_L3,
