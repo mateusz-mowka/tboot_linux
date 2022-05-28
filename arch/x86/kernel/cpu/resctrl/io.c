@@ -2,7 +2,9 @@
 
 #define pr_fmt(fmt)	"iordt: " fmt
 
+#include <linux/seq_file.h>
 #include <linux/acpi.h>
+#include "internal.h"
 
 #define IORDT_DEV_TYPE_DSS		0
 #define IORDT_DEV_TYPE_RCS		1
@@ -132,32 +134,8 @@ static bool __init iordt_cpu_has_mbm_l3(void)
 	       rdt_cpu_has(X86_FEATURE_CQM_MBM_IO);
 }
 
-#define IORDT_CHANNEL_NUM	1024
-
-struct iordt_channel {
-	int channel;
-	void __iomem *closid_addr;
-	void __iomem *rmid_addr;
-} iordt_channel[IORDT_CHANNEL_NUM];
-
 int iordt_channel_num;
-
-struct rftype *iordt_info_files;
-
-/*
-struct rftype *get_iordt_info_files(void)
-{
-	int i, channel;
-
-	for (i = 0; i < iordt_rmud_num; i++) {
-		sprintf(iordt_info_files[i].name, "%x", channel);
-		iordt_info_files[i].mode = 0444;
-		iordt_info_files[i].kf_ops = &rdtgroup_kf_single_ops;
-		iordt_info_files[i].seq_show = rdtgroup_size_show;
-		iord_info_files[i].fflags = RF_IORDT_INFO;
-	}
-}
-*/
+struct iordt_chan iordt_channel[IORDT_CHANNEL_NUM];
 
 static u64 io_enabled;
 
@@ -381,6 +359,11 @@ static void iordt_rmud_free(struct iordt_rmud *rmud, int rmud_num)
 		kfree(rmud);
 		iordt_rmud_num = 0;
 	}
+
+	/* Free iordt_channel->name. */
+	for (i = 0; i < iordt_channel_num; i++)
+		kfree(iordt_channel[i].file.name);
+	iordt_channel_num = 0;
 }
 
 void __exit iordt_free(void)
@@ -441,11 +424,12 @@ static void get_rcs_rmid_addr(struct iordt_rcs *rcs, int channel,
 	*addr = (void *)(rcs->rmid_base + channel * rcs->regw);
 }
 
-static void _iordt_channel_setup(struct iordt_chms *chms,
-				 struct iordt_rmud *rmud, int rmud_idx)
+static int _iordt_channel_setup(struct iordt_chms *chms, struct iordt_dss *dss,
+				struct iordt_rmud *rmud, int rmud_idx)
 {
 	void __iomem *closid_addr, *rmid_addr;
 	int channel, ret, rcs_channel;
+	struct iordt_chan *pchannel;
 	struct iordt_rcs *rcs;
 	u8 rcs_enumeration_id;
 	struct iordt_vc *vc;
@@ -460,34 +444,49 @@ static void _iordt_channel_setup(struct iordt_chms *chms,
 		ret = rcs_find(rmud, rcs_enumeration_id, &rcs);
 		if (ret) {
 			pr_warn("Cannot read RCS from channel %d\n", channel);
-			continue;
+
+			return ret;
 		}
 
 		get_rcs_closid_addr(rcs, vc_channel, &closid_addr);
 		get_rcs_rmid_addr(rcs, vc_channel, &rmid_addr);
 
 
-		iordt_channel[iordt_channel_num].channel = channel;
-		iordt_channel[iordt_channel_num].closid_addr = closid_addr;
-		iordt_channel[iordt_channel_num].rmid_addr = rmid_addr;
+		pchannel = &iordt_channel[iordt_channel_num];
+		pchannel->channel = channel;
+		pchannel->closid_addr = closid_addr;
+		pchannel->rmid_addr = rmid_addr;
+		pchannel->bdf = dss->enumeration_id;
+		pchannel->rdtgrp = &rdtgroup_default;
+		ret = rdtgroup_channel_info_files_setup(pchannel);
+		if (ret)
+			return ret;
 
 		iordt_channel_num++;
 	}
+
+	return 0;
 }
 
-static void iordt_channel_setup(void)
+static int iordt_channel_setup(void)
 {
+	int rmud_idx, dss_idx,ret;
 	struct iordt_rmud *rmud;
 	struct iordt_chms *chms;
 	struct iordt_dss *dss;
-	int rmud_idx, dss_idx;
 
 	for_each_iordt_rmud(rmud, rmud_idx, iordt_rmud) {
 		for_each_iordt_dss(dss, dss_idx, rmud) {
-			for_each_iordt_chms(chms, dss)
-				_iordt_channel_setup(chms, rmud, rmud_idx);
+			for_each_iordt_chms(chms, dss) {
+				ret = _iordt_channel_setup(chms, dss, rmud,
+							   rmud_idx);
+				if (ret)
+					return ret;
+			}
 		}
 	}
+
+	return 0;
 }
 
 static int __init rmud_enumerate(struct acpi_table_irdt *acpi_irdt)
@@ -531,7 +530,12 @@ static int __init rmud_enumerate(struct acpi_table_irdt *acpi_irdt)
 	iordt_rmud_num = rmud_num;
 	memcpy(iordt_rmud, init_rmud, sizeof(struct iordt_rmud) * iordt_rmud_num);
 
-	iordt_channel_setup();
+	ret = iordt_channel_setup();
+	if (ret) {
+		iordt_rmud_free(iordt_rmud, rmud_num);
+
+		return ret;
+	}
 
 	return 0;
 }
