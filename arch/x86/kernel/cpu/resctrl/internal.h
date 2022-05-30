@@ -437,6 +437,10 @@ struct iordt_chan {
 	u32 channel;
 	struct rdtgroup *rdtgrp;
 	struct rftype file;
+	u8 regw;
+	u16 segment;
+	u32 closid;
+	u32 rmid;
 	void __iomem *closid_addr;
 	void __iomem *rmid_addr;
 	struct list_head list;
@@ -447,6 +451,11 @@ struct iordt_chan {
 
 extern struct iordt_chan iordt_channel[IORDT_CHANNEL_NUM];
 extern int iordt_channel_num;
+
+void iordt_closid_write(struct iordt_chan *c, u32 val);
+void iordt_rmid_write(struct iordt_chan *c, u32 val);
+struct iordt_chan *iordt_channel_find(u32 channel);
+
 #define for_each_iordt_channel(channel)					\
 	for (channel = iordt_channel;					\
 	     channel < iordt_channel + iordt_channel_num; channel++)

@@ -26,6 +26,7 @@
 #include <linux/slab.h>
 #include <linux/task_work.h>
 #include <linux/user_namespace.h>
+#include <linux/pci.h>
 
 #include <uapi/linux/magic.h>
 
@@ -742,6 +743,135 @@ static int rdtgroup_tasks_show(struct kernfs_open_file *of,
 	rdtgrp = rdtgroup_kn_lock_live(of->kn);
 	if (rdtgrp)
 		show_rdt_tasks(rdtgrp, s);
+	else
+		ret = -ENOENT;
+	rdtgroup_kn_unlock(of->kn);
+
+	return ret;
+}
+
+static int __rdtgroup_move_channel(struct iordt_chan *c,
+				   struct rdtgroup *rdtgrp)
+{
+	/* If the channel is already in rdtgrp, no need to move it. */
+	if ((rdtgrp->type == RDTCTRL_GROUP && c->closid == rdtgrp->closid &&
+	     c->rmid == rdtgrp->mon.rmid) ||
+	    (rdtgrp->type == RDTMON_GROUP && c->rmid == rdtgrp->mon.rmid &&
+	     c->closid == rdtgrp->mon.parent->closid))
+		return 0;
+
+	/*
+	 * Set the channel's closid/rmid before the PQR_ASSOC MSR can be
+	 * updated by them.
+	 *
+	 * For ctrl_mon groups, move both closid and rmid.
+	 * For monitor groups, can move the channels only from
+	 * their parent CTRL group.
+	 */
+	if (rdtgrp->type == RDTCTRL_GROUP) {
+		iordt_closid_write(c, rdtgrp->closid);
+		iordt_rmid_write(c, rdtgrp->mon.rmid);
+		c->rdtgrp = rdtgrp;
+	} else if (rdtgrp->type == RDTMON_GROUP) {
+		if (rdtgrp->mon.parent->closid == c->closid) {
+			iordt_rmid_write(c, rdtgrp->mon.rmid);
+			c->rdtgrp = rdtgrp;
+		} else {
+			rdt_last_cmd_puts("Can't move channel to different control group\n");
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+static int rdtgroup_move_channel(u32 channel, struct rdtgroup *rdtgrp,
+				 struct kernfs_open_file *of)
+{
+	struct iordt_chan *c;
+	int ret;
+
+	rcu_read_lock();
+	c = iordt_channel_find(channel);
+	if (!c) {
+		rcu_read_unlock();
+		rdt_last_cmd_printf("No channel %d\n", channel);
+
+		return -ESRCH;
+	}
+
+	rcu_read_unlock();
+
+	ret = __rdtgroup_move_channel(c, rdtgrp);
+
+	return ret;
+}
+
+static ssize_t rdtgroup_channels_write(struct kernfs_open_file *of,
+				       char *buf, size_t nbytes, loff_t off)
+{
+	struct rdtgroup *rdtgrp;
+	int ret = 0;
+	u32 channel;
+
+	if (kstrtoint(strstrip(buf), 0, &channel) || channel < 0)
+		return -EINVAL;
+	rdtgrp = rdtgroup_kn_lock_live(of->kn);
+	if (!rdtgrp) {
+		rdtgroup_kn_unlock(of->kn);
+		return -ENOENT;
+	}
+	rdt_last_cmd_clear();
+
+	if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED ||
+	    rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP) {
+		ret = -EINVAL;
+		rdt_last_cmd_puts("Pseudo-locking in progress\n");
+		goto unlock;
+	}
+
+	ret = rdtgroup_move_channel(channel, rdtgrp, of);
+
+unlock:
+	rdtgroup_kn_unlock(of->kn);
+
+	return ret ?: nbytes;
+}
+
+static bool is_closid_match_channel(struct iordt_chan *c, struct rdtgroup *r)
+{
+	return (rdt_alloc_capable &&
+	       (r->type == RDTCTRL_GROUP) && (c->closid == r->closid));
+}
+
+static bool is_rmid_match_channel(struct iordt_chan *c, struct rdtgroup *r)
+{
+	return (rdt_mon_capable &&
+	       (r->type == RDTMON_GROUP) && (c->rmid == r->mon.rmid));
+}
+
+static void show_rdt_channels(struct rdtgroup *r, struct seq_file *s)
+{
+	struct iordt_chan *c;
+
+	rcu_read_lock();
+	for_each_iordt_channel(c) {
+		if (is_closid_match_channel(c, r) ||
+		    is_rmid_match_channel(c, r))
+			seq_printf(s, "%d\n", c->channel);
+	}
+	rcu_read_unlock();
+}
+
+static int rdtgroup_channels_show(struct kernfs_open_file *of,
+				  struct seq_file *s, void *v)
+{
+	struct rdtgroup *rdtgrp;
+	int ret = 0;
+
+	rdtgrp = rdtgroup_kn_lock_live(of->kn);
+	if (rdtgrp)
+		show_rdt_channels(rdtgrp, s);
 	else
 		ret = -ENOENT;
 	rdtgroup_kn_unlock(of->kn);
@@ -1596,6 +1726,14 @@ static struct rftype res_common_files[] = {
 		.kf_ops		= &rdtgroup_kf_single_ops,
 		.seq_show	= rdtgroup_size_show,
 		.fflags		= RF_CTRL_BASE,
+	},
+	{
+		.name		= "channels",
+		.mode		= 0644,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.write		= rdtgroup_channels_write,
+		.seq_show	= rdtgroup_channels_show,
+		.fflags		= RFTYPE_BASE,
 	},
 
 };
