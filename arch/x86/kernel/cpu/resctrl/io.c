@@ -55,11 +55,6 @@ struct iordt_rcs {
 	void __iomem *rmid_base;
 } *iordt_rcs;
 
-struct iordt_vc {
-	u8   channel;
-	bool shared;
-};
-
 /*
  * iordt_chms - Describe CHMS
  * @rcs_enumeration_id: RCS enumeration ID
@@ -182,7 +177,7 @@ struct iordt_rcs init_rcs[IORDT_RCS_NUM] __initdata;
 
 static int __init
 dss_enumerate(struct acpi_table_dss *acpi_dss, struct iordt_dss *dss,
-	      int dss_rcs_num, u16 *length)
+	      int dss_rcs_num, u16 *length, int rmud_idx)
 {
 	void *acpi_chms = (void *)acpi_dss + sizeof(struct acpi_table_dss);
 	struct iordt_chms *chms;
@@ -195,25 +190,34 @@ dss_enumerate(struct acpi_table_dss *acpi_dss, struct iordt_dss *dss,
 	if (!chms)
 		return -ENOSPC;
 
+	dss->enumeration_id = acpi_dss->id;
 	for (chms_idx = 0; chms_idx < chms_num; chms_idx++) {
 		u8 *p = acpi_chms + chms_idx * IORDT_CHMS_SIZE;
 		int vc_idx;
 
 		chms[chms_idx].rcs_enumeration_id = p[0];
 		for (vc_idx = 0; vc_idx < IORDT_VC_NUM; vc_idx++) {
-			u8 channel_byte, channel;
+			u8 vc_channel_byte, vc_channel;
+			struct iordt_vc *vc;
 			int shared;
 
-			channel_byte = p[vc_idx + 1];
+			vc_channel_byte = p[vc_idx + 1];
 			/* Only enumerate valid channel */
-			if (!(channel_byte & IORDT_CHMS_CHANNEL_VALID))
+			if (!(vc_channel_byte & IORDT_CHMS_CHANNEL_VALID))
 				continue;
 
-			channel = channel_byte & IORDT_CHMS_CHANNEL_VAL;
-			shared = channel_byte & IORDT_CHMS_CHANNEL_SHARED;
+			vc_channel = vc_channel_byte & IORDT_CHMS_CHANNEL_VAL;
+			shared = vc_channel_byte & IORDT_CHMS_CHANNEL_SHARED;
 
-			chms[chms_idx].vc[vc_idx].shared = shared;
-			chms[chms_idx].vc[vc_idx].channel = channel;
+			vc = & chms[chms_idx].vc[vc_idx];
+			vc->valid = true;
+			vc->shared = shared;
+			vc->vc_channel = vc_channel;
+			vc->channel = vc_channel | (p[0] << 8) | \
+				      (rmud_idx << 16);
+			vc->bdf = dss->enumeration_id;
+			INIT_LIST_HEAD(&vc->list);
+
 			chms[chms_idx].vc_num++;
 		}
 	}
@@ -273,7 +277,8 @@ rcs_enumerate(struct acpi_table_rcs *acpi_rcs, struct iordt_rcs *rcs,
 }
 
 static int __init
-dss_rcs_enumerate(struct iordt_rmud *rmud, struct acpi_table_rmud *acpi_rmud)
+dss_rcs_enumerate(struct iordt_rmud *rmud, struct acpi_table_rmud *acpi_rmud,
+		  int rmud_idx)
 {
 	int dss_num = 0,rcs_num = 0, ret = 0;
 	void *dss_rcs, *rmud_end;
@@ -292,7 +297,7 @@ dss_rcs_enumerate(struct iordt_rmud *rmud, struct acpi_table_rmud *acpi_rmud)
 		type = *(char *)dss_rcs;
 		if (type == IORDT_DEV_TYPE_DSS) {
 			ret = dss_enumerate(dss_rcs, &init_dss[dss_num],
-					    dss_num, &length);
+					    dss_num, &length, rmud_idx);
 			if (ret)
 				return ret;
 			dss_num++;
@@ -424,22 +429,39 @@ static void get_rcs_rmid_addr(struct iordt_rcs *rcs, int channel,
 	*addr = (void *)(rcs->rmid_base + channel * rcs->regw);
 }
 
+struct iordt_chan *iordt_channel_find(u32 channel)
+{
+	struct iordt_chan *pchannel;
+
+	for_each_iordt_channel(pchannel) {
+		if (pchannel->channel == channel)
+			return pchannel;
+	}
+
+	return NULL;
+}
+
 static int _iordt_channel_setup(struct iordt_chms *chms, struct iordt_dss *dss,
 				struct iordt_rmud *rmud, int rmud_idx)
 {
 	void __iomem *closid_addr, *rmid_addr;
-	int channel, ret, rcs_channel;
+	u8 rcs_enumeration_id, vc_channel;
 	struct iordt_chan *pchannel;
+	u32 closid, rmid, channel;
 	struct iordt_rcs *rcs;
-	u8 rcs_enumeration_id;
 	struct iordt_vc *vc;
-	u32 closid, rmid;
+	int ret;
 
 	rcs_enumeration_id = chms->rcs_enumeration_id;
 	for_each_iordt_vc(vc, chms) {
-		rcs_channel = vc->channel;
-		channel = rcs_channel | (rcs_enumeration_id << 8) |
-			  (rmud_idx << 16);
+		vc_channel = vc->vc_channel;
+		channel = vc->channel;
+
+		pchannel = iordt_channel_find(channel);
+		if (pchannel) {
+			list_add_tail(&vc->list, &pchannel->list);
+			continue;
+		}
 
 		ret = rcs_find(rmud, rcs_enumeration_id, &rcs);
 		if (ret) {
@@ -456,11 +478,13 @@ static int _iordt_channel_setup(struct iordt_chms *chms, struct iordt_dss *dss,
 		pchannel->channel = channel;
 		pchannel->closid_addr = closid_addr;
 		pchannel->rmid_addr = rmid_addr;
-		pchannel->bdf = dss->enumeration_id;
 		pchannel->rdtgrp = &rdtgroup_default;
 		ret = rdtgroup_channel_info_files_setup(pchannel);
 		if (ret)
 			return ret;
+
+		INIT_LIST_HEAD(&pchannel->list);
+		list_add_tail(&vc->list, &pchannel->list);
 
 		iordt_channel_num++;
 	}
@@ -507,7 +531,8 @@ static int __init rmud_enumerate(struct acpi_table_irdt *acpi_irdt)
 			break;
 
 		rmud_copy(&init_rmud[rmud_num], acpi_rmud);
-		ret = dss_rcs_enumerate(&init_rmud[rmud_num], acpi_rmud);
+		ret = dss_rcs_enumerate(&init_rmud[rmud_num], acpi_rmud,
+					rmud_num);
 		if (ret) {
 			pr_err("Cannot allocate IORDT device\n");
 			iordt_rmud_free(init_rmud, rmud_num);

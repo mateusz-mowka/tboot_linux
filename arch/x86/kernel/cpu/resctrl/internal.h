@@ -424,13 +424,22 @@ DECLARE_STATIC_KEY_FALSE(rdt_alloc_enable_key);
 
 extern struct dentry *debugfs_resctrl;
 
+struct iordt_vc {
+	bool			valid;
+	u8			vc_channel;
+	u32			channel;
+	bool			shared;
+	u16			bdf;
+	struct list_head	list;
+};
+
 struct iordt_chan {
-	int channel;
-	u16 bdf;
+	u32 channel;
 	struct rdtgroup *rdtgrp;
 	struct rftype file;
 	void __iomem *closid_addr;
 	void __iomem *rmid_addr;
+	struct list_head list;
 };
 
 #define IORDT_CHANNEL_NUM	1024
