@@ -429,6 +429,26 @@ static void get_rcs_rmid_addr(struct iordt_rcs *rcs, int channel,
 	*addr = (void *)(rcs->rmid_base + channel * rcs->regw);
 }
 
+static void iordt_closid_rmid_write(void __iomem *addr, u32 val, u8 regw)
+{
+	if (regw == 2)
+		*(u16 *)addr = (u16)val;
+	else
+		*(u32 *)addr = val;
+}
+
+void iordt_closid_write(struct iordt_chan *c, u32 val)
+{
+	iordt_closid_rmid_write(c->closid_addr, val, c->regw);
+	c->closid = val;
+}
+
+void iordt_rmid_write(struct iordt_chan *c, u32 val)
+{
+	iordt_closid_rmid_write(c->rmid_addr, val, c->regw);
+	c->rmid = val;
+}
+
 struct iordt_chan *iordt_channel_find(u32 channel)
 {
 	struct iordt_chan *pchannel;
@@ -447,9 +467,9 @@ static int _iordt_channel_setup(struct iordt_chms *chms, struct iordt_dss *dss,
 	void __iomem *closid_addr, *rmid_addr;
 	u8 rcs_enumeration_id, vc_channel;
 	struct iordt_chan *pchannel;
-	u32 closid, rmid, channel;
 	struct iordt_rcs *rcs;
 	struct iordt_vc *vc;
+	u32 channel;
 	int ret;
 
 	rcs_enumeration_id = chms->rcs_enumeration_id;
@@ -478,10 +498,18 @@ static int _iordt_channel_setup(struct iordt_chms *chms, struct iordt_dss *dss,
 		pchannel->channel = channel;
 		pchannel->closid_addr = closid_addr;
 		pchannel->rmid_addr = rmid_addr;
+		/* Initilize CLOSID and RMID to 0. */
+		iordt_closid_write(pchannel, 0);
+		iordt_rmid_write(pchannel, 0);
 		pchannel->rdtgrp = &rdtgroup_default;
+		pchannel->regw = rcs->regw;
+		iordt_closid_write(pchannel, 0);
+		iordt_rmid_write(pchannel, 0);
 		ret = rdtgroup_channel_info_files_setup(pchannel);
 		if (ret)
 			return ret;
+
+		pchannel->segment = rmud->segment;
 
 		INIT_LIST_HEAD(&pchannel->list);
 		list_add_tail(&vc->list, &pchannel->list);
