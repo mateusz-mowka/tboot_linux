@@ -4340,6 +4340,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.18"
+        },
+        {
+            "branch": "iordt",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Fenghua Yu",
+                    "email": "fenghua.yu@intel.com"
+                }
+            ],
+            "description": "Enable IO RDT on GNR in Intel Next",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Ravi Shankar",
+                    "email": "ravi.v.shankar@intel.com"
+                }
+            ],
+            "jira": "NEXT-2929",
+            "name": "iordt",
+            "repourl": "https://github.com/intel-sandbox/kernel",
+            "sdl_contact": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
         }
     ]
 }
