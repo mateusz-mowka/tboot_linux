@@ -38,6 +38,8 @@ struct vdcm_idxd {
 	struct vfio_device vdev;
 	struct idxd_device *idxd;
 	struct idxd_wq *wq;
+	struct iommufd_device *idev;
+	int iommufd;
 
 	u64 bar_val[VIDXD_MAX_BARS];
 	u64 bar_size[VIDXD_MAX_BARS];

@@ -6,6 +6,7 @@
 #include <linux/pci.h>
 #include <linux/device.h>
 #include <linux/vfio.h>
+#include <linux/iommufd.h>
 #include "registers.h"
 #include "idxd.h"
 #include "vidxd.h"
@@ -52,10 +53,57 @@ static void idxd_vdcm_close(struct vfio_device *vdev)
 	mutex_unlock(&vidxd->dev_lock);
 }
 
+static int idxd_vdcm_bind_iommufd(struct vfio_device *vdev,
+				  struct vfio_device_bind_iommufd *bind)
+{
+	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
+	struct idxd_device *idxd = vidxd->idxd;
+	struct iommufd_device *idev;
+	int rc = 0;
+	u32 id;
+
+	mutex_lock(&vidxd->dev_lock);
+
+	/* Allow only one iommufd per vfio_device */
+	if (vidxd->idev) {
+		rc = -EBUSY;
+		goto out;
+	}
+
+	idev = iommufd_bind_pci_device(bind->iommufd, idxd->pdev,
+				       IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP, &id);
+	if (IS_ERR(idev)) {
+		rc = PTR_ERR(idev);
+		goto out;
+	}
+
+	vidxd->iommufd = bind->iommufd;
+	vidxd->idev = idev;
+	bind->out_devid = id;
+
+out:
+	mutex_unlock(&vidxd->dev_lock);
+	return rc;
+}
+
+static void idxd_vdcm_unbind_iommufd(struct vfio_device *vdev)
+{
+	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
+
+	mutex_lock(&vidxd->dev_lock);
+	if (vidxd->idev) {
+		iommufd_unbind_device(vidxd->idev);
+		vidxd->idev = NULL;
+	}
+	mutex_unlock(&vidxd->dev_lock);
+}
+
 static const struct vfio_device_ops idxd_vdev_ops = {
 	.name = "vfio-vdev",
 	.open_device = idxd_vdcm_open,
 	.close_device = idxd_vdcm_close,
+	.bind_iommufd = idxd_vdcm_bind_iommufd,
+	.unbind_iommufd = idxd_vdcm_unbind_iommufd,
 };
 
 static struct idxd_wq *find_wq_by_type(struct idxd_device *idxd, u32 type)
