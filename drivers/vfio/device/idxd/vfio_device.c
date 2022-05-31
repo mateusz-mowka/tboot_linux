@@ -92,10 +92,45 @@ static void idxd_vdcm_unbind_iommufd(struct vfio_device *vdev)
 
 	mutex_lock(&vidxd->dev_lock);
 	if (vidxd->idev) {
+		iommufd_device_detach(vidxd->idev, vidxd->pt_id);
 		iommufd_unbind_device(vidxd->idev);
 		vidxd->idev = NULL;
 	}
 	mutex_unlock(&vidxd->dev_lock);
+}
+
+static int idxd_vdcm_attach_ioas(struct vfio_device *vdev,
+				 struct vfio_device_attach_ioas *attach)
+{
+	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
+	u32 pasid, pt_id = attach->ioas_id;
+	int rc = 0;
+
+	mutex_lock(&vidxd->dev_lock);
+
+	if (!vidxd->idev || vidxd->iommufd != attach->iommufd) {
+		rc = -EINVAL;
+		goto out;
+	}
+
+	pasid = vfio_device_get_pasid(vdev);
+	if (pasid == IOMMU_PASID_INVALID) {
+		rc = -ENODEV;
+		goto out;
+	}
+
+	rc = iommufd_device_attach_pasid(vidxd->idev, &pt_id, pasid,
+					 IOMMUFD_ATTACH_FLAGS_ALLOW_UNSAFE_INTERRUPT);
+	if (rc)
+		goto out;
+
+	WARN_ON(attach->ioas_id == pt_id);
+	vidxd->pt_id = pt_id;
+	attach->out_hwpt_id = pt_id;
+
+out:
+	mutex_unlock(&vidxd->dev_lock);
+	return rc;
 }
 
 static const struct vfio_device_ops idxd_vdev_ops = {
@@ -104,6 +139,7 @@ static const struct vfio_device_ops idxd_vdev_ops = {
 	.close_device = idxd_vdcm_close,
 	.bind_iommufd = idxd_vdcm_bind_iommufd,
 	.unbind_iommufd = idxd_vdcm_unbind_iommufd,
+	.attach_ioas = idxd_vdcm_attach_ioas,
 };
 
 static struct idxd_wq *find_wq_by_type(struct idxd_device *idxd, u32 type)
