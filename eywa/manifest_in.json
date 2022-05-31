@@ -4187,7 +4187,7 @@
                 }
             ],
             "description": "hybrid cat feature",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
@@ -4352,7 +4352,7 @@
                 }
             ],
             "description": "Enable IO RDT on GNR in Intel Next",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
