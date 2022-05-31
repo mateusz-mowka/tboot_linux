@@ -10815,8 +10815,13 @@ static int complete_emulated_mmio(struct kvm_vcpu *vcpu)
 	/* Complete previous fragment */
 	frag = &vcpu->mmio_fragments[vcpu->mmio_cur_fragment];
 	len = min(64u, frag->len);
-	if (!vcpu->mmio_is_write)
-		memcpy(frag->data, run->mmio.data, len);
+	if (!vcpu->mmio_is_write) {
+                if (len > 8) {
+                        memcpy(frag->data, run->mmio.np_data, len);
+                } else {
+                        memcpy(frag->data, run->mmio.data, len);
+                }
+        }
 
 	if (frag->len <= 8) {
 		/* Switch to the next fragment. */
@@ -13269,8 +13274,13 @@ static int complete_sev_es_emulated_mmio(struct kvm_vcpu *vcpu)
 	/* Complete previous fragment */
 	frag = &vcpu->mmio_fragments[vcpu->mmio_cur_fragment];
 	len = min(64u, frag->len);
-	if (!vcpu->mmio_is_write)
-		memcpy(frag->data, run->mmio.data, len);
+	if (!vcpu->mmio_is_write) {
+                if (len > 8) {
+                        memcpy(frag->data, run->mmio.np_data, len);
+                } else {
+                        memcpy(frag->data, run->mmio.data, len);
+                }
+        }
 
 	if (frag->len <= 8) {
 		/* Switch to the next fragment. */
