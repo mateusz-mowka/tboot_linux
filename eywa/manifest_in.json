@@ -4371,6 +4371,32 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.18"
+        },
+        {
+            "branch": "for-intel-next/acpi-fixes",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Dan J Williams",
+                    "email": "dan.j.williams@intel.com"
+                }
+            ],
+            "description": "ACPI EINJ fix for internal testing",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2931",
+            "name": "acpi_fixes",
+            "repourl": "https://github.com/intel-sandbox/cxl.git",
+            "sdl_contact": [
+                {
+                    "name": "Dan J Williams",
+                    "email": "dan.j.williams@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.18"
         }
     ]
 }
