@@ -35,6 +35,7 @@
 #include <linux/iova_bitmap.h>
 #include <linux/iommufd.h>
 #include <uapi/linux/iommufd.h>
+#include <linux/msi.h>
 #include "vfio.h"
 
 #define DRIVER_VERSION	"0.3"
@@ -68,6 +69,12 @@ void vfio_device_set_msi_domain(struct vfio_device *device, struct irq_domain *d
 	dev_set_msi_domain(&device->device, domain);
 }
 EXPORT_SYMBOL_GPL(vfio_device_set_msi_domain);
+
+int vfio_device_msi_hwirq(struct vfio_device *device, int index)
+{
+	return dev_msi_hwirq(&device->device, index);
+}
+EXPORT_SYMBOL_GPL(vfio_device_msi_hwirq);
 
 int vfio_assign_device_set(struct vfio_device *device, void *set_id)
 {
