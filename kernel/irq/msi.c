@@ -1029,6 +1029,7 @@ free_bundle:
 	kfree(bundle);
 	return false;
 }
+EXPORT_SYMBOL_GPL(msi_domain_alloc_irqs);
 
 /**
  * msi_remove_device_irq_domain - Free a device MSI interrupt domain
@@ -1059,6 +1060,7 @@ void msi_remove_device_irq_domain(struct device *dev, unsigned int domid)
 unlock:
 	msi_unlock_descs(dev);
 }
+EXPORT_SYMBOL_GPL(msi_domain_free_irqs);
 
 /**
  * msi_match_device_irq_domain - Match a device irq domain against a bus token
