@@ -260,4 +260,8 @@ int vfio_virqfd_enable(void *opaque, int (*handler)(void *, void *),
 		       struct virqfd **pvirqfd, int fd);
 void vfio_virqfd_disable(struct virqfd **pvirqfd);
 
+extern void vfio_device_set_pasid(struct vfio_device *device, u32 pasid);
+extern u32 vfio_device_get_pasid(struct vfio_device *device);
+extern void vfio_device_set_msi_domain(struct vfio_device *device, struct irq_domain *domain);
+
 #endif /* VFIO_H */
