@@ -4,7 +4,7 @@ Intel Next consolidates development efforts across the SSP and collaborating bus
 ## Contributions
 Intel Next development happens on our mailing list: https://eclists.intel.com/sympa/info/intel-next
 ## Binary Releases
-rpm/deb binaires for the latest kernel are published most business days to Github/Gitlab. Release notes are sent to our announce mailing list: https://eclists.intel.com/sympa/info/intel-next-announce
+rpm/deb binaires for the latest kernel are published most business days to Github. Release notes are sent to our announce mailing list: https://eclists.intel.com/sympa/info/intel-next-announce
 ## Support
 Please email intel-next-maintainers@eclists.intel.com for questions or support.
 ## More Infomation
