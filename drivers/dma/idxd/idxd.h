@@ -319,6 +319,8 @@ struct idxd_device {
 	struct idxd_pmu *idxd_pmu;
 
 	unsigned long *opcap_bmap;
+
+	struct irq_domain *ims_domain;
 };
 
 /* IDXD software descriptor */
