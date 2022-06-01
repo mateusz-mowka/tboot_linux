@@ -1003,6 +1003,7 @@ int msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev, int nve
 	msi_unlock_descs(dev);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(msi_domain_alloc_irqs);
 
 void __msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
 {
@@ -1071,6 +1072,7 @@ void msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
 	msi_domain_free_irqs_descs_locked(domain, dev);
 	msi_unlock_descs(dev);
 }
+EXPORT_SYMBOL_GPL(msi_domain_free_irqs);
 
 /**
  * msi_get_domain_info - Get the MSI interrupt domain info for @domain
