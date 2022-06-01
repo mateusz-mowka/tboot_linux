@@ -312,6 +312,8 @@ struct idxd_device {
 	struct work_struct work;
 
 	struct idxd_pmu *idxd_pmu;
+
+	struct irq_domain *ims_domain;
 };
 
 /* IDXD software descriptor */
