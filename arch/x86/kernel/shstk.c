@@ -431,9 +431,17 @@ long cet_prctl(struct task_struct *task, int option, unsigned long features)
 		return -EINVAL;
 
 	if (option == ARCH_CET_DISABLE) {
+		if (features & CET_WRSS)
+			return wrss_control(false);
+		if (features & CET_SHSTK)
+			return shstk_disable();
 		return -EINVAL;
 	}
 
 	/* Handle ARCH_CET_ENABLE */
+	if (features & CET_SHSTK)
+		return shstk_setup();
+	if (features & CET_WRSS)
+		return wrss_control(true);
 	return -EINVAL;
 }
