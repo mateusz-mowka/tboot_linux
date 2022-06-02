@@ -658,6 +658,7 @@ enum {
 	RDT_FLAG_L2_CAT,
 	RDT_FLAG_L2_CDP,
 	RDT_FLAG_MBA,
+	RDT_FLAG_L3_CAT_IO,
 };
 
 #define RDT_OPT(idx, n, f)	\
@@ -681,6 +682,7 @@ static struct rdt_options rdt_options[]  __initdata = {
 	RDT_OPT(RDT_FLAG_L2_CAT,    "l2cat",	X86_FEATURE_CAT_L2),
 	RDT_OPT(RDT_FLAG_L2_CDP,    "l2cdp",	X86_FEATURE_CDP_L2),
 	RDT_OPT(RDT_FLAG_MBA,	    "mba",	X86_FEATURE_MBA),
+	RDT_OPT(RDT_FLAG_L3_CAT_IO, "l3cat_io",	X86_FEATURE_CAT_L3_IO),
 };
 #define NUM_RDT_OPTIONS ARRAY_SIZE(rdt_options)
 
