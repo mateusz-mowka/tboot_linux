@@ -419,8 +419,13 @@ long cet_prctl(struct task_struct *task, int option, unsigned long features)
 	}
 
 	/* Don't allow via ptrace */
-	if (task != current)
+	if (task != current) {
+		if (option == ARCH_CET_UNLOCK) {
+			task->thread.features_locked &= ~features;
+			return 0;
+		}
 		return -EINVAL;
+	}
 
 	/* Do not allow to change locked features */
 	if (features & task->thread.features_locked)

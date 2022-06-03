@@ -82,6 +82,9 @@ arch_prctl(ARCH_CET_DISABLE, unsigned int feature)
 arch_prctl(ARCH_CET_LOCK, unsigned int features)
     Lock in features at their current enabled or disabled status.
 
+arch_prctl(ARCH_CET_UNLOCK, unsigned int features)
+    Unlock features.
+
 The return values are as following:
     On success, return 0. On error, errno can be:
         -EPERM if any of the passed feature are locked. 
