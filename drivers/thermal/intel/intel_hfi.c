@@ -136,6 +136,10 @@ struct hfi_hdr {
  * @table_lock:		Lock to protect acceses to the table of this instance
  * @event_lock:		Lock to process HFI interrupts
  *
+ * DEBUG:
+ * @debugfs_hw_table:	A binary blob to dump the hardware HFI table
+ * @debugfs_local_table:A binary blob to dump the driver copy of the HFI table
+ *
  * A set of parameters to parse and navigate a specific HFI table.
  */
 struct hfi_instance {
@@ -150,6 +154,10 @@ struct hfi_instance {
 	struct delayed_work	update_work;
 	raw_spinlock_t		table_lock;
 	raw_spinlock_t		event_lock;
+#ifdef CONFIG_DEBUG_FS
+	struct debugfs_blob_wrapper	*debugfs_hw_table;
+	struct debugfs_blob_wrapper	*debugfs_local_table;
+#endif
 };
 
 /**
@@ -342,6 +350,19 @@ err:
 	hfi_debugfs_unregister();
 }
 
+static void init_blob_wrapper(struct debugfs_blob_wrapper **blob, void *data,
+			      char *name)
+{
+	*blob = kzalloc(sizeof(**blob), GFP_KERNEL);
+	if (!*blob)
+		return;
+
+	(*blob)->data = data;
+	(*blob)->size = hfi_features.nr_table_pages << PAGE_SHIFT;
+
+	debugfs_create_blob(name, 0444, hfi_debugfs_dir, *blob);
+}
+
 static void hfi_debugfs_populate_instance(struct hfi_instance *hfi_instance,
 					  int die_id)
 {
@@ -353,6 +374,14 @@ static void hfi_debugfs_populate_instance(struct hfi_instance *hfi_instance,
 	snprintf(name, 64, "hw_state%u", die_id);
 	debugfs_create_file(name, 0444, hfi_debugfs_dir, hfi_instance,
 			    &hfi_state_fops);
+
+	snprintf(name, 64, "hw_table%u", die_id);
+	init_blob_wrapper(&hfi_instance->debugfs_hw_table,
+			  hfi_instance->hw_table, name);
+
+	snprintf(name, 64, "local_table%u", die_id);
+	init_blob_wrapper(&hfi_instance->debugfs_local_table,
+			  hfi_instance->local_table, name);
 }
 
 #else
