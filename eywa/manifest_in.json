@@ -3035,7 +3035,7 @@
             "last_enabled": "v5.16"
         },
         {
-            "branch": "next-5.17-mba4.0",
+            "branch": "next-5.18-mba4.0",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -3045,14 +3045,14 @@
                 }
             ],
             "description": "RDT MBA 4.0",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Andrew J Herdrich",
                     "email": "andrew.j.herdrich@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2932",
             "name": "rdt_mba",
             "repourl": "https://github.com/intel-sandbox/agluck-linux.git",
             "sdl_contact": [
@@ -3063,7 +3063,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "dynamic_msix_ims_for_intel_next",
