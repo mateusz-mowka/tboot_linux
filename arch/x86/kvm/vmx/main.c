@@ -9,7 +9,7 @@
 #include "pmu.h"
 #include "tdx.h"
 
-static bool __read_mostly enable_tdx = IS_ENABLED(CONFIG_INTEL_TDX_HOST);
+bool __read_mostly enable_tdx = IS_ENABLED(CONFIG_INTEL_TDX_HOST);
 module_param_named(tdx, enable_tdx, bool, 0444);
 
 static bool vt_is_vm_type_supported(unsigned long type)

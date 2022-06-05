@@ -9,6 +9,7 @@
 #include "tdx_ops.h"
 
 int tdx_module_setup(void);
+extern bool enable_tdx;
 
 struct tdx_td_page {
 	unsigned long va;

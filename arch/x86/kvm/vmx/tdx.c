@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
 #include <linux/cpu.h>
+#include <linux/firmware.h>
 #include <linux/mmu_context.h>
 #include <linux/misc_cgroup.h>
+#include <linux/platform_device.h>
 
 #include <asm/fpu/xcr.h>
 #include <asm/virtext.h>
@@ -32,6 +34,11 @@ static u8 hkid_start_pos __ro_after_init;
 static DEFINE_SPINLOCK(tdx_update_lock);
 static unsigned int created_tds;
 static bool tdx_in_update;
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+/* Fake device for request_firmware */
+static struct platform_device *tdx_pdev;
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
 
 #define TDX_MAX_NR_CPUID_CONFIGS					\
 	((sizeof(struct tdsysinfo_struct) -				\
@@ -4340,7 +4347,7 @@ bool is_sys_rd_supported(void)
 	return !!tdx_caps.sys_rd;
 }
 
-int __init tdx_module_setup(void)
+int tdx_module_setup(void)
 {
 	const struct tdsysinfo_struct *tdsysinfo;
 	struct tdx_module_output out;
@@ -4783,6 +4790,8 @@ u64 tdx_non_arch_field_switch(u64 field)
 	}
 }
 
+static int __init tdx_module_update_init(void);
+static void tdx_module_update_destroy(void);
 int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 {
 	int max_pkgs;
@@ -4861,7 +4870,7 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 	x86_ops->mem_enc_write_memory = tdx_write_guest_memory;
 
 	kvm_set_tdx_guest_pmi_handler(tdx_guest_pmi_handler);
-	return 0;
+	return tdx_module_update_init();
 }
 
 void tdx_hardware_unsetup(void)
@@ -4870,4 +4879,129 @@ void tdx_hardware_unsetup(void)
 	kfree(tdx_mng_key_config_lock);
 	misc_cg_set_capacity(MISC_CG_RES_TDX, 0);
 	kvm_set_tdx_guest_pmi_handler(NULL);
+	tdx_module_update_destroy();
 }
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+static int kvm_tdx_module_update(const void *module, size_t module_size,
+				 const void *sigstruct, size_t sigstruct_size)
+{
+	int ret;
+	unsigned int num_tds;
+	struct tmu_req req;
+
+	num_tds = td_creation_block();
+	if (num_tds) {
+		ret = -EBUSY;
+		goto unblock;
+	}
+
+	/* tdx_module_update() expects VMXON executed on all CPUs */
+	ret = kvm_hardware_enable_all();
+	if (ret)
+		goto unblock;
+
+	req.module = module;
+	req.signature = sigstruct;
+	req.module_size = module_size;
+	req.signature_size = sigstruct_size;
+
+	ret = tdx_module_update(&req);
+	if (!ret) {
+		ret = tdx_module_setup();
+		enable_tdx = !ret;
+	} else {
+		enable_tdx = false;
+	}
+
+	kvm_hardware_disable_all();
+unblock:
+	td_creation_unblock();
+	return ret;
+}
+
+static ssize_t reload_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t size)
+{
+	int ret;
+	const struct firmware *module, *sigstruct;
+
+	if (!sysfs_streq(buf, "update"))
+		return -EINVAL;
+
+	ret = request_firmware_direct(&module, "intel-seam/libtdx.bin",
+				      &tdx_pdev->dev);
+	if (ret)
+		return ret;
+
+	ret = request_firmware_direct(&sigstruct,
+				      "intel-seam/libtdx.bin.sigstruct",
+				      &tdx_pdev->dev);
+	if (ret) {
+		release_firmware(module);
+		return ret;
+	}
+
+	ret = kvm_tdx_module_update(module->data, module->size,
+				    sigstruct->data, sigstruct->size);
+	if (!ret)
+		ret = size;
+
+	release_firmware(sigstruct);
+	release_firmware(module);
+	return ret;
+}
+static DEVICE_ATTR_WO(reload);
+
+static struct attribute *cpu_root_tdx_attrs[] = {
+	&dev_attr_reload.attr,
+	NULL
+};
+
+static const struct attribute_group cpu_root_tdx_group = {
+	.name  = "tdx",
+	.attrs = cpu_root_tdx_attrs,
+};
+
+static int __init tdx_module_update_init(void)
+{
+	int ret;
+
+	ret = sysfs_create_group(&cpu_subsys.dev_root->kobj, &cpu_root_tdx_group);
+	if (ret) {
+		pr_err("Fail to create tdx group\n");
+		return ret;
+	}
+
+	tdx_pdev = platform_device_register_simple("tdx", -1, NULL, 0);
+	if (IS_ERR(tdx_pdev)) {
+		sysfs_remove_group(&cpu_subsys.dev_root->kobj, &cpu_root_tdx_group);
+		return PTR_ERR(tdx_pdev);
+	}
+
+	return ret;
+}
+
+static void tdx_module_update_destroy(void)
+{
+	/*
+	 * Invoked unconditionally on removal of kvm-intel.ko. if tdx_pdev
+	 * isn't valid, initialization isn't done. Then, no need to do the
+	 * cleanup.
+	 */
+	if (!tdx_pdev || IS_ERR(tdx_pdev))
+		return;
+	sysfs_remove_group(&cpu_subsys.dev_root->kobj, &cpu_root_tdx_group);
+	platform_device_unregister(tdx_pdev);
+}
+#else /* !CONFIG_INTEL_TDX_MODULE_UPDATE */
+static int __init tdx_module_update_init(void)
+{
+	return 0;
+}
+
+static void tdx_module_update_destroy(void)
+{
+}
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
