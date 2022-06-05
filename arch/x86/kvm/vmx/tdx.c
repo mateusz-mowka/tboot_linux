@@ -4995,27 +4995,57 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 	struct tmu_req req;
 
 	num_tds = td_creation_block();
-	if (num_tds) {
-		ret = -EBUSY;
-		goto unblock;
-	}
 
 	/* tdx_module_update() expects VMXON executed on all CPUs */
 	ret = kvm_hardware_enable_all();
 	if (ret)
 		goto unblock;
 
-	req.preserving = 0;
+	req.preserving = !!num_tds;
 	req.module = module;
 	req.signature = sigstruct;
 	req.module_size = module_size;
 	req.signature_size = sigstruct_size;
 
-	ret = tdx_module_update_prepare(&req);
-	if (ret)
-		goto hardware_disable;
-	ret = tdx_module_update();
-	tdx_module_update_end();
+	if (req.preserving) {
+		/* Block TDX module APIs */
+		percpu_down_write(&tdx_update_percpu_rwsem);
+		/*
+		 * tdx_module_update_prepare should be called
+		 * after holding write lock of tdx_update_percpu_rwsem.
+		 *
+		 * Because tdx_module_update_prepare graps cpus_read_lock
+		 * and in existing paths (e.g., tdx_vm_init()), the locking
+		 * order is tdx_update_percpu_rwsem -> cpus_read_lock.
+		 */
+		ret = tdx_module_update_prepare(&req);
+		if (ret) {
+			percpu_up_write(&tdx_update_percpu_rwsem);
+			goto hardware_disable;
+		}
+
+		/* Block mmu notifier invalidation */
+		percpu_down_write(&tdx_update_percpu_rwsem_mn_invalidate);
+		write_lock(&tdx_update_rwlock);
+
+		ret = tdx_module_update();
+
+		/* Unblock mmu notifier invalidation */
+		write_unlock(&tdx_update_rwlock);
+		percpu_up_write(&tdx_update_percpu_rwsem_mn_invalidate);
+
+		tdx_module_update_end();
+		/* Unblock TDX module APIs */
+		percpu_up_write(&tdx_update_percpu_rwsem);
+	} else {
+		ret = tdx_module_update_prepare(&req);
+		if (ret)
+			goto hardware_disable;
+
+		ret = tdx_module_update();
+		tdx_module_update_end();
+	}
+
 	if (!ret) {
 		ret = tdx_module_setup();
 		enable_tdx = !ret;
