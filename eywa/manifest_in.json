@@ -4125,7 +4125,7 @@
                 }
             ],
             "description": "r8152 usb NIC wake on lan fix",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Kyle Pelton",
@@ -4143,7 +4143,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "x86_load_microcode_fix",
