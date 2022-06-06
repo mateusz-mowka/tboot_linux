@@ -1745,7 +1745,7 @@
                 }
             ],
             "description": "SPI-NOR/PCI/Thunderbolt/USB4 enabling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Kevin Zhenyu Zhu",
@@ -1756,7 +1756,7 @@
                     "email": "reuven.rozic@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2948",
             "name": "SPI-NOR/PCI/Thunderbolt/USB4",
             "repourl": "https://github.com/intel-sandbox/mwesterb-linux.git",
             "sdl_contact": [
@@ -1767,7 +1767,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "for_intel_next_v5.18-rc1",
