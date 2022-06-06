@@ -618,6 +618,11 @@ static int __init acpi_parse_irdt(struct acpi_table_header *table)
 	return ret;
 }
 
+bool iordt_feature_enabled(u64 flag)
+{
+	return io_enabled & flag;
+}
+
 bool iordt_enabled(void)
 {
 	return io_enabled ? true : false;
