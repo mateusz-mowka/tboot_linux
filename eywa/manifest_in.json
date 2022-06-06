@@ -3394,9 +3394,9 @@
                 }
             ],
             "description": "Support SGX2",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2950",
             "name": "sgx2",
             "repourl": "https://github.com/intel-sandbox/rchatre.linux.git",
             "sdl_contact": [
@@ -3407,7 +3407,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "debox_pm_for_intel_next",
