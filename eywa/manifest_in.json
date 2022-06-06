@@ -219,7 +219,7 @@
                 }
             ],
             "description": "NVME driver enabling",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Revanth Rajashekar",
@@ -237,7 +237,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "scs-v5.17",
