@@ -1508,7 +1508,7 @@ static inline void __stop_tx(struct uart_8250_port *p)
 	struct uart_8250_em485 *em485 = p->em485;
 
 	if (em485) {
-		unsigned char lsr = serial_lsr_in(p);
+		unsigned int lsr = serial_lsr_in(p);
 		u64 stop_delay = 0;
 
 		if (!(lsr & UART_LSR_THRE))
@@ -1565,7 +1565,7 @@ static inline void __start_tx(struct uart_port *port)
 
 	if (serial8250_set_THRI(up)) {
 		if (up->bugs & UART_BUG_TXEN) {
-			unsigned char lsr = serial_lsr_in(up);
+			unsigned int lsr = serial_lsr_in(up);
 
 			if (lsr & UART_LSR_THRE)
 				serial8250_tx_chars(up);
@@ -1719,7 +1719,7 @@ static void serial8250_enable_ms(struct uart_port *port)
 	serial8250_rpm_put(up);
 }
 
-void serial8250_read_char(struct uart_8250_port *up, unsigned char lsr)
+void serial8250_read_char(struct uart_8250_port *up, unsigned int lsr)
 {
 	struct uart_port *port = &up->port;
 	unsigned char ch;
@@ -1786,7 +1786,7 @@ EXPORT_SYMBOL_GPL(serial8250_read_char);
  * value, and returns the remaining LSR bits not handled
  * by this Rx routine.
  */
-unsigned char serial8250_rx_chars(struct uart_8250_port *up, unsigned char lsr)
+unsigned int serial8250_rx_chars(struct uart_8250_port *up, unsigned int lsr)
 {
 	struct uart_port *port = &up->port;
 	int max_count = 256;
@@ -1906,7 +1906,7 @@ static bool handle_rx_dma(struct uart_8250_port *up, unsigned int iir)
  */
 int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 {
-	unsigned char status;
+	unsigned int status;
 	struct uart_8250_port *up = up_to_u8250p(port);
 	bool skip_rx = false;
 	unsigned long flags;
@@ -2115,7 +2115,7 @@ static void wait_for_xmitr(struct uart_8250_port *up, int bits)
 static int serial8250_get_poll_char(struct uart_port *port)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
-	unsigned char lsr;
+	unsigned int lsr;
 	int status;
 
 	serial8250_rpm_get(up);
@@ -2171,7 +2171,8 @@ int serial8250_do_startup(struct uart_port *port)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
 	unsigned long flags;
-	unsigned char lsr, iir;
+	unsigned char iir;
+	unsigned int lsr;
 	int retval;
 
 	if (!port->fifosize)
