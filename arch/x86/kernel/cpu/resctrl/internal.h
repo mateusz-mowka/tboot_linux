@@ -398,6 +398,7 @@ struct rdt_hw_resource {
 };
 
 bool iordt_enabled(void);
+bool iordt_feature_enabled(u64 flag);
 
 #define IO_CAT_L3_ENABLED	BIT_ULL(0)
 #define IO_CMT_L3_ENABLED	BIT_ULL(1)

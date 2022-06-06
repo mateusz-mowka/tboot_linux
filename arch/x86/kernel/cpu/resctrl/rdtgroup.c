@@ -1738,6 +1738,55 @@ static struct rftype res_common_files[] = {
 
 };
 
+static int rdtgroup_cat_l3_show(struct kernfs_open_file *of,
+				struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "%d\n", iordt_feature_enabled(IO_CAT_L3_ENABLED));
+
+	return 0;
+}
+
+static int rdtgroup_cmt_l3_show(struct kernfs_open_file *of,
+				struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "%d\n", iordt_feature_enabled(IO_CMT_L3_ENABLED));
+
+	return 0;
+}
+
+static int rdtgroup_mbm_l3_show(struct kernfs_open_file *of,
+				struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "%d\n", iordt_feature_enabled(IO_MBM_L3_ENABLED));
+
+	return 0;
+}
+
+/* Common information files under /sys/fs/resctrl/info/IO. */
+static struct rftype io_common_files[] = {
+	{
+		.name		= "cat_l3",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_cat_l3_show,
+		.fflags		= RF_IORDT_INFO,
+	},
+	{
+		.name		= "cmt_l3",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_cmt_l3_show,
+		.fflags		= RF_IORDT_INFO,
+	},
+	{
+		.name		= "mbm_l3",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_mbm_l3_show,
+		.fflags		= RF_IORDT_INFO,
+	},
+};
+
 static int rdtgroup_channel_show(struct kernfs_open_file *of,
 				 struct seq_file *seq, void *v)
 {
@@ -1792,28 +1841,50 @@ int rdtgroup_channel_info_files_setup(struct iordt_chan *channel)
 
 static int rdtgroup_add_files_io(struct kernfs_node *kn)
 {
+	struct rftype *rfts_common, *rft_common, *rfts_channel, *rft_channel;
 	struct iordt_chan *channel;
-	struct rftype *rfts, *rft;
-	int ret = 0;
+	int len, ret = 0;
+
+	if (!iordt_enabled())
+		return 0;
 
 	if (iordt_channel_num <= 0)
 		return 0;
 
+	rfts_common = io_common_files;
+	len = ARRAY_SIZE(io_common_files);
+
+	for (rft_common = rfts_common; rft_common < rfts_common + len;
+	     rft_common++) {
+		ret = rdtgroup_add_file(kn, rft_common);
+		if (ret) {
+			pr_warn("Failed to add %s, err=%d\n", rft_common->name,
+				ret);
+			goto error_common;
+		}
+	}
+
 	/* Add files for all channels. */
-	rfts = &iordt_channel[0].file;
+	rfts_channel = &iordt_channel[0].file;
 	for_each_iordt_channel(channel) {
-		rft = &channel->file;
-		ret = rdtgroup_add_file(kn, &channel->file);
-		if (ret)
-			goto error;
+		rft_channel = &channel->file;
+		ret = rdtgroup_add_file(kn, rft_channel);
+		if (ret) {
+			pr_warn("Failed to add %s, err=%d\n", rft_channel->name,
+				ret);
+			goto error_channel;
+		}
 	}
 
 	return 0;
 
-error:
-	pr_warn("Failed to add %s, err=%d\n", rft->name, ret);
-	while (--rft >= rfts)
-		kernfs_remove_by_name(kn, rft->name);
+error_channel:
+	while (--rft_channel >= rfts_channel)
+		kernfs_remove_by_name(kn, rft_channel->name);
+
+error_common:
+	while (--rft_common >= rfts_common)
+		kernfs_remove_by_name(kn, rft_common->name);
 
 	return ret;
 }
