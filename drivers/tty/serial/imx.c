@@ -1908,7 +1908,7 @@ static void imx_uart_poll_put_char(struct uart_port *port, unsigned char c)
 
 /* called with port.lock taken and irqs off or from .probe without locking */
 static int imx_uart_rs485_config(struct uart_port *port,
-				 struct serial_rs485 *rs485conf)
+				 struct serial_rs485 *rs485conf, struct ktermios *termios)
 {
 	struct imx_port *sport = (struct imx_port *)port;
 	u32 ucr2;

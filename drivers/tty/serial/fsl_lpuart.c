@@ -1356,7 +1356,7 @@ static void lpuart_dma_rx_free(struct uart_port *port)
 }
 
 static int lpuart_config_rs485(struct uart_port *port,
-			struct serial_rs485 *rs485)
+			       struct serial_rs485 *rs485, struct ktermios *termios)
 {
 	struct lpuart_port *sport = container_of(port,
 			struct lpuart_port, port);
@@ -1386,7 +1386,7 @@ static int lpuart_config_rs485(struct uart_port *port,
 }
 
 static int lpuart32_config_rs485(struct uart_port *port,
-			struct serial_rs485 *rs485)
+				 struct serial_rs485 *rs485, struct ktermios *termios)
 {
 	struct lpuart_port *sport = container_of(port,
 			struct lpuart_port, port);

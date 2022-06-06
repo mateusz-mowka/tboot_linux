@@ -581,7 +581,7 @@ static const struct uart_ops ar933x_uart_ops = {
 };
 
 static int ar933x_config_rs485(struct uart_port *port,
-				struct serial_rs485 *rs485conf)
+			       struct serial_rs485 *rs485conf, struct ktermios *termios)
 {
 	struct ar933x_uart_port *up =
 		container_of(port, struct ar933x_uart_port, port);

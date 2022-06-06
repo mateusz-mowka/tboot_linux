@@ -33,7 +33,7 @@ struct lpc18xx_uart_data {
 };
 
 static int lpc18xx_rs485_config(struct uart_port *port,
-				struct serial_rs485 *rs485)
+				struct serial_rs485 *rs485, struct ktermios *termios)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
 	u32 rs485_ctrl_reg = 0;

@@ -2198,7 +2198,7 @@ static int pl011_verify_port(struct uart_port *port, struct serial_struct *ser)
 }
 
 static int pl011_rs485_config(struct uart_port *port,
-			      struct serial_rs485 *rs485)
+			      struct serial_rs485 *rs485, struct ktermios *termios)
 {
 	struct uart_amba_port *uap =
 		container_of(port, struct uart_amba_port, port);

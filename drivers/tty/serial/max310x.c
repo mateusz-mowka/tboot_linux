@@ -1027,7 +1027,7 @@ static void max310x_rs_proc(struct work_struct *ws)
 }
 
 static int max310x_rs485_config(struct uart_port *port,
-				struct serial_rs485 *rs485)
+				struct serial_rs485 *rs485, struct ktermios *termios)
 {
 	struct max310x_one *one = to_max310x_port(port);
 

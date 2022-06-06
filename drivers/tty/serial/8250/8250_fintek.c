@@ -192,7 +192,7 @@ static int fintek_8250_get_ldn_range(struct fintek_8250 *pdata, int *min,
 }
 
 static int fintek_8250_rs485_config(struct uart_port *port,
-			      struct serial_rs485 *rs485)
+			      struct serial_rs485 *rs485, struct ktermios *termios)
 {
 	uint8_t config = 0;
 	struct fintek_8250 *pdata = port->private_data;

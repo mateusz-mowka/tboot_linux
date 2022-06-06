@@ -98,7 +98,7 @@ static void stm32_usart_config_reg_rs485(u32 *cr1, u32 *cr3, u32 delay_ADE,
 }
 
 static int stm32_usart_config_rs485(struct uart_port *port,
-				    struct serial_rs485 *rs485conf)
+				    struct serial_rs485 *rs485conf, struct ktermios *termios)
 {
 	struct stm32_port *stm32_port = to_stm32_port(port);
 	const struct stm32_usart_offsets *ofs = &stm32_port->info->ofs;

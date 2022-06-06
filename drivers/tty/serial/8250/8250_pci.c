@@ -1554,7 +1554,7 @@ pci_brcm_trumanage_setup(struct serial_private *priv,
 
 /* We should do proper H/W transceiver setting before change to RS485 mode */
 static int pci_fintek_rs485_config(struct uart_port *port,
-			       struct serial_rs485 *rs485)
+				   struct serial_rs485 *rs485, struct ktermios *termios)
 {
 	struct pci_dev *pci_dev = to_pci_dev(port->dev);
 	u8 setting;
