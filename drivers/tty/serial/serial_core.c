@@ -1276,6 +1276,109 @@ static int uart_get_icount(struct tty_struct *tty,
 	return 0;
 }
 
+#define SER_RS485_LEGACY_FLAGS	(SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND | \
+				 SER_RS485_RTS_AFTER_SEND | SER_RS485_RX_DURING_TX | \
+				 SER_RS485_TERMINATE_BUS)
+
+static int uart_check_rs485_flags(struct uart_port *port, struct serial_rs485 *rs485)
+{
+	u32 flags = rs485->flags;
+
+	/* Don't return -EINVAL for unsupported legacy flags */
+	flags &= ~SER_RS485_LEGACY_FLAGS;
+
+	/*
+	 * For any bit outside of the legacy ones that is not supported by
+	 * the driver, return -EINVAL.
+	 */
+	if (flags & ~port->rs485_supported->flags)
+		return -EINVAL;
+
+	/* Asking for address w/o addressing mode? */
+	if (!(rs485->flags & SER_RS485_ADDRB) &&
+	    (rs485->flags & (SER_RS485_ADDR_RECV|SER_RS485_ADDR_DEST)))
+		return -EINVAL;
+
+	/* Address gived but not enabled? */
+	if (!(rs485->flags & SER_RS485_ADDR_RECV) && rs485->addr_recv)
+		return -EINVAL;
+	if (!(rs485->flags & SER_RS485_ADDR_DEST) && rs485->addr_dest)
+		return -EINVAL;
+
+	return 0;
+}
+
+static void uart_sanitize_serial_rs485(struct uart_port *port, struct serial_rs485 *rs485)
+{
+	u32 supported_flags = port->rs485_supported->flags;
+
+	if (!(rs485->flags & SER_RS485_ENABLED)) {
+		memset(rs485, 0, sizeof(*rs485));
+		return;
+	}
+
+	/* pick sane settings if the user hasn't */
+	if ((supported_flags & (SER_RS485_RTS_ON_SEND|SER_RS485_RTS_AFTER_SEND)) &&
+	    !(rs485->flags & SER_RS485_RTS_ON_SEND) ==
+	    !(rs485->flags & SER_RS485_RTS_AFTER_SEND)) {
+		dev_warn_ratelimited(port->dev,
+			"%s (%d): invalid RTS setting, using RTS_ON_SEND instead\n",
+			port->name, port->line);
+		rs485->flags |= SER_RS485_RTS_ON_SEND;
+		rs485->flags &= ~SER_RS485_RTS_AFTER_SEND;
+		supported_flags |= SER_RS485_RTS_ON_SEND|SER_RS485_RTS_AFTER_SEND;
+	}
+
+	if (!port->rs485_supported->delay_rts_before_send) {
+		if (rs485->delay_rts_before_send) {
+			dev_warn_ratelimited(port->dev,
+				"%s (%d): RTS delay before sending not supported\n",
+				port->name, port->line);
+		}
+		rs485->delay_rts_before_send = 0;
+	} else if (rs485->delay_rts_before_send > RS485_MAX_RTS_DELAY) {
+		rs485->delay_rts_before_send = RS485_MAX_RTS_DELAY;
+		dev_warn_ratelimited(port->dev,
+			"%s (%d): RTS delay before sending clamped to %u ms\n",
+			port->name, port->line, rs485->delay_rts_before_send);
+	}
+
+	if (!port->rs485_supported->delay_rts_after_send) {
+		if (rs485->delay_rts_after_send) {
+			dev_warn_ratelimited(port->dev,
+				"%s (%d): RTS delay after sending not supported\n",
+				port->name, port->line);
+		}
+		rs485->delay_rts_after_send = 0;
+	} else if (rs485->delay_rts_after_send > RS485_MAX_RTS_DELAY) {
+		rs485->delay_rts_after_send = RS485_MAX_RTS_DELAY;
+		dev_warn_ratelimited(port->dev,
+			"%s (%d): RTS delay after sending clamped to %u ms\n",
+			port->name, port->line, rs485->delay_rts_after_send);
+	}
+
+	rs485->flags &= supported_flags;
+
+	/* Return clean padding area to userspace */
+	memset(rs485->padding, 0, sizeof(rs485->padding));
+}
+
+int uart_rs485_config(struct uart_port *port)
+{
+	struct serial_rs485 *rs485 = &port->rs485;
+	int ret;
+
+	uart_sanitize_serial_rs485(port, rs485);
+
+	ret = port->rs485_config(port, rs485, NULL);
+
+	if (ret)
+		memset(rs485, 0, sizeof(*rs485));
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(uart_rs485_config);
+
 static int uart_get_rs485_config(struct uart_port *port,
 			 struct serial_rs485 __user *rs485)
 {
@@ -1292,7 +1395,7 @@ static int uart_get_rs485_config(struct uart_port *port,
 	return 0;
 }
 
-static int uart_set_rs485_config(struct uart_port *port,
+static int uart_set_rs485_config(struct tty_struct *tty, struct uart_port *port,
 			 struct serial_rs485 __user *rs485_user)
 {
 	struct serial_rs485 rs485;
@@ -1305,34 +1408,13 @@ static int uart_set_rs485_config(struct uart_port *port,
 	if (copy_from_user(&rs485, rs485_user, sizeof(*rs485_user)))
 		return -EFAULT;
 
-	/* pick sane settings if the user hasn't */
-	if (!(rs485.flags & SER_RS485_RTS_ON_SEND) ==
-	    !(rs485.flags & SER_RS485_RTS_AFTER_SEND)) {
-		dev_warn_ratelimited(port->dev,
-			"%s (%d): invalid RTS setting, using RTS_ON_SEND instead\n",
-			port->name, port->line);
-		rs485.flags |= SER_RS485_RTS_ON_SEND;
-		rs485.flags &= ~SER_RS485_RTS_AFTER_SEND;
-	}
-
-	if (rs485.delay_rts_before_send > RS485_MAX_RTS_DELAY) {
-		rs485.delay_rts_before_send = RS485_MAX_RTS_DELAY;
-		dev_warn_ratelimited(port->dev,
-			"%s (%d): RTS delay before sending clamped to %u ms\n",
-			port->name, port->line, rs485.delay_rts_before_send);
-	}
-
-	if (rs485.delay_rts_after_send > RS485_MAX_RTS_DELAY) {
-		rs485.delay_rts_after_send = RS485_MAX_RTS_DELAY;
-		dev_warn_ratelimited(port->dev,
-			"%s (%d): RTS delay after sending clamped to %u ms\n",
-			port->name, port->line, rs485.delay_rts_after_send);
-	}
-	/* Return clean padding area to userspace */
-	memset(rs485.padding, 0, sizeof(rs485.padding));
+	ret = uart_check_rs485_flags(port, &rs485);
+	if (ret)
+		return ret;
+	uart_sanitize_serial_rs485(port, &rs485);
 
 	spin_lock_irqsave(&port->lock, flags);
-	ret = port->rs485_config(port, &rs485);
+	ret = port->rs485_config(port, &rs485, &tty->termios);
 	if (!ret)
 		port->rs485 = rs485;
 	spin_unlock_irqrestore(&port->lock, flags);
@@ -1441,6 +1523,10 @@ uart_ioctl(struct tty_struct *tty, unsigned int cmd, unsigned long arg)
 	if (ret != -ENOIOCTLCMD)
 		goto out;
 
+	/* rs485_config requires more locking than others */
+	if (cmd == TIOCGRS485)
+		down_write(&tty->termios_rwsem);
+
 	mutex_lock(&port->mutex);
 	uport = uart_port_check(state);
 
@@ -1464,7 +1550,7 @@ uart_ioctl(struct tty_struct *tty, unsigned int cmd, unsigned long arg)
 		break;
 
 	case TIOCSRS485:
-		ret = uart_set_rs485_config(uport, uarg);
+		ret = uart_set_rs485_config(tty, uport, uarg);
 		break;
 
 	case TIOCSISO7816:
@@ -1481,6 +1567,8 @@ uart_ioctl(struct tty_struct *tty, unsigned int cmd, unsigned long arg)
 	}
 out_up:
 	mutex_unlock(&port->mutex);
+	if (cmd == TIOCGRS485)
+		up_write(&tty->termios_rwsem);
 out:
 	return ret;
 }
