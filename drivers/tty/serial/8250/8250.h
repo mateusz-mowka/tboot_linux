@@ -138,7 +138,7 @@ static inline unsigned int serial_lsr_in(struct uart_8250_port *up)
 	unsigned int lsr = up->lsr_saved_flags;
 
 	lsr |= serial_in(up, UART_LSR);
-	up->lsr_saved_flags = lsr & LSR_SAVE_FLAGS;
+	up->lsr_saved_flags = lsr & up->lsr_save_mask;
 
 	return lsr;
 }
