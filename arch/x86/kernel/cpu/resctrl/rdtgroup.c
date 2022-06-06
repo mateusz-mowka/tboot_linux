@@ -1762,6 +1762,16 @@ static int rdtgroup_mbm_l3_show(struct kernfs_open_file *of,
 	return 0;
 }
 
+#ifdef RESCTRL_DEBUG
+static int rdtgroup_iordt_misc_show(struct kernfs_open_file *of,
+				    struct seq_file *seq, void *v)
+{
+	iordt_misc_show(seq);
+
+	return 0;
+}
+#endif
+
 /* Common information files under /sys/fs/resctrl/info/IO. */
 static struct rftype io_common_files[] = {
 	{
@@ -1785,6 +1795,16 @@ static struct rftype io_common_files[] = {
 		.seq_show	= rdtgroup_mbm_l3_show,
 		.fflags		= RF_IORDT_INFO,
 	},
+#ifdef RESCTRL_DEBUG
+	{
+		.name		= "misc",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_iordt_misc_show,
+		.fflags		= RF_IORDT_INFO,
+	},
+
+#endif
 };
 
 static int rdtgroup_channel_show(struct kernfs_open_file *of,

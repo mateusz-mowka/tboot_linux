@@ -407,6 +407,14 @@ bool iordt_feature_enabled(u64 flag);
 void __init iordt_enable(u64 flag);
 void __init iordt_mon_config(void);
 
+#define RESCTRL_DEBUG
+
+#ifdef RESCTRL_DEBUG
+void iordt_misc_show(struct seq_file *s);
+#else
+static inline void iordt_misc_show(struct seq_file *s) { }
+#endif
+
 static inline struct rdt_hw_resource *resctrl_to_arch_res(struct rdt_resource *r)
 {
 	return container_of(r, struct rdt_hw_resource, r_resctrl);

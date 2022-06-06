@@ -417,6 +417,10 @@ static int rcs_find(struct iordt_rmud *rmud, u8 rcs_enumeration_id,
 #define for_each_iordt_vc(vc, chms)				\
 	for (vc = chms->vc; vc < chms->vc + chms->vc_num; vc++)
 
+#define for_each_iordt_rcs(rcs, rcs_idx, rmud)				    \
+	for (rcs = rmud->rcs, rcs_idx = 0; rcs < rmud->rcs + rmud->rcs_num; \
+	     rcs++, rcs_idx++)
+
 static void get_rcs_closid_addr(struct iordt_rcs *rcs, int channel,
 				void __iomem **addr)
 {
@@ -540,6 +544,126 @@ static int iordt_channel_setup(void)
 
 	return 0;
 }
+
+#ifdef RESCTRL_DEBUG
+static void iordt_channel_show(struct seq_file *s, struct iordt_chms *chms,
+			       struct iordt_rmud *rmud, int rmud_idx)
+{
+	void __iomem *closid_addr, *rmid_addr;
+	int channel, ret, vc_channel;
+	u8 rcs_enumeration_id;
+	struct iordt_rcs *rcs;
+	struct iordt_vc *vc;
+	u32 closid, rmid;
+
+	rcs_enumeration_id = chms->rcs_enumeration_id;
+	for_each_iordt_vc(vc, chms) {
+		vc_channel = vc->vc_channel;
+		channel = vc->channel;
+
+		ret = rcs_find(rmud, rcs_enumeration_id, &rcs);
+		if (ret) {
+			pr_warn("Cannot read RCS frm channel %d\n", channel);
+			continue;
+		}
+
+		get_rcs_closid_addr(rcs, vc_channel, &closid_addr);
+		get_rcs_rmid_addr(rcs, vc_channel, &rmid_addr);
+
+		closid = rcs->regw == 2 ? *(u16 *)closid_addr :
+			 *(u32 *)closid_addr;
+		rmid = rcs->regw == 2 ? *(u16 *)rmid_addr : *(u32 *)rmid_addr;
+
+		seq_printf(s, "\t\tChannel %x: CLOSID=%d @ 0x%lx, RMID=%d @ 0x%lx\n",
+			   channel, closid, (unsigned long)closid_addr,
+			   rmid, (unsigned long)rmid_addr);
+	}
+}
+
+static void iordt_rmud_show(struct seq_file *s, struct iordt_rmud *rmud,
+			   int rmud_idx)
+{
+	seq_printf(s, "RMUD[%d]:\n", rmud_idx);
+	seq_printf(s, "\tmin CLOSID: %d\n", rmud->min_closid);
+	seq_printf(s, "\tmax CLOSID: %d\n", rmud->max_closid);
+	seq_printf(s, "\t  min RMID: %d\n", rmud->min_rmid);
+	seq_printf(s, "\t  max RMID: %d\n", rmud->max_rmid);
+	seq_printf(s, "\t   segment: %d\n", rmud->segment);
+}
+
+static void iordt_dss_show(struct seq_file *s, struct iordt_dss *dss,
+			   int dss_idx)
+{
+	seq_printf(s, "\tDSS[%d]:\n", dss_idx);
+	seq_printf(s, "\t\tBDF: %x\n", dss->enumeration_id);
+}
+
+static void iordt_rcs_show(struct seq_file *s, struct iordt_rcs *rcs,
+			   int rcs_idx)
+{
+	void __iomem *p;
+	int vc_channel;
+
+	seq_printf(s, "\tRCS[%d]:\n", rcs_idx);
+	seq_printf(s, "\t\t     channel type: %d\n", rcs->channel_type);
+	seq_printf(s, "\t\t   enumeration id: %d\n", rcs->rcs_enumeration_id);
+	seq_printf(s, "\t\t    channel count: %d\n", rcs->channel_count);
+	seq_printf(s, "\t\t            flags: 0x%lx\n",
+		   (unsigned long)rcs->flags);
+	seq_printf(s, "\t\tRMID block offset: 0x%x\n", rcs->rmid_block_offset);
+	seq_printf(s, "\t\tCLOS block offset: 0x%x\n", rcs->clos_block_offset);
+	seq_printf(s, "\t\t    RCS block BDF: 0x%x\n", rcs->rcs_block_bdf);
+	seq_printf(s, "\t\tRCS block bar num: %d\n", rcs->rcs_block_bar_number);
+	seq_printf(s, "\t\t   RCS block MMIO:0x%llx\n",
+		   rcs->rcs_block_mmio_location);
+
+	seq_printf(s, "\t\t      CLOSID base: 0x%p\n", rcs->closid_base);
+	for (vc_channel = 0; vc_channel < rcs->channel_count; vc_channel++) {
+		p = (void *)(rcs->closid_base + vc_channel * rcs->regw);
+		if (rcs->regw == 2) {
+			seq_printf(s, "\t\t0x%p: closid[%d]=0x%x\n", p,
+				   vc_channel, *(u16 *)p);
+		} else {
+			seq_printf(s, "\t\t0x%p: closid[%d]=0x%x\n", p,
+				   vc_channel, *(u32 *)p);
+		}
+	}
+
+	seq_printf(s, "\t\t        RMID base: 0x%p\n", rcs->rmid_base);
+	for (vc_channel = 0; vc_channel < rcs->channel_count; vc_channel++) {
+		p = (void *)(rcs->rmid_base + vc_channel * rcs->regw);
+		if (rcs->regw == 2) {
+			seq_printf(s, "\t\t0x%p: rmid[%d]=0x%x\n", p,
+				   vc_channel, *(u16 *)p);
+		} else {
+			seq_printf(s, "\t\t0x%p: rmid[%d]=0x%x\n", p,
+				   vc_channel, *(u32 *)p);
+		}
+	}
+}
+
+void iordt_misc_show(struct seq_file *s)
+{
+	int rmud_idx, dss_idx, rcs_idx;
+	struct iordt_rmud *rmud;
+	struct iordt_chms *chms;
+	struct iordt_dss *dss;
+	struct iordt_rcs *rcs;
+
+	for_each_iordt_rmud(rmud, rmud_idx, iordt_rmud) {
+		iordt_rmud_show(s, rmud, rmud_idx);
+
+		for_each_iordt_dss(dss, dss_idx, rmud) {
+			iordt_dss_show(s, dss, dss_idx);
+			for_each_iordt_chms(chms, dss)
+				iordt_channel_show(s, chms, rmud, rmud_idx);
+		}
+
+		for_each_iordt_rcs(rcs, rcs_idx, rmud)
+			iordt_rcs_show(s, rcs, rcs_idx);
+	}
+}
+#endif
 
 static int __init rmud_enumerate(struct acpi_table_irdt *acpi_irdt)
 {
