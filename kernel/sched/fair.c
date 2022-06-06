@@ -10010,6 +10010,14 @@ static int should_we_balance(struct lb_env *env)
 		return 0;
 
 	/*
+	 * If classes of tasks are supported, a busy CPU may decide to pull a
+	 * task from the busiest queue if doing so increaes throughput due to
+	 * differences in instructions-per-cycle among CPUs.
+	 */
+	if (sched_task_classes_enabled() && env->idle == CPU_NOT_IDLE)
+		return 1;
+
+	/*
 	 * In the newly idle case, we will allow all the CPUs
 	 * to do the newly idle load balance.
 	 */
