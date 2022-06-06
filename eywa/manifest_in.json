@@ -4397,6 +4397,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.18"
+        },
+        {
+            "branch": "hotplug-5.19-rc1",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Yian Chen",
+                    "email": "yian.chen@intel.com"
+                }
+            ],
+            "description": "Fix PCI bus rescan device hot add",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "jira": "NEXT-2951",
+            "name": "pci_hot_add",
+            "repourl": "https://github.com/intel-sandbox/kernel-works.git",
+            "sdl_contact": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
