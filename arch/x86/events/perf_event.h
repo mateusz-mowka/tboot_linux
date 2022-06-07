@@ -897,6 +897,12 @@ struct x86_pmu {
 	int		(*set_topdown_event_period)(struct perf_event *event);
 
 	/*
+	 * Intel Auto-reload
+	 */
+	int		num_auto_reload;
+	u64		mask_auto_reload;
+
+	/*
 	 * AMD bits
 	 */
 	unsigned int	amd_nb_constraints : 1;
