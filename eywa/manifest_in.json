@@ -3694,7 +3694,7 @@
                 }
             ],
             "description": "add PSON residency counter in debugfs",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajvi Jingar",
