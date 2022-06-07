@@ -17,6 +17,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <linux/sysfs.h>
 #include <linux/types.h>
@@ -102,16 +103,17 @@ struct disc_table {
 };
 
 struct sdsi_priv {
-	struct mutex		mb_lock;	/* Mailbox access lock */
-	struct device		*dev;
-	void __iomem		*control_addr;
-	void __iomem		*mbox_addr;
-	void __iomem		*regs_addr;
-	int			control_size;
-	int			maibox_size;
-	int			registers_size;
-	u32			guid;
-	u32			features;
+	struct mutex			mb_lock;	/* Mailbox access lock */
+	struct device			*dev;
+	struct intel_vsec_device	*ivdev;
+	void __iomem			*control_addr;
+	void __iomem			*mbox_addr;
+	void __iomem			*regs_addr;
+	int				control_size;
+	int				maibox_size;
+	int				registers_size;
+	u32				guid;
+	u32				features;
 };
 
 /* SDSi mailbox operations must be performed using 64bit mov instructions */
@@ -419,7 +421,12 @@ static ssize_t sdsi_provision(struct sdsi_priv *priv, char *buf, size_t count,
 	ret = mutex_lock_interruptible(&priv->mb_lock);
 	if (ret)
 		goto free_payload;
+
+	pm_runtime_get_sync(&priv->ivdev->pcidev->dev);
 	ret = sdsi_mbox_write(priv, &info);
+	pm_runtime_mark_last_busy(&priv->ivdev->pcidev->dev);
+	pm_runtime_put_autosuspend(&priv->ivdev->pcidev->dev);
+
 	mutex_unlock(&priv->mb_lock);
 
 free_payload:
@@ -503,7 +510,12 @@ certificate_read(u64 command, struct sdsi_priv *priv, char *buf, loff_t off,
 	ret = mutex_lock_interruptible(&priv->mb_lock);
 	if (ret)
 		goto free_buffer;
+
+	pm_runtime_get_sync(&priv->ivdev->pcidev->dev);
 	ret = sdsi_mbox_read(priv, &info, &size);
+	pm_runtime_mark_last_busy(&priv->ivdev->pcidev->dev);
+	pm_runtime_put_autosuspend(&priv->ivdev->pcidev->dev);
+
 	mutex_unlock(&priv->mb_lock);
 	if (ret < 0)
 		goto free_buffer;
@@ -588,7 +600,10 @@ static ssize_t registers_read(struct file *filp, struct kobject *kobj,
 	if (off + count > size)
 		count = size - off;
 
+	pm_runtime_get_sync(&priv->ivdev->pcidev->dev);
 	memcpy_fromio(buf, addr + off, count);
+	pm_runtime_mark_last_busy(&priv->ivdev->pcidev->dev);
+	pm_runtime_put_autosuspend(&priv->ivdev->pcidev->dev);
 
 	return count;
 }
@@ -741,6 +756,7 @@ static int sdsi_probe(struct auxiliary_device *auxdev, const struct auxiliary_de
 		return -ENOMEM;
 
 	priv->dev = &auxdev->dev;
+	priv->ivdev = intel_cap_dev;
 	mutex_init(&priv->mb_lock);
 	auxiliary_set_drvdata(auxdev, priv);
 
