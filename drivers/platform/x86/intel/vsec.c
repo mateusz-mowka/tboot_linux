@@ -25,9 +25,9 @@
 
 
 /* Intel Virtual DVSEC capability vendor space offsets */
-#define PMWRBASE_OFFSET			0x14
+#define PWRMBASE_OFFSET			0x14
 #define READ_LPM_TELEM_OFFSET		0x1C
-
+#define PWRMBASE_MASK			GENMASK(31, 3)
 static DEFINE_IDA(intel_vsec_ida);
 static DEFINE_IDA(intel_vsec_sdsi_ida);
 
@@ -335,7 +335,7 @@ static bool intel_vsec_walk_vdvsec(struct pci_dev *pdev,
 	if (IS_ERR(sram_header))
 		return PTR_ERR(sram_header);
 
-	pmwrbase_addr = readl(sram_header + PMWRBASE_OFFSET);
+	pmwrbase_addr = readl(sram_header + PWRMBASE_OFFSET) & PWRMBASE_MASK;
 	lpm_telemetry_offset = readl(sram_header + READ_LPM_TELEM_OFFSET);
 	dev_dbg(&pdev->dev, " PMWRBASE ADDRESS is 0x%x\n", pmwrbase_addr);
 	dev_dbg(&pdev->dev, " lpm_telemetry_offset is 0x%x\n",
@@ -464,6 +464,11 @@ static const struct intel_vsec_platform_info mtl_info = {
 	.quirks = VSEC_QUIRK_TABLE_SHIFT,
 };
 
+/* MTL PCH info */
+static const struct intel_vsec_platform_info mtl_pch_info = {
+	.quirks = VSEC_QUIRK_VDVSEC | VSEC_QUIRK_TABLE_SHIFT,
+};
+
 /* DG1 info */
 static struct intel_vsec_header dg1_telemetry = {
 	.length = 0x10,
@@ -497,6 +502,7 @@ static const struct dev_pm_ops intel_vsec_pm_ops = {};
 #define PCI_DEVICE_ID_INTEL_VSEC_ADL_PCH	0x51ef
 #define PCI_DEVICE_ID_INTEL_VSEC_DG1		0x490e
 #define PCI_DEVICE_ID_INTEL_VSEC_MTL_M		0x7d0d
+#define PCI_DEVICE_ID_INTEL_VSEC_MTL_PCH	0x7e7f
 #define PCI_DEVICE_ID_INTEL_VSEC_MTL_S		0xad0d
 #define PCI_DEVICE_ID_INTEL_VSEC_OOBMSM		0x09a7
 #define PCI_DEVICE_ID_INTEL_VSEC_RPL		0xa77d
@@ -506,6 +512,7 @@ static const struct pci_device_id intel_vsec_pci_ids[] = {
 	{ PCI_DEVICE_DATA(INTEL, VSEC_ADL_PCH, &adl_pch_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_DG1, &dg1_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_MTL_M, &mtl_info) },
+	{ PCI_DEVICE_DATA(INTEL, VSEC_MTL_PCH, &mtl_pch_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_MTL_S, &mtl_info) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_OOBMSM, &(struct intel_vsec_platform_info) {}) },
 	{ PCI_DEVICE_DATA(INTEL, VSEC_RPL, &tgl_info) },
