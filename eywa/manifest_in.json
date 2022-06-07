@@ -179,7 +179,7 @@
                 }
             ],
             "description": "Drm embargo branch",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rodrigio Vivi",
@@ -197,7 +197,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "for-intel-next",
