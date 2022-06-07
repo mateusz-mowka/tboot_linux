@@ -79,6 +79,9 @@
 #define SDSI_GUID_V1			0x006DD191
 #define SDSI_GUID_V2			0xF210D9EF
 
+static int timeout_us = MBOX_TIMEOUT_US;
+module_param(timeout_us, int, 0644);
+
 enum sdsi_command {
 	SDSI_CMD_PROVISION_AKC		= 0x0004,
 	SDSI_CMD_PROVISION_CAP		= 0x0008,
@@ -174,6 +177,9 @@ static int sdsi_status_to_errno(u32 status)
 	switch (status) {
 	case SDSI_MBOX_CMD_SUCCESS:
 		return 0;
+	case 0:
+		pr_warn("%s: Warning. Status is 0x0. Expected 0x40\n", __func__);
+		return 0;
 	case SDSI_MBOX_CMD_TIMEOUT:
 		return -ETIMEDOUT;
 	default:
@@ -211,7 +217,7 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 		dev_dbg(priv->dev, "%s: Packet %d\n", __func__, loop);
 		dev_dbg(priv->dev, "%s: Polling ready bit\n", __func__);
 		ret = readq_poll_timeout(priv->control_addr, control, control & CTRL_READY,
-					 MBOX_POLLING_PERIOD_US, MBOX_TIMEOUT_US);
+					 MBOX_POLLING_PERIOD_US, timeout_us);
 		if (ret) {
 			dev_dbg(priv->dev, "%s: Polling ready bit timed out, error %d\n", __func__, ret);
 			break;
@@ -290,7 +296,7 @@ static int sdsi_mbox_cmd_write(struct sdsi_priv *priv, struct sdsi_mbox_info *in
 
 	/* Poll on ready bit */
 	ret = readq_poll_timeout(priv->control_addr, control, control & CTRL_READY,
-				 MBOX_POLLING_PERIOD_US, MBOX_TIMEOUT_US);
+				 MBOX_POLLING_PERIOD_US, timeout_us);
 
 	if (ret)
 		goto release_mbox;
