@@ -4352,7 +4352,7 @@
                 }
             ],
             "description": "Enable IO RDT on GNR in Intel Next",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
