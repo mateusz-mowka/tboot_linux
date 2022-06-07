@@ -128,7 +128,7 @@
                 }
             ],
             "description": "NEXT PM tree",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2934",
             "name": "pm-testing",
@@ -136,7 +136,7 @@
             "sdl_contact": [],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "next",
@@ -2912,7 +2912,7 @@
                 }
             ],
             "description": "Enable microcode rollback in intel-next",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
@@ -2934,7 +2934,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "pasid",
@@ -3793,7 +3793,7 @@
                     "email": "nirmal.patel@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2953",
             "name": "MTLDIDs",
             "repourl": "https://github.com/franciscomunoz/os.linux.intelnext.kernel.git",
             "sdl_contact": [],
@@ -4132,7 +4132,7 @@
                     "email": "kyle.d.pelton@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2954",
             "name": "r8152_wol_fix",
             "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
             "sdl_contact": [
