@@ -8278,6 +8278,8 @@ struct sg_lb_stats {
 	enum group_type group_type;
 	unsigned int group_asym_packing; /* Tasks should be moved to preferred CPU */
 	unsigned long group_misfit_task_load; /* A CPU has a task too big for its capacity */
+	bool has_unclassified_tasks; /* The group has unclassified tasks */
+	int max_score_on_dst_cpu; /* Highest class of task score in the group if placed on dst_cpu */
 #ifdef CONFIG_NUMA_BALANCING
 	unsigned int nr_numa_running;
 	unsigned int nr_preferred_running;
@@ -8559,6 +8561,67 @@ group_type group_classify(unsigned int imbalance_pct,
 	return group_has_spare;
 }
 
+#ifdef CONFIG_SCHED_TASK_CLASSES
+
+static void update_sg_lb_task_class_stats(struct lb_env *env,
+					  struct sg_lb_stats *sgs,
+					  struct rq *rq,
+					  int local_group)
+{
+	int score_on_dst_cpu, score_on_rq, c;
+
+	if (!sched_task_classes_enabled())
+		return;
+
+	/* No tasks to check. */
+	if (!rq->nr_running)
+		return;
+
+	for (c = 0; c < sched_nr_task_classes; c++) {
+		/* @rq does not have any running tasks of this class. Skip it. */
+		if (!rq->nr_running_classes[c])
+			continue;
+
+		/* Score of this class of tasks if placed on dst_cpu */
+		score_on_dst_cpu = arch_get_task_class_score(c, env->dst_cpu);
+		/* Score of this class of taskss if left its current CPU */
+		score_on_rq = arch_get_task_class_score(c, cpu_of(rq));
+
+		/*
+		 * Only register classes of tasks with higher scores on dst_cpu
+		 * or if we are inspecting the local group. We will need the
+		 * stats of the  local group to compare them with other groups'
+		 * and decide if there is opportunity to rebalance tasks.
+		 */
+		if (score_on_dst_cpu <= score_on_rq && !local_group)
+			continue;
+
+		/*
+		 * Scores may be negative if errors occured. Since we only keep
+		 * the maximum values and @sgs::max_score_on_dst_cpu is
+		 * initialized to 0, this is not a problem.
+		 */
+		sgs->max_score_on_dst_cpu = max(sgs->max_score_on_dst_cpu,
+					       score_on_dst_cpu);
+	}
+
+	/*
+	 * If we are checking the local group and it has running tasks but we
+	 * could not compute any class score then, all tasks in the group are
+	 * unclassified and we should not touch this group. Tasks will
+	 * eventually be classified.
+	 */
+	if (local_group && !sgs->max_score_on_dst_cpu)
+		sgs->has_unclassified_tasks = true;
+}
+#else /* CONFIG_SCHED_TASK_CLASSES */
+static void update_sg_lb_task_class_stats(struct lb_env *env,
+					  struct sg_lb_stats *sgs,
+					  struct rq *rq,
+					  int local_group)
+{}
+#endif /* CONFIG_SCHED_TASK_CLASSES */
+
 /**
  * asym_smt_can_pull_tasks - Check whether the load balancing CPU can pull tasks
  * @dst_cpu:	Destination CPU of the load balancing
@@ -8690,6 +8753,8 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 
 		if (cpu_overutilized(i))
 			*sg_status |= SG_OVERUTILIZED;
+
+		update_sg_lb_task_class_stats(env, sgs, rq, local_group);
 
 #ifdef CONFIG_NUMA_BALANCING
 		sgs->nr_numa_running += rq->nr_numa_running;
