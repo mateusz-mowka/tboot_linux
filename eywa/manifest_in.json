@@ -4352,14 +4352,14 @@
                 }
             ],
             "description": "Enable IO RDT on GNR in Intel Next",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
                     "email": "ravi.v.shankar@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2958",
             "name": "iordt",
             "repourl": "https://github.com/intel-sandbox/kernel",
             "sdl_contact": [
@@ -4370,7 +4370,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "for-intel-next/acpi-fixes",
