@@ -513,6 +513,12 @@
 /* Alternative perfctr range with full access. */
 #define MSR_IA32_PMC0			0x000004c1
 
+/* Alternative perfctr range with full access for PerfMon V6+. */
+#define MSR_IA32_V6_PMC0		0x00001900
+#define MSR_IA32_V6_EVNTSEL0		0x00001901
+#define MSR_IA32_V6_PMC0_RELOAD		0x00001902
+#define MSR_IA32_V6_EVNTSEL0_EXT	0x00001903
+
 /* Auto-reload via MSR instead of DS area */
 #define MSR_RELOAD_PMC0			0x000014c1
 #define MSR_RELOAD_FIXED_CTR0		0x00001309
