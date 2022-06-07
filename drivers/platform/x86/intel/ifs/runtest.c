@@ -228,12 +228,92 @@ static void ifs_test_core(int cpu, struct device *dev)
 }
 
 /*
+ * Execute the scan. Called "simultaneously" on all threads of a core
+ * at high priority using the stop_cpus mechanism.
+ */
+static int do_array_test(void *data)
+{
+	int cpu = smp_processor_id();
+	u64 *msrs = data;
+	int first;
+
+	/* Only the first logical CPU on a core reports result */
+	first = cpumask_first(cpu_smt_mask(cpu));
+
+	/*
+	 * This WRMSR will wait for other HT threads to also write
+	 * to this MSR (at most for activate.delay cycles). Then it
+	 * starts scan of each requested chunk. The core scan happens
+	 * during the "execution" of the WRMSR. This instruction can
+	 * take up to <TODO profile time> (in the case where all chunks
+	 * are processed in a single pass) before it retires.
+	 */
+	wrmsrl(MSR_ARRAY_BIST, msrs[0]);
+
+	if (cpu == first) {
+		/* Pass back the result of the scan */
+		rdmsrl(MSR_ARRAY_BIST_STATUS, msrs[1]);
+	}
+
+	return 0;
+}
+
+static void ifs_array_test_core(int cpu, struct device *dev)
+{
+	union ifs_array_status status;
+	union ifs_array activate;
+	bool timed_out = false;
+	struct ifs_data *ifsd;
+	unsigned long timeout;
+	u64 msrvals[2];
+
+	ifsd = ifs_get_data(dev);
+
+	activate.data = 0;
+	activate.array_bitmask = ~0U;
+	activate.sigmce = 0;
+	timeout = jiffies + HZ / 2;
+
+	do {
+		if (time_after(jiffies, timeout)) {
+			timed_out = true;
+			break;
+		}
+
+		msrvals[0] = activate.data;
+
+		stop_core_cpuslocked(cpu, do_array_test, msrvals);
+		status.data = msrvals[1];
+
+		//TODO add trace
+		//trace_ifs_status(cpu, activate, status);
+
+		if (status.passfail)
+			break;
+
+		activate.array_bitmask = status.array_bitmask;
+		activate.array_bank = status.array_bank;
+
+	} while (status.array_bitmask);
+
+	ifsd->scan_details = status.data;
+
+	if (status.passfail)
+		ifsd->status = SCAN_TEST_FAIL;
+	else if (timed_out || status.array_bitmask)
+		ifsd->status = SCAN_NOT_TESTED;
+	else
+		ifsd->status = SCAN_TEST_PASS;
+}
+
+/*
  * Initiate per core test. It wakes up work queue threads on the target cpu and
  * its sibling cpu. Once all sibling threads wake up, the scan test gets executed and
  * wait for all sibling threads to finish the scan test.
  */
 int do_core_test(int cpu, struct device *dev)
 {
+	struct ifs_data *ifsd = ifs_get_data(dev);
 	int ret = 0;
 
 	/* Prevent CPUs from being taken offline during the scan test */
@@ -245,7 +325,17 @@ int do_core_test(int cpu, struct device *dev)
 		goto out;
 	}
 
-	ifs_test_core(cpu, dev);
+	switch (ifsd->integrity_cap_bit) {
+	case MSR_INTEGRITY_CAPS_ARRAY_BIST_BIT:
+		ifs_array_test_core(cpu, dev);
+		break;
+	case MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT:
+		ifs_test_core(cpu, dev);
+		break;
+	default:
+		return -EINVAL;
+	}
+
 out:
 	cpus_read_unlock();
 	return ret;

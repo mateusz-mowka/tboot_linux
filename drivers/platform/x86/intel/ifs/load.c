@@ -239,7 +239,11 @@ void ifs_load_firmware(struct device *dev)
 	struct ifs_data *ifsd = ifs_get_data(dev);
 	const struct firmware *fw;
 	char scan_path[32];
-	int ret;
+	int ret = 0;
+
+	/* The Array scan test does not require any loaded firmware */
+	if (ifsd->integrity_cap_bit == MSR_INTEGRITY_CAPS_ARRAY_BIST_BIT)
+		goto done;
 
 	snprintf(scan_path, sizeof(scan_path), "intel/ifs/%02x-%02x-%02x.scan",
 		 boot_cpu_data.x86, boot_cpu_data.x86_model, boot_cpu_data.x86_stepping);

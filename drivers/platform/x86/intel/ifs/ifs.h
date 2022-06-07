@@ -123,6 +123,8 @@
 #define MSR_CHUNKS_AUTHENTICATION_STATUS	0x000002c5
 #define MSR_ACTIVATE_SCAN			0x000002c6
 #define MSR_SCAN_STATUS				0x000002c7
+#define MSR_ARRAY_BIST				0x00000105
+#define MSR_ARRAY_BIST_STATUS			0x00000106
 #define SCAN_NOT_TESTED				0
 #define SCAN_TEST_PASS				1
 #define SCAN_TEST_FAIL				2
@@ -176,6 +178,28 @@ union ifs_status {
 		u32	rsvd2			:22;
 		u32	control_error		:1;
 		u32	signature_error		:1;
+	};
+};
+
+/* MSR_ARRAY_BIST bit fields */
+union ifs_array {
+	u64	data;
+	struct {
+		u32	array_bitmask		:32;
+		u32	array_bank		:16;
+		u32	rsvd			:15;
+		u32	sigmce			:1;
+	};
+};
+
+/* MSR_ARRAY_BIST_STATUS bit fields */
+union ifs_array_status {
+	u64	data;
+	struct {
+		u32	array_bitmask		:32;
+		u32	array_bank		:16;
+		u32	rsvd			:15;
+		u32	passfail		:1;
 	};
 };
 
