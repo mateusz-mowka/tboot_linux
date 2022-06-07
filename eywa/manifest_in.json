@@ -2907,12 +2907,12 @@
             "config_options": [],
             "contributor": [
                 {
-                    "name": "Fenghua Yu",
-                    "email": "fenghua.yu@intel.com"
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
                 }
             ],
             "description": "Enable microcode rollback in intel-next",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
