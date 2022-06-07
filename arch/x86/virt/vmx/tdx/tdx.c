@@ -7,6 +7,7 @@
 
 #define pr_fmt(fmt)	"tdx: " fmt
 
+#include <crypto/hash.h>
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/printk.h>
@@ -2031,14 +2032,50 @@ retry:
 	return 0;
 }
 
+static int verify_hash(const void *module, int module_size,
+		       const void *expected_hash)
+{
+	SHASH_DESC_ON_STACK(shash, tfm);
+	struct crypto_shash *tfm;
+	u8 hash[48];
+	int ret;
+
+	tfm = crypto_alloc_shash("sha384", 0, CRYPTO_ALG_ASYNC);
+	if (IS_ERR(tfm)) {
+		pr_err("No tfm created\n");
+		return PTR_ERR(tfm);
+	}
+
+	shash->tfm = tfm;
+	ret = crypto_shash_digest(shash, module, module_size, hash);
+	if (ret) {
+		pr_err("cannot generate digest %d\n", ret);
+		crypto_free_shash(tfm);
+		return ret;
+	}
+
+	if (memcmp(hash, expected_hash, 48)) {
+		pr_err("Hash verification failed\n");
+		ret = -EINVAL;
+	}
+
+	crypto_free_shash(tfm);
+	return ret;
+}
+
 int tdx_module_update(const struct tmu_req *req)
 {
 	int ret;
 	struct seamldr_params *params;
+	const struct seam_sigstruct *sig = req->signature;
 
 	params = alloc_seamldr_params(req);
 	if (IS_ERR(params))
 		return PTR_ERR(params);
+
+	ret = verify_hash(req->module, req->module_size, sig->seamhash);
+	if (ret)
+		goto free;
 
 	/* Prevent TDX module initialization */
 	mutex_lock(&tdx_module_lock);
@@ -2062,6 +2099,7 @@ int tdx_module_update(const struct tmu_req *req)
 unlock:
 	cpus_read_unlock();
 	mutex_unlock(&tdx_module_lock);
+free:
 	free_seamldr_params(params);
 	return ret;
 }
