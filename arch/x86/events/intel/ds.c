@@ -53,6 +53,13 @@ union intel_x86_pebs_dse {
 		unsigned int st_lat_locked:1;
 		unsigned int ld_reserved3:26;
 	};
+	struct {
+		unsigned int mtl_dse:5;
+		unsigned int mtl_locked:1;
+		unsigned int mtl_stlb_miss:1;
+		unsigned int mtl_fwd_blk:1;
+		unsigned int ld_reserved4:24;
+	};
 };
 
 
@@ -84,6 +91,11 @@ static u64 pebs_data_source[] = {
 	OP_LH | P(LVL, REM_RAM1) | LEVEL(RAM) | REM | SNOOP_NONE_MISS, /* 0x0d: L3 miss, excl */
 	OP_LH | P(LVL, IO)  | LEVEL(NA) | P(SNOOP, NONE), /* 0x0e: I/O */
 	OP_LH | P(LVL, UNC) | LEVEL(NA) | P(SNOOP, NONE), /* 0x0f: uncached */
+	0, /* 0x10: reserved */
+	0, /* 0x11: reserved */
+	0, /* 0x12: reserved */
+	0, /* 0x13: reserved */
+	0, /* 0x14: reserved */
 };
 
 /* Patch up minor differences in the bits */
@@ -128,6 +140,31 @@ void __init intel_pmu_pebs_data_source_adl(void)
 	data_source = x86_pmu.hybrid_pmu[X86_HYBRID_PMU_ATOM_IDX].pebs_data_source;
 	memcpy(data_source, pebs_data_source, sizeof(u64) * PERF_PEBS_DATA_SOURCE_MAX);
 	intel_pmu_pebs_data_source_grt(data_source);
+}
+
+static void __init intel_pmu_pebs_data_source_cmt(u64 *data_source)
+{
+	data_source[0x05] = OP_LH | P(LVL, L3) | LEVEL(L3) | P(SNOOP, HIT);
+	data_source[0x06] = OP_LH | P(LVL, L3) | LEVEL(L3) | P(SNOOP, HITM);
+	data_source[0x08] = OP_LH | P(LVL, L3) | LEVEL(L3) | P(SNOOPX, FWD);
+//	data_source[0x10] = OP_LH | LEVEL(MMIO) | P(SNOOP, NONE);
+	data_source[0x11] = OP_LH | LEVEL(PMEM) | P(SNOOP, NONE);
+	data_source[0x12] = OP_LH | REM | LEVEL(PMEM) | P(SNOOP, NONE);
+//	data_source[0x13] = OP_LH | LEVEL(HBM) | P(SNOOP, NONE);
+//	data_source[0x14] = OP_LH | REM | LEVEL(HBM) | P(SNOOP, NONE);
+}
+
+void __init intel_pmu_pebs_data_source_mtl(void)
+{
+	u64 *data_source;
+
+	data_source = x86_pmu.hybrid_pmu[X86_HYBRID_PMU_CORE_IDX].pebs_data_source;
+	memcpy(data_source, pebs_data_source, sizeof(u64) * PERF_PEBS_DATA_SOURCE_MAX);
+	__intel_pmu_pebs_data_source_skl(false, data_source);
+
+	data_source = x86_pmu.hybrid_pmu[X86_HYBRID_PMU_ATOM_IDX].pebs_data_source;
+	memcpy(data_source, pebs_data_source, sizeof(u64) * PERF_PEBS_DATA_SOURCE_MAX);
+	intel_pmu_pebs_data_source_cmt(data_source);
 }
 
 static u64 precise_store_data(u64 status)
@@ -214,29 +251,50 @@ static inline void pebs_set_tlb_lock(u64 *val, bool tlb, bool lock)
 }
 
 /* Retrieve the latency data for e-core of ADL */
-u64 adl_latency_data_small(struct perf_event *event, u64 status)
+static u64 __adl_latency_data_small(struct perf_event *event, u64 status,
+			     u8 dse, bool tlb, bool lock, bool blk)
 {
-	union intel_x86_pebs_dse dse;
 	u64 val;
 
 	WARN_ON_ONCE(hybrid_pmu(event->pmu)->cpu_type == hybrid_big);
+	if (WARN_ON_ONCE(dse >= PERF_PEBS_DATA_SOURCE_MAX))
+		return 0;
 
-	dse.val = status;
+	val = hybrid_var(event->pmu, pebs_data_source)[dse];
 
-	val = hybrid_var(event->pmu, pebs_data_source)[dse.ld_dse];
+	pebs_set_tlb_lock(&val, tlb, lock);
 
-	/*
-	 * For the atom core on ADL,
-	 * bit 4: lock, bit 5: TLB access.
-	 */
-	pebs_set_tlb_lock(&val, dse.ld_locked, dse.ld_stlb_miss);
-
-	if (dse.ld_data_blk)
+	if (blk)
 		val |= P(BLK, DATA);
 	else
 		val |= P(BLK, NA);
 
 	return val;
+}
+
+u64 adl_latency_data_small(struct perf_event *event, u64 status)
+{
+	union intel_x86_pebs_dse dse;
+
+	dse.val = status;
+	/*
+	 * For the atom core on ADL,
+	 * bit 4: lock, bit 5: TLB access.
+	 */
+	return __adl_latency_data_small(event, status, dse.ld_dse,
+					dse.ld_locked, dse.ld_stlb_miss,
+					dse.ld_data_blk);
+}
+
+/* Retrieve the latency data for e-core of MTL */
+u64 mtl_latency_data_small(struct perf_event *event, u64 status)
+{
+	union intel_x86_pebs_dse dse;
+
+	dse.val = status;
+	return __adl_latency_data_small(event, status, dse.mtl_dse,
+					 dse.mtl_locked, dse.mtl_stlb_miss,
+					 dse.mtl_fwd_blk);
 }
 
 static u64 load_latency_data(struct perf_event *event, u64 status)

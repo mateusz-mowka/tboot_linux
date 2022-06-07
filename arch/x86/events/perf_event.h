@@ -643,7 +643,7 @@ enum {
 	x86_lbr_exclusive_max,
 };
 
-#define PERF_PEBS_DATA_SOURCE_MAX	0x10
+#define PERF_PEBS_DATA_SOURCE_MAX	0x15
 
 struct x86_hybrid_pmu {
 	struct pmu			pmu;
@@ -1397,6 +1397,8 @@ int intel_pmu_drain_bts_buffer(void);
 
 u64 adl_latency_data_small(struct perf_event *event, u64 status);
 
+u64 mtl_latency_data_small(struct perf_event *event, u64 status);
+
 extern struct event_constraint intel_core2_pebs_event_constraints[];
 
 extern struct event_constraint intel_atom_pebs_event_constraints[];
@@ -1503,6 +1505,8 @@ void intel_pmu_pebs_data_source_nhm(void);
 void intel_pmu_pebs_data_source_skl(bool pmem);
 
 void intel_pmu_pebs_data_source_adl(void);
+
+void intel_pmu_pebs_data_source_mtl(void);
 
 int intel_pmu_setup_lbr_filter(struct perf_event *event);
 
