@@ -149,7 +149,7 @@
                 }
             ],
             "description": "TPM code",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2935",
             "name": "tpm",
@@ -157,7 +157,7 @@
             "sdl_contact": [],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "for-intel-next",
@@ -1122,7 +1122,7 @@
                 }
             ],
             "description": "intel_rapl/intel_idle/thermal/turbostat support for AlderLake/RaptorLake/MeteorLake and GNR",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Evelyn Fields",
@@ -1140,7 +1140,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "to_eywa_thermal",
