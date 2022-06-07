@@ -3694,14 +3694,14 @@
                 }
             ],
             "description": "add PSON residency counter in debugfs",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajvi Jingar",
                     "email": "rajvi.jingar@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2960",
             "name": "pson_counter",
             "repourl": "https://github.com/intel-sandbox/linux-kernel-rjingar.git",
             "sdl_contact": [
@@ -3712,7 +3712,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "mtl_dids_linus_rc",
@@ -4063,14 +4063,14 @@
                 }
             ],
             "description": "Fix pci_pm_suspend_noirq() to disable PTM",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Rajvi Jingar",
                     "email": "rajvi.jingar@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2961",
             "name": "ptm_disable",
             "repourl": "https://github.com/intel-sandbox/linux-kernel-rjingar.git",
             "sdl_contact": [
@@ -4081,7 +4081,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "r8152_wakeup_debug",
