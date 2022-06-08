@@ -629,7 +629,7 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 				(prot & PROT_READ);
 	struct mmu_gather tlb;
 
-	start = untagged_addr(start);
+	start = untagged_addr(current->mm, start);
 
 	prot &= ~(PROT_GROWSDOWN|PROT_GROWSUP);
 	if (grows == (PROT_GROWSDOWN|PROT_GROWSUP)) /* can't be both */
