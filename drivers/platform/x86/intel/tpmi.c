@@ -45,6 +45,7 @@
  * The device nodes are create by using interface "intel_vsec_add_aux()"
  * provided by the Intel VSEC driver.
  */
+#define DEBUG
 
 #include <linux/auxiliary_bus.h>
 #include <linux/bitfield.h>
@@ -337,6 +338,7 @@ static int tpmi_wait_for_owner(struct intel_tpmi_info *tpmi_info, u8 owner)
 		control = FIELD_GET(TPMI_GENMASK_OWNER, control);
 		if (control != owner) {
 			ret = -EBUSY;
+			pr_info("Waiting for mailbox ownership\n");
 			msleep(TPMI_CONTROL_TIMEOUT_MS);
 			continue;
 		}
@@ -355,6 +357,8 @@ static int _tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
 	ktime_t tm;
 	int ret;
 
+	pr_info("Feature status READ start\n");
+
 	if (!tpmi_info->tpmi_control_mem)
 		return -EFAULT;
 
@@ -363,6 +367,8 @@ static int _tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
 	ret = tpmi_wait_for_owner(tpmi_info, TPMI_OWNER_NONE);
 	if (ret)
 		goto err_proc;
+
+	pr_info("Feature status \n");
 
 	/* set command id to 0x10 for TPMI_GET_STATE */
 	data = TPMI_GET_STATE_CMD;
@@ -376,10 +382,13 @@ static int _tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
 	if (ret)
 		goto err_proc;
 
+	pr_info("Feature status owner is now inband\n");
+
 	/* Set Run Busy and packet length of 2 dwords */
 	writeq(BIT_ULL(TPMI_CONTROL_RB_BIT) | (TPMI_CMD_PKT_LEN << TPMI_CMD_PKT_LEN_OFFSET),
 	       tpmi_info->tpmi_control_mem + TPMI_CONTROL_STATUS_OFFSET);
 
+	pr_info("Feature status owner Wait for RB = 0\n");
 	/* Poll for rb bit == 0 */
 	tm = ktime_get();
 	do {
@@ -398,9 +407,12 @@ static int _tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
 	if (ret)
 		goto done_proc;
 
+	pr_info("Feature status owner RB == 0\n");
+
 	control = FIELD_GET(TPMI_GENMASK_STATUS, control);
 	if (control != TPMI_CMD_STATUS_SUCCESS) {
 		ret = -EBUSY;
+		pr_info("Mailbox command failed\n");
 		goto done_proc;
 	}
 
@@ -425,6 +437,7 @@ done_proc:
 
 err_proc:
 	mutex_unlock(&tpmi_dev_lock);
+	pr_info("Feature status READ End\n");
 
 	return ret;
 }
@@ -751,6 +764,8 @@ static int tpmi_create_device(struct intel_tpmi_info *tpmi_info,
 		tmp->start = pfs->vsec_offset + entry_size_bytes * i;
 		tmp->end = tmp->start + entry_size_bytes - 1;
 		tmp->flags = IORESOURCE_MEM;
+		dev_dbg(tpmi_to_dev(tpmi_info), " TPMI id:%x Entry %d, %pr", pfs->pfs_header.tpmi_id,
+			i, tmp);
 	}
 
 	feature_vsec_dev->pcidev = vsec_dev->pcidev;
@@ -820,6 +835,7 @@ static int tpmi_process_info(struct intel_tpmi_info *tpmi_info,
 	tpmi_info->plat_info.bus_number = header.bus;
 	tpmi_info->plat_info.device_number = header.dev;
 	tpmi_info->plat_info.function_number = header.fn;
+	dev_dbg(tpmi_to_dev(tpmi_info), "[bus:%d dev:%d fn:%d pkg_id:%d]\n", header.bus, header.dev, header.fn, header.pkg);
 
 	iounmap(info_mem);
 
@@ -850,6 +866,9 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 	struct intel_tpmi_info *tpmi_info;
 	u64 pfs_start = 0;
 	int ret, i;
+
+	dev_dbg(&pci_dev->dev, "%s no_resource:%d\n", __func__,
+		vsec_dev->num_resources);
 
 	tpmi_info = devm_kzalloc(&auxdev->dev, sizeof(*tpmi_info), GFP_KERNEL);
 	if (!tpmi_info)
@@ -893,6 +912,9 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 		pfs->pfs_header.cap_offset *= 1024;
 
 		pfs->vsec_offset = pfs_start + pfs->pfs_header.cap_offset;
+
+		dev_dbg(&pci_dev->dev, "PFS[tpmi_id=0x%x num_entries=0x%x entry_size=0x%x cap_offset=0x%x pfs->pfs_header.attribute=0x%x\n",
+			 pfs->pfs_header.tpmi_id, pfs->pfs_header.num_entries, pfs->pfs_header.entry_size, pfs->pfs_header.cap_offset, pfs->pfs_header.attribute);
 
 		/*
 		 * Process TPMI_INFO to get PCI device to CPU package ID.
