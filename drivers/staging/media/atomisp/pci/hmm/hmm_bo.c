@@ -913,7 +913,7 @@ static int alloc_user_pages(struct hmm_buffer_object *bo,
 	 * and map to user space
 	 */
 
-	userptr = untagged_addr(userptr);
+	userptr = untagged_addr(current->mm, userptr);
 
 	bo->pages = pages;
 
