@@ -1809,7 +1809,7 @@
                 }
             ],
             "description": "iommu updates",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
