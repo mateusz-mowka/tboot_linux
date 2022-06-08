@@ -6,6 +6,7 @@
  * All Rights Reserved.
  *
  */
+#define DEBUG
 
 #include <linux/auxiliary_bus.h>
 #include <linux/bitfield.h>
@@ -723,6 +724,8 @@ static int tpmi_create_device(struct intel_tpmi_info *tpmi_info,
 		tmp->start = pfs->vsec_offset + (pfs->pfs_header.entry_size * 4) * i;
 		tmp->end = tmp->start + (pfs->pfs_header.entry_size * 4) - 1;
 		tmp->flags = IORESOURCE_MEM;
+		dev_dbg(tpmi_to_dev(tpmi_info), " TPMI id:%x Entry %d, %pr", pfs->pfs_header.tpmi_id,
+			i, tmp);
 	}
 
 	feature_vsec_dev->pcidev = vsec_dev->pcidev;
@@ -798,6 +801,7 @@ static int tpmi_process_info(struct intel_tpmi_info *tpmi_info,
 	info = readq(info_mem);
 
 	header = (struct tpmi_info_header *)&info;
+	dev_dbg(tpmi_to_dev(tpmi_info), "[bus:%d dev:%d fn:%d pkg_id:%d]\n", header->bus, header->dev, header->fn, header->pkg);
 
 	tpmi_info->plat_info.package_id = header->pkg;
 	tpmi_info->plat_info.bus_number = header->bus;
@@ -836,6 +840,9 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 	u64 pfs_start = 0;
 	int ret, i;
 
+	dev_dbg(&pci_dev->dev, "%s no_resource:%d\n", __func__,
+		vsec_dev->num_resources);
+
 	tpmi_info = devm_kzalloc(&auxdev->dev, sizeof(*tpmi_info), GFP_KERNEL);
 	if (!tpmi_info)
 		return -ENOMEM;
@@ -872,6 +879,9 @@ static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 		pfs->pfs_header.cap_offset *= 1024;
 
 		pfs->vsec_offset = pfs_start + pfs->pfs_header.cap_offset;
+
+		dev_dbg(&pci_dev->dev, "PFS[tpmi_id=0x%x num_entries=0x%x entry_size=0x%x cap_offset=0x%x pfs->pfs_header.attribute=0x%x\n",
+			 pfs->pfs_header.tpmi_id, pfs->pfs_header.num_entries, pfs->pfs_header.entry_size, pfs->pfs_header.cap_offset, pfs->pfs_header.attribute);
 
 		/* Process TPMI_INFO to get BDF to package mapping */
 		if (pfs->pfs_header.tpmi_id == TPMI_INFO_ID)
