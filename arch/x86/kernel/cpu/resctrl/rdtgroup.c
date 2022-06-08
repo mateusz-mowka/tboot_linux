@@ -56,6 +56,12 @@ static char last_cmd_status_buf[512];
 
 struct dentry *debugfs_resctrl;
 
+static enum {
+	MBA4_NOT_SUPPORTED,
+	MBA4_DISABLED,
+	MBA4_ENABLED
+} mba4_status;
+
 void rdt_last_cmd_clear(void)
 {
 	lockdep_assert_held(&rdtgroup_mutex);
@@ -1052,6 +1058,24 @@ static int rdt_thread_throttle_mode_show(struct kernfs_open_file *of,
 	return 0;
 }
 
+static int rdt_mba4_mode_show(struct kernfs_open_file *of,
+			      struct seq_file *seq, void *v)
+{
+	switch (mba4_status) {
+	case MBA4_NOT_SUPPORTED:
+		seq_puts(seq, "not-supported\n");
+		break;
+	case MBA4_DISABLED:
+		seq_puts(seq, "disabled\n");
+		break;
+	case MBA4_ENABLED:
+		seq_puts(seq, "enabled\n");
+		break;
+	}
+
+	return 0;
+}
+
 static ssize_t max_threshold_occ_write(struct kernfs_open_file *of,
 				       char *buf, size_t nbytes, loff_t off)
 {
@@ -1505,6 +1529,12 @@ static struct rftype res_common_files[] = {
 		.mode		= 0444,
 		.kf_ops		= &rdtgroup_kf_single_ops,
 		.seq_show	= rdt_thread_throttle_mode_show,
+	},
+	{
+		.name		= "mba4_mode",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdt_mba4_mode_show,
 	},
 	{
 		.name		= "max_threshold_occupancy",
@@ -1962,6 +1992,47 @@ static void cdp_disable_all(void)
 		resctrl_arch_set_cdp_enabled(RDT_RESOURCE_L2, false);
 }
 
+static void update_mba4(void *arg)
+{
+	bool *enable = arg;
+	u64 msr;
+
+	rdmsrl(MSR_IA32_MBA_CFG, msr);
+	if (*enable)
+		msr |= BIT(2);
+	else
+		msr &= ~BIT(2);
+	wrmsrl(MSR_IA32_MBA_CFG, msr);
+}
+
+static int resctrl_arch_set_mba4(bool enable)
+{
+	struct rdt_resource *r_l;
+	cpumask_var_t cpu_mask;
+	struct rdt_domain *d;
+	int cpu;
+
+	if (!zalloc_cpumask_var(&cpu_mask, GFP_KERNEL))
+		return -ENOMEM;
+
+	r_l = &rdt_resources_all[RDT_RESOURCE_MBA].r_resctrl;
+	list_for_each_entry(d, &r_l->domains, list) {
+		cpumask_set_cpu(cpumask_any(&d->cpu_mask), cpu_mask);
+	}
+	cpu = get_cpu();
+	/* Update MBA configuration on this CPU */
+	if (cpumask_test_cpu(cpu, cpu_mask))
+		update_mba4(&enable);
+	/* Update on the other CPUs */
+	smp_call_function_many(cpu_mask, update_mba4, &enable, 1);
+	put_cpu();
+
+	free_cpumask_var(cpu_mask);
+	mba4_status = enable ? MBA4_ENABLED : MBA4_DISABLED;
+
+	return 0;
+}
+
 /*
  * We don't allow rdtgroup directories to be created anywhere
  * except the root directory. Thus when looking for the rdtgroup
@@ -2036,6 +2107,10 @@ static int rdt_enable_ctx(struct rdt_fs_context *ctx)
 {
 	int ret = 0;
 
+	if (ctx->enable_mba4)
+		if (mba4_status == MBA4_NOT_SUPPORTED || ctx->enable_mba_mbps)
+			return -EINVAL;
+
 	if (ctx->enable_cdpl2)
 		ret = resctrl_arch_set_cdp_enabled(RDT_RESOURCE_L2, true);
 
@@ -2044,6 +2119,9 @@ static int rdt_enable_ctx(struct rdt_fs_context *ctx)
 
 	if (!ret && ctx->enable_mba_mbps)
 		ret = set_mba_sc(true);
+
+	if (!ret && mba4_status != MBA4_NOT_SUPPORTED)
+		ret = resctrl_arch_set_mba4(ctx->enable_mba4);
 
 	return ret;
 }
@@ -2229,10 +2307,31 @@ out:
 	return ret;
 }
 
+void __init intel_check_mba4(void)
+{
+	u64 ia32_core_caps;
+	struct rftype *rft;
+
+	if (!cpu_feature_enabled(X86_FEATURE_CORE_CAPABILITIES))
+		return;
+
+	rdmsrl(MSR_IA32_CORE_CAPS, ia32_core_caps);
+	if (!(ia32_core_caps & MSR_IA32_CORE_CAPS_MBA4))
+		return;
+
+	mba4_status = MBA4_DISABLED;
+	rft = rdtgroup_get_rftype_by_name("mba4_mode");
+	if (!rft)
+		return;
+
+	rft->fflags = RF_CTRL_INFO | RFTYPE_RES_MB;
+}
+
 enum rdt_param {
 	Opt_cdp,
 	Opt_cdpl2,
 	Opt_mba_mbps,
+	Opt_mba_4,
 	nr__rdt_params
 };
 
@@ -2240,6 +2339,7 @@ static const struct fs_parameter_spec rdt_fs_parameters[] = {
 	fsparam_flag("cdp",		Opt_cdp),
 	fsparam_flag("cdpl2",		Opt_cdpl2),
 	fsparam_flag("mba_MBps",	Opt_mba_mbps),
+	fsparam_flag("mba4",		Opt_mba_4),
 	{}
 };
 
@@ -2264,6 +2364,11 @@ static int rdt_parse_param(struct fs_context *fc, struct fs_parameter *param)
 		if (boot_cpu_data.x86_vendor != X86_VENDOR_INTEL)
 			return -EINVAL;
 		ctx->enable_mba_mbps = true;
+		return 0;
+	case Opt_mba_4:
+		if (boot_cpu_data.x86_vendor != X86_VENDOR_INTEL)
+			return -EINVAL;
+		ctx->enable_mba4 = true;
 		return 0;
 	}
 
@@ -2455,6 +2560,8 @@ static void rdt_kill_sb(struct super_block *sb)
 	for_each_alloc_enabled_rdt_resource(r)
 		reset_all_ctrls(r);
 	cdp_disable_all();
+	if (mba4_status == MBA4_ENABLED)
+		resctrl_arch_set_mba4(false);
 	rmdir_all_sub();
 	rdt_pseudo_lock_release();
 	rdtgroup_default.mode = RDT_MODE_SHAREABLE;
