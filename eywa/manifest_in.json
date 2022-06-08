@@ -535,14 +535,14 @@
                 }
             ],
             "description": "USB host support and fixes",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Abdul Rahman Ismail",
                     "email": "abdul.r.ismail@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2963",
             "name": "usb-xhci",
             "repourl": "https://github.com/intel-sandbox/mnyman-linux.git",
             "sdl_contact": [
@@ -553,7 +553,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "intel/for-next",
