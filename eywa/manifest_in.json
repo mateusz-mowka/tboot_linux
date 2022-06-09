@@ -2778,7 +2778,7 @@
                 }
             ],
             "description": "Enable PCIe Deferrable Memory Write (DMWr)",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ashok Raj",
