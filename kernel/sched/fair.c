@@ -10637,9 +10637,19 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 	unsigned long busiest_util = 0, busiest_load = 0, busiest_capacity = 1;
 	long busiest_ipcc_delta = LONG_MIN;
 	unsigned int busiest_nr = 0;
+#ifdef CONFIG_IPC_CLASSES
+	unsigned long busiest_score_on_dst_cpu = 0;
+#endif
 	int i;
 
 	for_each_cpu_and(i, sched_group_span(group), env->cpus) {
+#ifdef CONFIG_IPC_CLASSES
+		/*
+		 * TODO: can we get rid of these variables using
+		 * ipcc_score_delta()?
+		 */
+		unsigned long score_on_dst_cpu, score_on_src_cpu;
+#endif
 		unsigned long capacity, load, util;
 		unsigned int nr_running;
 		enum fbq_type rt;
@@ -10752,7 +10762,28 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 			break;
 
 		case migrate_misfit_ipcc:
-			/* TODO: Add here logic to select a busiest rq. */
+#ifdef CONFIG_IPC_CLASSES
+			/* TODO: handle returned errors */
+			score_on_dst_cpu = arch_get_ipcc_score(rq->curr->ipcc,
+							       env->dst_cpu);
+
+			/*
+			 * The busiest group may have classes of tasks with
+			 * both higher and lower score if placed on the
+			 * destination CPU. Only select the runqueue with
+			 * classes of tasks that would have higher score.
+			 */
+			score_on_src_cpu = arch_get_ipcc_score(rq->curr->ipcc, i);
+			/* TODO: can we use ipcc_score_delta() here? */
+			if (score_on_dst_cpu < score_on_src_cpu)
+				continue;
+
+			if (busiest_score_on_dst_cpu < score_on_dst_cpu) {
+				busiest_score_on_dst_cpu = score_on_dst_cpu;
+				busiest = rq;
+			}
+#endif
+			break;
 
 		case migrate_task:
 			if (busiest_nr < nr_running) {
