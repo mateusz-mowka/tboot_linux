@@ -3560,7 +3560,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "kvm_ipiv",
+            "branch": "kvm-ipiv-v5.19",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -3570,7 +3570,7 @@
                 }
             ],
             "description": "KVM: IPI virtualization support",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Neiger Gil",
@@ -3579,7 +3579,7 @@
             ],
             "jira": "",
             "name": "kvm_ipiv",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/kvm-next/kvm-linux.git",
+            "repourl": "https://github.com/intel-sandbox/kvm-ipiv.git",
             "sdl_contact": [
                 {
                     "name": "Zeng Guang",
@@ -3588,7 +3588,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "thermal_intel_next",
