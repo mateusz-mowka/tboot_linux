@@ -3577,7 +3577,7 @@
                     "email": "gil.neiger@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2971",
             "name": "kvm_ipiv",
             "repourl": "https://github.com/intel-sandbox/kvm-ipiv.git",
             "sdl_contact": [
