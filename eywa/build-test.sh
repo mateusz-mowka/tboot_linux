@@ -50,7 +50,6 @@ allyesconfig() {
 	echo "allyesconfig" >> $LOGFILE
 	make mrproper >>$LOGFILE 2>&1 || result 1
 	make $BUILDDIR allyesconfig >>$LOGFILE 2>&1 || result 1
-        make $BUILDDIR build_test_exemptions/intel.disable.*.config >> $LOGFILE 2>&1 || result 1
 	make $BUILDDIR syncconfig >>$LOGFILE 2>&1 || result 1
 	make -j $CPUS $BUILDDIR >>$LOGFILE 2>&1 || result 1
 	result $?
@@ -62,7 +61,6 @@ allmodconfig() {
 	echo "allmodconfig" >> $LOGFILE
 	make mrproper >>$LOGFILE 2>&1 || result 1
 	make $BUILDDIR allmodconfig >>$LOGFILE 2>&1 || result 1
-        make $BUILDDIR build_test_exemptions/intel.disable.*.config >> $LOGFILE 2>&1 || result 1
 	make $BUILDDIR syncconfig >>$LOGFILE 2>&1 || result 1
 	make -j $CPUS $BUILDDIR >>$LOGFILE 2>&1 || result 1
 	make -j $CPUS $BUILDDIR  modules >>$LOGFILE 2>&1 || result 1
