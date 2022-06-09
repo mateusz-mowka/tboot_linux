@@ -22,6 +22,10 @@
 
 /* Don't use 0x3001-0x3004 because of old glibcs */
 
+#define ARCH_GET_UNTAG_MASK		0x4001
+#define ARCH_ENABLE_TAGGED_ADDR		0x4002
+#define ARCH_GET_MAX_TAG_BITS		0x4003
+
 #define ARCH_CET_ENABLE			0x4005
 #define ARCH_CET_DISABLE		0x4006
 #define ARCH_CET_LOCK			0x4007
