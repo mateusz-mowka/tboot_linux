@@ -9767,6 +9767,9 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 	int i;
 
 	for_each_cpu_and(i, sched_group_span(group), env->cpus) {
+#ifdef CONFIG_SCHED_TASK_CLASSES
+		int busiest_score_on_dst_cpu = 0, c;
+#endif
 		unsigned long capacity, load, util;
 		unsigned int nr_running;
 		enum fbq_type rt;
@@ -9869,7 +9872,36 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 			break;
 
 		case migrate_misfit_task_class:
-			/* TODO: Add here logic to select a busiest rq. */
+#ifdef CONFIG_SCHED_TASK_CLASSES
+			for (c = 0; c < sched_nr_task_classes; c++) {
+				int score_on_dst_cpu, score_on_src_cpu;
+
+				/*
+				 * If there are not tasks of this class in rq,
+				 * skip it.
+				 */
+				if (!rq->nr_running_classes[c])
+					continue;
+
+				score_on_dst_cpu = arch_get_task_class_score(c, env->dst_cpu);
+
+				/*
+				 * The busiest group may have classes of tasks with
+				 * both higher and lower score if placed on the
+				 * destination CPU. Only select the runqueue with
+				 * classes of tasks that would have higher score.
+				 */
+				score_on_src_cpu = arch_get_task_class_score(c, i);
+				if (score_on_dst_cpu < score_on_src_cpu)
+					continue;
+
+				if (busiest_score_on_dst_cpu < score_on_dst_cpu) {
+					busiest_score_on_dst_cpu = score_on_dst_cpu;
+					busiest = rq;
+				}
+			}
+#endif
+			break;
 
 		case migrate_task:
 			if (busiest_nr < nr_running) {
