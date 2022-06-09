@@ -762,7 +762,7 @@
                 }
             ],
             "description": "PMU core/uncore support on Cannon Lake, Rocket Lake, Jasper Lake, SPR and ADL-s, Hybrid PMU support, CET perf, Topdown support, Discovery methodology support for uncore",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Beeman Strong",
@@ -2138,8 +2138,8 @@
                 }
             ],
             "jira": "NEXT-2968",
-            "name": "In Field Scan ",
-            "repourl": " https://github.com/intel-sandbox/drivers.saf.git",
+            "name": "In Field Scan",
+            "repourl": "https://github.com/intel-sandbox/drivers.saf.git",
             "sdl_contact": [
                 {
                     "name": "Ashok Raj",
