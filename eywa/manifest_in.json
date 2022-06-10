@@ -2902,7 +2902,7 @@
             "last_enabled": "v5.14"
         },
         {
-            "branch": "ucode_rollback",
+            "branch": "microcode_rollback",
             "branch_type": "internal nonexpiring",
             "config_options": [],
             "contributor": [
@@ -2912,7 +2912,7 @@
                 }
             ],
             "description": "Enable microcode rollback in intel-next",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
@@ -2921,7 +2921,7 @@
             ],
             "jira": "NEXT-2945",
             "name": "microcode_rollback",
-            "repourl": "https://github.com/intel-sandbox/kernel",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
             "sdl_contact": [
                 {
                     "name": "Ashok Raj",
