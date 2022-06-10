@@ -48,6 +48,7 @@
 #include <asm/unwind.h>
 #include <asm/tdx.h>
 #include <asm/cet.h>
+#include <asm/mmu_context.h>
 
 #include "process.h"
 
@@ -386,6 +387,7 @@ void arch_setup_new_exec(void)
 	/* Reset thread features on exec */
 	current->thread.features = 0;
 	current->thread.features_locked = 0;
+	mm_reset_untag_mask(current->mm);
 }
 
 #ifdef CONFIG_X86_IOPL_IOPERM
