@@ -1850,9 +1850,6 @@ static int domain_attach_iommu(struct dmar_domain *domain,
 	unsigned long ndomains;
 	int num;
 
-	assert_spin_locked(&device_domain_lock);
-	assert_spin_locked(&iommu->lock);
-
 	domain->iommu_refcnt[iommu->seq_id] += 1;
 	if (domain->iommu_refcnt[iommu->seq_id] == 1) {
 		ndomains = cap_ndoms(iommu->cap);
@@ -1877,9 +1874,6 @@ static void domain_detach_iommu(struct dmar_domain *domain,
 				struct intel_iommu *iommu)
 {
 	int num;
-
-	assert_spin_locked(&device_domain_lock);
-	assert_spin_locked(&iommu->lock);
 
 	domain->iommu_refcnt[iommu->seq_id] -= 1;
 	if (domain->iommu_refcnt[iommu->seq_id] == 0) {
