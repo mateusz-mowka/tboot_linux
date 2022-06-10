@@ -2194,10 +2194,6 @@
                     "value": "m"
                 },
                 {
-                    "name": "CONFIG_INTEL_HPM_DIE_MAP",
-                    "value": "m"
-                },
-                {
                     "name": "CONFIG_INTEL_TPMI_PEM",
                     "value": "m"
                 },
@@ -2208,6 +2204,22 @@
                 {
                     "name": "CONFIG_INTEL_UNCORE_FREQ_CONTROL_TPMI",
                     "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_PMT_TELEMETRY",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_SPEED_SELECT_INTERFACE",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_UNCORE_FREQ_CONTROL",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_PMT_CLASS",
+                    "value": "m"
                 }
             ],
             "contributor": [
@@ -2217,14 +2229,14 @@
                 }
             ],
             "description": "Intel TPMI MFD driver",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Chen, Stanley",
                     "email": "stanley.chen@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2973",
             "name": "tpmi",
             "repourl": "https://github.com/intel-sandbox/spandruv.linux.git",
             "sdl_contact": [
@@ -2235,7 +2247,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "kvm-next",
