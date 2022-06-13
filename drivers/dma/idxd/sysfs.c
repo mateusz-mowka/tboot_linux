@@ -1653,6 +1653,58 @@ static ssize_t event_log_size_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(event_log_size);
 
+static ssize_t vdev_create_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct idxd_device *idxd = confdev_to_idxd(dev);
+	u32 val;
+	int rc = count;
+
+	rc = kstrtouint(buf, 10, &val);
+	if (rc < 0)
+		return -EINVAL;
+
+	mutex_lock(&idxd->vdev_lock);
+	if (!idxd->vdev_ops) {
+		rc = -EOPNOTSUPP;
+		goto out;
+	}
+
+	rc = idxd->vdev_ops->device_create(idxd, val);
+	if (rc == 0)
+		rc = count;
+
+out:
+	mutex_unlock(&idxd->vdev_lock);
+	return rc;
+}
+static DEVICE_ATTR_WO(vdev_create);
+
+static ssize_t vdev_remove_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct idxd_device *idxd = confdev_to_idxd(dev);
+	u32 val;
+	int rc = count;
+
+	rc = kstrtouint(buf, 10, &val);
+	if (rc < 0)
+		return -EINVAL;
+
+	mutex_lock(&idxd->vdev_lock);
+	if (!idxd->vdev_ops) {
+		rc = -EOPNOTSUPP;
+		goto out;
+	}
+
+	rc = idxd->vdev_ops->device_remove(idxd, val);
+
+out:
+	mutex_unlock(&idxd->vdev_lock);
+	return rc;
+}
+static DEVICE_ATTR_WO(vdev_remove);
+
 static struct attribute *idxd_device_attributes[] = {
 	&dev_attr_version.attr,
 	&dev_attr_max_groups.attr,
@@ -1678,6 +1730,8 @@ static struct attribute *idxd_device_attributes[] = {
 	&dev_attr_cmd_status.attr,
 	&dev_attr_iaa_cap.attr,
 	&dev_attr_event_log_size.attr,
+	&dev_attr_vdev_create.attr,
+	&dev_attr_vdev_remove.attr,
 	NULL,
 };
 
