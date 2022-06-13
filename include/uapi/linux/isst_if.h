@@ -403,6 +403,29 @@ struct isst_perf_level_cpu_mask {
 	__s8 cpu_buffer[1];
 };
 
+/**
+ * struct isst_base_freq_info - Structure to get SST-BF frequencies
+ * @socket_id:	Socket/package id
+ * @power_domain:	Power Domain id
+ * @level:	SST-PP level for which caller wants to get information
+ * @high_base_freq_mhz: High priority CPU base frequency
+ * @low_base_freq_mhz: Low priority CPU base frequency
+ * @tjunction_max_c: Max junction temperature
+ * @thermal_design_power_w: Thermal design power in watts
+ *
+ * Structure used to get SST-BF information using
+ * IOCTL ISST_IF_GET_BASE_FREQ_INFO.
+ */
+struct isst_base_freq_info {
+	__u8 socket_id;
+	__u8 power_domain_id;
+	__u16 level;
+	__u16 high_base_freq_mhz;
+	__u16 low_base_freq_mhz;
+	__u16 tjunction_max_c;
+	__u16 thermal_design_power_w;
+};
+
 #define ISST_IF_MAGIC			0xFE
 #define ISST_IF_GET_PLATFORM_INFO	_IOR(ISST_IF_MAGIC, 0, struct isst_if_platform_info *)
 #define ISST_IF_GET_PHY_ID		_IOWR(ISST_IF_MAGIC, 1, struct isst_if_cpu_map *)
@@ -420,5 +443,7 @@ struct isst_perf_level_cpu_mask {
 #define ISST_IF_PERF_SET_FEATURE _IOW(ISST_IF_MAGIC, 11, struct isst_perf_feature_control *)
 #define ISST_IF_GET_PERF_LEVEL_INFO	_IOR(ISST_IF_MAGIC, 12, struct isst_perf_level_data_info *)
 #define ISST_IF_GET_PERF_LEVEL_CPU_MASK	_IOR(ISST_IF_MAGIC, 13, struct isst_perf_level_cpu_mask *)
+#define ISST_IF_GET_BASE_FREQ_INFO	_IOR(ISST_IF_MAGIC, 14, struct isst_base_freq_info *)
+#define ISST_IF_GET_BASE_FREQ_CPU_MASK	_IOR(ISST_IF_MAGIC, 15, struct isst_perf_level_cpu_mask *)
 
 #endif
