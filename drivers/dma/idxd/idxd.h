@@ -32,12 +32,19 @@ enum idxd_dev_type {
 	IDXD_DEV_GROUP,
 	IDXD_DEV_ENGINE,
 	IDXD_DEV_CDEV,
+	IDXD_DEV_VDEV,
 	IDXD_DEV_MAX_TYPE,
 };
 
 struct idxd_dev {
 	struct device conf_dev;
 	enum idxd_dev_type type;
+
+	/* relevant to vdev */
+	struct idxd_device *idxd;
+	int id;
+	u32 vdev_type;
+	struct list_head list;
 };
 
 #define IDXD_REG_TIMEOUT	50
@@ -262,6 +269,11 @@ struct idxd_driver_data {
 	int align;
 };
 
+struct vdev_device_ops {
+	int (*device_create)(struct idxd_device *idxd, u32 type);
+	int (*device_remove)(struct idxd_device *idxd, int id);
+};
+
 struct idxd_device {
 	struct idxd_dev idxd_dev;
 	struct idxd_driver_data *data;
@@ -321,6 +333,9 @@ struct idxd_device {
 	unsigned long *opcap_bmap;
 
 	struct irq_domain *ims_domain;
+	struct mutex vdev_lock;
+	struct vdev_device_ops *vdev_ops;
+	struct list_head vdev_list;
 };
 
 /* IDXD software descriptor */

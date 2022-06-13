@@ -9,6 +9,92 @@
 #include "registers.h"
 #include "idxd.h"
 
+enum {
+	IDXD_VDEV_TYPE_1DWQ = 0,
+	IDXD_VDEV_TYPE_MAX
+};
+
+static void idxd_vdev_release(struct device *dev)
+{
+	struct idxd_dev *idev = container_of(dev, struct idxd_dev, conf_dev);
+
+	kfree(idev);
+}
+
+struct device_type idxd_vdev_device_type = {
+	.name = "vdev",
+	.release = idxd_vdev_release,
+};
+
+static int vdev_device_create(struct idxd_device *idxd, u32 type)
+{
+	struct idxd_dev *parent;
+	struct device *dev;
+	int rc;
+
+	lockdep_assert_held(&idxd->vdev_lock);
+
+	if (type >= IDXD_VDEV_TYPE_MAX)
+		return -EINVAL;
+
+	parent = kzalloc(sizeof(*parent), GFP_KERNEL);
+	if (!parent)
+		return -ENOMEM;
+
+	idxd_dev_set_type(parent, IDXD_DEV_VDEV);
+	dev = &parent->conf_dev;
+	device_initialize(dev);
+	dev->parent = idxd_confdev(idxd);
+	dev->bus = &dsa_bus_type;
+	dev->type = &idxd_vdev_device_type;
+
+	/*
+	 * Here it's set to vdev0, however, with swq support, this needs an
+	 * ida to enumerate the devices.
+	 */
+	parent->id = 0;
+	rc = dev_set_name(dev, "vdev%u", parent->id);
+	if (rc < 0) {
+		put_device(dev);
+		return rc;
+	}
+	parent->vdev_type = type;
+	parent->idxd = idxd;
+
+	rc = device_add(dev);
+	if (rc < 0) {
+		put_device(dev);
+		return rc;
+	}
+
+	list_add_tail(&parent->list, &idxd->vdev_list);
+
+	return 0;
+}
+
+
+static int vdev_device_remove(struct idxd_device *idxd, int id)
+{
+	struct idxd_dev *pos, *n;
+
+	lockdep_assert_held(&idxd->vdev_lock);
+
+	list_for_each_entry_safe(pos, n, &idxd->vdev_list, list) {
+		if (pos->id == id) {
+			list_del(&pos->list);
+			device_unregister(&pos->conf_dev);
+			return 0;
+		}
+	}
+
+	return -ENODEV;
+}
+
+struct vdev_device_ops vidxd_device_ops = {
+	.device_create = vdev_device_create,
+	.device_remove = vdev_device_remove,
+};
+
 static int idxd_vdev_drv_probe(struct idxd_dev *idxd_dev)
 {
 	struct device *dev = &idxd_dev->conf_dev;
@@ -35,6 +121,11 @@ static int idxd_vdev_drv_probe(struct idxd_dev *idxd_dev)
 		goto err_enable_wq;
 
 	idxd->cmd_status = 0;
+
+	mutex_lock(&idxd->vdev_lock);
+	idxd->vdev_ops = &vidxd_device_ops;
+	mutex_unlock(&idxd->vdev_lock);
+
 	mutex_unlock(&wq->wq_lock);
 	return 0;
 
