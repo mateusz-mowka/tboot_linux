@@ -2658,9 +2658,9 @@
                 }
             ],
             "description": "CXL Memory Expander support targeting v5.18",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2974",
             "name": "cxl",
             "repourl": "https://github.com/intel-sandbox/cxl.git",
             "sdl_contact": [
@@ -2671,7 +2671,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "dev-queue",
