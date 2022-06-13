@@ -8931,8 +8931,13 @@ static bool update_sd_pick_busiest(struct lb_env *env,
 		break;
 
 	case group_misfit_task_class:
-		/* TODO: Add here logic to decide which group of this type select. */
-		return false;
+		/*
+		 * Keep the group with classes of tasks that have higher
+		 * score if they were placed on the destination CPU.
+		 */
+		if (sgs->max_score_on_dst_cpu <= busiest->max_score_on_dst_cpu)
+			return false;
+		break;
 
 	case group_fully_busy:
 		/*
