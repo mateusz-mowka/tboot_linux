@@ -7575,6 +7575,13 @@ enum group_type {
 	 */
 	group_misfit_task,
 	/*
+	 * The classes of tasks in the group can run with higher performance on
+	 * one of the local CPUs. Since the local group does not have tasks of
+	 * this classes, there is opportunity to swap tasks to increase
+	 * throughput.
+	 */
+	group_misfit_task_class,
+	/*
 	 * SD_ASYM_PACKING only: One local CPU with higher capacity is available,
 	 * and the task should be migrated to it instead of running on the
 	 * current CPU.
@@ -8277,6 +8284,7 @@ struct sg_lb_stats {
 	unsigned int group_weight;
 	enum group_type group_type;
 	unsigned int group_asym_packing; /* Tasks should be moved to preferred CPU */
+	unsigned int group_misfit_task_classes;  /* Classes of tasks should be moved to dst_cpu */
 	unsigned long group_misfit_task_load; /* A CPU has a task too big for its capacity */
 	bool has_unclassified_tasks; /* The group has unclassified tasks */
 	int max_score_on_dst_cpu; /* Highest class of task score in the group if placed on dst_cpu */
@@ -8552,6 +8560,9 @@ group_type group_classify(unsigned int imbalance_pct,
 	if (sgs->group_asym_packing)
 		return group_asym_packing;
 
+	if (sgs->group_misfit_task_classes)
+		return group_misfit_task_class;
+
 	if (sgs->group_misfit_task_load)
 		return group_misfit_task;
 
@@ -8614,12 +8625,46 @@ static void update_sg_lb_task_class_stats(struct lb_env *env,
 	if (local_group && !sgs->max_score_on_dst_cpu)
 		sgs->has_unclassified_tasks = true;
 }
+
+/**
+ * determine if @sgs has misfit tasks wrt @local_stats. That is, tasks that can
+ * run with higher priority on @local_stat
+ */
+static bool sched_group_has_misfit_task_classes(struct lb_env *env,
+						struct sg_lb_stats *sgs,
+						struct sg_lb_stats *local_stats)
+{
+	if (!sgs->sum_h_nr_running)
+		return false;
+
+	/*
+	 * We are here because @env::dst_cpu is not idle. Thus, if a busiest
+	 * group is identified, the resulting load balance will exchange tasks
+	 * between the busiest and the destination runqueue.
+	 *
+	 * If the destination runqueue has unclassified tasks, it is possible
+	 * that their class score is higher than those in busiest. Do not
+	 * balance load based on classes of tasks.
+	 */
+	if (local_stats->has_unclassified_tasks)
+		return false;
+
+	/* If true, implies that @sgs has classified tasks. */
+	return sgs->max_score_on_dst_cpu > local_stats->max_score_on_dst_cpu;
+}
 #else /* CONFIG_SCHED_TASK_CLASSES */
 static void update_sg_lb_task_class_stats(struct lb_env *env,
 					  struct sg_lb_stats *sgs,
 					  struct rq *rq,
 					  int local_group)
 {}
+
+static bool sched_group_has_misfit_task_classes(struct lb_env *env,
+						struct sg_lb_stats *sgs,
+						struct sg_lb_stats *local)
+{
+	return false;
+}
 #endif /* CONFIG_SCHED_TASK_CLASSES */
 
 /**
@@ -8791,6 +8836,17 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 		sgs->group_asym_packing = 1;
 	}
 
+	/*
+	 * If dst CPU is busy and it has classes of tasks that are
+	 * different from @sg, there may be opportunity to increase
+	 * throughput if they have higher priority than those on
+	 * already on the dst CPU.
+	 */
+	if (sched_task_classes_enabled() && !local_group &&
+	    env->idle == CPU_NOT_IDLE &&
+	    sched_group_has_misfit_task_classes(env, sgs, &sds->local_stat))
+		sgs->group_misfit_task_classes = 1;
+
 	sgs->group_type = group_classify(env->sd->imbalance_pct, group, sgs);
 
 	/* Computing avg_load makes sense only when group is overloaded */
@@ -8873,6 +8929,10 @@ static bool update_sd_pick_busiest(struct lb_env *env,
 		if (sgs->group_misfit_task_load < busiest->group_misfit_task_load)
 			return false;
 		break;
+
+	case group_misfit_task_class:
+		/* TODO: Add here logic to decide which group of this type select. */
+		return false;
 
 	case group_fully_busy:
 		/*
@@ -9082,6 +9142,7 @@ static bool update_pick_idlest(struct sched_group *idlest,
 
 	case group_imbalanced:
 	case group_asym_packing:
+	case group_misfit_task_class:
 		/* Those types are not used in the slow wakeup path */
 		return false;
 
@@ -9223,6 +9284,7 @@ find_idlest_group(struct sched_domain *sd, struct task_struct *p, int this_cpu)
 
 	case group_imbalanced:
 	case group_asym_packing:
+	case group_misfit_task_class:
 		/* Those type are not used in the slow wakeup path */
 		return NULL;
 
