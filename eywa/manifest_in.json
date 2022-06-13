@@ -1030,14 +1030,14 @@
                 }
             ],
             "description": "Contains tracehub support for Granite Rapids, Meteor Lake, Raptor Lake.",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Marcus Winston",
                     "email": "marcus.winston@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2975",
             "name": "tracehub",
             "repourl": "https://github.com/intel-sandbox/linux-stm.git",
             "sdl_contact": [
@@ -1048,7 +1048,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "for-eywa",
