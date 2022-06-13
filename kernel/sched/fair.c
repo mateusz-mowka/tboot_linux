@@ -9698,8 +9698,13 @@ static bool update_sd_pick_busiest(struct lb_env *env,
 		break;
 
 	case group_misfit_ipc_class:
-		/* TODO: Add here logic to decide which group of this type select. */
-		return false;
+		/*
+		 * Keep the group with IPC classes of tasks that have higher
+		 * score if they were placed on the destination CPU.
+		 */
+		if (sgs->ipcc_score_after <= busiest->ipcc_score_after)
+			return false;
+		break;
 
 	case group_fully_busy:
 		/*
