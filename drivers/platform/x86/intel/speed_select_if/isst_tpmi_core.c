@@ -1398,6 +1398,403 @@ static long isst_if_def_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+static struct tpmi_per_power_domain_info *isst_if_mbox_power_domain_inst(int logical_cpu)
+{
+	int pkg_id, power_domain_id;
+
+	pkg_id = topology_physical_package_id(logical_cpu);
+	power_domain_id = tpmi_get_power_domain_id(logical_cpu);
+
+	return get_instance(pkg_id, power_domain_id);
+}
+
+#define CONFIG_TDP_GET_LEVELS_INFO	0x7F00
+#define CONFIG_TDP_GET_TDP_CONTROL	0x7F01
+#define CONFIG_TDP_SET_TDP_CONTROL	0x7F02
+#define CONFIG_TDP_GET_TDP_INFO		0x7F03
+#define CONFIG_TDP_SET_LEVEL		0x7F08
+
+#define CLOS_PM_QOS_CONFIG		0xD002
+
+#define READ_PM_CONFIG			0x9403
+#define WRITE_PM_CONFIG			0x9503
+
+#define MBOX_TDP_LEVEL_ENABLE_BIT	31
+#define MBOX_TDP_LEVEL_LOCK_BIT		24
+#define MBOX_CURRENT_CONFIG_TDP_LEVEL_BIT	16
+#define MBOX_CONFIG_TDP_LEVELS_BIT	8
+
+#define MBOX_TF_SUPPORT_BIT		0
+#define MBOX_BF_SUPPORT_BIT		1
+#define MBOX_TF_ENABLE_BIT		16
+#define MBOX_BF_ENABLE_BIT		17
+
+#define MBOX_TF_ENABLE_BIT		16
+#define MBOX_BF_ENABLE_BIT		17
+
+#define MBOX_TDP_RATIO_START		16
+#define MBOX_PKG_TDP_WIDTH		15
+
+#define SST_CP_STATE_BIT		16
+#define SST_CP_CAP_BIT			0
+
+#define CLOS_ENABLE_BIT			0
+#define CLOS_PRIO_BIT			1
+
+static int isst_if_mbox_ctdp_get_levels_info(struct tpmi_per_power_domain_info *power_domain_info,
+					     struct isst_if_mbox_cmd *mbox_cmd)
+{
+	u32 resp;
+
+	mbox_cmd->resp_data = 0;
+
+	mbox_cmd->resp_data = !!(power_domain_info->sst_header.cap_mask & BIT(1));
+	mbox_cmd->resp_data <<= MBOX_TDP_LEVEL_LOCK_BIT;
+
+	_read_pp_info("locked", resp, SST_PP_STATUS_OFFSET, SST_PP_LOCK_START,
+		      SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
+	if (resp)
+		mbox_cmd->resp_data |= BIT(MBOX_TDP_LEVEL_LOCK_BIT);
+
+	_read_pp_info("current_level", resp, SST_PP_STATUS_OFFSET, SST_PP_LEVEL_START,
+		      SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
+	mbox_cmd->resp_data |= ((resp & 0xff) << MBOX_CURRENT_CONFIG_TDP_LEVEL_BIT);
+	mbox_cmd->resp_data |= ((power_domain_info->max_level & 0xff) <<
+				MBOX_CONFIG_TDP_LEVELS_BIT);
+	mbox_cmd->resp_data |= (power_domain_info->pp_header.feature_rev & 0xff);
+
+	return 0;
+}
+
+static int isst_if_mbox_ctdp_get_tdp_control(struct tpmi_per_power_domain_info *power_domain_info,
+					     struct isst_if_mbox_cmd *mbox_cmd)
+{
+	u32 resp;
+
+	mbox_cmd->resp_data = 0;
+
+	_read_bf_level_info("bf_support", resp, 0, 0, SST_BF_FEATURE_SUPPORTED_START,
+			    SST_BF_FEATURE_SUPPORTED_WIDTH, SST_MUL_FACTOR_NONE);
+	if (resp)
+		mbox_cmd->resp_data |= BIT(MBOX_BF_SUPPORT_BIT);
+
+	_read_tf_level_info("tf_support", resp, 0, 0, SST_TF_FEATURE_SUPPORTED_START,
+			    SST_TF_FEATURE_SUPPORTED_WIDTH, SST_MUL_FACTOR_NONE);
+	if (resp)
+		mbox_cmd->resp_data |= BIT(MBOX_TF_SUPPORT_BIT);
+
+	_read_pp_info("feature_state", resp, SST_PP_STATUS_OFFSET,
+		      SST_PP_FEATURE_STATE_START, SST_PP_FEATURE_STATE_WIDTH,
+		      SST_MUL_FACTOR_NONE)
+	if (resp & BIT(0))
+		mbox_cmd->resp_data |= BIT(MBOX_BF_ENABLE_BIT);
+
+	if (resp & BIT(1))
+		mbox_cmd->resp_data |= BIT(MBOX_TF_ENABLE_BIT);
+
+	return 0;
+}
+
+static int isst_if_mbox_ctdp_set_tdp_level(struct tpmi_per_power_domain_info *power_domain_info,
+					   struct isst_if_mbox_cmd *mbox_cmd)
+{
+	mbox_cmd->resp_data = 0;
+
+	if (mbox_cmd->req_data >= power_domain_info->max_level)
+		return -EINVAL;
+
+	_write_pp_info("perf_level", mbox_cmd->req_data, SST_PP_CONTROL_OFFSET,
+		       SST_PP_LEVEL_START, SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
+
+	return 0;
+}
+
+static int isst_if_mbox_ctdp_set_tdp_control(struct tpmi_per_power_domain_info *power_domain_info,
+					     struct isst_if_mbox_cmd *mbox_cmd)
+{
+	int req = 0;
+
+	mbox_cmd->resp_data = 0;
+
+	if (mbox_cmd->req_data >= power_domain_info->max_level)
+		return -EINVAL;
+
+	if (mbox_cmd->req_data & BIT(MBOX_BF_ENABLE_BIT))
+		req = BIT(0);
+
+	if (mbox_cmd->req_data & BIT(MBOX_TF_ENABLE_BIT))
+		req |= BIT(1);
+
+	_write_pp_info("perf_feature", req, SST_PP_CONTROL_OFFSET, SST_PP_FEATURE_STATE_START,
+		       SST_PP_FEATURE_STATE_WIDTH, SST_MUL_FACTOR_NONE)
+
+	return 0;
+}
+
+static int isst_if_mbox_ctdp_get_info(struct tpmi_per_power_domain_info *power_domain_info,
+					    struct isst_if_mbox_cmd *mbox_cmd)
+{
+	u32 resp;
+
+	mbox_cmd->resp_data = 0;
+
+	if (mbox_cmd->req_data >= power_domain_info->max_level)
+		return -EINVAL;
+
+	_read_pp_level_info("tdp_ratio", resp, mbox_cmd->req_data, SST_PP_INFO_0_OFFSET,
+			    SST_PP_P1_SSE_START, SST_PP_P1_SSE_WIDTH, SST_MUL_FACTOR_NONE)
+	mbox_cmd->resp_data = resp << MBOX_TDP_RATIO_START;
+	_read_pp_level_info("thermal_design_power_w", resp, mbox_cmd->req_data,
+			    SST_PP_INFO_1_OFFSET, SST_PP_TDP_START, SST_PP_TDP_WIDTH,
+			    SST_MUL_FACTOR_NONE)
+	resp /= 8; /* units are in 1/8th watt */
+	mbox_cmd->resp_data |= resp & GENMASK(MBOX_PKG_TDP_WIDTH, 0);
+
+	return 0;
+}
+
+static int isst_if_mbox_set_pm_config(struct tpmi_per_power_domain_info *power_domain_info,
+				      struct isst_if_mbox_cmd *mbox_cmd)
+{
+	u32 req = 0;
+
+	mbox_cmd->resp_data = 0;
+
+	if (mbox_cmd->req_data)
+		req = 1;
+
+	_write_cp_info("cp_enable", req, SST_CP_CONTROL_OFFSET, SST_CP_ENABLE_START,
+		       SST_CP_ENABLE_WIDTH, SST_MUL_FACTOR_NONE)
+
+	return 0;
+}
+
+static int isst_if_mbox_get_pm_config(struct tpmi_per_power_domain_info *power_domain_info,
+				      struct isst_if_mbox_cmd *mbox_cmd)
+{
+	u32 resp = BIT(SST_CP_CAP_BIT); /* This is default capability now */
+
+	mbox_cmd->resp_data = 1; /* Always supported */
+
+	_read_cp_info("cp_enable", resp, SST_CP_STATUS_OFFSET, SST_CP_ENABLE_START,
+		      SST_CP_ENABLE_WIDTH, SST_MUL_FACTOR_NONE)
+	if (resp)
+		mbox_cmd->resp_data |= BIT(SST_CP_STATE_BIT);
+
+	return 0;
+}
+
+static int isst_if_mbox_get_qos_config(struct tpmi_per_power_domain_info *power_domain_info,
+				       struct isst_if_mbox_cmd *mbox_cmd)
+{
+	u32 resp;
+
+	mbox_cmd->resp_data = BIT(CLOS_ENABLE_BIT);
+
+	_read_cp_info("cp_prio_type", resp, SST_CP_STATUS_OFFSET, SST_CP_PRIORITY_TYPE_START,
+		      SST_CP_PRIORITY_TYPE_WIDTH, SST_MUL_FACTOR_NONE)
+	if (resp)
+		mbox_cmd->resp_data |= BIT(CLOS_PRIO_BIT);
+
+	return 0;
+}
+
+static int isst_if_mbox_set_qos_config(struct tpmi_per_power_domain_info *power_domain_info,
+				       struct isst_if_mbox_cmd *mbox_cmd)
+{
+	u32 req = 0;
+
+	if (mbox_cmd->req_data & BIT(CLOS_PRIO_BIT))
+		req = 1;
+
+	_write_cp_info("cp_prio_type", req, SST_CP_CONTROL_OFFSET, SST_CP_PRIORITY_TYPE_START,
+		       SST_CP_PRIORITY_TYPE_WIDTH, SST_MUL_FACTOR_NONE)
+
+	return 0;
+}
+
+static long isst_if_mbox_proc_cmd(u8 *cmd_ptr, int *write_only, int resume)
+{
+	struct tpmi_per_power_domain_info *power_domain_info;
+	struct isst_if_mbox_cmd *mbox_cmd;
+	int cmd;
+	long ret = 0;
+
+	mbox_cmd = (struct isst_if_mbox_cmd *)cmd_ptr;
+
+	if (isst_if_mbox_cmd_invalid(mbox_cmd))
+		return -EINVAL;
+
+	cmd = (mbox_cmd->command << 8) | mbox_cmd->sub_command;
+
+	power_domain_info = isst_if_mbox_power_domain_inst(mbox_cmd->logical_cpu);
+	if (!power_domain_info)
+		return -EINVAL;
+
+	ret = tpmi_start_mmio_rd_wr(power_domain_info);
+	if (ret)
+		return ret;
+
+	switch (cmd) {
+	case CONFIG_TDP_GET_LEVELS_INFO:
+		ret = isst_if_mbox_ctdp_get_levels_info(power_domain_info, mbox_cmd);
+		*write_only = 0;
+		break;
+	case CONFIG_TDP_GET_TDP_CONTROL:
+		ret = isst_if_mbox_ctdp_get_tdp_control(power_domain_info, mbox_cmd);
+		*write_only = 0;
+		break;
+	case CONFIG_TDP_SET_TDP_CONTROL:
+		ret = isst_if_mbox_ctdp_set_tdp_control(power_domain_info, mbox_cmd);
+		break;
+	case CONFIG_TDP_GET_TDP_INFO:
+		ret = isst_if_mbox_ctdp_get_info(power_domain_info, mbox_cmd);
+		*write_only = 0;
+		break;
+	case CONFIG_TDP_SET_LEVEL:
+		ret = isst_if_mbox_ctdp_set_tdp_level(power_domain_info, mbox_cmd);
+		break;
+	case READ_PM_CONFIG:
+		ret = isst_if_mbox_get_pm_config(power_domain_info, mbox_cmd);
+		*write_only = 0;
+		break;
+	case WRITE_PM_CONFIG:
+		ret = isst_if_mbox_set_pm_config(power_domain_info, mbox_cmd);
+		break;
+	case CLOS_PM_QOS_CONFIG:
+		if (mbox_cmd->parameter) {
+			ret = isst_if_mbox_set_qos_config(power_domain_info, mbox_cmd);
+		} else {
+			ret = isst_if_mbox_get_qos_config(power_domain_info, mbox_cmd);
+			*write_only = 0;
+		}
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	tpmi_end_mmio_rd_wr(power_domain_info);
+
+	return ret;
+}
+
+#define PM_CLOS_0_REG			0x08
+#define PM_CLOS_1_REG			0x0C
+#define PM_CLOS_2_REG			0x10
+#define PM_CLOS_3_REG			0x14
+#define PM_CLOS_ASSOC_REG_START		0x20
+#define PM_CLOS_ASSOC_WIDTH_PER_CPU	0x04
+#define PM_CLOS_ASSOC_OFFSET_CLOS	16
+#define PM_CLOS_PRIO_OFFSET		4
+#define PM_CLOS_PRIO_MASK		0x0F
+#define PM_CLOS_MIN_OFFSET		8
+#define PM_CLOS_MIN_MASK		0xFF
+#define PM_CLOS_MAX_OFFSET		16
+#define PM_CLOS_MAX_MASK		0xFF
+
+static void isst_if_mmio_pm_clos(struct tpmi_per_power_domain_info *power_domain_info,
+				 struct isst_if_io_reg *io_reg)
+{
+	int min, max, prio;
+	int clos;
+
+	clos = (io_reg->reg - PM_CLOS_0_REG) / 4;
+
+	if (io_reg->read_write) {
+		prio = (io_reg->value >> PM_CLOS_PRIO_OFFSET) & PM_CLOS_PRIO_MASK;
+		min = (io_reg->value >> PM_CLOS_MIN_OFFSET) & PM_CLOS_MIN_MASK;
+		max = (io_reg->value >> PM_CLOS_MAX_OFFSET) & PM_CLOS_MAX_MASK;
+
+		_write_cp_info("clos.min_freq", min,
+			       (SST_CLOS_CONFIG_0_OFFSET + clos * SST_REG_SIZE),
+			       SST_CLOS_CONFIG_MIN_START, SST_CLOS_CONFIG_MIN_WIDTH,
+			       SST_MUL_FACTOR_NONE);
+		_write_cp_info("clos.max_freq", max,
+			       (SST_CLOS_CONFIG_0_OFFSET + clos * SST_REG_SIZE),
+			       SST_CLOS_CONFIG_MAX_START, SST_CLOS_CONFIG_MAX_WIDTH,
+			       SST_MUL_FACTOR_NONE);
+		_write_cp_info("clos.prio", prio,
+			       (SST_CLOS_CONFIG_0_OFFSET + clos * SST_REG_SIZE),
+			       SST_CLOS_CONFIG_PRIO_START, SST_CLOS_CONFIG_PRIO_WIDTH,
+			       SST_MUL_FACTOR_NONE);
+	} else {
+
+		_read_cp_info("clos.min_freq", min,
+			      (SST_CLOS_CONFIG_0_OFFSET + clos * SST_REG_SIZE),
+			      SST_CLOS_CONFIG_MIN_START, SST_CLOS_CONFIG_MIN_WIDTH,
+			      SST_MUL_FACTOR_NONE)
+		_read_cp_info("clos.max_freq", max,
+			      (SST_CLOS_CONFIG_0_OFFSET + clos * SST_REG_SIZE),
+			      SST_CLOS_CONFIG_MAX_START, SST_CLOS_CONFIG_MAX_WIDTH,
+			      SST_MUL_FACTOR_NONE)
+		_read_cp_info("clos.prio", prio,
+			      (SST_CLOS_CONFIG_0_OFFSET + clos * SST_REG_SIZE),
+			      SST_CLOS_CONFIG_PRIO_START, SST_CLOS_CONFIG_PRIO_WIDTH,
+			      SST_MUL_FACTOR_NONE)
+		io_reg->value = (max << 16 | min << 8 | prio << 4);
+	}
+}
+
+static void isst_if_mmio_pm_clos_assoc(struct tpmi_per_power_domain_info *power_domain_info,
+				       struct isst_if_io_reg *io_reg)
+{
+	int offset, shift, punit_cpu;
+	u64 val, mask, clos;
+
+	punit_cpu = (io_reg->reg - PM_CLOS_ASSOC_REG_START) / PM_CLOS_ASSOC_WIDTH_PER_CPU;
+
+	offset = SST_CLOS_ASSOC_0_OFFSET + (punit_cpu / SST_CLOS_ASSOC_CPUS_PER_REG) * SST_REG_SIZE;
+	shift = punit_cpu % SST_CLOS_ASSOC_CPUS_PER_REG;
+	shift *= SST_CLOS_ASSOC_BITS_PER_CPU;
+
+	val = readq(power_domain_info->sst_base + power_domain_info->sst_header.cp_offset + offset);
+	if (io_reg->read_write) {
+		mask = GENMASK_ULL((shift + SST_CLOS_ASSOC_BITS_PER_CPU - 1), shift);
+		val &= ~mask;
+		clos = (io_reg->value >> PM_CLOS_ASSOC_OFFSET_CLOS);
+		val |= (clos << shift);
+		intel_tpmi_writeq(power_domain_info->auxdev, val, power_domain_info->sst_base +
+				  power_domain_info->sst_header.cp_offset + offset);
+	} else {
+		val >>= shift;
+		clos = val & GENMASK(SST_CLOS_ASSOC_BITS_PER_CPU - 1, 0);
+		io_reg->value = clos << PM_CLOS_ASSOC_OFFSET_CLOS;
+	}
+}
+
+static long isst_if_mmio_rd_wr(u8 *cmd_ptr, int *write_only, int resume)
+{
+	struct tpmi_per_power_domain_info *power_domain_info;
+	struct isst_if_io_reg *io_reg;
+	int ret;
+
+	io_reg = (struct isst_if_io_reg *)cmd_ptr;
+
+	if (io_reg->reg % 4)
+		return -EINVAL;
+
+	power_domain_info = isst_if_mbox_power_domain_inst(io_reg->logical_cpu);
+	if (!power_domain_info)
+		return -EINVAL;
+
+	ret = tpmi_start_mmio_rd_wr(power_domain_info);
+	if (ret)
+		return ret;
+
+	if (io_reg->reg >= PM_CLOS_0_REG && io_reg->reg <= PM_CLOS_3_REG) {
+		isst_if_mmio_pm_clos(power_domain_info, io_reg);
+		*write_only = io_reg->read_write;
+	} else if (io_reg->reg >= PM_CLOS_ASSOC_REG_START) {
+		isst_if_mmio_pm_clos_assoc(power_domain_info, io_reg);
+		*write_only = io_reg->read_write;
+	}
+
+	tpmi_end_mmio_rd_wr(power_domain_info);
+
+	return 0;
+}
+
 #define TPMI_SST_AUTO_SUSPEND_DELAY_MS	2000
 
 int tpmi_sst_dev_add(struct auxiliary_device *auxdev)
@@ -1568,7 +1965,31 @@ int tpmi_sst_init(void)
 	cb.owner = THIS_MODULE;
 	ret = isst_if_cdev_register(ISST_IF_DEV_TPMI, &cb);
 	if (ret)
-		kfree(isst_common.sst_inst);
+		goto init_err;
+
+	memset(&cb, 0, sizeof(cb));
+	cb.cmd_size = sizeof(struct isst_if_mbox_cmd);
+	cb.offset = offsetof(struct isst_if_mbox_cmds, mbox_cmd);
+	cb.cmd_callback = isst_if_mbox_proc_cmd;
+	cb.owner = THIS_MODULE;
+	ret = isst_if_cdev_register(ISST_IF_DEV_MBOX, &cb);
+	if (ret)
+		goto err_mbox;
+
+	memset(&cb, 0, sizeof(cb));
+	cb.cmd_size = sizeof(struct isst_if_io_reg);
+	cb.offset = offsetof(struct isst_if_io_regs, io_reg);
+	cb.cmd_callback = isst_if_mmio_rd_wr;
+	cb.owner = THIS_MODULE;
+	ret = isst_if_cdev_register(ISST_IF_DEV_MMIO, &cb);
+	if (!ret)
+		goto init_done;
+
+	isst_if_cdev_unregister(ISST_IF_DEV_MBOX);
+err_mbox:
+	isst_if_cdev_unregister(ISST_IF_DEV_TPMI);
+init_err:
+	kfree(isst_common.sst_inst);
 init_done:
 	mutex_unlock(&isst_tpmi_dev_lock);
 	return ret;
@@ -1582,6 +2003,8 @@ void tpmi_sst_exit(void)
 		--isst_core_usage_count;
 
 	if (!isst_core_usage_count) {
+		isst_if_cdev_unregister(ISST_IF_DEV_MMIO);
+		isst_if_cdev_unregister(ISST_IF_DEV_MBOX);
 		isst_if_cdev_unregister(ISST_IF_DEV_TPMI);
 		kfree(isst_common.sst_inst);
 	}
