@@ -9637,6 +9637,17 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	if (busiest->group_type == group_misfit_task)
 		goto force_balance;
 
+	if (busiest->group_type == group_misfit_task_class) {
+		/*
+		 * busiest has tasks of such classes that have higer score than
+		 * the class of the tasks in local.
+		 */
+		if (local->max_score_on_dst_cpu < busiest->max_score_on_dst_cpu)
+			goto force_balance;
+		else
+			goto out_balanced;
+	}
+
 	/* ASYM feature bypasses nice load balance check */
 	if (busiest->group_type == group_asym_packing)
 		goto force_balance;
