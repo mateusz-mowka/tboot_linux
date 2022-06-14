@@ -4440,6 +4440,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
+        },
+        {
+            "branch": "notify-next",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Chenyi Qiang",
+                    "email": "chenyi.qiang@intel.com"
+                }
+            ],
+            "description": "adds Notify VM exit support",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Neiger Gil",
+                    "email": "gil.neiger@intel.com"
+                }
+            ],
+            "jira": "NEXT-2976",
+            "name": "kvm_notify_exit",
+            "repourl": "https://github.com/intel-sandbox/cqiang-linux-enabling.git",
+            "sdl_contact": [
+                {
+                    "name": "Chenyi Qiang",
+                    "email": "chenyi.qiang@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
