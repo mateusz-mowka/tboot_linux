@@ -463,6 +463,14 @@
         "Unit": "PCU"
     },
     {
+        "BriefDescription": "UNC_P_UFS_TRANSITIONS_NO_CHANGE",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x79",
+        "EventName": "UNC_P_UFS_TRANSITIONS_NO_CHANGE",
+        "PerPkg": "1",
+        "Unit": "PCU"
+    },
+    {
         "BriefDescription": "VR Hot",
         "Counter": "0,1,2,3",
         "EventCode": "0x42",
@@ -475,6 +483,14 @@
         "Counter": "0,1,2,3",
         "EventCode": "0x4E",
         "EventName": "UNC_P_PKG_RESIDENCY_C1E_CYCLES",
+        "PerPkg": "1",
+        "Unit": "PCU"
+    },
+    {
+        "BriefDescription": "UNC_P_UFS_TRANSITIONS_RING_GV",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x79",
+        "EventName": "UNC_P_UFS_TRANSITIONS_RING_GV",
         "PerPkg": "1",
         "Unit": "PCU"
     }
