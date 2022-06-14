@@ -2657,7 +2657,7 @@
                     "email": "dan.j.williams@intel.com"
                 }
             ],
-            "description": "CXL Memory Expander support targeting v5.18",
+            "description": "CXL Memory Expander support targeting v5.20",
             "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2974",
