@@ -1361,6 +1361,42 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "Cycles when Reservation Station (RS) is empty for the thread.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xa5",
+        "EventName": "RS.EMPTY",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x7",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts end of periods where the Reservation Station (RS) was empty.",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "CounterMask": "1",
+        "EdgeDetect": "1",
+        "EventCode": "0xa5",
+        "EventName": "RS.EMPTY_COUNT",
+        "Invert": "1",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "100003",
+        "UMask": "0x7",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "RS.EMPTY_RESOURCE",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3,4,5,6,7",
+        "EventCode": "0xa5",
+        "EventName": "RS.EMPTY_RESOURCE",
+        "PEBScounters": "0,1,2,3,4,5,6,7",
+        "SampleAfterValue": "1000003",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
         "BriefDescription": "RS_EMPTY.BAD_SPEC_ANY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
@@ -1372,7 +1408,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "Counts end of periods where the Reservation Station (RS) was empty.",
+        "BriefDescription": "This event is deprecated. Refer to new event RS.EMPTY_COUNT",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "CounterMask": "1",
@@ -1386,7 +1422,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "Cycles when Reservation Station (RS) is empty for the thread.",
+        "BriefDescription": "This event is deprecated. Refer to new event RS.EMPTY",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xa5",
@@ -1408,7 +1444,7 @@
         "Unit": "cpu_core"
     },
     {
-        "BriefDescription": "RS_EMPTY.RESOURCE",
+        "BriefDescription": "This event is deprecated. Refer to new event RS.EMPTY_RESOURCE",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3,4,5,6,7",
         "EventCode": "0xa5",

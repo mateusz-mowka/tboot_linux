@@ -2587,6 +2587,17 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "MEM_STORE_RETIRED.L3_MISS",
+        "CollectPEBSRecord": "2",
+        "Counter": "0,1,2,3",
+        "EventCode": "0x44",
+        "EventName": "MEM_STORE_RETIRED.L3_MISS",
+        "PEBScounters": "0,1,2,3",
+        "SampleAfterValue": "100021",
+        "UMask": "0xb9",
+        "Unit": "cpu_core"
+    },
+    {
         "BriefDescription": "MEM_STORE_RETIRED.L3_XSNP",
         "CollectPEBSRecord": "2",
         "Counter": "0,1,2,3",

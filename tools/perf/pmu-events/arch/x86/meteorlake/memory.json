@@ -527,6 +527,22 @@
         "Unit": "cpu_core"
     },
     {
+        "BriefDescription": "Counts randomly selected loads when the latency from first dispatch to completion is greater than 1024 cycles.",
+        "CollectPEBSRecord": "2",
+        "Counter": "1,2,3,4,5,6,7",
+        "Data_LA": "1",
+        "EventCode": "0xcd",
+        "EventName": "MEM_TRANS_RETIRED.LOAD_LATENCY_GT_1024",
+        "MSRIndex": "0x3F6",
+        "MSRValue": "0x400",
+        "PEBS": "2",
+        "PEBScounters": "1,2,3,4,5,6,7",
+        "SampleAfterValue": "53",
+        "TakenAlone": "1",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
         "BriefDescription": "Counts randomly selected loads when the latency from first dispatch to completion is greater than 128 cycles.",
         "CollectPEBSRecord": "2",
         "Counter": "1,2,3,4,5,6,7",
@@ -554,6 +570,22 @@
         "PEBS": "2",
         "PEBScounters": "1,2,3,4,5,6,7",
         "SampleAfterValue": "20011",
+        "TakenAlone": "1",
+        "UMask": "0x1",
+        "Unit": "cpu_core"
+    },
+    {
+        "BriefDescription": "Counts randomly selected loads when the latency from first dispatch to completion is greater than 2048 cycles.",
+        "CollectPEBSRecord": "2",
+        "Counter": "1,2,3,4,5,6,7",
+        "Data_LA": "1",
+        "EventCode": "0xcd",
+        "EventName": "MEM_TRANS_RETIRED.LOAD_LATENCY_GT_2048",
+        "MSRIndex": "0x3F6",
+        "MSRValue": "0x800",
+        "PEBS": "2",
+        "PEBScounters": "1,2,3,4,5,6,7",
+        "SampleAfterValue": "23",
         "TakenAlone": "1",
         "UMask": "0x1",
         "Unit": "cpu_core"
