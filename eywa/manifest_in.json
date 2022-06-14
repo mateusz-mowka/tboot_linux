@@ -3541,7 +3541,7 @@
             "last_enabled": "v5.18"
         },
         {
-            "branch": "intel_next",
+            "branch": "ss_2_intel_next",
             "branch_type": "expiring",
             "config_options": [
                 {
@@ -3556,11 +3556,11 @@
                 }
             ],
             "description": "Shadow stack feature",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
-            "jira": "",
+            "jira": "NEXT-2978",
             "name": "shadow_stacks",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/rpedgeco/linux.git",
+            "repourl": "https://github.com/intel-sandbox/linux-cet.git",
             "sdl_contact": [
                 {
                     "name": "Rick Edgecombe",
@@ -3569,7 +3569,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "kvm-ipiv-v5.19",
