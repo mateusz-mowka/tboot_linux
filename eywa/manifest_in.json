@@ -156,7 +156,7 @@
             "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/jarkko/linux-tpmdd.git",
             "sdl_contact": [],
             "status": "public",
-            "stuck_at_ref": "",
+            "stuck_at_ref": "dda5384313a40ecbaafd8a9a80f47483255e4c4d",
             "last_enabled": "v5.19"
         },
         {
