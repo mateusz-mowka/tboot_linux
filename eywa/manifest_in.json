@@ -3556,7 +3556,7 @@
                 }
             ],
             "description": "Shadow stack feature",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2978",
             "name": "shadow_stacks",
