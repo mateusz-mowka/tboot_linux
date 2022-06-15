@@ -3541,7 +3541,7 @@
             "last_enabled": "v5.18"
         },
         {
-            "branch": "ss_2_intel_next",
+            "branch": "ss_2_intel_next3",
             "branch_type": "expiring",
             "config_options": [
                 {
