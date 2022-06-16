@@ -1325,14 +1325,14 @@
                 }
             ],
             "description": "AMX FP16 CPUID enumeration",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Bob Valentine",
                     "email": "bob.valentine@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2984",
             "name": "amx",
             "repourl": "https://github.com/intel-sandbox/cbae1.linux.git",
             "sdl_contact": [
@@ -1343,7 +1343,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "intel-pt-perf-tools-v5.17",
