@@ -14,13 +14,13 @@ enum test_types {
 	IFS_ARRAY,
 };
 
-#define X86_MATCH(model)				\
+#define X86_MATCH(model, test_gen)				\
 	X86_MATCH_VENDOR_FAM_MODEL_FEATURE(INTEL, 6,	\
-		INTEL_FAM6_##model, X86_FEATURE_CORE_CAPABILITIES, NULL)
+		INTEL_FAM6_##model, X86_FEATURE_CORE_CAPABILITIES, test_gen)
 
 static const struct x86_cpu_id ifs_cpu_ids[] __initconst = {
-	X86_MATCH(SAPPHIRERAPIDS_X),
-	X86_MATCH(GRANITERAPIDS_X),
+	X86_MATCH(SAPPHIRERAPIDS_X, 0),
+	X86_MATCH(GRANITERAPIDS_X, 1),
 	{}
 };
 MODULE_DEVICE_TABLE(x86cpu, ifs_cpu_ids);
@@ -77,6 +77,7 @@ static int __init ifs_init(void)
 		ifs_devices[i].misc.groups = ifs_get_groups();
 		if (!misc_register(&ifs_devices[i].misc)) {
 			ndevices++;
+			ifs_devices[i].data.test_gen = (u32)m->driver_data;
 			down(&ifs_sem);
 			ifs_load_firmware(ifs_devices[i].misc.this_device);
 			up(&ifs_sem);
