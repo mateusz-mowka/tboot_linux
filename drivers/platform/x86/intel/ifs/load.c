@@ -44,6 +44,45 @@ static const char * const scan_authentication_status[] = {
 	[2] = "Chunk authentication error. The hash of chunk did not match expected value"
 };
 
+static bool copy_hashes(struct device *dev, int *num_chunks, int *chunk_size)
+{
+	union ifs_scan_hashes_status hashes_status;
+	struct ifs_data *ifsd = ifs_get_data(dev);
+	u32 err_code;
+
+	ifsd = ifs_get_data(dev);
+	/* run scan hash copy */
+	wrmsrl(MSR_COPY_SCAN_HASHES, ifs_hash_ptr);
+	rdmsrl(MSR_SCAN_HASHES_STATUS, hashes_status.data);
+
+	/* enumerate the scan image information */
+	*chunk_size = hashes_status.chunk_size * 1024;
+	*num_chunks = (ifsd->test_gen > 0) ?
+			hashes_status.gen1.num_chunks : hashes_status.num_chunks;
+	err_code = hashes_status.error_code;
+
+	if (!hashes_status.valid) {
+		if (err_code >= ARRAY_SIZE(scan_hash_status)) {
+			dev_err(dev, "invalid error code 0x%x for hash copy\n", err_code);
+			return false;
+		}
+		dev_err(dev, "Hash copy error : %s", scan_hash_status[err_code]);
+		return false;
+	}
+
+	return true;
+}
+
+static void auth_err_message(struct device *dev, u32 err_code)
+{
+	if (err_code >= ARRAY_SIZE(scan_authentication_status))
+		dev_err(dev,
+			"invalid error code 0x%x for authentication\n", err_code);
+	else
+		dev_err(dev, "Chunk authentication error %s\n",
+			scan_authentication_status[err_code]);
+}
+
 /*
  * To copy scan hashes and authenticate test chunks, the initiating cpu must point
  * to the EDX:EAX to the test image in linear address.
@@ -53,31 +92,18 @@ static const char * const scan_authentication_status[] = {
 static void copy_hashes_authenticate_chunks(struct work_struct *work)
 {
 	struct ifs_work *local_work = container_of(work, struct ifs_work, w);
-	union ifs_scan_hashes_status hashes_status;
 	union ifs_chunks_auth_status chunk_status;
+	u32 err_code, valid_chunks, total_chunks;
 	struct device *dev = local_work->dev;
 	int i, num_chunks, chunk_size;
 	struct ifs_data *ifsd;
 	u64 linear_addr, base;
-	u32 err_code;
+	u64 chunk_table[2];
 
 	ifsd = ifs_get_data(dev);
-	/* run scan hash copy */
-	wrmsrl(MSR_COPY_SCAN_HASHES, ifs_hash_ptr);
-	rdmsrl(MSR_SCAN_HASHES_STATUS, hashes_status.data);
 
-	/* enumerate the scan image information */
-	num_chunks = hashes_status.num_chunks;
-	chunk_size = hashes_status.chunk_size * 1024;
-	err_code = hashes_status.error_code;
-
-	if (!hashes_status.valid) {
+	if (!copy_hashes(dev, &num_chunks, &chunk_size)) {
 		ifsd->loading_error = true;
-		if (err_code >= ARRAY_SIZE(scan_hash_status)) {
-			dev_err(dev, "invalid error code 0x%x for hash copy\n", err_code);
-			goto done;
-		}
-		dev_err(dev, "Hash copy error : %s", scan_hash_status[err_code]);
 		goto done;
 	}
 
@@ -87,26 +113,42 @@ static void copy_hashes_authenticate_chunks(struct work_struct *work)
 	/* scan data authentication and copy chunks to secured memory */
 	for (i = 0; i < num_chunks; i++) {
 		linear_addr = base + i * chunk_size;
-		linear_addr |= i;
-
-		wrmsrl(MSR_AUTHENTICATE_AND_COPY_CHUNK, linear_addr);
+		switch (ifsd->test_gen) {
+		case 0:
+			wrmsrl(MSR_AUTHENTICATE_AND_COPY_CHUNK, linear_addr | i);
+			break;
+		default:
+			chunk_table[0] = i;
+			chunk_table[1] = linear_addr;
+			wrmsrl(MSR_AUTHENTICATE_AND_COPY_CHUNK, (u64)chunk_table);
+		}
 		rdmsrl(MSR_CHUNKS_AUTHENTICATION_STATUS, chunk_status.data);
-
-		ifsd->valid_chunks = chunk_status.valid_chunks;
 		err_code = chunk_status.error_code;
-
 		if (err_code) {
 			ifsd->loading_error = true;
-			if (err_code >= ARRAY_SIZE(scan_authentication_status)) {
-				dev_err(dev,
-					"invalid error code 0x%x for authentication\n", err_code);
-				goto done;
-			}
-			dev_err(dev, "Chunk authentication error %s\n",
-				scan_authentication_status[err_code]);
+			auth_err_message(dev, err_code);
 			goto done;
 		}
 	}
+
+	switch (ifsd->test_gen) {
+	case 0:
+		valid_chunks = chunk_status.valid_chunks;
+		total_chunks = chunk_status.total_chunks;
+		break;
+	default:
+		valid_chunks = chunk_status.gen1.valid_chunks;
+		total_chunks = chunk_status.gen1.total_chunks;
+	}
+
+	if (valid_chunks != total_chunks) {
+		ifsd->loading_error = true;
+		dev_err(dev, "Couldn't authenticate all the chunks.Authenticated %d total %d.\n",
+			valid_chunks, total_chunks);
+	}
+	pr_info("valid_chunks %d Total chunks %d\n",
+		chunk_status.valid_chunks, chunk_status.total_chunks);
+	ifsd->valid_chunks = valid_chunks;
 done:
 	complete(&ifs_done);
 }
@@ -123,10 +165,6 @@ static int scan_chunks_sanity_check(struct device *dev)
 	bool *package_authenticated;
 	struct ifs_work local_work;
 	char *test_ptr;
-
-	package_authenticated = kcalloc(topology_max_packages(), sizeof(bool), GFP_KERNEL);
-	if (!package_authenticated)
-		return ret;
 
 	metadata_size = ifs_header_ptr->metadata_size;
 
@@ -146,6 +184,10 @@ static int scan_chunks_sanity_check(struct device *dev)
 	ifs_test_image_ptr = (u64)test_ptr;
 	ifsd->loaded_version = ifs_header_ptr->blob_revision;
 
+	package_authenticated = kcalloc(topology_max_packages(), sizeof(bool), GFP_KERNEL);
+	if (!package_authenticated)
+		return ret;
+
 	/* copy the scan hash and authenticate per package */
 	cpus_read_lock();
 	for_each_online_cpu(cpu) {
@@ -159,6 +201,8 @@ static int scan_chunks_sanity_check(struct device *dev)
 		wait_for_completion(&ifs_done);
 		if (ifsd->loading_error)
 			goto out;
+		if (ifsd->test_gen > 0)
+			break;
 		package_authenticated[curr_pkg] = 1;
 	}
 	ret = 0;

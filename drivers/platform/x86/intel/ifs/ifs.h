@@ -141,6 +141,14 @@ union ifs_scan_hashes_status {
 		u32	max_core_limit	:12;
 		u32	valid		:1;
 	};
+	struct {
+		u32	chunk_size	:16;
+		u32	num_chunks	:16;
+		u32	error_code	:8;
+		u32	rsvd		:11;
+		u32	max_core_limit	:12;
+		u32	valid		:1;
+	} gen1;
 };
 
 /* MSR_CHUNKS_AUTH_STATUS bit fields */
@@ -153,6 +161,12 @@ union ifs_chunks_auth_status {
 		u32	error_code	:8;
 		u32	rsvd2		:24;
 	};
+	struct {
+		u32	valid_chunks	:16;
+		u32	total_chunks	:16;
+		u32	error_code	:8;
+		u32	rsvd		:24;
+	} gen1;
 };
 
 /* MSR_ACTIVATE_SCAN bit fields */
