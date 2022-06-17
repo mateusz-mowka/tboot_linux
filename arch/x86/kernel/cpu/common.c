@@ -376,6 +376,21 @@ static __always_inline void setup_smep(struct cpuinfo_x86 *c)
 		cr4_set_bits(X86_CR4_SMEP);
 }
 
+static int lass_enabled __ro_after_init;
+bool is_lass_enabled(void)
+{
+	return lass_enabled;
+}
+
+static int __init setup_enable_lass(char *arg)
+{
+	lass_enabled = cpu_feature_enabled(X86_FEATURE_LASS);
+	return 0;
+}
+
+/* apply lass before kernel maps vsyscall which is done ahead __setup() */
+early_param("lass", setup_enable_lass);
+
 static __always_inline void setup_smap(struct cpuinfo_x86 *c)
 {
 	unsigned long eflags = native_save_fl();
