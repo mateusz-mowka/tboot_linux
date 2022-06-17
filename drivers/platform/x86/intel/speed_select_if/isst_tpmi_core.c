@@ -16,7 +16,7 @@
  * to be aware of which CPU package they want to control and for which CPU.
  * User space has full information to map CPU to power domain and package.
  */
-
+#define DEBUG
 #include <linux/auxiliary_bus.h>
 #include <linux/intel_tpmi.h>
 #include <linux/fs.h>
@@ -412,6 +412,8 @@ static struct tpmi_per_power_domain_info *get_instance(int pkg_id, int power_dom
 	struct tpmi_per_power_domain_info *power_domain_info;
 	struct tpmi_sst_struct *sst_inst;
 
+	pr_debug("%s pkg:%d power_domain:%d\n", __func__, pkg_id, power_domain_id);
+
 	if (pkg_id < 0 || power_domain_id < 0 || pkg_id > isst_common.max_index ||
 	    pkg_id >= SST_MAX_INSTANCES)
 		return NULL;
@@ -452,6 +454,8 @@ static inline void tpmi_end_mmio_rd_wr(struct tpmi_per_power_domain_info *pd_inf
 	val &= mask; \
 	val >>= start;\
 	name = (val * mult_factor);\
+	pr_debug("cp_info %s var:%s cp_offset:%x offset:%x start:%x mask:%llx mul_factor:%x res:%x\n",\
+		 __func__, name_str, power_domain_info->sst_header.cp_offset, offset, start, mask, mult_factor, name);\
 }
 
 #define _write_cp_info(name_str, name, offset, start, width, div_factor)\
@@ -465,6 +469,8 @@ static inline void tpmi_end_mmio_rd_wr(struct tpmi_per_power_domain_info *pd_inf
 	val |= (name / div_factor) << start;\
 	writeq(val, power_domain_info->sst_base + power_domain_info->sst_header.cp_offset +\
 		(offset));\
+	pr_debug("wr_cp_info %s var:%s wr:%x cp_offset:%x offset:%x start:%x mask:%llx div_factor:%x res:%llx\n",\
+		 __func__, name_str, name, power_domain_info->sst_header.cp_offset, offset, start, mask, div_factor, val);\
 }
 
 #define	SST_CP_CONTROL_OFFSET	8
@@ -672,6 +678,8 @@ static long isst_if_clos_assoc(void __user *argp)
 	val &= _mask;\
 	val >>= start;\
 	name = (val * mult_factor);\
+	pr_debug("pp_info %s var:%s pp_offset:%x offset:%x shift:%x mask:%llx mul_factor:%x res:0x%x\n",\
+		__func__, name_str, power_domain_info->sst_header.pp_offset, offset, start, _mask, mult_factor, (u32)name);\
 }
 
 #define _write_pp_info(name_str, name, offset, start, width, div_factor)\
@@ -685,6 +693,8 @@ static long isst_if_clos_assoc(void __user *argp)
 	val |= (name / div_factor) << start;\
 	writeq(val, power_domain_info->sst_base + power_domain_info->sst_header.pp_offset +\
 	      (offset));\
+	pr_debug("wr_pp_info %s var:%s wr:%x pp_offset:%x offset:%x start:%x mask:%llx div_factor:%x res:%llx\n",\
+		__func__, name_str, name, power_domain_info->sst_header.pp_offset, offset, start, _mask, div_factor, val);\
 }
 
 #define _read_bf_level_info(name_str, name, level, offset, start, width, mult_factor)\
@@ -698,6 +708,8 @@ static long isst_if_clos_assoc(void __user *argp)
 	val &= _mask; \
 	val >>= start;\
 	name = (val * mult_factor);\
+	pr_debug("bf_info %s var:%s pp_level:%x level_offset:%x bf_offset:%x offset:%x start:%d mask:%llx mul_factor:%x res:%x\n",\
+		 __func__, name_str, level, power_domain_info->perf_levels[level].mmio_offset, power_domain_info->feature_offsets.bf_offset * 8, offset, start, _mask, mult_factor, (u32)name);\
 }
 
 #define _read_tf_level_info(name_str, name, level, offset, start, width, mult_factor)\
@@ -711,6 +723,8 @@ static long isst_if_clos_assoc(void __user *argp)
 	val &= _mask; \
 	val >>= start;\
 	name = (val * mult_factor);\
+	pr_debug("tf_info %s var:%s pp_level:%x level_offset:%x tf_offset:%x offset:%x start:%d mask:%llx mul_factor:%x res:%x\n",\
+		 __func__, name_str, level, power_domain_info->perf_levels[level].mmio_offset, power_domain_info->feature_offsets.tf_offset * 8, offset, start, _mask, mult_factor, (u32)name);\
 }
 
 #define SST_PP_STATUS_OFFSET	32
@@ -841,6 +855,8 @@ static int isst_if_set_perf_feature(void __user *argp)
 	val &= _mask; \
 	val >>= start;\
 	name = (val * mult_factor);\
+	pr_debug("pp_level_info %s var:%s pp_level:%x level_offset:%x offset:%x start:%x width:%x mask:%llx mul_factor:%x res:%x\n",\
+		 __func__, name_str, level, power_domain_info->perf_levels[level].mmio_offset, offset, start, width, _mask, mult_factor, (u32)name);\
 }
 
 #define SST_PP_INFO_0_OFFSET	0
@@ -1416,6 +1432,7 @@ static int isst_if_mbox_ctdp_get_levels_info(struct tpmi_per_power_domain_info *
 	mbox_cmd->resp_data |= ((power_domain_info->max_level & 0xff) <<
 				MBOX_CONFIG_TDP_LEVELS_BIT);
 	mbox_cmd->resp_data |= (power_domain_info->pp_header.feature_rev & 0xff);
+	pr_debug("mbox_resp:%x\n", mbox_cmd->resp_data);
 
 	return 0;
 }
@@ -1445,6 +1462,8 @@ static int isst_if_mbox_ctdp_get_tdp_control(struct tpmi_per_power_domain_info *
 
 	if (resp & BIT(1))
 		mbox_cmd->resp_data |= BIT(MBOX_TF_ENABLE_BIT);
+
+	pr_debug("mbox_resp:%x\n", mbox_cmd->resp_data);
 
 	return 0;
 }
@@ -1579,6 +1598,13 @@ static long isst_if_mbox_proc_cmd(u8 *cmd_ptr, int *write_only, int resume)
 	if (isst_if_mbox_cmd_invalid(mbox_cmd))
 		return -EINVAL;
 
+	pr_debug("cpu:%x mbox_cmd->command:%x mbox_cmd-sub_command:%x param:%x req_data:%x\n",
+		mbox_cmd->logical_cpu,
+		mbox_cmd->command,
+		mbox_cmd->sub_command,
+		mbox_cmd->parameter,
+		mbox_cmd->req_data);
+
 	cmd = (mbox_cmd->command << 8) | mbox_cmd->sub_command;
 
 	power_domain_info = isst_if_mbox_power_domain_inst(mbox_cmd->logical_cpu);
@@ -1624,6 +1650,7 @@ static long isst_if_mbox_proc_cmd(u8 *cmd_ptr, int *write_only, int resume)
 		}
 		break;
 	default:
+		pr_debug("Not implemented\n");
 		ret = -EINVAL;
 		break;
 	}
@@ -1686,7 +1713,9 @@ static void isst_if_mmio_pm_clos(struct tpmi_per_power_domain_info *power_domain
 			      (SST_CLOS_CONFIG_0_OFFSET + clos * SST_REG_SIZE),
 			      SST_CLOS_CONFIG_PRIO_START, SST_CLOS_CONFIG_PRIO_WIDTH,
 			      SST_MUL_FACTOR_NONE)
+		pr_debug("min:%x max:%x prio:%x\n", min, max, prio);
 		io_reg->value = (max << 16 | min << 8 | prio << 4);
+		pr_debug("%x\n", io_reg->value);
 	}
 }
 
@@ -1735,6 +1764,8 @@ static long isst_if_mmio_rd_wr(u8 *cmd_ptr, int *write_only, int resume)
 	ret = tpmi_start_mmio_rd_wr(power_domain_info);
 	if (ret)
 		return ret;
+
+	pr_debug("io_reg:%x read_write:%x\n", io_reg->reg, io_reg->read_write);
 
 	if (io_reg->reg >= PM_CLOS_0_REG && io_reg->reg <= PM_CLOS_3_REG) {
 		isst_if_mmio_pm_clos(power_domain_info, io_reg);
