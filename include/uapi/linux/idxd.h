@@ -3,8 +3,12 @@
 #ifndef _USR_IDXD_H_
 #define _USR_IDXD_H_
 
+#ifdef __KERNEL__
 #include <linux/types.h>
 #include <linux/ioctl.h>
+#else
+#include <stdint.h>
+#endif
 
 /* Driver command error status */
 enum idxd_scmd_stat {
