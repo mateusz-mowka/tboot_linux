@@ -4901,6 +4901,7 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 	if (ret)
 		goto unblock;
 
+	req.preserving = 0;
 	req.module = module;
 	req.signature = sigstruct;
 	req.module_size = module_size;

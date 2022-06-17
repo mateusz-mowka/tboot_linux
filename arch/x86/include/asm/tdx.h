@@ -153,6 +153,7 @@ struct tmu_req {
 	const void *signature;	/* Pointer to TDX module signature struct */
 	int module_size;
 	int signature_size;
+	bool preserving;	/* TDs are expected to be preserved */
 };
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE

@@ -1967,7 +1967,10 @@ static struct seamldr_params *alloc_seamldr_params(const struct tmu_req *req)
 	if (!params)
 		return ERR_PTR(-ENOMEM);
 
-	params->scenario = SEAMLDR_SCENARIO_LOAD;
+	if (req->preserving)
+		params->scenario = SEAMLDR_SCENARIO_UPDATE;
+	else
+		params->scenario = SEAMLDR_SCENARIO_LOAD;
 	params->num_module_pages = req->module_size >> PAGE_SHIFT;
 
 	/*
