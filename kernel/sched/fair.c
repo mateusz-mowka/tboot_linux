@@ -10037,6 +10037,47 @@ static int should_we_balance(struct lb_env *env)
 	return group_balance_cpu(sg) == env->dst_cpu;
 }
 
+static int
+trigger_active_balance(int this_cpu, struct rq *busiest, struct lb_env *env)
+{
+	int active_balance = 0;
+	unsigned long flags;
+
+	raw_spin_rq_lock_irqsave(busiest, flags);
+
+	/*
+	 * Don't kick the active_load_balance_cpu_stop, if the curr task on
+	 * busiest CPU can't be moved to this_cpu:
+	 */
+	if (!cpumask_test_cpu(this_cpu, busiest->curr->cpus_ptr)) {
+		active_balance = -EPERM;
+		goto unlock;
+	}
+
+	/* Record that we found at least one task that could run on this_cpu */
+	env->flags &= ~LBF_ALL_PINNED;
+
+	/*
+	 * ->active_balance synchronizes accesses to ->active_balance_work.
+	 * Once set, it's cleared only after active load balance is finished.
+	 */
+	if (!busiest->active_balance) {
+		busiest->active_balance = 1;
+		busiest->push_cpu = this_cpu;
+		active_balance = 1;
+	}
+
+unlock:
+	raw_spin_rq_unlock_irqrestore(busiest, flags);
+	if (active_balance < 1)
+		return active_balance;
+
+	stop_one_cpu_nowait(cpu_of(busiest), active_load_balance_cpu_stop,
+			    busiest, &busiest->active_balance_work);
+
+	return 1;
+}
+
 /*
  * Check this_cpu to ensure it is balanced within domain. Attempt to move
  * tasks if there is an imbalance.
@@ -10216,40 +10257,11 @@ more_balance:
 			sd->nr_balance_failed++;
 
 		if (need_active_balance(&env)) {
-			unsigned long flags;
+			active_balance = trigger_active_balance(this_cpu,
+								busiest, &env);
 
-			raw_spin_rq_lock_irqsave(busiest, flags);
-
-			/*
-			 * Don't kick the active_load_balance_cpu_stop,
-			 * if the curr task on busiest CPU can't be
-			 * moved to this_cpu:
-			 */
-			if (!cpumask_test_cpu(this_cpu, busiest->curr->cpus_ptr)) {
-				raw_spin_rq_unlock_irqrestore(busiest, flags);
+			if (active_balance < 0)
 				goto out_one_pinned;
-			}
-
-			/* Record that we found at least one task that could run on this_cpu */
-			env.flags &= ~LBF_ALL_PINNED;
-
-			/*
-			 * ->active_balance synchronizes accesses to
-			 * ->active_balance_work.  Once set, it's cleared
-			 * only after active load balance is finished.
-			 */
-			if (!busiest->active_balance) {
-				busiest->active_balance = 1;
-				busiest->push_cpu = this_cpu;
-				active_balance = 1;
-			}
-			raw_spin_rq_unlock_irqrestore(busiest, flags);
-
-			if (active_balance) {
-				stop_one_cpu_nowait(cpu_of(busiest),
-					active_load_balance_cpu_stop, busiest,
-					&busiest->active_balance_work);
-			}
 		}
 	} else {
 		sd->nr_balance_failed = 0;
