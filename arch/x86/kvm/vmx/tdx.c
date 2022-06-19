@@ -4907,7 +4907,11 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 	req.module_size = module_size;
 	req.signature_size = sigstruct_size;
 
-	ret = tdx_module_update(&req);
+	ret = tdx_module_update_prepare(&req);
+	if (ret)
+		goto hardware_disable;
+	ret = tdx_module_update();
+	tdx_module_update_end();
 	if (!ret) {
 		ret = tdx_module_setup();
 		enable_tdx = !ret;
@@ -4915,6 +4919,7 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 		enable_tdx = false;
 	}
 
+hardware_disable:
 	kvm_hardware_disable_all();
 unblock:
 	td_creation_unblock();

@@ -157,11 +157,20 @@ struct tmu_req {
 };
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
-int tdx_module_update(const struct tmu_req *req);
+int tdx_module_update(void);
+int tdx_module_update_prepare(const struct tmu_req *req);
+void tdx_module_update_end(void);
 #else /* !CONFIG_INTEL_TDX_MODULE_UPDATE */
-static inline int tdx_module_update(const struct tmu_req *req)
+static inline int tdx_module_update(void)
 {
 	return -EOPNOTSUPP;
+}
+static inline int tdx_module_update_prepare(const struct tmu_req *req)
+{
+	return -EOPNOTSUPP;
+}
+static inline void tdx_module_update_end(void)
+{
 }
 #endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
 

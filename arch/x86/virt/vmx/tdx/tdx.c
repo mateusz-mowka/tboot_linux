@@ -2170,7 +2170,9 @@ out:
 	return ret;
 }
 
-int tdx_module_update(const struct tmu_req *req)
+static struct seamldr_params *saved_seamldr_params;
+
+int tdx_module_update_prepare(const struct tmu_req *req)
 {
 	int ret;
 	struct seamldr_params *params;
@@ -2184,11 +2186,15 @@ int tdx_module_update(const struct tmu_req *req)
 	if (ret)
 		goto free;
 
-	/* Prevent TDX module initialization */
+	/*
+	 * Prevent TDX module initialization. Release is done by
+	 * tdx_module_update_end.
+	 */
 	mutex_lock(&tdx_module_lock);
 	/*
 	 * Loading TDX module requires invoking SEAMCALLs on all
 	 * MADT-enabled CPUs. Bail out if some CPUs are offline.
+	 * Release is done by tdx_module_update_end.
 	 */
 	cpus_read_lock();
 	if (disabled_cpus || num_online_cpus() != num_processors) {
@@ -2202,19 +2208,8 @@ int tdx_module_update(const struct tmu_req *req)
 		goto unlock;
 	}
 
-	if (req->preserving) {
-		ret = tdx_prepare_handoff_data(sig->min_update_hv);
-		if (ret)
-			goto unlock;
-	}
-
-	ret = seamldr_install(params);
-	/* Initialize TDX module after a successful update */
-	if (!ret) {
-		tdx_module_status = TDX_MODULE_UNKNOWN;
-		ret = __tdx_init_cpuslocked(req->preserving);
-	}
-
+	saved_seamldr_params = params;
+	return 0;
 unlock:
 	cpus_read_unlock();
 	mutex_unlock(&tdx_module_lock);
@@ -2222,7 +2217,50 @@ free:
 	free_seamldr_params(params);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(tdx_module_update_prepare);
+
+int tdx_module_update(void)
+{
+	int ret;
+	bool preserving;
+	const struct seam_sigstruct *sig = __va(saved_seamldr_params->sigstruct_pa);
+
+	if (!saved_seamldr_params)
+		return -EINVAL;
+
+	preserving = !!(saved_seamldr_params->scenario == SEAMLDR_SCENARIO_UPDATE);
+
+	/* Both locks are acquired in tdx_module_update_begin() */
+	lockdep_assert_held(&tdx_module_lock);
+	lockdep_assert_cpus_held();
+
+	if (preserving) {
+		ret = tdx_prepare_handoff_data(sig->min_update_hv);
+		if (ret)
+			return ret;
+	}
+
+	ret = seamldr_install(saved_seamldr_params);
+	/* Initialize TDX module after a successful update */
+	if (!ret) {
+		tdx_module_status = TDX_MODULE_UNKNOWN;
+		ret = __tdx_init_cpuslocked(preserving);
+		if (ret && preserving)
+			pr_err("TD-preserving shouldn't fail %d\n", ret);
+	}
+
+	return ret;
+}
 EXPORT_SYMBOL_GPL(tdx_module_update);
+
+void tdx_module_update_end(void)
+{
+	free_seamldr_params(saved_seamldr_params);
+	saved_seamldr_params = NULL;
+	cpus_read_unlock();
+	mutex_unlock(&tdx_module_lock);
+}
+EXPORT_SYMBOL_GPL(tdx_module_update_end);
 #else /* CONFIG_INTEL_TDX_MODULE_UPDATE */
 static int init_tdx_module_via_handoff_data(void)
 {
