@@ -320,6 +320,59 @@ unlock:
 
 	return err;
 }
+
+static int __stop_two_cpus(unsigned int cpu1, unsigned int cpu2,
+			   cpu_stop_fn_t fn,
+			   struct cpu_stop_work *work1,
+			   struct cpu_stop_work *work2,
+			   struct multi_stop_data *msdata,
+			   void *arg, bool wait)
+{
+	struct cpu_stop_done done;
+
+	*msdata = (struct multi_stop_data){
+		.fn = fn,
+		.data = arg,
+		.num_threads = 2,
+		.active_cpus = cpumask_of(cpu1),
+	};
+
+	*work1 = *work2 = (struct cpu_stop_work){
+			  .fn = multi_cpu_stop,
+			  .arg = msdata,
+			  .done = NULL,
+			  .caller = _RET_IP_,
+	};
+
+	if (wait) {
+		cpu_stop_init_done(&done, 2);
+		work1->done = &done;
+		work2->done = &done;
+	}
+
+	set_state(msdata, MULTI_STOP_PREPARE);
+
+	if (cpu1 > cpu2) {
+		swap(cpu1, cpu2);
+		/*
+		 * Also swap the work structures. If the work structures are
+		 * used and discarded, or if we wait for completion, swapping
+		 * is not needed. However, callers may reuse them and. Thus,
+		 * they will  concurrently be queued in different stopper
+		 * queues.
+		 */
+		swap(work1, work2);
+	}
+
+	if (cpu_stop_queue_two_works(cpu1, work1, cpu2, work2))
+		return -ENOENT;
+
+	if (wait)
+		wait_for_completion(&done.completion);
+
+	return wait ? done.ret : 0;
+}
+
 /**
  * stop_two_cpus - stops two cpus
  * @cpu1: the cpu to stop
@@ -333,34 +386,11 @@ unlock:
  */
 int stop_two_cpus(unsigned int cpu1, unsigned int cpu2, cpu_stop_fn_t fn, void *arg)
 {
-	struct cpu_stop_done done;
 	struct cpu_stop_work work1, work2;
 	struct multi_stop_data msdata;
 
-	msdata = (struct multi_stop_data){
-		.fn = fn,
-		.data = arg,
-		.num_threads = 2,
-		.active_cpus = cpumask_of(cpu1),
-	};
-
-	work1 = work2 = (struct cpu_stop_work){
-		.fn = multi_cpu_stop,
-		.arg = &msdata,
-		.done = &done,
-		.caller = _RET_IP_,
-	};
-
-	cpu_stop_init_done(&done, 2);
-	set_state(&msdata, MULTI_STOP_PREPARE);
-
-	if (cpu1 > cpu2)
-		swap(cpu1, cpu2);
-	if (cpu_stop_queue_two_works(cpu1, &work1, cpu2, &work2))
-		return -ENOENT;
-
-	wait_for_completion(&done.completion);
-	return done.ret;
+	return __stop_two_cpus(cpu1, cpu2, fn, &work1, &work2, &msdata,
+			       arg, true);
 }
 
 /**
