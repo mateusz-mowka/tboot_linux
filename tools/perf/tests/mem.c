@@ -54,6 +54,14 @@ static int test__mem(struct test_suite *text __maybe_unused, int subtest __maybe
 
 	ret |= check(src , "FwdRemote RAM miss");
 
+	src.mem_snoop = PERF_MEM_SNOOP_NONE;
+	src.mem_lvl = PERF_MEM_LVL_HIT;
+	src.mem_lvl_num = PERF_MEM_LVLNUM_MMIO;
+	src.mem_snoopx = 0;
+	src.mem_remote = 0;
+
+	ret |= check(src, "NoneMMIO hit");
+
 	return ret;
 }
 
