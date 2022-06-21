@@ -434,12 +434,15 @@ static int spdm1p0_exchange(struct spdm_state *spdm_state, struct spdm_exchange 
 	return __spdm_exchange(spdm_state, ex, 0x10);
 }
 
+/* Don't support 1.1 spec at this time */
+# if 0
 static int spdm1p1_exchange(struct spdm_state *spdm_state, struct spdm_exchange *ex)
 {
 	return __spdm_exchange(spdm_state, ex, 0x11);
 }
+#endif
 
-static int spdm_get_version_1p1(struct spdm_state *spdm_state)
+static int spdm_get_version(struct spdm_state *spdm_state)
 {
 	struct spdm_get_version_req req = {};
 	struct spdm_get_version_rsp *rsp;
@@ -497,9 +500,8 @@ err:
 	return rc;
 }
 
-
 static int spdm_negotiate_caps(struct spdm_state *spdm_state, u32 req_caps,
-			       u32 *rsp_caps)
+			u32 *rsp_caps)
 {
 	struct spdm_get_capabilities_reqrsp req = {
 		.ctexponent = 2, /* FIXME: Chose sensible value */
@@ -515,7 +517,7 @@ static int spdm_negotiate_caps(struct spdm_state *spdm_state, u32 req_caps,
 	};
 	int rc, length;
 
-	rc = spdm1p1_exchange(spdm_state, &spdm_ex);
+	rc = spdm1p0_exchange(spdm_state, &spdm_ex);
 	if (rc < 0)
 		return rc;
 	length = rc;
@@ -695,7 +697,7 @@ static int spdm_negotiate_algs(struct spdm_state *spdm_state)
 		.code = SPDM_NEGOTIATE_ALGS,
 	};
 
-	rc = spdm1p1_exchange(spdm_state, &spdm_ex);
+	rc = spdm1p0_exchange(spdm_state, &spdm_ex);
 	if (rc < 0)
 		goto err_free_rsp;
 	length = rc;
@@ -761,7 +763,7 @@ static int spdm_get_digests(struct spdm_state *spdm_state)
 		.code = SPDM_GET_DIGESTS,
 	};
 
-	rc = spdm1p1_exchange(spdm_state, &spdm_ex);
+	rc = spdm1p0_exchange(spdm_state, &spdm_ex);
 	if (rc < 0)
 		return rc;
 
@@ -824,7 +826,7 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 		req.length = min(remainder_length, bufsize);
 		req.offset = offset;
 
-		rc = spdm1p1_exchange(spdm_state, &spdm_ex);
+		rc = spdm1p0_exchange(spdm_state, &spdm_ex);
 		if (rc < 0)
 			goto err_free_certs;
 
@@ -1087,7 +1089,7 @@ static int spdm_challenge(struct spdm_state *spdm_state)
 		.code = SPDM_CHALLENGE,
 	};
 
-	rc = spdm1p1_exchange(spdm_state, &spdm_ex);
+	rc = spdm1p0_exchange(spdm_state, &spdm_ex);
 	if (rc < 0)
 		goto err_free_rsp;
 	length = rc;
@@ -1141,7 +1143,7 @@ int spdm_authenticate(struct spdm_state *spdm_state)
 	u32 req_caps, rsp_caps;
 	int rc;
 
-	rc = spdm_get_version_1p1(spdm_state);
+	rc = spdm_get_version(spdm_state);
 	if (rc)
 		return rc;
 
@@ -1180,9 +1182,11 @@ int spdm_authenticate(struct spdm_state *spdm_state)
 		goto err_free_hash;
 
 	/*
-	 * If we get to here, we have successfully verified the device is one we are happy
-	 * with using.
+	 * If we get to here, we have successfully verified the device is one
+	 * we are happy with using.
 	 */
+	dev_info(spdm_state->dev, "SPDM: CHALLENGE: device authentication succesful\n");
+
 	return 0;
 
 err_free_hash:
