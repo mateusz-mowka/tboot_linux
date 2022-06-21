@@ -1085,7 +1085,7 @@ err_free_rsp:
 	return rc;
 }
 
-int spdm_authenticate(struct spdm_state *spdm_state)
+static int __spdm_authenticate(struct spdm_state *spdm_state)
 {
 	u32 req_caps, rsp_caps;
 	int rc;
@@ -1142,6 +1142,29 @@ err_free_hash:
 
 	return rc;
 }
+
+int spdm_authenticate(struct spdm_state *spdm_state)
+{
+	int rc;
+
+	mutex_lock(&spdm_state->lock);
+	rc = __spdm_authenticate(spdm_state);
+	mutex_unlock(&spdm_state->lock);
+
+	return rc;
+}
 EXPORT_SYMBOL_GPL(spdm_authenticate);
+
+void spdm_init(struct spdm_state *spdm_state)
+{
+	mutex_init(&spdm_state->lock);
+}
+EXPORT_SYMBOL_GPL(spdm_init);
+
+void spdm_finish(struct spdm_state *spdm_state)
+{
+	mutex_destroy(&spdm_state->lock);
+}
+EXPORT_SYMBOL_GPL(spdm_finish);
 
 MODULE_LICENSE("GPL v2");

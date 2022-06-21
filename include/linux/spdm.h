@@ -91,6 +91,7 @@ struct spdm_state {
 	struct shash_desc *desc;
 
 	struct key *root_keyring; /* Keyring against which to check the root */
+	struct mutex lock;
 	struct key *keyring; /* used to store certs from device */
 
 	/* Transport specific */
@@ -101,4 +102,6 @@ struct spdm_state {
 
 int spdm_authenticate(struct spdm_state *spdm_state);
 int spdm_measurements_get(struct spdm_state *spdm_state);
+void spdm_init(struct spdm_state *spdm_state);
+void spdm_finish(struct spdm_state *spdm_state);
 #endif
