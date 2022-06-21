@@ -621,7 +621,7 @@ static int spdm_negotiate_algs(struct spdm_state *spdm_state)
 	if (!req)
 		return -ENOMEM;
 
-	req->param1 = 4;
+	req->param1 = 0;	/* XXX: V1.0 change */
 	req->code = SPDM_NEGOTIATE_ALGS | SPDM_REQ;
 	req->length = cpu_to_le16(req_sz);
 	req->measurement_specification = BIT(0);
@@ -633,38 +633,6 @@ static int spdm_negotiate_algs(struct spdm_state *spdm_state)
 
 	req->ext_asm_count = 0;
 	req->ext_hash_count = 0;
-	req_alg_struct = (struct spdm_req_alg_struct *)(req + 1);
-	/*
-	 * For CMA only we don't need to support DHE, AEAD or Key Schedule - but the
-	 * responder may reply with them anyway.
-	 * TODO: Identify minimum set needed.
-	 */
-	req_alg_struct[0] = (struct spdm_req_alg_struct) {
-		.alg_type = SPDM_REQ_ALG_STRUCT_TYPE_DHE,
-		.alg_count = 0x20,
-		.alg_supported = cpu_to_le16(SPDM_DHE_ALGO_FFDHE_2048 |
-					     SPDM_DHE_ALGO_FFDHE_3072 |
-					     SPDM_DHE_ALGO_SECP_256R1 |
-					     SPDM_DHE_ALGO_SECP_384R1)
-					     };
-	req_alg_struct[1] = (struct spdm_req_alg_struct) {
-		.alg_type = SPDM_REQ_ALG_STRUCT_TYPE_AEAD_CIPHER_SUITE,
-		.alg_count = 0x20,
-		.alg_supported = cpu_to_le16(SPDM_AEAD_ALGO_AES_256_GCM |
-					     SPDM_AEAD_ALGO_CHACHA20_POLY1305)
-	};
-	req_alg_struct[2] = (struct spdm_req_alg_struct) {
-		.alg_type = SPDM_REQ_ALG_STRUCT_TYPE_REQ_BASE_ASYM_ALG,
-		.alg_count = 0x20,
-		.alg_supported = cpu_to_le16(BIT(spdm_asym_rsassa_3072) |
-					     BIT(spdm_asym_ecdsa_ecc_nist_p256) |
-					     BIT(spdm_asym_ecdsa_ecc_nist_p384)),
-	};
-	req_alg_struct[3] = (struct spdm_req_alg_struct) {
-		.alg_type = SPDM_REQ_ALG_STRUCT_TYPE_KEY_SCHEDULE,
-		.alg_count = 0x20,
-		.alg_supported = cpu_to_le16(SPDM_KEY_SCHEDULE_SPDM)
-	};
 
 	rsp = kzalloc(rsp_sz, GFP_KERNEL);
 	if (!rsp) {
