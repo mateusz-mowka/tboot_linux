@@ -861,7 +861,7 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 		if (IS_ERR(key2)) {
 			/* FIXME: Any additional cleanup to do here? */
 			rc = PTR_ERR(key2);
-			goto err_free_ida;
+			goto err_put_keyring;
 		}
 
 		if (!spdm_state->leaf_key) {
@@ -881,8 +881,9 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 			rc = verify_signature(key, sig);
 			if (rc) {
 				dev_err(spdm_state->dev,
-					"Unable to check SPDM cert against _cma keyring\n");
-				goto err_free_ida;
+					"Unable to check SPDM cert against root keyring, %d\n", rc);
+				key_ref_put(key2);
+				goto err_put_keyring;
 			}
 
 			spdm_state->leaf_key = key_ref_to_ptr(key2);
@@ -895,8 +896,10 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 			if (rc) {
 				dev_err(spdm_state->dev,
 					"Unable to verify SPDM cert against previous cert in chain\n");
-				goto err_free_ida;
+				key_ref_put(key2);
+				goto err_put_keyring;
 			}
+			key_put(spdm_state->leaf_key);
 			spdm_state->leaf_key = key_ref_to_ptr(key2);
 		}
 		/*
@@ -906,11 +909,18 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 		next_cert += get_unaligned_be16(certs + next_cert + 2) + 4;
 	}
 
+	/*
+	 * Done with the keyring for now at this point. We have the leaf_key which is
+	 * the last key2.
+	 */
+	key_put(spdm_state->keyring);
 	kfree(certs);
 	kfree(rsp);
 
 	return 0;
 
+err_put_keyring:
+	key_put(spdm_state->keyring);
 err_free_ida:
 	ida_free(&spdm_ida, keyring_id);
 err_free_certs:
@@ -1126,7 +1136,7 @@ static int __spdm_authenticate(struct spdm_state *spdm_state)
 
 	rc = spdm_challenge(spdm_state);
 	if (rc)
-		goto err_free_hash;
+		goto err_put_leaf_key;
 
 	/*
 	 * If we get to here, we have successfully verified the device is one
@@ -1135,6 +1145,14 @@ static int __spdm_authenticate(struct spdm_state *spdm_state)
 	dev_info(spdm_state->dev, "SPDM: CHALLENGE: device authentication succesful\n");
 
 	return 0;
+
+err_put_leaf_key:
+
+	/* Challenge failed. We'll need to start over. So put back device key. */
+	key_put(spdm_state->leaf_key);
+
+	/* Set to NULL to indicate we need to put it during spdm_finish */
+	spdm_state->leaf_key = NULL;
 
 err_free_hash:
 	kfree(spdm_state->desc);
@@ -1148,6 +1166,17 @@ int spdm_authenticate(struct spdm_state *spdm_state)
 	int rc;
 
 	mutex_lock(&spdm_state->lock);
+
+	/*
+	 * We keep the leaf (device) key around after spdm_authenticate
+	 * so that it may be used, if needed. But if we are reauthenticating
+	 * before calling spdm_finish, we have to put it back so we can obtain
+	 * it cleanly again during get_certificates.
+	 */
+	if (spdm_state->leaf_key) {
+		key_put(spdm_state->leaf_key);
+		spdm_state->leaf_key = NULL;
+	}
 	rc = __spdm_authenticate(spdm_state);
 	mutex_unlock(&spdm_state->lock);
 
@@ -1158,11 +1187,28 @@ EXPORT_SYMBOL_GPL(spdm_authenticate);
 void spdm_init(struct spdm_state *spdm_state)
 {
 	mutex_init(&spdm_state->lock);
+
+	/*
+	 * Ensure it's initialized to an empty and unused state.
+	 * There should be no previous key in here when we start.
+	 */
+	spdm_state->leaf_key = NULL;
 }
 EXPORT_SYMBOL_GPL(spdm_init);
 
 void spdm_finish(struct spdm_state *spdm_state)
 {
+	/* This is how we clean up the device key */
+	if (spdm_state->leaf_key) {
+		key_put(spdm_state->leaf_key);
+
+		/*
+		 * We really shouldn't be calling spdm_finish again before
+		 * doing spdm_start, but just in case.
+		 */
+		spdm_state->leaf_key = NULL;
+	}
+
 	mutex_destroy(&spdm_state->lock);
 }
 EXPORT_SYMBOL_GPL(spdm_finish);
