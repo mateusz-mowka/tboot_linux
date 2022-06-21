@@ -317,6 +317,25 @@ static size_t spdm_challenge_rsp_signature_offset(struct spdm_state *spdm_state,
 	return offset;
 }
 
+#define SPDM_GET_MEASUREMENTS 0x60
+struct spdm_measurements_req {
+	u8 version;
+	u8 code;
+	u8 param1; /* Request attributes */
+	u8 param2; /* Measurement operation */
+	u8 nonce[32];
+};
+
+struct spdm_measurements_rsp {
+	u8 version;
+	u8 code;
+	u8 param1; /* number of measurements */
+	u8 param2;
+	u8 num_blocks;
+	u8 measurement_record_len[3];
+	u8 measurement_record[];
+};
+
 #define SPDM_ERROR 0x7f
 enum spdm_error_code {
 	spdm_invalid_request = 0x01,
@@ -1084,8 +1103,236 @@ err_free_digest:
 
 err_free_rsp:
 	kfree(rsp);
+
 	return rc;
 }
+
+static int spdm_start_mdigest(struct spdm_state *spdm_state )
+{
+	int rc;
+
+	/* Build first part of measurement hash */
+	switch (spdm_state->base_hash_alg) {
+	case spdm_base_hash_sha_384:
+		spdm_state->m_shash = crypto_alloc_shash("sha384", 0, CRYPTO_ALG_ASYNC);
+		break;
+	case spdm_base_hash_sha_256:
+		spdm_state->m_shash = crypto_alloc_shash("sha256", 0, CRYPTO_ALG_ASYNC);
+		break;
+	default:
+		/* Given device must support one of the above, lets stick to them for now */
+		return -EINVAL;
+	}
+
+	if (!spdm_state->m_shash)
+		return -ENOMEM;
+
+	spdm_state->mdesc = kzalloc(struct_size(spdm_state->mdesc, __ctx,
+					        crypto_shash_descsize(spdm_state->m_shash)),
+				    GFP_KERNEL);
+	if (!spdm_state->mdesc) {
+		rc = -ENOMEM;
+		goto err_free_m_shash;
+	}
+
+	spdm_state->mdesc->tfm = spdm_state->m_shash;
+
+	rc = crypto_shash_init(spdm_state->mdesc);
+	if (rc < 0)
+		goto err_free_mdesc;
+
+	return 0;
+
+err_free_mdesc:
+	kfree(spdm_state->mdesc);
+err_free_m_shash:
+	crypto_free_shash(spdm_state->m_shash);
+	return rc;
+}
+
+static int
+spdm_get_measurements_update_hash(struct spdm_state *spdm_state, void *msg,
+				  size_t msg_size)
+{
+	u8 measurement_caps = FIELD_GET(SPDM_GET_CAP_FLAG_MEAS_CAP_MSK,
+					spdm_state->responder_caps);
+
+	/* Return without error is signature is not supported */
+	if (measurement_caps != SPDM_GET_CAP_FLAG_MEAS_CAP_MEAS_SIG)
+		return 0;
+
+	return crypto_shash_update(spdm_state->mdesc, msg, msg_size);
+}
+
+enum measurement_type {
+	MEASUREMENT_COUNT_ONLY,
+	MEASUREMENT_REQUEST,
+	MEASUREMENT_REQUEST_SIGNED,
+};
+
+static int __spdm_get_measurements(struct spdm_state *spdm_state)
+{
+	struct spdm_measurements_req req = {
+		.param1 = spdm_state->measurement_sign ? 1 : 0,
+		.param2 = spdm_state->meas_slot_no,
+		.nonce = {},
+	};
+	struct spdm_measurements_rsp *rsp;
+	struct spdm_exchange spdm_ex;
+	size_t rsp_max_sz = 4096;
+	u8 measurement_caps = FIELD_GET(SPDM_GET_CAP_FLAG_MEAS_CAP_MSK,
+					spdm_state->responder_caps);
+	enum measurement_type type;
+	u8 *digest;
+	size_t length;
+	int rc;
+
+	if (req.param2 == 0)
+		type = MEASUREMENT_COUNT_ONLY;
+	else if (req.param1 == 0)
+		type = MEASUREMENT_REQUEST;
+	else
+		type = MEASUREMENT_REQUEST_SIGNED;
+
+	if (measurement_caps == SPDM_GET_CAP_FLAG_MEAS_CAP_NO) {
+		dev_err(spdm_state->dev, "SPDM: Responder does not support GET_MEASUREMENTS\n");
+		return -ENOTSUPP;
+	}
+
+	if (type == MEASUREMENT_REQUEST_SIGNED &&
+	    measurement_caps != SPDM_GET_CAP_FLAG_MEAS_CAP_MEAS_SIG) {
+		dev_err(spdm_state->dev, "SPDM: Responder does not support GET_MEASUREMENTS signing\n");
+		return -ENOTSUPP;
+	}
+
+	/*
+	 * Allocating just a page for the response. Really, the record length can
+         * be large, just over 16MB if all bits are used.
+	 */
+	rsp = kzalloc(rsp_max_sz, GFP_KERNEL);
+	if (!rsp)
+		return -ENOMEM;
+
+	/* Create a nonce only if we are signing */
+	if (type == MEASUREMENT_REQUEST_SIGNED)
+		get_random_bytes(&req.nonce, sizeof(req.nonce));
+
+	spdm_ex = (struct spdm_exchange) {
+		.request_pl = (struct spdm_header *)&req,
+		.request_pl_sz = sizeof(req),
+		.response_pl = (struct spdm_header *)rsp,
+		.response_pl_sz = rsp_max_sz,
+		.code = SPDM_GET_MEASUREMENTS,
+	};
+
+	rc = spdm1p0_exchange(spdm_state, &spdm_ex);
+	if (rc < 0)
+		goto free_rsp;
+	length = rc;
+
+	if (length > rsp_max_sz) {
+		dev_err(spdm_state->dev, "SPDM: GET_MEASUREMENTS: Need %ld, allocated 4096\n",
+			length);
+		rc = -EIO;
+		goto free_rsp;
+	}
+
+	/*
+	 * mdesc is reset to NULL if:
+	 *     1. Previous GET_MEASUREMENTS signed completed
+	 *     2. spdm_authorize is ran
+	 *     3. Any error occurs
+	 */
+	if (!spdm_state->mdesc &&
+	    measurement_caps == SPDM_GET_CAP_FLAG_MEAS_CAP_MEAS_SIG) {
+		dev_err(spdm_state->dev, "Starting new transcript, mc 0x%x\n",
+			measurement_caps);
+		rc = spdm_start_mdigest(spdm_state);
+		if (rc < 0)
+			goto free_rsp;
+	}
+
+	/* At this point if we error, we must free the digest and hash */
+	dev_err(spdm_state->dev, "Hashing\n");
+	rc = spdm_get_measurements_update_hash(spdm_state, &req, sizeof(req));
+	if (rc < 0)
+		goto free_hash;
+
+	if (type != MEASUREMENT_REQUEST_SIGNED) {
+		/* Hash the response */
+		rc = spdm_get_measurements_update_hash(spdm_state, rsp, length);
+		if (rc < 0)
+			goto free_hash;
+	} else {
+		size_t h = crypto_shash_digestsize(spdm_state->m_shash);
+		size_t sig_offset = length - spdm_state->s;
+		dev_err(spdm_state->dev, "sig_offset is %ld length %ld s %ld\n", sig_offset, length, spdm_state->s);
+
+		/* Hash the response, without the signature portion */
+		rc = spdm_get_measurements_update_hash(spdm_state, rsp, sig_offset);
+		if (rc < 0)
+			goto free_hash;
+
+		digest = kmalloc(h, GFP_KERNEL);
+		if (!digest) {
+			rc = -ENOMEM;
+			goto free_hash;
+		}
+
+		rc = crypto_shash_final(spdm_state->mdesc, digest);
+		if  (rc) {
+			dev_err(spdm_state->dev, "GET_MEASUREMENTS: Could not finalize hash\n");
+			kfree(digest);
+			goto free_hash;
+		}
+
+		rc = spdm_verify_signature(spdm_state, (u8 *)rsp + sig_offset,
+					   digest, h);
+		kfree(digest);
+
+		if (rc) {
+			dev_err(spdm_state->dev, "GET_MEASUREMENTS: Failed to verify signature\n");
+			goto free_hash;
+		}
+
+		dev_info(spdm_state->dev, "SPDM: GET_MEASUREMENTS: Succesfully verified signature\n");
+
+		kfree(spdm_state->mdesc);
+		crypto_free_shash(spdm_state->m_shash);
+		spdm_state->mdesc = NULL;
+	}
+
+	/* Invoke callback to return count or measurement */
+	if (req.param2 == 0) /* Request count */
+		rc = spdm_state->measurement_cb(rsp->param1, NULL, spdm_state->cb_data);
+	else { /* Call user callback to copy buffer */
+		u32 len = *(u32 *)rsp->measurement_record_len & 0xFFFFFF;
+		rc = spdm_state->measurement_cb(len, rsp->measurement_record, spdm_state->cb_data);
+	}
+
+free_rsp:
+	kfree(rsp);
+	return rc;
+
+free_hash:
+	kfree(spdm_state->mdesc);
+	crypto_free_shash(spdm_state->m_shash);
+	spdm_state->mdesc = NULL;
+	kfree(rsp);
+	return rc;
+}
+
+int spdm_get_measurements(struct spdm_state *spdm_state)
+{
+	int rc;
+
+	mutex_lock(&spdm_state->lock);
+	rc = __spdm_get_measurements(spdm_state);
+	mutex_unlock(&spdm_state->lock);
+
+	return rc;
+}
+EXPORT_SYMBOL_GPL(spdm_get_measurements);
 
 static int __spdm_authenticate(struct spdm_state *spdm_state)
 {
