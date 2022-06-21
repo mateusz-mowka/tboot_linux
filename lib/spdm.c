@@ -625,10 +625,10 @@ static int spdm_negotiate_algs(struct spdm_state *spdm_state)
 	req->code = SPDM_NEGOTIATE_ALGS | SPDM_REQ;
 	req->length = cpu_to_le16(req_sz);
 	req->measurement_specification = BIT(0);
-	req->base_asym_algo = cpu_to_le16(BIT(spdm_asym_rsassa_3072) |
+	req->base_asym_algo = cpu_to_le32(BIT(spdm_asym_rsassa_3072) |
 					  BIT(spdm_asym_ecdsa_ecc_nist_p256) |
 					  BIT(spdm_asym_ecdsa_ecc_nist_p384));
-	req->base_hash_algo = cpu_to_le16(BIT(spdm_base_hash_sha_256) |
+	req->base_hash_algo = cpu_to_le32(BIT(spdm_base_hash_sha_256) |
 					  BIT(spdm_base_hash_sha_384));
 
 	req->ext_asm_count = 0;
@@ -660,9 +660,9 @@ static int spdm_negotiate_algs(struct spdm_state *spdm_state)
 		goto err_free_rsp;
 	}
 
-	spdm_state->measurement_hash_alg = __ffs(le16_to_cpu(rsp->measurement_hash_algo));
-	spdm_state->base_asym_alg = __ffs(le16_to_cpu(rsp->base_asym_sel));
-	spdm_state->base_hash_alg = __ffs(le16_to_cpu(rsp->base_hash_sel));
+	spdm_state->measurement_hash_alg = __ffs(le32_to_cpu(rsp->measurement_hash_algo));
+	spdm_state->base_asym_alg = __ffs(le32_to_cpu(rsp->base_asym_sel));
+	spdm_state->base_hash_alg = __ffs(le32_to_cpu(rsp->base_hash_sel));
 
 	switch (spdm_state->base_asym_alg) {
 	case spdm_asym_rsassa_3072:
