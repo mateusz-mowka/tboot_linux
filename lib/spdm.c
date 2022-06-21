@@ -696,12 +696,10 @@ static int spdm_get_digests(struct spdm_state *spdm_state)
 	struct spdm_digest_req req = {};
 	struct spdm_digest_rsp *rsp;
 	struct spdm_exchange spdm_ex;
-	unsigned long slot_bm;
-	int rc;
-	/* Assume all slots may be present */
 	size_t rsp_sz;
+	int rc;
 
-	rsp_sz = struct_size(rsp, digests, spdm_state->h * 8);
+	rsp_sz = struct_size(rsp, digests, spdm_state->h);
 	rsp = kzalloc(rsp_sz, GFP_KERNEL);
 	if (!rsp)
 		return -ENOMEM;
@@ -722,10 +720,8 @@ static int spdm_get_digests(struct spdm_state *spdm_state)
 	if (rc)
 		goto err_free_rsp;
 
-	slot_bm = rsp->param2;
 	rsp_sz = struct_size(rsp, digests,
-			     spdm_state->h *
-			     bitmap_weight(&slot_bm, 8 * sizeof(rsp->param2)));
+			     spdm_state->h);
 
 	rc = crypto_shash_update(spdm_state->desc, (u8 *)rsp, rsp_sz);
 
