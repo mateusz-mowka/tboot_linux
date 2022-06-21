@@ -1,16 +1,30 @@
 # SPDX-License-Identifier: GPL-2.0
 # Makefile for Intel Software Defined Silicon provisioning tool
 
+ifeq ($(srctree),)
+srctree := $(patsubst %/,%,$(dir $(CURDIR)))
+srctree := $(patsubst %/,%,$(dir $(srctree)))
+srctree := $(patsubst %/,%,$(dir $(srctree)))
+# $(info Determined 'srctree' to be $(srctree))
+endif
+
+INCL_PATH = \
+-I$(srctree)/lib/intel_sdsi
+
 intel_sdsi: intel_sdsi.c
 
-CFLAGS = -Wextra
+CC=gcc
+
+CFLAGS = -L/home/debox1/ext/repos/linux/tools/lib/intel_sdsi -Wextra
 
 BINDIR ?= /usr/sbin
 
-override CFLAGS += -O2 -Wall
+LDFLAGS += -l:libsdsi.so -lkeyutils
+
+override CFLAGS += -O2 -Wall -g
 
 %: %.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INCL_PATH) -o $@ $< $(LDFLAGS)
 
 .PHONY : clean
 clean :
