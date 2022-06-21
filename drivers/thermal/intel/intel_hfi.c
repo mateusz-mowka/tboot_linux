@@ -562,6 +562,25 @@ static const struct file_operations hfi_fake_table_fops = {
 
 static struct dentry *hfi_debugfs_dir;
 
+#ifdef CONFIG_IPC_CLASSES
+static unsigned long class_debouncer_skips = 4; /* CLASS_DEBOUNCER_SKIPS */
+
+static int hfi_debouncer_skip_get(void *data, u64 *val)
+{
+	*val = class_debouncer_skips;
+	return 0;
+}
+
+static int hfi_debouncer_skip_set(void *data, u64 val)
+{
+	class_debouncer_skips = val;
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(hfi_debouncer_skip_fops, hfi_debouncer_skip_get,
+			 hfi_debouncer_skip_set, "%llu\n");
+#endif
+
 static void hfi_debugfs_unregister(void)
 {
 	debugfs_remove_recursive(hfi_debugfs_dir);
@@ -579,6 +598,13 @@ static void hfi_debugfs_register(void)
 				NULL, &hfi_features_fops);
 	if (!f)
 		goto err;
+
+#ifdef CONFIG_IPC_CLASSES
+	f = debugfs_create_file("debounce_skips", 0444, hfi_debugfs_dir,
+				NULL, &hfi_debouncer_skip_fops);
+	if (!f)
+		goto err;
+#endif
 
 	return;
 err:
@@ -660,7 +686,11 @@ static void debounce_and_update_class(struct task_struct *p, u8 new_ipcc)
 	 * for CLASS_DEBOUNCER_SKIPS user ticks.
 	 */
 	debounce_skip = p->ipcc_cntr + 1;
+#if CONFIG_DEBUG_FS
+	if (debounce_skip < class_debouncer_skips)
+#else
 	if (debounce_skip < CLASS_DEBOUNCER_SKIPS)
+#endif
 		p->ipcc_cntr++;
 	else
 		p->ipcc = new_ipcc;
