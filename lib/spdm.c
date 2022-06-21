@@ -1011,7 +1011,7 @@ static int spdm_verify_signature(struct spdm_state *spdm_state, u8 *sig_ptr,
 
 		sig.s = buffer2;
 		sig.s_size = p2 - buffer2;
-		sig.encoding = "raw";
+		sig.encoding = "x962";
 		break;
 	}
 
