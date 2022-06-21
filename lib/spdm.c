@@ -510,7 +510,7 @@ static int spdm_negotiate_caps(struct spdm_state *spdm_state, u32 req_caps,
 	struct spdm_get_capabilities_reqrsp rsp;
 	struct spdm_exchange spdm_ex = {
 		.request_pl = (struct spdm_header *)&req,
-		.request_pl_sz = sizeof(req),
+		.request_pl_sz = 4, /* XXX: Fixed for v1.0 */
 		.response_pl = (struct spdm_header *)&rsp,
 		.response_pl_sz = sizeof(rsp),
 		.code = SPDM_GET_CAPABILITIES,
@@ -532,7 +532,8 @@ static int spdm_negotiate_caps(struct spdm_state *spdm_state, u32 req_caps,
 	if (rsp_caps)
 		*rsp_caps = spdm_state->responder_caps;
 
-	rc = spdm_append_buffer_a(spdm_state, &req, sizeof(req), false);
+	/* XXX: Set req size to 4 here too for v1.0 */
+	rc = spdm_append_buffer_a(spdm_state, &req, 4, false);
 	if (rc)
 		return rc;
 
