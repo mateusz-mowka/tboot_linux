@@ -536,6 +536,25 @@ static const struct file_operations hfi_inject_table_fops = {
 
 static struct dentry *hfi_debugfs_dir;
 
+#ifdef CONFIG_INTEL_THREAD_DIRECTOR
+static unsigned long class_debouncer_skips = 4; /* CLASS_DEBOUNCER_SKIPS */
+
+static int hfi_debouncer_skip_get(void *data, u64 *val)
+{
+	*val = class_debouncer_skips;
+	return 0;
+}
+
+static int hfi_debouncer_skip_set(void *data, u64 val)
+{
+	class_debouncer_skips = val;
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(hfi_debouncer_skip_fops, hfi_debouncer_skip_get,
+			 hfi_debouncer_skip_set, "%llu\n");
+#endif
+
 static void hfi_debugfs_unregister(void)
 {
 	debugfs_remove_recursive(hfi_debugfs_dir);
@@ -551,6 +570,10 @@ static void hfi_debugfs_register(void)
 
 	f = debugfs_create_file("features", 0444, hfi_debugfs_dir,
 				NULL, &hfi_features_fops);
+#ifdef CONFIG_INTEL_THREAD_DIRECTOR
+	f = debugfs_create_file("debounce_skips", 0444, hfi_debugfs_dir,
+				NULL, &hfi_debouncer_skip_fops);
+#endif
 	if (!f)
 		goto err;
 
@@ -636,7 +659,11 @@ static void debounce_and_update_class(struct task_struct *p, int new_class)
 	 * for CLASS_DEBOUNCER_SKIPS user ticks.
 	 */
 	debounce_skip = p->class_debounce_counter + 1;
+#if CONFIG_DEBUG_FS
+	if (debounce_skip < class_debouncer_skips)
+#else
 	if (debounce_skip < CLASS_DEBOUNCER_SKIPS)
+#endif
 		p->class_debounce_counter++;
 	else
 		p->class = new_class;
