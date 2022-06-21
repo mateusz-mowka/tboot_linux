@@ -869,14 +869,7 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 			struct public_key_signature *sig =
 				key_ref_to_ptr(key2)->payload.data[asym_auth];
 
-			key = find_asymmetric_key(spdm_state->root_keyring, sig->auth_ids[0],
-						  sig->auth_ids[1], false);
-			if (IS_ERR(key)) {
-				dev_err(spdm_state->dev,
-					"Unable to retrieve signing certificate from _cma keyring\n");
-				rc = PTR_ERR(key);
-				goto err_free_ida;
-			}
+			key = spdm_state->rootkey;
 
 			rc = verify_signature(key, sig);
 			if (rc) {

@@ -90,7 +90,7 @@ struct spdm_state {
 	struct crypto_shash *shash;
 	struct shash_desc *desc;
 
-	struct key *root_keyring; /* Keyring against which to check the root */
+	struct key *rootkey; /* Key to check the root*/
 	struct mutex lock;
 	struct key *keyring; /* used to store certs from device */
 
