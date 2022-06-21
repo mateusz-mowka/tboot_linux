@@ -39,6 +39,7 @@
 #include <linux/workqueue.h>
 
 #include <asm/msr.h>
+#include <asm/intel-family.h>
 
 #include "../thermal_core.h"
 #include "intel_hfi.h"
@@ -195,9 +196,53 @@ static struct workqueue_struct *hfi_updates_wq;
 #define HFI_MAX_THERM_NOTIFY_COUNT	16
 
 #ifdef CONFIG_INTEL_THREAD_DIRECTOR
+
 int intel_hfi_task_classes_nr(void)
 {
 	return hfi_features.nr_classes;
+}
+
+#define CLASS_DEBOUNCER_SKIPS 4
+
+static void debounce_and_update_class(struct task_struct *p, int new_class)
+{
+	char debounce_skip;
+
+	/* The class of @p changed, only restart the debounce counter. */
+	if (p->class_candidate != new_class) {
+		p->class_debounce_counter = 1;
+		goto out;
+	}
+
+	/*
+	 * The class of @p did not change. Update it if it has been the same
+	 * for CLASS_DEBOUNCER_SKIPS user ticks.
+	 */
+	debounce_skip = p->class_debounce_counter + 1;
+	if (debounce_skip < CLASS_DEBOUNCER_SKIPS)
+		p->class_debounce_counter++;
+	else
+		p->class = new_class;
+
+out:
+	p->class_candidate = new_class;
+}
+
+static bool classification_is_reliable(u8 class, bool smt_siblings_idle)
+{
+	switch (boot_cpu_data.x86_model) {
+	case INTEL_FAM6_ALDERLAKE:
+	case INTEL_FAM6_ALDERLAKE_L:
+	case INTEL_FAM6_RAPTORLAKE:
+	case INTEL_FAM6_RAPTORLAKE_P:
+		if (class == 3 || class == 2 || smt_siblings_idle)
+			return true;
+
+		return false;
+
+	default:
+		return true;
+	}
 }
 
 void intel_hfi_update_task_class(struct task_struct *curr, bool smt_siblings_idle)
@@ -214,7 +259,8 @@ void intel_hfi_update_task_class(struct task_struct *curr, bool smt_siblings_idl
 	if (!msr.split.valid)
 		return;
 
-	curr->class = msr.split.classid;
+	if (classification_is_reliable(msr.split.classid, smt_siblings_idle))
+		debounce_and_update_class(curr, msr.split.classid);
 }
 
 static void get_one_hfi_cap(struct hfi_instance *hfi_instance, s16 index,
