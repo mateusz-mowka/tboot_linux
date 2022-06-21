@@ -72,6 +72,8 @@ struct spdm_state {
 	enum spdm_base_asym_algo base_asym_alg;
 	enum spdm_base_hash_algo base_hash_alg;
 	u8 cert_slot_no;
+	u8 meas_slot_no;
+	bool measurement_sign;
 	struct key *leaf_key;
 	size_t h; /* base hash length - H in specification */
 	size_t s; /* base asymmetric signature length - S in specification */
@@ -89,7 +91,9 @@ struct spdm_state {
 	void *a;
 	size_t a_length;
 	struct crypto_shash *shash;
+	struct crypto_shash *m_shash;
 	struct shash_desc *desc;
+	struct shash_desc *mdesc;
 
 	struct key *rootkey; /* Key to check the root*/
 	struct mutex lock;
@@ -99,10 +103,12 @@ struct spdm_state {
 	struct device *dev; /* For error reporting only */
 	void *transport_priv;
 	int (*transport_ex)(void *priv, struct spdm_exchange *spdm_ex);
+	int (*measurement_cb)(size_t count, u8 *measurements, void *arg);
+	void *cb_data;
 };
 
 int spdm_authenticate(struct spdm_state *spdm_state);
-int spdm_measurements_get(struct spdm_state *spdm_state);
+int spdm_get_measurements(struct spdm_state *spdm_state);
 void spdm_init(struct spdm_state *spdm_state);
 void spdm_finish(struct spdm_state *spdm_state);
 #endif
