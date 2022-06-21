@@ -17,11 +17,14 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
+#include <linux/spdm.h>
 #include <linux/sysfs.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
 
 #include "vsec.h"
+#include "sdsi.h"
+#include "sdsi_genl.h"
 
 #define ACCESS_TYPE_BARID		2
 #define ACCESS_TYPE_LOCAL		3
@@ -41,10 +44,8 @@
 
 #define SDSI_ENABLED_FEATURES_OFFSET	16
 #define SDSI_FEATURE_SDSI		BIT(3)
+#define SDSI_FEATURE_ATTESTATION	BIT(12)
 #define SDSI_FEATURE_METERING		BIT(26)
-
-#define SDSI_SOCKET_ID_OFFSET		64
-#define SDSI_SOCKET_ID			GENMASK(3, 0)
 
 #define SDSI_MBOX_CMD_SUCCESS		0x40
 #define SDSI_MBOX_CMD_TIMEOUT		0x80
@@ -83,36 +84,28 @@
 #define GUID_V2_CNTRL_SIZE		16
 #define GUID_V2_REGS_SIZE		80
 
+static LIST_HEAD(sdsi_list);
+static DEFINE_MUTEX(sdsi_list_lock);
+
 enum sdsi_command {
 	SDSI_CMD_PROVISION_AKC		= 0x0004,
 	SDSI_CMD_PROVISION_CAP		= 0x0008,
 	SDSI_CMD_READ_STATE		= 0x0010,
 	SDSI_CMD_READ_METER		= 0x0014,
+	SDSI_CMD_ATTESTATION		= 0x1012,
 };
 
 struct sdsi_mbox_info {
 	u64	*payload;
 	void	*buffer;
 	int	size;
+	int	packet_size;
 };
 
 struct disc_table {
 	u32	access_info;
 	u32	guid;
 	u32	offset;
-};
-
-struct sdsi_priv {
-	struct mutex		mb_lock;	/* Mailbox access lock */
-	struct device		*dev;
-	void __iomem		*control_addr;
-	void __iomem		*mbox_addr;
-	void __iomem		*regs_addr;
-	int			control_size;
-	int			maibox_size;
-	int			registers_size;
-	u32			guid;
-	u32			features;
 };
 
 /* SDSi mailbox operations must be performed using 64bit mov instructions */
@@ -156,8 +149,8 @@ static int sdsi_status_to_errno(u32 status)
 	}
 }
 
-static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
-			      size_t *data_size)
+static int sdsi_mbox_poll(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
+			  size_t *data_size)
 {
 	struct device *dev = priv->dev;
 	u32 total, loop, eom, status, message_size;
@@ -177,7 +170,6 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 	total = 0;
 	loop = 0;
 	do {
-		void *buf = info->buffer + (SDSI_SIZE_MAILBOX * loop);
 		u32 packet_size;
 
 		/* Poll on ready bit */
@@ -195,22 +187,38 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 		if (ret)
 			break;
 
+		if (!packet_size) {
+			sdsi_complete_transaction(priv);
+			break;
+		}
+
 		/* Only the last packet can be less than the mailbox size. */
 		if (!eom && packet_size != SDSI_SIZE_MAILBOX) {
-			dev_err(dev, "Invalid packet size\n");
+			dev_err(priv->dev, "Invalid packet size\n");
 			ret = -EPROTO;
 			break;
 		}
 
 		if (packet_size > SDSI_SIZE_MAILBOX) {
-			dev_err(dev, "Packet size too large\n");
+			dev_err(priv->dev, "Packet size too large\n");
 			ret = -EPROTO;
 			break;
 		}
 
-		sdsi_memcpy64_fromio(buf, priv->mbox_addr, round_up(packet_size, SDSI_SIZE_CMD));
+		/*
+		 * Only store data when the caller has created a buffer for it.
+		 * Otherwise it's assumed the caller did not want the data or
+		 * the command returned some unexpectedly. Either way, skip it
+		 * and keeping looping until all packets have been sent.
+		 */
+		if (packet_size && info->buffer) {
+			void *buf = info->buffer + (SDSI_SIZE_MAILBOX * loop);
 
-		total += packet_size;
+			dev_dbg(priv->dev, "%s: Copying packet %d to buffer\n", __func__, loop);
+			sdsi_memcpy64_fromio(buf, priv->mbox_addr,
+					     round_up(packet_size, SDSI_SIZE_CMD));
+			total += packet_size;
+		}
 
 		sdsi_complete_transaction(priv);
 	} while (!eom && ++loop < MBOX_MAX_PACKETS);
@@ -221,7 +229,7 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 	}
 
 	if (!eom) {
-		dev_err(dev, "Exceeded read attempts\n");
+		dev_err(dev, "Exceeded max number of packets\n");
 		return -EPROTO;
 	}
 
@@ -230,16 +238,36 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 		dev_warn(dev, "Read count %u differs from expected count %u\n",
 			 total, message_size);
 
-	*data_size = total;
+	if (data_size)
+		*data_size = total;
 
-	return 0;
+	return ret;
 }
 
-static int sdsi_mbox_cmd_write(struct sdsi_priv *priv, struct sdsi_mbox_info *info)
+static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
+			      size_t *data_size)
 {
 	u64 control;
-	u32 status;
-	int ret;
+
+	lockdep_assert_held(&priv->mb_lock);
+
+	dev_dbg(priv->dev, "%s\n", __func__);
+
+	/* Format and send the read command */
+	control = FIELD_PREP(CTRL_EOM, 1) |
+		  FIELD_PREP(CTRL_SOM, 1) |
+		  FIELD_PREP(CTRL_RUN_BUSY, 1) |
+		  FIELD_PREP(CTRL_PACKET_SIZE, info->packet_size);
+
+	writeq(control, priv->control_addr);
+
+	return sdsi_mbox_poll(priv, info, data_size);
+}
+
+static int sdsi_mbox_cmd_write(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
+			       size_t *data_size)
+{
+	u64 control;
 
 	lockdep_assert_held(&priv->mb_lock);
 
@@ -252,23 +280,12 @@ static int sdsi_mbox_cmd_write(struct sdsi_priv *priv, struct sdsi_mbox_info *in
 		  FIELD_PREP(CTRL_SOM, 1) |
 		  FIELD_PREP(CTRL_RUN_BUSY, 1) |
 		  FIELD_PREP(CTRL_READ_WRITE, 1) |
-		  FIELD_PREP(CTRL_PACKET_SIZE, info->size);
+		  FIELD_PREP(CTRL_PACKET_SIZE, info->packet_size) |
+		  FIELD_PREP(CTRL_MSG_SIZE, info->packet_size);
+
 	writeq(control, priv->control_addr);
 
-	/* Poll on ready bit */
-	ret = readq_poll_timeout(priv->control_addr, control, control & CTRL_READY,
-				 MBOX_POLLING_PERIOD_US, MBOX_TIMEOUT_US);
-
-	if (ret)
-		goto release_mbox;
-
-	status = FIELD_GET(CTRL_STATUS, control);
-	ret = sdsi_status_to_errno(status);
-
-release_mbox:
-	sdsi_complete_transaction(priv);
-
-	return ret;
+	return sdsi_mbox_poll(priv, info, data_size);
 }
 
 static int sdsi_mbox_acquire(struct sdsi_priv *priv, struct sdsi_mbox_info *info)
@@ -312,7 +329,8 @@ static int sdsi_mbox_acquire(struct sdsi_priv *priv, struct sdsi_mbox_info *info
 	return ret;
 }
 
-static int sdsi_mbox_write(struct sdsi_priv *priv, struct sdsi_mbox_info *info)
+static int sdsi_mbox_write(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
+			   size_t *data_size)
 {
 	int ret;
 
@@ -322,10 +340,11 @@ static int sdsi_mbox_write(struct sdsi_priv *priv, struct sdsi_mbox_info *info)
 	if (ret)
 		return ret;
 
-	return sdsi_mbox_cmd_write(priv, info);
+	return sdsi_mbox_cmd_write(priv, info, data_size);
 }
 
-static int sdsi_mbox_read(struct sdsi_priv *priv, struct sdsi_mbox_info *info, size_t *data_size)
+static int sdsi_mbox_read(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
+			  size_t *data_size)
 {
 	int ret;
 
@@ -341,7 +360,7 @@ static int sdsi_mbox_read(struct sdsi_priv *priv, struct sdsi_mbox_info *info, s
 static ssize_t sdsi_provision(struct sdsi_priv *priv, char *buf, size_t count,
 			      enum sdsi_command command)
 {
-	struct sdsi_mbox_info info;
+	struct sdsi_mbox_info info = {};
 	int ret;
 
 	if (count > (SDSI_SIZE_WRITE_MSG - SDSI_SIZE_CMD))
@@ -360,10 +379,14 @@ static ssize_t sdsi_provision(struct sdsi_priv *priv, char *buf, size_t count,
 	/* Command is last qword of payload buffer */
 	info.payload[(info.size - SDSI_SIZE_CMD) / SDSI_SIZE_CMD] = command;
 
+	info.packet_size = info.size;
+
 	ret = mutex_lock_interruptible(&priv->mb_lock);
 	if (ret)
 		goto free_payload;
-	ret = sdsi_mbox_write(priv, &info);
+
+	ret = sdsi_mbox_write(priv, &info, NULL);
+
 	mutex_unlock(&priv->mb_lock);
 
 free_payload:
@@ -376,8 +399,8 @@ free_payload:
 }
 
 static ssize_t provision_akc_write(struct file *filp, struct kobject *kobj,
-				   struct bin_attribute *attr, char *buf, loff_t off,
-				   size_t count)
+				   struct bin_attribute *attr, char *buf,
+				   loff_t off, size_t count)
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct sdsi_priv *priv = dev_get_drvdata(dev);
@@ -390,8 +413,8 @@ static ssize_t provision_akc_write(struct file *filp, struct kobject *kobj,
 static BIN_ATTR_WO(provision_akc, SDSI_SIZE_WRITE_MSG);
 
 static ssize_t provision_cap_write(struct file *filp, struct kobject *kobj,
-				   struct bin_attribute *attr, char *buf, loff_t off,
-				   size_t count)
+				   struct bin_attribute *attr, char *buf,
+				   loff_t off, size_t count)
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct sdsi_priv *priv = dev_get_drvdata(dev);
@@ -407,7 +430,7 @@ static ssize_t
 certificate_read(u64 command, struct sdsi_priv *priv, char *buf, loff_t off,
 		 size_t count)
 {
-	struct sdsi_mbox_info info;
+	struct sdsi_mbox_info info = {};
 	size_t size;
 	int ret;
 
@@ -421,6 +444,7 @@ certificate_read(u64 command, struct sdsi_priv *priv, char *buf, loff_t off,
 
 	info.payload = &command;
 	info.size = sizeof(command);
+	info.packet_size = info.size;
 
 	ret = mutex_lock_interruptible(&priv->mb_lock);
 	if (ret)
@@ -544,6 +568,101 @@ static const struct attribute_group sdsi_group = {
 };
 __ATTRIBUTE_GROUPS(sdsi);
 
+// Attestation
+static int sdsi_spdm_exchange(void *private, struct spdm_exchange *spdm_ex)
+{
+	struct sdsi_priv *priv = private;
+	struct sdsi_mbox_info info = {};
+	size_t size;
+	int ret;
+
+	/*
+	 * For the attestation command, the total write size is the sum of:
+	 *     Size of the SPDM payload, padded of qword aligned
+	 *     8 bytes for the mailbox command
+	 *     8 bytes for the actual (non-padded) size of the SPDM payload
+	 */
+	if (spdm_ex->request_pl_sz > (SDSI_SIZE_WRITE_MSG - (SDSI_SIZE_CMD * 2)))
+		return -EOVERFLOW;
+
+	/* Qword aligned message + command qword */
+	info.size = round_up(spdm_ex->request_pl_sz, SDSI_SIZE_CMD) +
+		    SDSI_SIZE_CMD * 2;
+
+	info.payload = kzalloc(info.size, GFP_KERNEL);
+	if (!info.payload)
+		return -ENOMEM;
+
+	/* Buffer for return data */
+	info.buffer = kmalloc(SDSI_SIZE_READ_MSG, GFP_KERNEL);
+	if (!info.buffer)
+		return -ENOMEM;
+
+	/* Copy SPDM message to payload buffer */
+	memcpy(info.payload, spdm_ex->request_pl, spdm_ex->request_pl_sz);
+
+	/* Attestation mailbox command is 2nd-to-last qword of payload buffer */
+	info.payload[((info.size - SDSI_SIZE_CMD) / SDSI_SIZE_CMD) - 1] =
+		SDSI_CMD_ATTESTATION;
+
+	/* The non-padded SPDM payload size is the last qword */
+	info.payload[(info.size - SDSI_SIZE_CMD) / SDSI_SIZE_CMD] =
+		spdm_ex->request_pl_sz;
+
+	/* For actual packet size we need to subtract the SPDM payload space */
+	info.packet_size = info.size - SDSI_SIZE_CMD;
+
+	ret = mutex_lock_interruptible(&priv->mb_lock);
+	if (ret)
+		goto free_payload;
+	ret = sdsi_mbox_write(priv, &info, &size);
+	mutex_unlock(&priv->mb_lock);
+	if (ret < 0)
+		goto free_payload;
+
+	if (size < spdm_ex->response_pl_sz)
+		dev_warn(priv->dev, "Attestion warning: Expected response size %ld, got %ld\n",
+			spdm_ex->response_pl_sz, size);
+
+	if (size > spdm_ex->response_pl_sz)
+		dev_warn(priv->dev, "Expected response size %ld, got %ld. Ignoring excess\n",
+			 spdm_ex->response_pl_sz, size);
+
+	memcpy(spdm_ex->response_pl, info.buffer, spdm_ex->response_pl_sz);
+
+free_payload:
+	kfree(info.payload);
+	kfree(info.buffer);
+
+	if (ret)
+		return ret;
+
+	return size;
+}
+
+static int sdsi_init_spdm_state(struct sdsi_priv *priv) {
+
+	struct spdm_state *s;
+
+	if (!(priv->features & SDSI_FEATURE_ATTESTATION)) {
+		dev_dbg(priv->dev, "%s: Attestation not supported\n", __func__);
+		return 0;
+	}
+
+	s = devm_kzalloc(priv->dev, sizeof(*s), GFP_KERNEL);
+	if (!s)
+		return -ENOMEM;
+
+	s->dev = priv->dev;
+	s->transport_priv = priv;
+	s->transport_ex = sdsi_spdm_exchange;
+
+	spdm_init(s);
+	priv->spdm_state = s;
+
+	return 0;
+}
+
 static int sdsi_get_layout(struct sdsi_priv *priv, struct disc_table *table)
 {
 	switch (table->guid) {
@@ -562,8 +681,9 @@ static int sdsi_get_layout(struct sdsi_priv *priv, struct disc_table *table)
 	return 0;
 }
 
-static int sdsi_map_mbox_registers(struct sdsi_priv *priv, struct pci_dev *parent,
-				   struct disc_table *disc_table, struct resource *disc_res)
+static int
+sdsi_map_mbox_registers(struct sdsi_priv *priv, struct pci_dev *parent,
+			struct disc_table *disc_table, struct resource *disc_res)
 {
 	u32 access_type = FIELD_GET(DT_ACCESS_TYPE, disc_table->access_info);
 	u32 size = FIELD_GET(DT_SIZE, disc_table->access_info);
@@ -611,7 +731,8 @@ static int sdsi_map_mbox_registers(struct sdsi_priv *priv, struct pci_dev *paren
 	return 0;
 }
 
-static int sdsi_probe(struct auxiliary_device *auxdev, const struct auxiliary_device_id *id)
+static int
+sdsi_probe(struct auxiliary_device *auxdev, const struct auxiliary_device_id *id)
 {
 	struct intel_vsec_device *intel_cap_dev = auxdev_to_ivdev(auxdev);
 	struct disc_table disc_table;
@@ -644,11 +765,78 @@ static int sdsi_probe(struct auxiliary_device *auxdev, const struct auxiliary_de
 		return ret;
 
 	/* Map the SDSi mailbox registers */
-	ret = sdsi_map_mbox_registers(priv, intel_cap_dev->pcidev, &disc_table, disc_res);
+	ret = sdsi_map_mbox_registers(priv, intel_cap_dev->pcidev, &disc_table,
+				      disc_res);
 	if (ret)
 		return ret;
 
+	/* Used by genl attestation API */
+	priv->name = kasprintf(GFP_KERNEL, "intel_vsec.%s.%d", auxdev->name,
+			       auxdev->id);
+	if (!priv->name)
+		return -ENOMEM;
+
+	priv->id = auxdev->id;
+
+	/* Initialize spdm_state for attestation service if supported */
+	ret = sdsi_init_spdm_state(priv);
+	if (ret) {
+		kfree(priv->name);
+		return ret;
+	}
+
+	mutex_lock(&sdsi_list_lock);
+	list_add(&priv->node, &sdsi_list);
+	mutex_unlock(&sdsi_list_lock);
+
 	return 0;
+}
+
+static void
+sdsi_remove(struct auxiliary_device *auxdev)
+{
+	struct sdsi_priv *priv = auxiliary_get_drvdata(auxdev);
+
+	if (priv->spdm_state) {
+		spdm_finish(priv->spdm_state);
+		kfree(priv->spdm_state);
+	}
+
+	kfree(priv->name);
+	list_del(&priv->node);
+}
+
+int for_each_sdsi_device(int (*cb)(struct sdsi_priv *, void *),
+			 void *data)
+{
+	struct sdsi_priv *priv;
+	int ret = 0;
+
+	mutex_lock(&sdsi_list_lock);
+	list_for_each_entry(priv, &sdsi_list, node) {
+		ret = cb(priv, data);
+		if (ret)
+			break;
+	}
+	mutex_unlock(&sdsi_list_lock);
+
+	return ret;
+}
+
+struct sdsi_priv *sdsi_dev_get_by_id(int id)
+{
+	struct sdsi_priv *priv, *match = NULL;
+
+	mutex_lock(&sdsi_list_lock);
+	list_for_each_entry(priv, &sdsi_list, node) {
+		if (priv->id == id) {
+			match = priv;
+			break;
+		}
+	}
+	mutex_unlock(&sdsi_list_lock);
+
+	return match;
 }
 
 static const struct auxiliary_device_id sdsi_aux_id_table[] = {
@@ -663,9 +851,42 @@ static struct auxiliary_driver sdsi_aux_driver = {
 	},
 	.id_table	= sdsi_aux_id_table,
 	.probe		= sdsi_probe,
-	/* No remove. All resources are handled under devm */
+	.remove		= sdsi_remove,
 };
-module_auxiliary_driver(sdsi_aux_driver);
+
+static bool netlink_initialized;
+
+static int __init sdsi_init(void)
+{
+	int ret;
+
+
+	ret = auxiliary_driver_register(&sdsi_aux_driver);
+	if (ret)
+		goto error;
+
+	ret = sdsi_netlink_init();
+	if (ret)
+		pr_warn("Intel SDSi failed to init netlink\n");
+	else
+		netlink_initialized = true;
+
+error:
+	mutex_destroy(&sdsi_list_lock);
+	return ret;
+}
+module_init(sdsi_init);
+
+static void __exit sdsi_exit(void)
+{
+	if (netlink_initialized)
+		sdsi_netlink_exit();
+
+	auxiliary_driver_unregister(&sdsi_aux_driver);
+
+	mutex_destroy(&sdsi_list_lock);
+}
+module_exit(sdsi_exit);
 
 MODULE_AUTHOR("David E. Box <david.e.box@linux.intel.com>");
 MODULE_DESCRIPTION("Intel On Demand (SDSi) driver");
