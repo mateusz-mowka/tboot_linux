@@ -606,32 +606,14 @@ err_free_shash:
 
 static int spdm_negotiate_algs(struct spdm_state *spdm_state)
 {
-	struct spdm_req_alg_struct *req_alg_struct;
-	/*
-	 * Current support is focused on enabling PCI/CMA
-	 *
-	 * CMA requires that device must support
-	 * One or more of:
-	 *  - RSASSA_3072
-	 *  - ECDSA_ECC_NIST_P256
-	 *  - ECDSA_ECC_NIST_P384
-	 * One or more of:
-	 *  - SHA_256
-	 *  - SHA_384
-	 */
 	struct spdm_negotiate_algs_req *req;
 	struct spdm_negotiate_algs_rsp *rsp;
 	struct spdm_exchange spdm_ex;
-	/*
-	 * There are several variable length elements at the end of these structures.
-	 * Allow for 0 Ext Asym, 0 Ext Hash, 4 ReqAlgStructs
-	 */
-	size_t req_sz = sizeof(*req) + 16;
-	/*
-	 * Response length may be less than this if not all algorithm types supported,
-	 * resulting in fewer AlgStructure fields than in the request.
-	 */
-	size_t rsp_sz = sizeof(*rsp) + 16;
+
+	/* XXX: No extended algorithm support for S3M */
+	size_t req_sz = sizeof(*req);
+	size_t rsp_sz = sizeof(*rsp);
+
 	size_t length;
 	int rc;
 
