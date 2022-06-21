@@ -295,7 +295,7 @@ static size_t spdm_challenge_rsp_signature_offset(struct spdm_state *spdm_state,
 						 struct spdm_challenge_req *req,
 						 struct spdm_challenge_rsp *rsp)
 {
-	u16 opaque_length;
+	u16 opaque_length = 0;
 	size_t offset;
 
 	offset = sizeof(*rsp);		/* Header offset */
@@ -310,9 +310,9 @@ static size_t spdm_challenge_rsp_signature_offset(struct spdm_state *spdm_state,
 	 * This is almost certainly aligned, but that's not obvious from nearby code
 	 * so play safe.
 	 */
-	opaque_length = get_unaligned_le16((u8 *)rsp + offset);
-	offset += sizeof(__le16);
-	offset += opaque_length;
+	//opaque_length = get_unaligned_le16((u8 *)rsp + offset);
+	offset += sizeof(__le16); /* XXX: OpaqueLength field size */
+	offset += opaque_length; /* The length of OpaqueData */
 
 	return offset;
 }
