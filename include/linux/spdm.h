@@ -71,6 +71,7 @@ struct spdm_state {
 	enum spdm_meas_hash_algo measurement_hash_alg;
 	enum spdm_base_asym_algo base_asym_alg;
 	enum spdm_base_hash_algo base_hash_alg;
+	u8 cert_slot_no;
 	struct key *leaf_key;
 	size_t h; /* base hash length - H in specification */
 	size_t s; /* base asymmetric signature length - S in specification */

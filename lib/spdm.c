@@ -736,11 +736,9 @@ static DEFINE_IDA(spdm_ida);
 
 static int spdm_get_certificate(struct spdm_state *spdm_state)
 {
-	//TODO: Test this.
-	/* This should ensure the limitation is rarely at the requester */
 	u16 bufsize = 0x8000;
 	struct spdm_certificate_req req = {
-		.param1 = 0, /* Slot 0 */
+		.param1 = spdm_state->cert_slot_no,
 	};
 	struct spdm_certificate_rsp *rsp;
 	size_t rsp_sz;
@@ -1005,7 +1003,7 @@ static int spdm_verify_signature(struct spdm_state *spdm_state, u8 *sig_ptr,
 static int spdm_challenge(struct spdm_state *spdm_state)
 {
 	struct spdm_challenge_req req = {
-		.param1 = 0, /* slot 0 for now */
+		.param1 = spdm_state->cert_slot_no,
 		.param2 = 0, /* no measurement summary hash */
 	};
 	struct spdm_challenge_rsp *rsp;
