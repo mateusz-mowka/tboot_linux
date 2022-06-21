@@ -1083,6 +1083,7 @@ static int spdm_challenge(struct spdm_state *spdm_state)
 	}
 
 	kfree(spdm_state->desc);
+	crypto_free_shash(spdm_state->shash);
 
 	/* Clear to give a simple way to detect out of order */
 	spdm_state->desc = NULL;
