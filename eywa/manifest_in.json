@@ -2560,7 +2560,7 @@
                     "value": "m"
                 },
                 {
-                    "name": "CONIG_SPDM",
+                    "name": "CONFIG_SPDM",
                     "value": "m"
                 }
             ],
