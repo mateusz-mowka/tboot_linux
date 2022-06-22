@@ -2558,6 +2558,10 @@
                 {
                     "name": "CONFIG_INTEL_VSEC",
                     "value": "m"
+                },
+                {
+                    "name": "CONIG_SPDM",
+                    "value": "m"
                 }
             ],
             "contributor": [
