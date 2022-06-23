@@ -2,6 +2,8 @@ ifeq ($(srctree),)
 srctree := $(patsubst %/,%,$(dir $(CURDIR)))
 srctree := $(patsubst %/,%,$(dir $(srctree)))
 srctree := $(patsubst %/,%,$(dir $(srctree)))
+srctree := $(patsubst %/,%,$(dir $(srctree)))
+srctree := $(patsubst %/,%,$(dir $(srctree)))
 # $(info Determined 'srctree' to be $(srctree))
 endif
 
@@ -19,7 +21,8 @@ override CFLAGS += -O2 -Wall -Wno-unused-parameter -g -Werror
 SDSI_GENL_HDR := drivers/platform/x86/intel/sdsi_genl.h
 $(SDSI_GENL_HDR) : FORCE
 	make clean
-	ln -sf $(srctree)/$@ $(srctree)/tools/lib/intel_sdsi/
+	echo $(srctree)
+	ln -sf $(srctree)/$@ .
 	make libsdsi_spdm.so
 
 libsdsi_spdm.so : sdsi_spdm_nl.o sdsi_spdm.o
@@ -32,7 +35,7 @@ sdsi_spdm_nl.o : sdsi_spdm_nl.c
 	$(CC) $(CFLAGS) -c -fPIC $(INCL_PATH) -o $@ $< -L/lib/x86_64-linux-gnu -lnl-3 -lnl-genl-3
 
 clean:
-	rm -f *.o *.so sdsi_genl.h $(srctree)/tools/lib/intel_sdsi/$(SDSI_GENL_HDR)
+	rm -f *.o *.so sdsi_genl.h
 
 FORCE:
 
