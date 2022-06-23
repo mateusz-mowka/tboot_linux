@@ -92,6 +92,17 @@ static int sdsi_genl_cmd_get_measurements(struct param *p)
 	return 0;
 }
 
+static int sdsi_get_leaf_cert(size_t len, u8 *cert, void *arg)
+{
+	struct param *p = arg;
+	struct sk_buff *msg = p->msg;
+
+	if (nla_put(msg, SDSI_GENL_ATTR_DEV_CERT, len, cert))
+		return -EMSGSIZE;
+
+	return 0;
+}
+
 static int sdsi_genl_cmd_authorize(struct param *p)
 {
 	struct sk_buff *msg = p->msg;
@@ -122,6 +133,9 @@ static int sdsi_genl_cmd_authorize(struct param *p)
 
 	priv->spdm_state->rootkey = key;
 	priv->spdm_state->cert_slot_no = slot_no;
+	priv->spdm_state->cb_data = p;
+	priv->spdm_state->certificate_cb =
+		sdsi_get_leaf_cert;
 
 	ret = spdm_authenticate(priv->spdm_state);
 	key_put(priv->spdm_state->rootkey);

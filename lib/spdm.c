@@ -769,6 +769,7 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 	u8 *certs = NULL;
 	u16 certs_length = 0;
 	u16 next_cert;
+	u16 last_cert;
 	int rc;
 
 	rsp_sz = struct_size(rsp, cert_chain, bufsize);
@@ -912,11 +913,20 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 			key_put(spdm_state->leaf_key);
 			spdm_state->leaf_key = key_ref_to_ptr(key2);
 		}
+		last_cert = next_cert;
 		/*
 		 * Horrible but need to pull this directly from the ASN1 stream as the cert
 		 * chain is a concatentation of multiple cerificates.
 		 */
 		next_cert += get_unaligned_be16(certs + next_cert + 2) + 4;
+	}
+
+	/* Copy the leaf key to caller */
+	if (spdm_state->certificate_cb) {
+		rc = spdm_state->certificate_cb(offset - last_cert, certs + last_cert,
+						spdm_state->cb_data);
+		if (rc)
+			goto err_put_keyring;
 	}
 
 	/*
