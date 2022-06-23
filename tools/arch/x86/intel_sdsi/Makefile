@@ -11,8 +11,6 @@ endif
 INCL_PATH = \
 -I$(srctree)/lib/intel_sdsi
 
-intel_sdsi: intel_sdsi.c
-
 CC=gcc
 
 CFLAGS = -L/home/debox1/ext/repos/linux/tools/lib/intel_sdsi -Wextra
@@ -21,9 +19,9 @@ BINDIR ?= /usr/sbin
 
 LDFLAGS += -l:libsdsi_spdm.so -lkeyutils
 
-override CFLAGS += -O2 -Wall -g
+override CFLAGS += -O2 -Wall
 
-%: %.c
+intel_sdsi: sdsi.c
 	$(CC) $(CFLAGS) $(INCL_PATH) -o $@ $< $(LDFLAGS)
 
 .PHONY : clean
