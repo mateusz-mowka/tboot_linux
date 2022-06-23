@@ -3,7 +3,7 @@
 
 #include <netlink/netlink.h>
 
-struct sdsi_handler {
+struct sdsi_spdm_handle {
 	int done;
 	int error;
 	struct nl_msg *msg;
@@ -11,7 +11,7 @@ struct sdsi_handler {
 	struct nl_cb *cb;
 };
 
-struct sdsi_handler_param {
+struct sdsi_handle_param {
 	struct sdsi_handler *th;
 	void *arg;
 };

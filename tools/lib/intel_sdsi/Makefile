@@ -13,22 +13,22 @@ INCL_PATH = \
 
 CFLAGS = -Wextra
 
-#override CFLAGS += -O2 -Wall -Wno-unused-parameter -g #-Werror
-override CFLAGS += -Wall -Wno-unused-parameter -g #-Werror
+override CFLAGS += -O2 -Wall -Wno-unused-parameter -g -Werror
+#override CFLAGS += -Wall -Wno-unused-parameter -g #-Werror
 
 SDSI_GENL_HDR := drivers/platform/x86/intel/sdsi_genl.h
 $(SDSI_GENL_HDR) : FORCE
 	make clean
 	ln -sf $(srctree)/$@ $(srctree)/tools/lib/intel_sdsi/
-	make libsdsi.so
+	make libsdsi_spdm.so
 
-libsdsi.so : sdsi_nl.o sdsi.o
+libsdsi_spdm.so : sdsi_spdm_nl.o sdsi_spdm.o
 	$(CC) $(CFLAGS) -shared -o $@ $^ -L/lib/x86_64-linux-gnu -lnl-3 -lnl-genl-3
 
-sdsi.o : sdsi.c
+sdsi_spdm.o : sdsi_spdm.c
 	$(CC) $(CFLAGS) -c -fPIC $(INCL_PATH) -o $@ $< -L/lib/x86_64-linux-gnu -lnl-3 -lnl-genl-3
 
-sdsi_nl.o : sdsi_nl.c
+sdsi_spdm_nl.o : sdsi_spdm_nl.c
 	$(CC) $(CFLAGS) -c -fPIC $(INCL_PATH) -o $@ $< -L/lib/x86_64-linux-gnu -lnl-3 -lnl-genl-3
 
 clean:

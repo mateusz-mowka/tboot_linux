@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "sdsi_genl.h"
-#include "sdsi_nl.h"
-#include "sdsi.h"
+#include "sdsi_genl.h"		// copied from driver
+#include "sdsi_spdm_nl.h"
+#include "sdsi_spdm.h"
 
 static struct nla_policy sdsi_genl_policy[SDSI_GENL_ATTR_MAX + 1] = {
 	[SDSI_GENL_ATTR_DEVS]			= { .type = NLA_NESTED },
@@ -25,7 +25,7 @@ static struct nla_policy sdsi_genl_policy[SDSI_GENL_ATTR_MAX + 1] = {
 	[SDSI_GENL_ATTR_MEAS_SIG]		= { .type = NLA_BINARY },
 };
 
-static int __parse_id(struct genl_info *info, struct sdsi_device *s)
+static int __parse_id(struct genl_info *info, struct sdsi_spdm_device *s)
 {
 	int id = -1;
 
@@ -38,7 +38,7 @@ static int __parse_id(struct genl_info *info, struct sdsi_device *s)
 	return SDSI_SUCCESS;
 }
 
-static int parse_authorize(struct genl_info *info, struct sdsi_device *s)
+static int parse_authorize(struct genl_info *info, struct sdsi_spdm_device *s)
 {
 	int ret;
 
@@ -47,27 +47,27 @@ static int parse_authorize(struct genl_info *info, struct sdsi_device *s)
 		return ret;
 
 	if (info->attrs[SDSI_GENL_ATTR_DEV_CERT]) {
-		s->cert_size = nla_len(info->attrs[SDSI_GENL_ATTR_DEV_CERT]);
+		s->cert_chain_size = nla_len(info->attrs[SDSI_GENL_ATTR_DEV_CERT]);
 
-		s->dev_cert = malloc(s->cert_size);
-		if (!s->dev_cert) {
+		s->cert_chain = malloc(s->cert_chain_size);
+		if (!s->cert_chain) {
 			fprintf(stderr, "%s: Could not allocate memory for measurement:\n%s\n",
 				__func__, strerror(errno));
 			return SDSI_ERROR;
 		}
 
-		memcpy(s->dev_cert,
+		memcpy(s->cert_chain,
 		       nla_data(info->attrs[SDSI_GENL_ATTR_DEV_CERT]),
-		       s->cert_size);
+		       s->cert_chain_size);
 	} else {
-		s->dev_cert = NULL;
-		s->cert_size = 0;
+		s->cert_chain = NULL;
+		s->cert_chain_size = 0;
 	}
 
 	return SDSI_SUCCESS;
 }
 
-static int parse_measurements(struct genl_info *info, struct sdsi_device *s)
+static int parse_measurements(struct genl_info *info, struct sdsi_spdm_device *s)
 {
 	int ret;
 
@@ -78,20 +78,20 @@ static int parse_measurements(struct genl_info *info, struct sdsi_device *s)
 	if (info->attrs[SDSI_GENL_ATTR_MEASUREMENT]) {
 		s->meas_size = nla_len(info->attrs[SDSI_GENL_ATTR_MEASUREMENT]);
 
-		s->measurement = malloc(s->meas_size);
-		if (!s->measurement) {
+		s->meas = malloc(s->meas_size);
+		if (!s->meas) {
 			fprintf(stderr, "%s: Could not allocate memory for measurement:\n%s\n",
 				__func__, strerror(errno));
 			return SDSI_ERROR;
 		}
 
-		memcpy(s->measurement,
+		memcpy(s->meas,
 		       nla_data(info->attrs[SDSI_GENL_ATTR_MEASUREMENT]),
 		       s->meas_size);
 	} else {
 		fprintf(stderr, "%s: Could not get measurement\n", __func__);
 		s->meas_size = 0;
-		s->measurement = NULL;
+		s->meas = NULL;
 		return SDSI_ERROR;
 	}
 
@@ -139,7 +139,7 @@ static int parse_measurements(struct genl_info *info, struct sdsi_device *s)
 static int handle_spdm(struct nl_cache_ops *unused, struct genl_cmd *cmd,
 		       struct genl_info *info, void *arg)
 {
-	struct sdsi_device *s = arg;
+	struct sdsi_spdm_device *s = arg;
 	int ret; int id = -1;
 
 	if (info->attrs[SDSI_GENL_ATTR_DEV_ID])
@@ -168,8 +168,8 @@ static int handle_get_devs(struct nl_cache_ops *unused, struct genl_cmd *cmd,
 			   struct genl_info *info, void *arg)
 {
 	struct nlattr *attr;
-	struct sdsi_device **s = arg;;
-	struct sdsi_device *__s = NULL;
+	struct sdsi_spdm_device **s = arg;;
+	struct sdsi_spdm_device *__s = NULL;
 	size_t size = 0;
 	int rem;
 
@@ -229,10 +229,10 @@ static struct genl_ops sdsi_cmd_ops = {
 	.o_ncmds	= ARRAY_SIZE(sdsi_cmds),
 };
 
-static int sdsi_genl_simple(struct sdsi_handler *hndlr, int id, int cmd,
+static int sdsi_genl_simple(struct sdsi_spdm_handle *hndl, int id, int cmd,
 			    int flags, void *arg)
 {
-	struct sdsi_device *dev = arg;
+	struct sdsi_spdm_device *dev = arg;
 	struct nl_msg *msg;
 	void *hdr;
 
@@ -252,13 +252,13 @@ static int sdsi_genl_simple(struct sdsi_handler *hndlr, int id, int cmd,
 		if (nla_put_u8(msg, SDSI_GENL_ATTR_CERT_SLOT_NO, dev->cert_slot_no))
 			return SDSI_ERROR;
 	} else if (cmd == SDSI_GENL_CMD_GET_MEASUREMENTS) {
-		if (nla_put_u8(msg, SDSI_GENL_ATTR_MEAS_SLOT_NO, dev->meas_slot_no))
+		if (nla_put_u8(msg, SDSI_GENL_ATTR_MEAS_SLOT_NO, dev->meas_slot_index))
 			return SDSI_ERROR;
-		if (nla_put_u8(msg, SDSI_GENL_ATTR_SIGN_MEAS, dev->sign))
+		if (nla_put_u8(msg, SDSI_GENL_ATTR_SIGN_MEAS, dev->sign_meas))
 			return SDSI_ERROR;
 	}
 
-	if (nl_send_msg(hndlr->sk, hndlr->cb, msg, genl_handle_msg, arg))
+	if (nl_send_msg(hndl->sk, hndl->cb, msg, genl_handle_msg, arg))
 		return SDSI_ERROR;
 
 	nlmsg_free(msg);
@@ -266,77 +266,77 @@ static int sdsi_genl_simple(struct sdsi_handler *hndlr, int id, int cmd,
 	return SDSI_SUCCESS;
 }
 
-int sdsi_cmd_get_measurements(struct sdsi_handler *hndlr, struct sdsi_device *dev)
+int sdsi_spdm_get_measurement(struct sdsi_spdm_handle *hndl, struct sdsi_spdm_device *dev)
 {
-	return sdsi_genl_simple(hndlr, dev->id, SDSI_GENL_CMD_GET_MEASUREMENTS, 0, dev);
+	return sdsi_genl_simple(hndl, dev->id, SDSI_GENL_CMD_GET_MEASUREMENTS, 0, dev);
 }
 
-int sdsi_cmd_authorize(struct sdsi_handler *hndlr, struct sdsi_device *dev)
+int sdsi_spdm_authorize(struct sdsi_spdm_handle *hndl, struct sdsi_spdm_device *dev)
 {
-	return sdsi_genl_simple(hndlr, dev->id, SDSI_GENL_CMD_AUTHORIZE, 0, dev);
+	return sdsi_genl_simple(hndl, dev->id, SDSI_GENL_CMD_AUTHORIZE, 0, dev);
 }
 
-int sdsi_cmd_get_devices(struct sdsi_handler *hndlr, struct sdsi_device **dev)
+int sdsi_spdm_get_devices(struct sdsi_spdm_handle *hndl, struct sdsi_spdm_device **dev)
 {
-	return sdsi_genl_simple(hndlr, -1, SDSI_GENL_CMD_GET_DEVS,
+	return sdsi_genl_simple(hndl, -1, SDSI_GENL_CMD_GET_DEVS,
 				NLM_F_DUMP | NLM_F_ACK, dev);
 }
 
-static int sdsi_cmd_exit(struct sdsi_handler *hndlr)
+static int sdsi_cmd_exit(struct sdsi_spdm_handle *hndl)
 {
 	if (genl_unregister_family(&sdsi_cmd_ops))
 		return SDSI_ERROR;
 
-	nl_sdsi_disconnect(hndlr->sk, hndlr->cb);
+	nl_sdsi_disconnect(hndl->sk, hndl->cb);
 
 	return SDSI_SUCCESS;
 }
 
-static int sdsi_cmd_init(struct sdsi_handler *hndlr)
+static int sdsi_cmd_init(struct sdsi_spdm_handle *hndl)
 {
 	int ret;
 	int family;
 
-	if (nl_sdsi_connect(&hndlr->sk, &hndlr->cb))
+	if (nl_sdsi_connect(&hndl->sk, &hndl->cb))
 		return SDSI_ERROR;
 
 	ret = genl_register_family(&sdsi_cmd_ops);
 	if (ret)
 		return SDSI_ERROR;
 
-	ret = genl_ops_resolve(hndlr->sk, &sdsi_cmd_ops);
+	ret = genl_ops_resolve(hndl->sk, &sdsi_cmd_ops);
 	if (ret)
 		return SDSI_ERROR;
 
-	family = genl_ctrl_resolve(hndlr->sk, "nlctrl");
+	family = genl_ctrl_resolve(hndl->sk, "nlctrl");
 	if (family != GENL_ID_CTRL)
 		return SDSI_ERROR;
 
 	return SDSI_SUCCESS;
 }
 
-void sdsi_exit(struct sdsi_handler *hndlr)
+void sdsi_spdm_exit(struct sdsi_spdm_handle *hndl)
 {
-	sdsi_cmd_exit(hndlr);
+	sdsi_cmd_exit(hndl);
 
-	free(hndlr);
+	free(hndl);
 }
 
-struct sdsi_handler *sdsi_init(void)
+struct sdsi_spdm_handle *sdsi_spdm_init(void)
 {
-	struct sdsi_handler *hndlr;
+	struct sdsi_spdm_handle *hndl;
 
-	hndlr = malloc(sizeof(*hndlr));
-	if (!hndlr)
+	hndl = malloc(sizeof(*hndl));
+	if (!hndl)
 		return NULL;
 
-	if (sdsi_cmd_init(hndlr))
+	if (sdsi_cmd_init(hndl))
 		goto out_free;
 
-	return hndlr;
+	return hndl;
 
 out_free:
-	free(hndlr);
+	free(hndl);
 
 	return NULL;
 }

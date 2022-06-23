@@ -6,7 +6,7 @@
 #include <netlink/netlink.h>
 #include <netlink/genl/genl.h>
 
-#include "sdsi_nl.h"
+#include "sdsi_spdm_nl.h"
 
 static __thread int err;
 static __thread int done;
