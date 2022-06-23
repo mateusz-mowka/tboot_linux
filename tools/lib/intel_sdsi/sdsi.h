@@ -25,6 +25,12 @@ struct sdsi_device {
 	bool sign;
 	uint8_t *measurement;
 	size_t meas_size;
+	uint8_t *meas_sig;
+	size_t meas_sig_size;
+	uint8_t *meas_ts;
+	size_t meas_ts_size;
+	uint8_t *dev_cert;
+	size_t cert_size;
 };
 
 typedef enum {
