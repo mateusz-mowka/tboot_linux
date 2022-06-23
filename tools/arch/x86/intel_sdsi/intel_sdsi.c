@@ -568,8 +568,20 @@ static int sdsi_verify(struct sdsi_dev *s, int slot_no)
 	if (ret) {
 		fprintf(stderr, "Authorization failed\n");
 		goto free_d;
-	} else
-		puts("Device authorization successful :)");
+	} else {
+		puts("Device authorization successful");
+
+		if (d->dev_cert) {
+			uint32_t *buf = (uint32_t *)d->dev_cert;
+			size_t i;
+
+			puts("Device Certficate:");
+			for (i = 0; i < d->cert_size / 4; i++)
+				printf("\t%08x\n", buf[i]);
+			if (d->cert_size % 4)
+				printf("\t%08x\n", buf[i]);
+		}
+	}
 
 finish:
 	sdsi_exit(hndlr);
@@ -597,6 +609,8 @@ static int sdsi_get_measurements(struct sdsi_dev *s, int slot_no, bool sign)
 	if (!d)
 		return -1;
 
+
+	/* Find matching device */
 	t = d;
 	while (t->id != -1) {
 		if (strncmp(t->name, s->dev_name, strlen(s->dev_name)) == 0) {
@@ -613,11 +627,14 @@ static int sdsi_get_measurements(struct sdsi_dev *s, int slot_no, bool sign)
 		goto finish;
 	}
 
+	/* Select measurement index and sign request */
 	d->meas_slot_no = slot_no;
 	d->sign = sign;
+
+	/* Call into driver to get measurements */
 	ret = sdsi_cmd_get_measurements(hndlr, d);
 	if (ret) {
-		fprintf(stderr, "Authorization failed\n");
+		fprintf(stderr, "Get measurements failed\n");
 		goto free_d;
 	}
 
@@ -628,6 +645,29 @@ static int sdsi_get_measurements(struct sdsi_dev *s, int slot_no, bool sign)
 	for (i = d->meas_size - 1; i >= 0; i--)
 		printf("%02x", d->measurement[i]);
 	puts("");
+
+	/* Print the measurement signature that was signed by the device */
+	if (d->meas_sig) {
+		printf("Signature, size %ld:\n\t", d->meas_sig_size);
+		for (i = d->meas_sig_size - 1; i >= 0; i--)
+			printf("%02x", d->meas_sig[i]);
+	}
+
+	/* Print the transcript that was recorded by the kernel */
+	if (d->meas_ts) {
+		uint32_t *buf = (uint32_t *)d->meas_ts;
+		size_t i;
+
+		printf("\nTranscript, size %ld:\n", d->meas_ts_size);
+		for (i = 0; i < d->meas_ts_size / 4; i++)
+			printf("\t%08x\n", buf[i]);
+		if (d->meas_ts_size % 4 == 3)
+			printf("\t%06x\n", buf[i] & 0xFFFFFF);
+		else if (d->meas_ts_size % 4 == 2)
+			printf("\t%04x\n", buf[i] & 0xFFFF);
+		else if (d->meas_ts_size % 4 == 1)
+			printf("\t%02x\n", buf[i] & 0xFF);
+	}
 
 finish:
 	sdsi_exit(hndlr);
