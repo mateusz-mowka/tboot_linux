@@ -9,11 +9,11 @@ srctree := $(patsubst %/,%,$(dir $(srctree)))
 endif
 
 INCL_PATH = \
--I$(srctree)/lib/intel_sdsi
+-Ilib/
 
 CC=gcc
 
-CFLAGS = -L/home/debox1/ext/repos/linux/tools/lib/intel_sdsi -Wextra
+CFLAGS = -L. -Wextra
 
 BINDIR ?= /usr/sbin
 
@@ -21,12 +21,17 @@ LDFLAGS += -l:libsdsi_spdm.so -lkeyutils
 
 override CFLAGS += -O2 -Wall
 
-intel_sdsi: sdsi.c
+intel_sdsi: sdsi.c libsdsi_spdm.so
 	$(CC) $(CFLAGS) $(INCL_PATH) -o $@ $< $(LDFLAGS)
+
+libsdsi_spdm.so:
+	$(MAKE) -C lib/
+	cp lib/$@ .
 
 .PHONY : clean
 clean :
-	@rm -f intel_sdsi
+	@rm -f intel_sdsi libsdsi_spdm.so
+	$(MAKE) clean -C lib/
 
 install : intel_sdsi
 	install -d  $(DESTDIR)$(BINDIR)
