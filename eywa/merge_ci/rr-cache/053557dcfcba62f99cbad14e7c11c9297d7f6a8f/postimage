@@ -44,11 +44,11 @@
 
 static struct microcode_ops	*microcode_ops;
 static bool dis_ucode_ldr = true;
-bool ucode_rollback = false;
-int enable_rollback = 0;
 #ifdef CONFIG_SVOS
 bool late_load = false;
 #endif
+bool ucode_rollback = false;
+int enable_rollback = 0;
 
 bool initrd_gone;
 
