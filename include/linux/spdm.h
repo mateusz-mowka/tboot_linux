@@ -90,6 +90,8 @@ struct spdm_state {
 	 */
 	void *a;
 	size_t a_length;
+	void *l;
+	size_t l_length;
 	struct crypto_shash *shash;
 	struct crypto_shash *m_shash;
 	struct shash_desc *desc;
@@ -105,6 +107,8 @@ struct spdm_state {
 	int (*transport_ex)(void *priv, struct spdm_exchange *spdm_ex);
 	int (*certificate_cb)(size_t count, u8 *certificate, void *arg);
 	int (*measurement_cb)(size_t count, u8 *measurements, void *arg);
+	int (*meas_transcript_cb)(size_t count, u8 *transcript, void *arg);
+	int (*meas_sig_cb)(size_t count, u8 *transcript, void *arg);
 	void *cb_data;
 };
 
