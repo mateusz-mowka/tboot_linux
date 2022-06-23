@@ -921,9 +921,9 @@ static int spdm_get_certificate(struct spdm_state *spdm_state)
 		next_cert += get_unaligned_be16(certs + next_cert + 2) + 4;
 	}
 
-	/* Copy the leaf key to caller */
+	/* Send the entire certificate chain */
 	if (spdm_state->certificate_cb) {
-		rc = spdm_state->certificate_cb(offset - last_cert, certs + last_cert,
+		rc = spdm_state->certificate_cb(certs_length, certs,
 						spdm_state->cb_data);
 		if (rc)
 			goto err_put_keyring;
@@ -1180,6 +1180,22 @@ enum measurement_type {
 	MEASUREMENT_REQUEST_SIGNED,
 };
 
+static int spdm_append_buffer_l(struct spdm_state *spdm_state, void *data,
+				size_t data_size)
+{
+	u8 *l_new;
+
+	l_new = krealloc(spdm_state->l, spdm_state->l_length + data_size, GFP_KERNEL);
+	if (!l_new)
+		return -ENOMEM;
+
+	spdm_state->l = l_new;
+	memcpy(spdm_state->l + spdm_state->l_length, data, data_size);
+	spdm_state->l_length += data_size;
+
+	return 0;
+}
+
 static int __spdm_get_measurements(struct spdm_state *spdm_state)
 {
 	struct spdm_measurements_req req = {
@@ -1263,8 +1279,13 @@ static int __spdm_get_measurements(struct spdm_state *spdm_state)
 	}
 
 	/* At this point if we error, we must free the digest and hash */
-	dev_err(spdm_state->dev, "Hashing\n");
+
+	/* Hash the request */
 	rc = spdm_get_measurements_update_hash(spdm_state, &req, sizeof(req));
+	if (rc < 0)
+		goto free_hash;
+
+	rc = spdm_append_buffer_l(spdm_state, &req, sizeof(req));
 	if (rc < 0)
 		goto free_hash;
 
@@ -1272,7 +1293,12 @@ static int __spdm_get_measurements(struct spdm_state *spdm_state)
 		/* Hash the response */
 		rc = spdm_get_measurements_update_hash(spdm_state, rsp, length);
 		if (rc < 0)
-			goto free_hash;
+			goto free_l;
+
+		rc = spdm_append_buffer_l(spdm_state, rsp, length);
+		if (rc < 0)
+			goto free_l;
+
 	} else {
 		size_t h = crypto_shash_digestsize(spdm_state->m_shash);
 		size_t sig_offset = length - spdm_state->s;
@@ -1281,19 +1307,35 @@ static int __spdm_get_measurements(struct spdm_state *spdm_state)
 		/* Hash the response, without the signature portion */
 		rc = spdm_get_measurements_update_hash(spdm_state, rsp, sig_offset);
 		if (rc < 0)
-			goto free_hash;
+			goto free_l;
 
 		digest = kmalloc(h, GFP_KERNEL);
 		if (!digest) {
 			rc = -ENOMEM;
-			goto free_hash;
+			goto free_l;
 		}
 
+		rc = spdm_append_buffer_l(spdm_state, rsp, sig_offset);
+		if (rc < 0)
+			goto free_l;
+
+		/* Send back the transcript and signature now */
+		rc = spdm_state->meas_transcript_cb(spdm_state->l_length, spdm_state->l,
+						    spdm_state->cb_data);
+		if (rc)
+			dev_warn(spdm_state->dev, "GET_MEASUREMENTS: Transcript callback error\n");
+
+		rc = spdm_state->meas_sig_cb(spdm_state->s, (u8 *)rsp + sig_offset,
+					     spdm_state->cb_data);
+		if (rc)
+			dev_warn(spdm_state->dev, "GET_MEASUREMENTS: Signature callback error\n");
+
+		/* Calculate the final hash and verify the signature */
 		rc = crypto_shash_final(spdm_state->mdesc, digest);
 		if  (rc) {
 			dev_err(spdm_state->dev, "GET_MEASUREMENTS: Could not finalize hash\n");
 			kfree(digest);
-			goto free_hash;
+			goto free_l;
 		}
 
 		rc = spdm_verify_signature(spdm_state, (u8 *)rsp + sig_offset,
@@ -1302,7 +1344,7 @@ static int __spdm_get_measurements(struct spdm_state *spdm_state)
 
 		if (rc) {
 			dev_err(spdm_state->dev, "GET_MEASUREMENTS: Failed to verify signature\n");
-			goto free_hash;
+			goto free_l;
 		}
 
 		dev_info(spdm_state->dev, "SPDM: GET_MEASUREMENTS: Succesfully verified signature\n");
@@ -1310,6 +1352,11 @@ static int __spdm_get_measurements(struct spdm_state *spdm_state)
 		kfree(spdm_state->mdesc);
 		crypto_free_shash(spdm_state->m_shash);
 		spdm_state->mdesc = NULL;
+
+		kfree(spdm_state->l);
+		spdm_state->l = NULL;
+		spdm_state->l_length = 0;
+
 	}
 
 	/* Invoke callback to return count or measurement */
@@ -1323,6 +1370,11 @@ static int __spdm_get_measurements(struct spdm_state *spdm_state)
 free_rsp:
 	kfree(rsp);
 	return rc;
+
+free_l:
+	kfree(spdm_state->l);
+	spdm_state->l = NULL;
+	spdm_state->l_length = 0;
 
 free_hash:
 	kfree(spdm_state->mdesc);
@@ -1442,6 +1494,7 @@ void spdm_init(struct spdm_state *spdm_state)
 	 * There should be no previous key in here when we start.
 	 */
 	spdm_state->leaf_key = NULL;
+	spdm_state->l = NULL;
 }
 EXPORT_SYMBOL_GPL(spdm_init);
 
