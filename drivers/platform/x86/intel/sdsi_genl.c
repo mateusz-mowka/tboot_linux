@@ -54,6 +54,28 @@ static int sdsi_measurements(size_t count, u8 *measurement, void *arg)
 	return 0;
 }
 
+static int sdsi_meas_transcript(size_t count, u8 *meas_transcript, void *arg)
+{
+	struct param *p = arg;
+	struct sk_buff *msg = p->msg;
+
+	if (nla_put(msg, SDSI_GENL_ATTR_MEAS_TRANSCRIPT, count, meas_transcript))
+		return -EMSGSIZE;
+
+	return 0;
+}
+
+static int sdsi_meas_sig(size_t count, u8 *meas_sig, void *arg)
+{
+	struct param *p = arg;
+	struct sk_buff *msg = p->msg;
+
+	if (nla_put(msg, SDSI_GENL_ATTR_MEAS_SIG, count, meas_sig))
+		return -EMSGSIZE;
+
+	return 0;
+}
+
 static int sdsi_genl_cmd_get_measurements(struct param *p)
 {
 	struct sk_buff *msg = p->msg;
@@ -74,6 +96,8 @@ static int sdsi_genl_cmd_get_measurements(struct param *p)
 		return -EINVAL;
 
 	priv->spdm_state->measurement_cb = sdsi_measurements;
+	priv->spdm_state->meas_transcript_cb = sdsi_meas_transcript;
+	priv->spdm_state->meas_sig_cb = sdsi_meas_sig;
 	priv->spdm_state->cb_data = p;
 	priv->spdm_state->meas_slot_no = slot_no;
 	priv->spdm_state->measurement_sign = sign;
@@ -115,6 +139,12 @@ static int sdsi_genl_cmd_authorize(struct param *p)
 		return -EINVAL;
 
 	id = nla_get_u32(p->attrs[SDSI_GENL_ATTR_DEV_ID]);
+
+	if (!p->attrs[SDSI_GENL_ATTR_CERT_SLOT_NO]) {
+		pr_err("No cert slot no provided\n");
+		return -EINVAL;
+	}
+
 	slot_no = nla_get_u8(p->attrs[SDSI_GENL_ATTR_CERT_SLOT_NO]);
 
 	priv = sdsi_dev_get_by_id(id);
