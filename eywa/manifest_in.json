@@ -4033,11 +4033,19 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "svos-next-tdx-pull-5.17",
+            "branch": "svos-next-pull-5.19",
             "branch_type": "expiring",
             "config_options": [
                 {
                     "name": "CONFIG_SVOS",
+                    "value": "n"
+                },
+                {
+                    "name": "CONFIG_SVFS_ACPI",
+                    "value": "n"
+                },
+                {
+                    "name": "CONFIG_SVOS_RAS_ERRORCORRECT",
                     "value": "n"
                 }
             ],
@@ -4047,17 +4055,17 @@
                     "email": "eric.d.fagerburg@intel.com"
                 }
             ],
-            "description": "SVOS TDX Modifications for v5.17",
-            "enabled": false,
+            "description": "SVOS TDX Modifications for v5.19",
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Tom Stonecypher",
                     "email": "tom.stonecypher@intel.com"
                 }
             ],
-            "jira": "",
-            "name": "SVOS_TDX",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/svos/sv/kernel/svos_next",
+            "jira": "NEXT-2988",
+            "name": "svos",
+            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/svos/sv/kernel/svos_next.git",
             "sdl_contact": [
                 {
                     "name": "Tom Stonecypher",
@@ -4066,7 +4074,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "ptm_disable",
