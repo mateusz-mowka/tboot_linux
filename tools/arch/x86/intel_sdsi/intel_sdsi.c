@@ -24,7 +24,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "sdsi.h"
+#include "sdsi_spdm.h"
 
 #ifndef __packed
 #define __packed __attribute__((packed))
@@ -531,148 +531,160 @@ static int sdsi_state_cert_show(struct sdsi_dev *s)
 
 static int sdsi_verify(struct sdsi_dev *s, int slot_no)
 {
-	struct sdsi_handler *hndlr;
-	struct sdsi_device *d, *t;
+	struct sdsi_spdm_handle *hndl;
+	struct sdsi_spdm_device *spdm_dev, *spdm_dev_list;
 	bool device_found = false;
 	int ret;
 
-	hndlr = sdsi_init();
-	if (!hndlr)
+	/* Initialize netlink connection */
+	hndl = sdsi_spdm_init();
+	if (!hndl)
 		return -1;
 
-	ret = sdsi_cmd_get_devices(hndlr, &d);
+	/* Get list of devices */
+	ret = sdsi_spdm_get_devices(hndl, &spdm_dev_list);
 	if (ret)
 		goto finish;
 
-	if (!d)
+	if (!spdm_dev_list)
 		return -1;
 
-	t = d;
-	while (t->id != -1) {
-		if (strncmp(t->name, s->dev_name, strlen(s->dev_name)) == 0) {
+	spdm_dev = spdm_dev_list;
+	while (spdm_dev->id != -1) {
+		if (strncmp(spdm_dev->name, s->dev_name, strlen(s->dev_name)) == 0) {
 			device_found = true;
 			break;
 		}
-		t++;
+		spdm_dev++;
 	}
 
 	if (!device_found) {
 		fprintf(stderr, "Could not find device %s to verify\n",
 			s->dev_name);
 		ret = -1;
-		goto finish;
+		goto free_spdm_dev_list;
 	}
 
-	d->cert_slot_no = slot_no;
-	ret = sdsi_cmd_authorize(hndlr, d);
+	spdm_dev->cert_slot_no = slot_no;
+	ret = sdsi_spdm_authorize(hndl, spdm_dev);
 	if (ret) {
 		fprintf(stderr, "Authorization failed\n");
-		goto free_d;
+		goto free_spdm_dev_list;
 	} else {
 		puts("Device authorization successful");
 
-		if (d->dev_cert) {
-			uint32_t *buf = (uint32_t *)d->dev_cert;
+		if (spdm_dev->cert_chain) {
+			uint32_t *buf = (uint32_t *)spdm_dev->cert_chain;
 			size_t i;
 
 			puts("Device Certficate:");
-			for (i = 0; i < d->cert_size / 4; i++)
+			for (i = 0; i < spdm_dev->cert_chain_size / 4; i++)
 				printf("\t%08x\n", buf[i]);
-			if (d->cert_size % 4)
+			if (spdm_dev->cert_chain_size % 4)
 				printf("\t%08x\n", buf[i]);
 		}
 	}
 
+free_spdm_dev_list:
+	free(spdm_dev_list);
 finish:
-	sdsi_exit(hndlr);
-free_d:
-	free(d);
+	sdsi_spdm_exit(hndl);
 
 	return ret;
 }
 
 static int sdsi_get_measurements(struct sdsi_dev *s, int slot_no, bool sign)
 {
-	struct sdsi_handler *hndlr;
-	struct sdsi_device *d, *t;
+	struct sdsi_spdm_handle *hndl;
+	struct sdsi_spdm_device *spdm_dev, *spdm_dev_list;
 	bool device_found = false;
 	int ret, i;
 
-	hndlr = sdsi_init();
-	if (!hndlr)
+	hndl = sdsi_spdm_init();
+	if (!hndl)
 		return -1;
 
-	ret = sdsi_cmd_get_devices(hndlr, &d);
+	ret = sdsi_spdm_get_devices(hndl, &spdm_dev_list);
 	if (ret)
 		goto finish;
 
-	if (!d)
+	if (!spdm_dev_list)
 		return -1;
 
 
 	/* Find matching device */
-	t = d;
-	while (t->id != -1) {
-		if (strncmp(t->name, s->dev_name, strlen(s->dev_name)) == 0) {
+	spdm_dev = spdm_dev_list;
+	while (spdm_dev->id != -1) {
+		if (strncmp(spdm_dev->name, s->dev_name, strlen(s->dev_name)) == 0) {
 			device_found = true;
 			break;
 		}
-		t++;
+		spdm_dev++;
 	}
 
 	if (!device_found) {
 		fprintf(stderr, "Could not find device %s to get measurement\n",
-			s->dev_name);
+			spdm_dev->name);
 		ret = -1;
-		goto finish;
+		goto free_spdm_dev_list;
 	}
 
 	/* Select measurement index and sign request */
-	d->meas_slot_no = slot_no;
-	d->sign = sign;
+	spdm_dev->meas_slot_index = slot_no;
+	spdm_dev->sign_meas = sign;
 
-	/* Call into driver to get measurements */
-	ret = sdsi_cmd_get_measurements(hndlr, d);
+	/* Call into driver to get measurement */
+	ret = sdsi_spdm_get_measurement(hndl, spdm_dev);
 	if (ret) {
 		fprintf(stderr, "Get measurements failed\n");
-		goto free_d;
+		goto free_spdm_dev_list;
 	}
 
+	/* Display Measurement Data */
 	printf("%sMeasurement for %s configuration, size %ld:\n",
-	       d->sign ? "Signed " : "",
-	       slot_no == 0 ? "State" : "Meter", d->meas_size);
+	       spdm_dev->sign_meas ? "Signed " : "",
+	       slot_no == 0 ? "State" : "Meter", spdm_dev->meas_size);
 	printf("\t");
-	for (i = d->meas_size - 1; i >= 0; i--)
-		printf("%02x", d->measurement[i]);
+	for (i = spdm_dev->meas_size - 1; i >= 0; i--)
+		printf("%02x", spdm_dev->meas[i]);
 	puts("");
 
+	/* Done with measurement data */
+	free(spdm_dev->meas);
+
 	/* Print the measurement signature that was signed by the device */
-	if (d->meas_sig) {
-		printf("Signature, size %ld:\n\t", d->meas_sig_size);
-		for (i = d->meas_sig_size - 1; i >= 0; i--)
-			printf("%02x", d->meas_sig[i]);
+	if (spdm_dev->meas_sig) {
+		printf("Signature, size %ld:\n\t", spdm_dev->meas_sig_size);
+		for (i = spdm_dev->meas_sig_size - 1; i >= 0; i--)
+			printf("%02x", spdm_dev->meas_sig[i]);
+
+		/* Done with signature */
+		free(spdm_dev->meas_sig);
 	}
 
 	/* Print the transcript that was recorded by the kernel */
-	if (d->meas_ts) {
-		uint32_t *buf = (uint32_t *)d->meas_ts;
+	if (spdm_dev->meas_ts) {
+		uint32_t *buf = (uint32_t *)spdm_dev->meas_ts;
 		size_t i;
 
-		printf("\nTranscript, size %ld:\n", d->meas_ts_size);
-		for (i = 0; i < d->meas_ts_size / 4; i++)
+		printf("\nTranscript, size %ld:\n", spdm_dev->meas_ts_size);
+		for (i = 0; i < spdm_dev->meas_ts_size / 4; i++)
 			printf("\t%08x\n", buf[i]);
-		if (d->meas_ts_size % 4 == 3)
+		if (spdm_dev->meas_ts_size % 4 == 3)
 			printf("\t%06x\n", buf[i] & 0xFFFFFF);
-		else if (d->meas_ts_size % 4 == 2)
+		else if (spdm_dev->meas_ts_size % 4 == 2)
 			printf("\t%04x\n", buf[i] & 0xFFFF);
-		else if (d->meas_ts_size % 4 == 1)
+		else if (spdm_dev->meas_ts_size % 4 == 1)
 			printf("\t%02x\n", buf[i] & 0xFF);
+
+		/* Done with transcript */
+		free(spdm_dev->meas_ts);
 	}
 
+free_spdm_dev_list:
+	free(spdm_dev_list);
 finish:
-	sdsi_exit(hndlr);
-free_d:
-	free(d);
+	sdsi_spdm_exit(hndl);
 
 	return ret;
 }
