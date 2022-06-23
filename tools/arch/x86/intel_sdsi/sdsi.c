@@ -728,7 +728,7 @@ static int sdsi_add_key(const char *keyfile)
 		return errno;
 	}
 
-	kst = add_key("asymmetric", "intel_sdsi:rootkey", buf, size,
+	kst = add_key("asymmetric", SDSI_ROOT_CERT_NAME, buf, size,
 		      KEY_SPEC_USER_KEYRING);
 	if (kst == -1) {
 		fprintf(stderr, "Error: Could not add key: %s\n",
