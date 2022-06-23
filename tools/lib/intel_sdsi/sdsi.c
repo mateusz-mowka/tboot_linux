@@ -15,11 +15,14 @@ static struct nla_policy sdsi_genl_policy[SDSI_GENL_ATTR_MAX + 1] = {
 	[SDSI_GENL_ATTR_DEVS]			= { .type = NLA_NESTED },
 	[SDSI_GENL_ATTR_DEV_ID]			= { .type = NLA_U32 },
 	[SDSI_GENL_ATTR_DEV_NAME]		= { .type = NLA_STRING },
+	[SDSI_GENL_ATTR_DEV_CERT]		= { .type = NLA_BINARY },
+
 	[SDSI_GENL_ATTR_CERT_SLOT_NO]		= { .type = NLA_U8 },
 	[SDSI_GENL_ATTR_MEAS_SLOT_NO]		= { .type = NLA_U8 },
 	[SDSI_GENL_ATTR_SIGN_MEAS]		= { .type = NLA_U8 },
 	[SDSI_GENL_ATTR_MEASUREMENT]		= { .type = NLA_BINARY },
-	[SDSI_GENL_ATTR_MEAS_SIZE]		= { .type = NLA_U32 },
+	[SDSI_GENL_ATTR_MEAS_TRANSCRIPT]	= { .type = NLA_BINARY },
+	[SDSI_GENL_ATTR_MEAS_SIG]		= { .type = NLA_BINARY },
 };
 
 static int __parse_id(struct genl_info *info, struct sdsi_device *s)
@@ -42,6 +45,24 @@ static int parse_authorize(struct genl_info *info, struct sdsi_device *s)
 	ret = __parse_id(info, s);
 	if (ret)
 		return ret;
+
+	if (info->attrs[SDSI_GENL_ATTR_DEV_CERT]) {
+		s->cert_size = nla_len(info->attrs[SDSI_GENL_ATTR_DEV_CERT]);
+
+		s->dev_cert = malloc(s->cert_size);
+		if (!s->dev_cert) {
+			fprintf(stderr, "%s: Could not allocate memory for measurement:\n%s\n",
+				__func__, strerror(errno));
+			return SDSI_ERROR;
+		}
+
+		memcpy(s->dev_cert,
+		       nla_data(info->attrs[SDSI_GENL_ATTR_DEV_CERT]),
+		       s->cert_size);
+	} else {
+		s->dev_cert = NULL;
+		s->cert_size = 0;
+	}
 
 	return SDSI_SUCCESS;
 }
@@ -69,7 +90,47 @@ static int parse_measurements(struct genl_info *info, struct sdsi_device *s)
 		       s->meas_size);
 	} else {
 		fprintf(stderr, "%s: Could not get measurement\n", __func__);
+		s->meas_size = 0;
+		s->measurement = NULL;
 		return SDSI_ERROR;
+	}
+
+	if (info->attrs[SDSI_GENL_ATTR_MEAS_SIG]) {
+		s->meas_sig_size = nla_len(info->attrs[SDSI_GENL_ATTR_MEAS_SIG]);
+
+		s->meas_sig = malloc(s->meas_sig_size);
+		if (!s->meas_sig) {
+			fprintf(stderr, "%s: Could not allocate memory for measurement signature:\n%s\n",
+				__func__, strerror(errno));
+			s->meas_sig_size = 0;
+			s->meas_sig = NULL;
+			return SDSI_ERROR;
+		}
+
+		memcpy(s->meas_sig,
+		       nla_data(info->attrs[SDSI_GENL_ATTR_MEAS_SIG]),
+		       s->meas_sig_size);
+	} else {
+		s->meas_sig_size = 0;
+		s->meas_sig = NULL;
+	}
+
+	if (info->attrs[SDSI_GENL_ATTR_MEAS_TRANSCRIPT]) {
+		s->meas_ts_size = nla_len(info->attrs[SDSI_GENL_ATTR_MEAS_TRANSCRIPT]);
+
+		s->meas_ts = malloc(s->meas_ts_size);
+		if (!s->meas_ts) {
+			fprintf(stderr, "%s: Could not allocate memory for measurement:\n%s\n",
+				__func__, strerror(errno));
+			return SDSI_ERROR;
+		}
+
+		memcpy(s->meas_ts,
+		       nla_data(info->attrs[SDSI_GENL_ATTR_MEAS_TRANSCRIPT]),
+		       s->meas_ts_size);
+	} else {
+		s->meas_ts_size = 0;
+		s->meas_ts = NULL;
 	}
 
 	return SDSI_SUCCESS;
