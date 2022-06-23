@@ -103,6 +103,7 @@ struct spdm_state {
 	struct device *dev; /* For error reporting only */
 	void *transport_priv;
 	int (*transport_ex)(void *priv, struct spdm_exchange *spdm_ex);
+	int (*certificate_cb)(size_t count, u8 *certificate, void *arg);
 	int (*measurement_cb)(size_t count, u8 *measurements, void *arg);
 	void *cb_data;
 };
