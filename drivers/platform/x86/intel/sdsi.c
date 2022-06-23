@@ -583,9 +583,15 @@ static int sdsi_spdm_exchange(void *private, struct spdm_exchange *spdm_ex)
 
 	/*
 	 * For the attestation command, the total write size is the sum of:
-	 *     Size of the SPDM payload, padded of qword aligned
+	 *     Size of the SPDM payload, padded for qword alignment
 	 *     8 bytes for the mailbox command
 	 *     8 bytes for the actual (non-padded) size of the SPDM payload
+	 */
+
+	/*
+	 * The driver does not handle request sizes that are larger than the
+	 * the mailbox write size. This must also account for the extra 8 byte
+	 * ATTESTATION command and 8 byte non-padded size.
 	 */
 	if (spdm_ex->request_pl_sz > (SDSI_SIZE_WRITE_MSG - (SDSI_SIZE_CMD * 2)))
 		return -EOVERFLOW;
@@ -614,7 +620,7 @@ static int sdsi_spdm_exchange(void *private, struct spdm_exchange *spdm_ex)
 	info.payload[(info.size - SDSI_SIZE_CMD) / SDSI_SIZE_CMD] =
 		spdm_ex->request_pl_sz;
 
-	/* For actual packet size we need to subtract the SPDM payload space */
+	/* For actual packet size we need to subtract the SPDM payload size field */
 	info.packet_size = info.size - SDSI_SIZE_CMD;
 
 	ret = mutex_lock_interruptible(&priv->mb_lock);
