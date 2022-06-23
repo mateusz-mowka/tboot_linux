@@ -19,7 +19,7 @@ CFLAGS = -L/home/debox1/ext/repos/linux/tools/lib/intel_sdsi -Wextra
 
 BINDIR ?= /usr/sbin
 
-LDFLAGS += -l:libsdsi.so -lkeyutils
+LDFLAGS += -l:libsdsi_spdm.so -lkeyutils
 
 override CFLAGS += -O2 -Wall -g
 
