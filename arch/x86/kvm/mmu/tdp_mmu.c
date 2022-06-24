@@ -1123,9 +1123,8 @@ static bool tdp_mmu_zap_leafs(struct kvm *kvm, struct kvm_mmu_page *root,
 			      bool drop_private)
 {
 	bool is_private = is_private_sp(root);
-	struct kvm_memory_slot *slot;
 	struct tdp_iter iter;
-	struct kvm_mmu_page *sp;
+	struct kvm_mmu_page *sp = NULL;
 
 	end = min(end, tdp_mmu_max_gfn_exclusive());
 
@@ -1161,20 +1160,38 @@ static bool tdp_mmu_zap_leafs(struct kvm *kvm, struct kvm_mmu_page *root,
 		if (is_private && kvm_gfn_shared_mask(kvm) &&
 		    is_large_pte(iter.old_spte)) {
 			gfn_t gfn = iter.gfn & ~kvm_gfn_shared_mask(kvm);
+			struct kvm_memory_slot *slot = gfn_to_memslot(kvm, gfn);
 			gfn_t mask = KVM_HPAGE_GFN_MASK(iter.level);
 
-			slot = gfn_to_memslot(kvm, gfn);
-			if (!kvm_page_type_valid_on_level(gfn, slot, iter.level) ||
-			    (gfn & mask) < start ||
-			    end < (gfn & mask) + KVM_PAGES_PER_HPAGE(iter.level)) {
-				sp = tdp_mmu_alloc_sp_for_split(kvm, &iter, false, can_yield);
-				WARN_ON(!sp);
-
-				tdp_mmu_split_huge_page(kvm, &iter, sp, false);
-				continue;
+			if (kvm_page_type_valid_on_level(gfn, slot, iter.level) &&
+				(gfn & mask) >= start &&
+			    end > (gfn & mask) + KVM_PAGES_PER_HPAGE(iter.level))
+			    goto skip_split_page;
+			if (!sp)
+				sp = tdp_mmu_alloc_sp_for_split(kvm, &iter,
+								false,
+								can_yield);
+			if (!sp) {
+				KVM_BUG(1, kvm, "No enough memory");
+				break;
 			}
+			if (iter.yielded)
+				continue;
+			/*
+			 * iter.yielded = false:
+			 * we come here because we know it's present && large
+			 * page, so split shouldn't be failure (write lock held)
+			 * iter.yielded = true:
+			 * we shouldn't come here if the spte is modified by
+			 * other vcpu threads while we released MMU lock, BUT if
+			 * we come here again than it's same as iter.yielded =
+			 * false case
+			 */
+			WARN_ON(tdp_mmu_split_huge_page(kvm, &iter, sp, false));
+			sp = NULL;
+			continue;
 		}
-
+skip_split_page:
 		if (!drop_private && is_private_zapped_spte(iter.old_spte))
 			continue;
 
@@ -1186,6 +1203,9 @@ static bool tdp_mmu_zap_leafs(struct kvm *kvm, struct kvm_mmu_page *root,
 	}
 
 	rcu_read_unlock();
+
+	if (sp)
+		tdp_mmu_free_sp(sp);
 
 	/*
 	 * Because this flow zaps _only_ leaf SPTEs, the caller doesn't need
