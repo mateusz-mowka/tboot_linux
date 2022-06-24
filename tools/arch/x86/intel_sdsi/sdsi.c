@@ -956,7 +956,7 @@ static void sdsi_free_dev(struct sdsi_dev *s)
 
 static void usage(char *prog)
 {
-	printf("Usage: %s [-l] [-d DEVNO [-i] [-s] [-m] [-a FILE] [-c FILE] [-v state|meter] [-M state|meter]]\n"
+	printf("Usage: %s [-l] [-d DEVNO [-i] [-s] [-m] [-a FILE] [-c FILE] [-v SLOTNO] [-M state|meter]]\n"
 	       "          [-k KEY_FILE]\n", prog);
 }
 
@@ -970,9 +970,7 @@ static void show_help(void)
 	printf("  %-18s\t%s\n", "-m, --meter",          "show meter certificate data");
 	printf("  %-18s\t%s\n", "-a, --akc FILE",       "provision socket with AKC FILE");
 	printf("  %-18s\t%s\n", "-c, --cap FILE>",      "provision socket with CAP FILE");
-	printf("  %-18s\t%s\n", "-v, --verify",         "verify SDSi meter or state certificate");
-	printf("  %-18s\t%s\n", "    state",            "    verify state certificate");
-	printf("  %-18s\t%s\n", "    meter",            "    verify meter certificate");
+	printf("  %-18s\t%s\n", "-v, --verify SLOTNO",  "verify certificate chain of select slot");
 	printf("  %-18s\t%s\n", "-M, --measurement",    "get SDSi firmware measurements");
 	printf("  %-18s\t%s\n", "    state",            "    get state measurement");
 	printf("  %-18s\t%s\n", "    state+",           "    get signed state measurement");
@@ -1066,18 +1064,11 @@ int main(int argc, char *argv[])
 			command = CMD_MEASUREMENT;
 			break;
 		case 'v':
-			len = strlen(optarg);
-			if (!strncmp(optarg, "meter", 5))
-			       cert_slot_no = CERT_SLOT_METER;
-			else if (!strncmp(optarg, "state", 5))
-			       cert_slot_no = CERT_SLOT_STATE;
-			else {
-				fprintf(stderr, "Invalid option for -%c\n", opt);
+			cert_slot_no = strtol(optarg, NULL, 10);
+			if (cert_slot_no != 0 && cert_slot_no != 1) {
+				fprintf(stderr, "Avialable slots are 0 and 1\n");
 				return -1;
 			}
-
-			if (len == 6 && optarg[len - 1] == '+')
-				sign = true;
 
 			command = CMD_VERIFY;
 			break;
