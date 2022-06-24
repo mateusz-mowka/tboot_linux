@@ -274,7 +274,6 @@ static int sdsi_read_reg(struct sdsi_dev *s)
 	if (ret)
 		return ret;
 
-	/* Print register info for this guid */
 	printf("\n");
 	printf("Socket information for device %s\n", s->dev_name);
 	printf("\n");
@@ -467,7 +466,6 @@ static int sdsi_state_cert_show(struct sdsi_dev *s)
 
 	sc = (struct state_certificate *)buf;
 
-	/* Print register info for this guid */
 	printf("\n");
 	printf("State certificate for device %s\n", s->dev_name);
 	printf("\n");
