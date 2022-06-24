@@ -591,7 +591,7 @@ static int sdsi_spdm_exchange(void *private, struct spdm_exchange *spdm_ex)
 	/*
 	 * The driver does not handle request sizes that are larger than the
 	 * the mailbox write size. This must also account for the extra 8 byte
-	 * ATTESTATION command and 8 byte non-padded size.
+	 * ATTESTATION command and 8 byte non-padded packet size.
 	 */
 	if (spdm_ex->request_pl_sz > (SDSI_SIZE_WRITE_MSG - (SDSI_SIZE_CMD * 2)))
 		return -EOVERFLOW;
@@ -612,16 +612,16 @@ static int sdsi_spdm_exchange(void *private, struct spdm_exchange *spdm_ex)
 	/* Copy SPDM message to payload buffer */
 	memcpy(info.payload, spdm_ex->request_pl, spdm_ex->request_pl_sz);
 
-	/* Attestation mailbox command is 2nd-to-last qword of payload buffer */
+	/* The non-padded SPDM payload size is the 2nd-to-last qword */
 	info.payload[((info.size - SDSI_SIZE_CMD) / SDSI_SIZE_CMD) - 1] =
-		SDSI_CMD_ATTESTATION;
-
-	/* The non-padded SPDM payload size is the last qword */
-	info.payload[(info.size - SDSI_SIZE_CMD) / SDSI_SIZE_CMD] =
 		spdm_ex->request_pl_sz;
 
+	/* Attestation mailbox command is the last qword of payload buffer */
+	info.payload[(info.size - SDSI_SIZE_CMD) / SDSI_SIZE_CMD] =
+		SDSI_CMD_ATTESTATION;
+
 	/* For actual packet size we need to subtract the SPDM payload size field */
-	info.packet_size = info.size - SDSI_SIZE_CMD;
+	info.packet_size = info.size;
 
 	ret = mutex_lock_interruptible(&priv->mb_lock);
 	if (ret)
