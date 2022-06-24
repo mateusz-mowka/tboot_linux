@@ -644,7 +644,7 @@ enum {
 	x86_lbr_exclusive_max,
 };
 
-#define PERF_PEBS_DATA_SOURCE_MAX	0x15
+#define PERF_PEBS_DATA_SOURCE_MAX	0x20
 
 struct x86_hybrid_pmu {
 	struct pmu			pmu;

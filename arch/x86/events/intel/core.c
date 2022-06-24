@@ -5776,6 +5776,12 @@ static struct attribute *adl_hybrid_mem_attrs[] = {
 	NULL,
 };
 
+static struct attribute *mtl_hybrid_mem_attrs[] = {
+	EVENT_PTR(mem_ld_adl),
+	EVENT_PTR(mem_st_adl),
+	NULL,
+};
+
 EVENT_ATTR_STR_HYBRID(tx-start,          tx_start_adl,          "event=0xc9,umask=0x1",          hybrid_big);
 EVENT_ATTR_STR_HYBRID(tx-commit,         tx_commit_adl,         "event=0xc9,umask=0x2",          hybrid_big);
 EVENT_ATTR_STR_HYBRID(tx-abort,          tx_abort_adl,          "event=0xc9,umask=0x4",          hybrid_big);
@@ -6764,7 +6770,6 @@ __init int intel_pmu_init(void)
 		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
 		x86_pmu.flags |= PMU_FL_PEBS_ALL;
 		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
-		x86_pmu.flags |= PMU_FL_MEM_LOADS_AUX;
 		x86_pmu.lbr_pt_coexist = true;
 		intel_pmu_pebs_data_source_adl();
 		x86_pmu.num_topdown_events = 8;
@@ -6789,7 +6794,6 @@ __init int intel_pmu_init(void)
 #endif
 
 		td_attr = adl_hybrid_events_attrs;
-		mem_attr = adl_hybrid_mem_attrs;
 		tsx_attr = adl_hybrid_tsx_attrs;
 		extra_attr = boot_cpu_has(X86_FEATURE_RTM) ?
 			adl_hybrid_extra_attr_rtm : adl_hybrid_extra_attr;
@@ -6799,13 +6803,13 @@ __init int intel_pmu_init(void)
 		pmu->name = "cpu_core";
 		pmu->cpu_type = hybrid_big;
 		pmu->late_ack = true;
+		pmu->num_counters = x86_pmu.num_counters;
 		if (cpu_feature_enabled(X86_FEATURE_HYBRID_CPU)) {
-			pmu->num_counters = x86_pmu.num_counters + 2;
+			if (!is_mtl(boot_cpu_data.x86_model))
+				pmu->num_counters = x86_pmu.num_counters + 2;
 			pmu->num_counters_fixed = x86_pmu.num_counters_fixed + 1;
-		} else {
-			pmu->num_counters = x86_pmu.num_counters;
+		} else
 			pmu->num_counters_fixed = x86_pmu.num_counters_fixed;
-		}
 
 		/*
 		 * Quirk: For some Alder Lake machine, when all E-cores are disabled in
@@ -6856,13 +6860,16 @@ __init int intel_pmu_init(void)
 		pmu->extra_regs = intel_grt_extra_regs;
 		if (is_mtl(boot_cpu_data.x86_model)) {
 			x86_pmu.pebs_latency_data = mtl_latency_data_small;
+			mem_attr = mtl_hybrid_mem_attrs;
 			intel_pmu_pebs_data_source_mtl();
 			x86_pmu.get_event_constraints = mtl_get_event_constraints;
 			pmu->extra_regs = intel_cmt_extra_regs;
 			pr_cont("Meteorlake Hybrid events, ");
 			name = "meteorlake_hybrid";
 		} else {
+			x86_pmu.flags |= PMU_FL_MEM_LOADS_AUX;
 			x86_pmu.pebs_latency_data = adl_latency_data_small;
+			mem_attr = adl_hybrid_mem_attrs;
 			intel_pmu_pebs_data_source_adl();
 			pr_cont("Alderlake Hybrid events, ");
 			name = "alderlake_hybrid";

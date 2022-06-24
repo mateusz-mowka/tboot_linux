@@ -74,7 +74,7 @@ union intel_x86_pebs_dse {
 #define SNOOP_NONE_MISS (P(SNOOP, NONE) | P(SNOOP, MISS))
 
 /* Version for Sandy Bridge and later */
-static u64 pebs_data_source[] = {
+static u64 pebs_data_source[PERF_PEBS_DATA_SOURCE_MAX] = {
 	P(OP, LOAD) | P(LVL, MISS) | LEVEL(L3) | P(SNOOP, NA),/* 0x00:ukn L3 */
 	OP_LH | P(LVL, L1)  | LEVEL(L1) | P(SNOOP, NONE),  /* 0x01: L1 local */
 	OP_LH | P(LVL, LFB) | LEVEL(LFB) | P(SNOOP, NONE), /* 0x02: LFB hit */
@@ -91,11 +91,6 @@ static u64 pebs_data_source[] = {
 	OP_LH | P(LVL, REM_RAM1) | LEVEL(RAM) | REM | SNOOP_NONE_MISS, /* 0x0d: L3 miss, excl */
 	OP_LH | P(LVL, IO)  | LEVEL(NA) | P(SNOOP, NONE), /* 0x0e: I/O */
 	OP_LH | P(LVL, UNC) | LEVEL(NA) | P(SNOOP, NONE), /* 0x0f: uncached */
-	0, /* 0x10: reserved */
-	0, /* 0x11: reserved */
-	0, /* 0x12: reserved */
-	0, /* 0x13: reserved */
-	0, /* 0x14: reserved */
 };
 
 /* Patch up minor differences in the bits */
@@ -144,14 +139,13 @@ void __init intel_pmu_pebs_data_source_adl(void)
 
 static void __init __intel_pmu_pebs_data_source_cmt(u64 *data_source)
 {
-	data_source[0x05] = OP_LH | P(LVL, L3) | LEVEL(L3) | P(SNOOP, HIT);
-	data_source[0x06] = OP_LH | P(LVL, L3) | LEVEL(L3) | P(SNOOP, HITM);
-	data_source[0x08] = OP_LH | P(LVL, L3) | LEVEL(L3) | P(SNOOPX, FWD);
-//	data_source[0x10] = OP_LH | LEVEL(MMIO) | P(SNOOP, NONE);
+	data_source[0x07] = OP_LH | P(LVL, L3) | LEVEL(L3) | P(SNOOPX, FWD);
+	data_source[0x08] = OP_LH | P(LVL, L3) | LEVEL(L3) | P(SNOOP, HITM);
+	data_source[0x0c] = OP_LH | LEVEL(RAM) | REM | P(SNOOPX, FWD);
+	data_source[0x0d] = OP_LH | LEVEL(RAM) | REM | P(SNOOP, HITM);
+	data_source[0x10] = OP_LH | LEVEL(MMIO) | P(SNOOP, NONE);
 	data_source[0x11] = OP_LH | LEVEL(PMEM) | P(SNOOP, NONE);
 	data_source[0x12] = OP_LH | REM | LEVEL(PMEM) | P(SNOOP, NONE);
-//	data_source[0x13] = OP_LH | LEVEL(HBM) | P(SNOOP, NONE);
-//	data_source[0x14] = OP_LH | REM | LEVEL(HBM) | P(SNOOP, NONE);
 }
 
 void __init intel_pmu_pebs_data_source_mtl(void)
