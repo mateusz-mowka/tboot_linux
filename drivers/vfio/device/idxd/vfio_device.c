@@ -27,8 +27,7 @@ static int idxd_vdcm_open(struct vfio_device *vdev)
 	if (!device_user_pasid_enabled(idxd))
 		return -ENODEV;
 
-	pasid = ioasid_alloc(NULL, 1,
-			     (1U << pasid_dev->iommu->pasid_bits) - 1, vidxd, 0);
+	pasid = ioasid_alloc(NULL, 1, pasid_dev->iommu->max_pasids, vidxd, 0);
 	if (pasid == INVALID_IOASID) {
 		dev_err(dev, "Unable to allocate pasid\n");
 		return -ENODEV;
@@ -70,7 +69,7 @@ static int idxd_vdcm_bind_iommufd(struct vfio_device *vdev,
 		goto out;
 	}
 
-	idev = iommufd_bind_pci_device(bind->iommufd, idxd->pdev,
+	idev = iommufd_bind_device(bind->iommufd, idxd->pdev,
 				       IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP, &id);
 	if (IS_ERR(idev)) {
 		rc = PTR_ERR(idev);

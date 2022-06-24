@@ -400,12 +400,12 @@ static void __idxd_wq_set_priv_locked(struct idxd_wq *wq, int priv)
 	union wqcfg wqcfg;
 	unsigned int offset;
 
-	offset = WQCFG_OFFSET(idxd, wq->id, WQCFG_PRIVL_IDX);
+	offset = WQCFG_OFFSET(idxd, wq->id, WQCFG_PRIV_IDX);
 	spin_lock(&idxd->dev_lock);
-	wqcfg.bits[WQCFG_PRIVL_IDX] = ioread32(idxd->reg_base + offset);
+	wqcfg.bits[WQCFG_PRIV_IDX] = ioread32(idxd->reg_base + offset);
 	wqcfg.priv = priv;
-	wq->wqcfg->bits[WQCFG_PRIVL_IDX] = wqcfg.bits[WQCFG_PRIVL_IDX];
-	iowrite32(wqcfg.bits[WQCFG_PRIVL_IDX], idxd->reg_base + offset);
+	wq->wqcfg->bits[WQCFG_PRIV_IDX] = wqcfg.bits[WQCFG_PRIV_IDX];
+	iowrite32(wqcfg.bits[WQCFG_PRIV_IDX], idxd->reg_base + offset);
 	spin_unlock(&idxd->dev_lock);
 }
 
@@ -1330,7 +1330,7 @@ err_irq:
 	return rc;
 }
 
-int drv_enable_wq(struct idxd_wq *wq)
+int __drv_enable_wq(struct idxd_wq *wq)
 {
 	struct idxd_device *idxd = wq->idxd;
 	struct device *dev = &idxd->pdev->dev;
@@ -1470,7 +1470,7 @@ err:
 }
 EXPORT_SYMBOL_GPL(__drv_enable_wq);
 
-void drv_disable_wq(struct idxd_wq *wq)
+void __drv_disable_wq(struct idxd_wq *wq)
 {
 	struct idxd_device *idxd = wq->idxd;
 	struct device *dev = &idxd->pdev->dev;
