@@ -1557,7 +1557,7 @@
             "last_enabled": "v5.18"
         },
         {
-            "branch": "lass-5.17-rc3",
+            "branch": "lass-5.19-rc1",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -1567,16 +1567,16 @@
                 }
             ],
             "description": "Enable ISA extension of LASS",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Vedvyas Shanbhogue",
                     "email": "vedvyas.shanbhogue@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2990",
             "name": "LASS",
-            "repourl": "ssh://git@gitlab.devtools.intel.com:29418/chenyian/kernel-works.git",
+            "repourl": "https://github.com/intel-sandbox/kernel-works.git",
             "sdl_contact": [
                 {
                     "name": "Vedvyas Shanbhogue",
@@ -1585,7 +1585,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "dlb2-for-intel-next-v5.18-rc7",
