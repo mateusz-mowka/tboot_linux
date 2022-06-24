@@ -52,7 +52,7 @@ struct enabled_features {
 	uint64_t reserved1:8;
 	uint64_t attestation:1;
 	uint64_t reserved2:13;
-	uint64_t telemetry:1;
+	uint64_t metering:1;
 	uint64_t reserved3:37;
 };
 
@@ -134,6 +134,21 @@ struct license_region {
 struct bundle_encoding {
 	uint32_t encoding;
 	uint32_t encoding_rsvd[7];
+};
+
+struct meter_certificate {
+	uint32_t block_signature;
+	uint32_t counter_unit;
+	uint64_t ppin;
+	uint32_t bundle_length;
+	uint32_t reserved;
+	uint32_t mmrc_encoding;
+	uint32_t mmrc_counter;
+};
+
+struct bundle_encoding_counter {
+	uint32_t encoding;
+	uint32_t counter;
 };
 
 struct sdsi_dev {
@@ -237,7 +252,6 @@ static int sdsi_read_reg(struct sdsi_dev *s)
 	if (ret)
 		return ret;
 
-	/* Print register info for this guid */
 	printf("\n");
 	printf("Socket information for device %s\n", s->dev_name);
 	printf("\n");
@@ -245,13 +259,13 @@ static int sdsi_read_reg(struct sdsi_dev *s)
 	printf("NVRAM Content Authorization Error Status\n");
 	printf("    SDSi Auth Err Sts:          %s\n", !!s->regs.auth_err_sts.sdsi_content_auth_err ? "Error" : "Okay");
 
-	if (!!s->regs.en_features.telemetry)
+	if (!!s->regs.en_features.metering)
 		printf("    Telemetry Auth Err Sts:     %s\n", !!s->regs.auth_err_sts.sdsi_telemetry_auth_err ? "Error" : "Okay");
 
 	printf("Enabled Features\n");
 	printf("    Attestation:                %s\n", !!s->regs.en_features.attestation ? "Enabled" : "Disabled");
 	printf("    SDSi:                       %s\n", !!s->regs.en_features.sdsi ? "Enabled" : "Disabled");
-	printf("    Telemetry:                  %s\n", !!s->regs.en_features.telemetry ? "Enabled" : "Disabled");
+	printf("    Telemetry:                  %s\n", !!s->regs.en_features.metering ? "Enabled" : "Disabled");
 	printf("License Key (AKC) Provisioned:  %s\n", !!s->regs.key_prov_sts.license_key_provisioned ? "Yes" : "No");
 	printf("Authorization Failure Count\n");
 	printf("    AKC Failure Count:          %d\n", s->regs.auth_fail_count.key_failure_count);
@@ -299,7 +313,73 @@ static void get_feature(uint32_t encoding, char *feature)
 
 static int sdsi_meter_cert_show(struct sdsi_dev *s)
 {
-	printf("%s: Arg %s: Not implemented yet :(\n", __func__, s->dev_name);
+	struct meter_certificate *mc;
+	uint64_t data[512] = {0};
+	FILE *cert_ptr;
+	uint32_t count = 0;
+	int ret, size;
+
+	ret = sdsi_update_registers(s);
+	if (ret)
+		return ret;
+
+	if (!s->regs.en_features.sdsi) {
+		fprintf(stderr, "SDSi feature is present but not enabled.\n");
+		fprintf(stderr, " Unable to read meter certificate\n");
+		return -1;
+	}
+
+	if (!s->regs.en_features.metering) {
+		fprintf(stderr, "Metering not supporting on this socket.\n");
+		return -1;
+	}
+
+	ret = chdir(s->dev_path);
+	if (ret == -1) {
+		perror("chdir");
+		return ret;
+	}
+
+	cert_ptr = fopen("meter_certificate", "r");
+	if (!cert_ptr) {
+		perror("Could not open 'meter_certificate' file");
+		return -1;
+	}
+
+	size = fread(data, 1, sizeof(data), cert_ptr);
+	if (!size) {
+		fprintf(stderr, "Could not read 'meter_certificate' file\n");
+		fclose(cert_ptr);
+		return -1;
+	}
+	fclose(cert_ptr);
+
+	mc = (struct meter_certificate *)data;
+
+	printf("\n");
+	printf("Meter certificate for device %s\n", s->dev_name);
+	printf("\n");
+	printf("Block Signature:       0x%x\n", mc->block_signature);
+	printf("Count Unit:            %dms\n", mc->counter_unit);
+	printf("PPIN:                  0x%lx\n", mc->ppin);
+	printf("Feature Bundle Length: %d\n", mc->bundle_length);
+	printf("MMRC encoding:         %d\n", mc->mmrc_encoding);
+	printf("MMRC counter:          %d\n", mc->mmrc_counter);
+	if (mc->bundle_length % 8) {
+		fprintf(stderr, "Invalid bundle length\n");
+		return -1;
+	}
+
+	printf("Feature Counters:          %d\n", mc->mmrc_counter);
+	while (count++ < mc->mmrc_counter / 8) {
+		struct bundle_encoding_counter *bec = (void *)(mc) + sizeof(mc);
+		char feature[5];
+
+		feature[4] = '\0';
+		get_feature(bec[count].encoding, feature);
+		printf("    %s:          %d\n", feature, bec->counter);
+	}
+
 	return 0;
 }
 
@@ -344,7 +424,6 @@ static int sdsi_state_cert_show(struct sdsi_dev *s)
 
 	sc = (struct state_certificate *)data;
 
-	/* Print register info for this guid */
 	printf("\n");
 	printf("State certificate for device %s\n", s->dev_name);
 	printf("\n");
