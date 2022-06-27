@@ -1849,14 +1849,14 @@
                 }
             ],
             "description": "TDX KVM support",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Isaku Yamahata",
                     "email": "isaku.yamahata@intel.com"
                 }
             ],
-            "jira": "NEXT-2992",
+            "jira": "",
             "name": "tdx_kvm_support",
             "repourl": "https://github.com/intel-innersource/virtualization.hypervisors.tdx.linux.git",
             "sdl_contact": [
@@ -1867,7 +1867,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.19"
+            "last_enabled": "v5.18"
         },
         {
             "branch": "prm_update_for_intel_next",
@@ -3586,7 +3586,7 @@
                 }
             ],
             "description": "KVM: IPI virtualization support",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Neiger Gil",
