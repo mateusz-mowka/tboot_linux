@@ -2061,6 +2061,12 @@ static void tdx_sept_zap_private_spte(struct kvm *kvm, gfn_t gfn,
 	struct tdx_module_output out;
 	u64 err;
 
+	if (!is_hkid_assigned(kvm_tdx)) {
+//		printk("%s: return, gfn=%llx \n", __func__, gfn);
+		return;
+	}
+
+
 	spin_lock(&kvm_tdx->seamcall_lock);
 	err = tdh_mem_range_block(kvm_tdx->tdr.pa, gpa, tdx_level, &out);
 	spin_unlock(&kvm_tdx->seamcall_lock);
