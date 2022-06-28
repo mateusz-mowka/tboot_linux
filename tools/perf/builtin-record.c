@@ -1223,7 +1223,7 @@ static int record__open(struct record *rec)
 	 * of waiting or event synthesis.
 	 */
 	if (opts->initial_delay || target__has_cpu(&opts->target) ||
-	    perf_pmu__has_hybrid()) {
+	    (perf_pmu__has_hybrid() && !opts->target.per_thread)) {
 		pos = evlist__get_tracking_event(evlist);
 		if (!evsel__is_dummy_event(pos)) {
 			/* Set up dummy event. */
