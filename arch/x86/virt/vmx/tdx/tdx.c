@@ -251,7 +251,7 @@ static u64 seamcall(u64 fn, u64 rcx, u64 rdx, u64 r8, u64 r9,
 {
 	u64 ret;
 
-	ret = __seamcall(fn, rcx, rdx, r8, r9, out);
+	ret = __seamcall(fn, rcx, rdx, r8, r9, 0, 0, 0, 0, out);
 	if (ret == TDX_SEAMCALL_VMFAILINVALID || !ret)
 		return ret;
 

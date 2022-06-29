@@ -76,6 +76,8 @@ struct tdx_module_output {
 	u64 r9;
 	u64 r10;
 	u64 r11;
+	u64 r12;
+	u64 r13;
 };
 
 /* Used to communicate with the TDX module */

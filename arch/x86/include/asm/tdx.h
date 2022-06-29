@@ -154,8 +154,8 @@ u32 tdx_get_num_keyid(void);
 int tdx_keyid_alloc(void);
 void tdx_keyid_free(int keyid);
 
-u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9,
-	       struct tdx_module_output *out);
+u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10,
+	       u64 r11, u64 r12, u64 r13, struct tdx_module_output *out);
 #else	/* !CONFIG_INTEL_TDX_HOST */
 static inline bool platform_tdx_enabled(void) { return false; }
 static inline int tdx_init(void)  { return -ENODEV; }
