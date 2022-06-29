@@ -542,6 +542,8 @@ enum kvm_tdx_cmd_id {
 	KVM_TDX_INIT_VCPU,
 	KVM_TDX_INIT_MEM_REGION,
 	KVM_TDX_FINALIZE_VM,
+	KVM_TDX_SERVTD_PREBIND,
+	KVM_TDX_SERVTD_BIND,
 
 	KVM_TDX_CMD_NR_MAX,
 };
@@ -637,4 +639,41 @@ struct kvm_rw_memory {
 	__u64 len;
 	__u64 ubuf;
 };
+
+enum kvm_tdx_servtd_type {
+	KVM_TDX_SERVTD_TYPE_MIGTD = 0,
+
+	KVM_TDX_SERVTD_TYPE_MAX,
+};
+
+/* A SHA384 hash takes up 48 bytes (Table 5.7, TDX module ABI Spec) */
+#define KVM_TDX_SERVTD_HASH_SIZE 48
+
+struct kvm_tdx_servtd {
+#define KVM_TDX_SERVTD_VERSION	0
+	__u8  version;
+	__u8  pad;
+#define KVM_TDX_BINDING_SLOT_ID_UNKNOWN 0xffff
+	__u16 binding_slot_id;
+	__u32 type;
+	__u64 attr;
+	union {
+		/* KVM_TDX_SERVTD_BIND */
+		__u32 pid;
+		/* KVM_TDX_SERVTD_PREBIND */
+		__u8  hash[KVM_TDX_SERVTD_HASH_SIZE];
+	};
+};
+
+enum tdx_binding_slot_status {
+	/* Slot is available for a new user */
+	TDX_BINDING_SLOT_STATUS_INIT = 0,
+	/* Slot is used, and servtd is pre-bound */
+	TDX_BINDING_SLOT_STATUS_PREBOUND = 1,
+	/* Slot is used, and a servtd instance is bound */
+	TDX_BINDING_SLOT_STATUS_BOUND = 2,
+
+	TDX_BINDING_SLOT_STATUS_UNKNOWN
+};
+
 #endif /* _ASM_X86_KVM_H */

@@ -495,6 +495,7 @@ void tdx_vm_free(struct kvm *kvm)
 		return;
 
 	free_page(kvm_tdx->tdr.va);
+	kfree(kvm_tdx->binding_slots);
 }
 
 static int tdx_do_tdh_mng_key_config(void *param)
@@ -516,6 +517,34 @@ static int tdx_do_tdh_mng_key_config(void *param)
 		pr_tdx_error(TDH_MNG_KEY_CONFIG, err, NULL);
 		return -EIO;
 	}
+
+	return 0;
+}
+
+static void tdx_binding_slot_set_status(struct tdx_binding_slot *slot,
+					enum tdx_binding_slot_status status)
+{
+	atomic_xchg(&slot->status, status);
+}
+
+static enum tdx_binding_slot_status
+tdx_binding_slot_get_status(struct tdx_binding_slot *slot)
+{
+	return atomic_read(&slot->status);
+}
+
+static int tdx_alloc_binding_slots(struct kvm_tdx *kvm_tdx)
+{
+	struct tdx_binding_slot *slots;
+
+	slots = kmalloc_array(tdx_caps.max_servtds,
+			      sizeof(struct tdx_binding_slot),
+			      GFP_KERNEL_ACCOUNT | __GFP_ZERO);
+	if (!slots) {
+		pr_err("%s: failed to alloc binding slots\n", __func__);
+		return -ENOMEM;
+	}
+	kvm_tdx->binding_slots = slots;
 
 	return 0;
 }
@@ -633,6 +662,10 @@ int tdx_vm_init(struct kvm *kvm)
 
 	spin_lock_init(&kvm_tdx->seamcall_lock);
 	kvm_tdx->has_range_blocked = false;
+
+	ret = tdx_alloc_binding_slots(kvm_tdx);
+	if (ret)
+		goto teardown;
 
 	/*
 	 * Note, TDH_MNG_INIT cannot be invoked here.  TDH_MNG_INIT requires a dedicated
@@ -3476,6 +3509,216 @@ static int tdx_td_finalizemr(struct kvm *kvm)
 	return 0;
 }
 
+static void tdx_binding_slot_bound_set_info(struct tdx_binding_slot *slot,
+					    uint64_t handle,
+					    uint64_t uuid0,
+					    uint64_t uuid1,
+					    uint64_t uuid2,
+					    uint64_t uuid3)
+{
+	slot->handle = handle;
+	memcpy(&slot->uuid[0], &uuid0, sizeof(uint64_t));
+	memcpy(&slot->uuid[8], &uuid1, sizeof(uint64_t));
+	memcpy(&slot->uuid[16], &uuid2, sizeof(uint64_t));
+	memcpy(&slot->uuid[24], &uuid3, sizeof(uint64_t));
+}
+
+static int tdx_servtd_do_bind(struct kvm_tdx *target_tdx,
+			      struct kvm_tdx *servtd_tdx,
+			      struct kvm_tdx_servtd *servtd,
+			      struct tdx_binding_slot *slot)
+{
+	struct tdx_module_output out;
+	u64 err;
+
+	/*TODO: check max binding_slots_id from rdall */
+	err = tdh_servtd_bind(servtd_tdx->tdr.pa,
+				target_tdx->tdr.pa,
+				servtd->binding_slot_id,
+				servtd->attr,
+				servtd->type,
+				&out);
+	if (KVM_BUG_ON(err, &target_tdx->kvm)) {
+		pr_tdx_error(TDH_SERVTD_BIND, err, &out);
+		return -EIO;
+	}
+
+	tdx_binding_slot_set_status(slot, TDX_BINDING_SLOT_STATUS_BOUND);
+	tdx_binding_slot_bound_set_info(slot, out.rcx, out.r10,
+					out.r11, out.r12, out.r13);
+
+	return 0;
+}
+
+static int tdx_get_avail_binding_slot(struct kvm_tdx *kvm_tdx)
+{
+	struct tdx_binding_slot *slot;
+	enum tdx_binding_slot_status status;
+	int id;
+
+	for (id = 0; id < tdx_caps.max_servtds; id++) {
+		slot = &kvm_tdx->binding_slots[id];
+		status = tdx_binding_slot_get_status(slot);
+		if (status == TDX_BINDING_SLOT_STATUS_INIT)
+			break;
+	}
+
+	if (id == tdx_caps.max_servtds) {
+		pr_err("%s: no slot avail for new binding\n", __func__);
+		return -EBUSY;
+	}
+
+	return id;
+}
+
+static int tdx_servtd_add_binding_slot(struct kvm_tdx *servtd_tdx,
+				       struct tdx_binding_slot *slot)
+{
+	struct kvm *kvm = &servtd_tdx->kvm;
+	int i, ret = 0;
+
+	/*
+	 * Multiple target TDs could be bound to the same servtd.
+	 * Add the binding slot to the servtd's arrary.
+	 */
+	mutex_lock(&kvm->lock);
+	for (i = 0; i < SERVTD_SLOTS_MAX; i++) {
+		if (!servtd_tdx->target_binding_slots[i])
+			break;
+	}
+
+	/*
+	 * Unlikely. The arrary should be big enough to have an
+	 * entry for each TD on the same host to add its binding
+	 * slot.
+	 */
+	if (i == SERVTD_SLOTS_MAX) {
+		ret = -EBUSY;
+		goto out_unlock;
+	}
+
+	servtd_tdx->target_binding_slots[i] = slot;
+out_unlock:
+	mutex_unlock(&kvm->lock);
+	return ret;
+}
+
+static int tdx_servtd_prebind(struct kvm *target_kvm, struct kvm_tdx_cmd *cmd)
+{
+	struct kvm_tdx *target_tdx = to_kvm_tdx(target_kvm);
+	struct kvm_tdx_servtd servtd;
+	struct tdx_binding_slot *slot;
+	struct page *hash_page;
+	int ret;
+	u64 err;
+
+	if (copy_from_user(&servtd, (void __user *)cmd->data,
+			   sizeof(struct kvm_tdx_servtd)))
+		return -EFAULT;
+
+	if (cmd->flags ||
+	    servtd.version != KVM_TDX_SERVTD_VERSION ||
+	    servtd.type >= KVM_TDX_SERVTD_TYPE_MAX)
+		return -EINVAL;
+
+	hash_page = alloc_page(GFP_KERNEL_ACCOUNT | __GFP_ZERO);
+	if (!hash_page)
+		return -ENOMEM;
+
+	memcpy(page_to_virt(hash_page),
+	       servtd.hash, KVM_TDX_SERVTD_HASH_SIZE);
+
+	ret = tdx_get_avail_binding_slot(target_tdx);
+	if (ret < 0)
+		return ret;
+	servtd.binding_slot_id = ret;
+	slot = &target_tdx->binding_slots[ret];
+
+	err = tdh_servtd_prebind(target_tdx->tdr.pa,
+				 page_to_phys(hash_page),
+				 servtd.binding_slot_id,
+				 servtd.attr,
+				 servtd.type);
+	if (err) {
+		pr_warn("failed to prebind servtd, err=%llx\n", err);
+		return -EIO;
+	}
+	tdx_binding_slot_set_status(slot, TDX_BINDING_SLOT_STATUS_PREBOUND);
+
+	__free_page(hash_page);
+	if (copy_to_user((void __user *)cmd->data,
+			 &servtd, sizeof(struct kvm_tdx_servtd)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int tdx_servtd_bind(struct kvm *target_kvm, struct kvm_tdx_cmd *cmd)
+{
+	struct kvm *servtd_kvm;
+	struct kvm_tdx *servtd_tdx;
+	struct kvm_tdx *target_tdx = to_kvm_tdx(target_kvm);
+	struct kvm_tdx_servtd servtd;
+	struct tdx_binding_slot *slot;
+	uint16_t slot_id;
+	int ret;
+
+	if (copy_from_user(&servtd, (void __user *)cmd->data,
+			   sizeof(struct kvm_tdx_servtd)))
+		return -EFAULT;
+
+	if (cmd->flags ||
+	    servtd.version != KVM_TDX_SERVTD_VERSION ||
+	    servtd.type >= KVM_TDX_SERVTD_TYPE_MAX) {
+		return -EINVAL;
+	}
+
+	servtd_kvm = kvm_get_target_kvm(servtd.pid);
+	if (!servtd_kvm) {
+		pr_err("%s: servtd not found, pid=%d\n", __func__, servtd.pid);
+		return -ENOENT;
+	}
+	servtd_tdx = to_kvm_tdx(servtd_kvm);
+
+	slot_id = servtd.binding_slot_id;
+	/* Initial binding, alloc a new binding slot. */
+	if (slot_id == KVM_TDX_BINDING_SLOT_ID_UNKNOWN) {
+		ret = tdx_get_avail_binding_slot(target_tdx);
+		if (ret < 0)
+			return ret;
+
+		slot_id = ret;
+		servtd.binding_slot_id = slot_id;
+		slot = &target_tdx->binding_slots[slot_id];
+	} else {
+		if (slot_id >= tdx_caps.max_servtds)
+			return -EINVAL;
+
+		slot = &target_tdx->binding_slots[slot_id];
+		/*
+		 * Sanity check: it's not an initial binding.
+		 * Re-binding or later binding (i.e. slot has been pre-bound).
+		 */
+		if (tdx_binding_slot_get_status(slot) == TDX_BINDING_SLOT_STATUS_INIT)
+			return -EINVAL;
+	}
+
+	ret = tdx_servtd_do_bind(target_tdx, servtd_tdx, &servtd, slot);
+	if (ret)
+		return ret;
+
+	ret = tdx_servtd_add_binding_slot(servtd_tdx, slot);
+	if (ret)
+		return ret;
+
+	/* Tell userspace about the slot_id */
+	if (copy_to_user((void __user *)cmd->data,
+			 &servtd, sizeof(struct kvm_tdx_servtd)))
+		return -EFAULT;
+
+	return ret;
+}
+
 int tdx_vm_ioctl(struct kvm *kvm, void __user *argp)
 {
 	struct kvm_tdx_cmd tdx_cmd;
@@ -3497,6 +3740,12 @@ int tdx_vm_ioctl(struct kvm *kvm, void __user *argp)
 		break;
 	case KVM_TDX_FINALIZE_VM:
 		r = tdx_td_finalizemr(kvm);
+		break;
+	case KVM_TDX_SERVTD_PREBIND:
+		r = tdx_servtd_prebind(kvm, &tdx_cmd);
+		break;
+	case KVM_TDX_SERVTD_BIND:
+		r = tdx_servtd_bind(kvm, &tdx_cmd);
 		break;
 	default:
 		r = -EINVAL;

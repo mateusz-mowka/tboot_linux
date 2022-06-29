@@ -16,6 +16,17 @@ struct tdx_td_page {
 	bool added;
 };
 
+/* Information for MigTD to do premigration */
+struct tdx_binding_slot {
+	/* Identify the target TD and the binding slot */
+	uint64_t handle;
+	/* UUID of the target TD */
+	uint8_t  uuid[32];
+	/* See enum tdx_binding_slot_status */
+	atomic_t status;
+};
+
+#define SERVTD_SLOTS_MAX 32
 struct kvm_tdx {
 	struct kvm kvm;
 
@@ -51,6 +62,23 @@ struct kvm_tdx {
 	 * running concurrently when TDP MMU is enabled.
 	 */
 	spinlock_t seamcall_lock;
+
+	/* Pointer to the service TD that has been bound to */
+	struct kvm_tdx *servtd_tdx;
+	/*
+	 * Pointer to an array of tdx binding slots, and the number of binding
+	 * slots is tdx_caps.max_servtds. Each binding slot corresponds to an
+	 * entry in the binding table held by TDCS (see TDX module v1.5 Base
+	 * Architecture Spec, 13.2.1).
+	 */
+	struct tdx_binding_slot *binding_slots;
+
+	/*
+	 * Used when being a servtd. A servtd can be bound to multiple target
+	 * TDs. Each entry in the array is a pointer to the target TD's binding
+	 * slot.
+	 */
+	struct tdx_binding_slot *target_binding_slots[SERVTD_SLOTS_MAX];
 };
 
 union tdx_exit_reason {
