@@ -1826,6 +1826,355 @@ static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+static enum tdvmcall_service_id tdvmcall_get_service_id(guid_t guid)
+{
+	guid_t temp;
+
+	temp = GUID_INIT(0xfb6fc5e1, 0x3378, 0x4acb, 0x89, 0x64,
+			 0xfa, 0x5e, 0xe4, 0x3b, 0x9c, 0x8a);
+	if (guid_equal(&guid, &temp))
+		return TDVMCALL_SERVICE_ID_QUERY;
+
+	temp = GUID_INIT(0xe60e6330, 0x1e09, 0x4387, 0xa4, 0x44,
+			 0x8f, 0x32, 0xb8, 0xd6, 0x11, 0xe5);
+	if (guid_equal(&guid, &temp))
+		return TDVMCALL_SERVICE_ID_MIGTD;
+
+	return TDVMCALL_SERVICE_ID_UNKNOWN;
+}
+
+static void tdx_handle_service_query(struct tdvmcall_service *cmd_hdr,
+				     struct tdvmcall_service *status_hdr)
+{
+	struct tdvmcall_service_query *cmd_query =
+			(struct tdvmcall_service_query *)cmd_hdr->data;
+	struct tdvmcall_service_query *status_query =
+			(struct tdvmcall_service_query *)status_hdr->data;
+	enum tdvmcall_service_id service_id;
+
+	status_query->version = TDVMCALL_SERVICE_QUERY_VERSION;
+	if (cmd_query->version != status_query->version ||
+	    cmd_query->cmd != TDVMCALL_SERVICE_CMD_QUERY) {
+		printk("%s: not supported \n", __func__);
+		status_hdr->status = TDVMCALL_SERVICE_S_UNSUPP;
+	}
+
+	service_id = tdvmcall_get_service_id(cmd_query->guid);
+	if (service_id == TDVMCALL_SERVICE_ID_UNKNOWN)
+		status_query->status = TDVMCALL_SERVICE_QUERY_S_UNSUPPORTED;
+	else
+		status_query->status = TDVMCALL_SERVICE_QUERY_S_SUPPORTED;
+
+	status_query->cmd = cmd_query->cmd;
+	import_guid(&status_query->guid, cmd_query->guid.b);
+
+	status_hdr->length += sizeof(struct tdvmcall_service_query);
+}
+
+static int migtd_basic_info_setup(struct migtd_basic_info *basic,
+				  struct tdx_binding_slot *slot,
+				  uint64_t req_id)
+{
+	struct hob_guid_type_hdr *hdr = &basic->hob_hdr;
+
+	hdr->generic_hdr.type = HOB_TYPE_GUID_EXTENSION;
+	hdr->generic_hdr.length = sizeof(struct migtd_basic_info);
+	hdr->guid = GUID_INIT(0x42b5e398, 0xa199, 0x4d30, 0xbe, 0xfc, 0xc7,
+			      0x5a, 0xc3, 0xda, 0x5d, 0x7c);
+	basic->req_id = req_id;
+	basic->src = slot->is_src;
+	basic->binding_handle = slot->handle;
+	basic->policy_id = 0; // unused by MigTD currently
+	basic->comm_id = 0;
+	basic->cpu_version = cpuid_eax(0x1);
+	memcpy(basic->target_uuid, (uint8_t *)slot->uuid, 32);
+
+	return hdr->generic_hdr.length;
+}
+
+static int migtd_socket_info_setup(struct migtd_socket_info *socket,
+				   struct tdx_binding_slot *slot)
+{
+	struct hob_guid_type_hdr *hdr = &socket->hob_hdr;
+
+	hdr->generic_hdr.type = HOB_TYPE_GUID_EXTENSION;
+	hdr->generic_hdr.length = sizeof(struct migtd_socket_info);
+	hdr->guid = GUID_INIT(0x7a103b9d, 0x552b, 0x485f, 0xbb, 0x4c, 0x2f,
+			      0x3d, 0x2e, 0x8b, 0x1e, 0xe);
+	socket->comm_id = 0;
+	socket->quote_service_port = 0; // unused by MigTD currently
+	socket->migtd_cid = 2; // i.e. VMADDR_CID_HOST
+	socket->channel_port = slot->vsock_port;
+
+	return hdr->generic_hdr.length;
+}
+
+static int migtd_policy_info_setup(struct migtd_policy_info *policy,
+				   struct tdx_binding_slot *slot)
+{
+	struct hob_guid_type_hdr *hdr = &policy->hob_hdr;
+
+	hdr->generic_hdr.type = HOB_TYPE_GUID_EXTENSION;
+	hdr->generic_hdr.length = sizeof(struct migtd_policy_info);
+	hdr->guid = GUID_INIT(0xd64f771a, 0xf0c9, 0x4d33, 0x99, 0x8b, 0xe,
+			      0x3d, 0x8b, 0x94, 0xa, 0x61);
+	policy->policy_id = slot->vsock_port; // unused, testing purpose
+	policy->policy_size = 0;
+
+	return hdr->generic_hdr.length;
+}
+
+static int migtd_start_migration(struct tdvmcall_service_migtd *status_migtd,
+				 struct tdx_binding_slot *slot,
+				 uint64_t req_id)
+{
+	struct migtd_all_info *info =
+		(struct migtd_all_info *)status_migtd->data;
+	int len = 0;
+
+	/* No one requested to start migration */
+	if (req_id == SERVTD_SLOTS_MAX) {
+		status_migtd->operation = TDVMCALL_SERVICE_MIGTD_OP_NOOP;
+		return len;
+	}
+
+	/* Ask MigTD to start migration setup */
+	len += migtd_basic_info_setup(&info->basic, slot, req_id);
+	len += migtd_socket_info_setup(&info->socket, slot);
+	len += migtd_policy_info_setup(&info->policy, slot);
+
+	printk("%s: len=%d \n", __func__, len);
+	status_migtd->operation = TDVMCALL_SERVICE_MIGTD_OP_START_MIG;
+
+	return len;
+}
+
+static bool tdx_binding_slot_premig_wait(struct tdx_binding_slot *slot)
+{
+	enum tdx_binding_slot_status old_status;
+
+	old_status = atomic_cmpxchg(&slot->status,
+				    TDX_BINDING_SLOT_STATUS_PREMIG_WAIT,
+				    TDX_BINDING_SLOT_STATUS_PREMIG_PROGRESS);
+
+	return old_status == TDX_BINDING_SLOT_STATUS_PREMIG_WAIT;
+}
+
+static int migtd_wait_for_request(struct kvm_tdx *tdx,
+				  struct tdvmcall_service_migtd *status_migtd)
+{
+	struct tdx_binding_slot *slot;
+	int i, len = sizeof(struct tdvmcall_service_migtd);
+
+	for (i = 0; i < SERVTD_SLOTS_MAX; i++) {
+		slot = tdx->target_binding_slots[i];
+		if (slot && tdx_binding_slot_premig_wait(slot))
+			break;
+	}
+
+	len += migtd_start_migration(status_migtd, slot, i);
+
+	return len;
+}
+
+/*
+ * Return length of filled bytes. 0 bytes means that the operation isn't
+ * supported.
+ */
+static int migtd_report_status(struct kvm_tdx *tdx,
+			       struct tdvmcall_service_migtd *cmd_migtd,
+			       struct tdvmcall_service_migtd *status_migtd)
+{
+	uint64_t req_id = *(uint64_t *)cmd_migtd->data;
+	struct tdx_binding_slot *slot = tdx->target_binding_slots[req_id];
+	int len = sizeof(struct tdvmcall_service_migtd);
+	enum tdx_binding_slot_status status;
+
+	switch (cmd_migtd->operation) {
+	case TDVMCALL_SERVICE_MIGTD_OP_NOOP: {
+		break;
+	}
+	case TDVMCALL_SERVICE_MIGTD_OP_START_MIG: {
+		status = tdx_binding_slot_get_status(slot);
+		/* Sanity check if the status is unexpected */
+		if (status != TDX_BINDING_SLOT_STATUS_PREMIG_PROGRESS)
+			return 0;
+
+		if (cmd_migtd->status != TDVMCALL_SERVICE_MIGTD_STATUS_SUCC) {
+			pr_err("%s: pre-migration failed, status=%x\n",
+				__func__, cmd_migtd->status);
+			status = TDX_BINDING_SLOT_STATUS_BOUND;
+		} else {
+			status = TDX_BINDING_SLOT_STATUS_PREMIG_DONE;
+		}
+
+		tdx_binding_slot_set_status(slot, status);
+		printk("%s: binding slot status=%d\n",
+			__func__, tdx_binding_slot_get_status(slot));
+		break;
+	}
+	default:
+		len = 0;
+		printk("%s: operation not supported \n", __func__);
+	}
+
+	return len;
+}
+
+static void tdx_handle_service_migtd(struct kvm_tdx *tdx,
+				     struct tdvmcall_service *cmd_hdr,
+				     struct tdvmcall_service *status_hdr)
+{
+	struct tdvmcall_service_migtd *cmd_migtd =
+		(struct tdvmcall_service_migtd *)cmd_hdr->data;
+	struct tdvmcall_service_migtd *status_migtd =
+		(struct tdvmcall_service_migtd *)status_hdr->data;
+	uint32_t status, len = 0;
+
+	status_migtd->cmd = cmd_migtd->cmd;
+	switch (cmd_migtd->cmd) {
+		case TDVMCALL_SERVICE_MIGTD_CMD_SHUTDOWN:
+			/*TODO: end the migtd */
+			printk("%s: end the migtd \n", __func__);
+			status = TDVMCALL_SERVICE_S_UNSUPP;
+			break;
+		case TDVMCALL_SERVICE_MIGTD_CMD_WAIT:
+			status_migtd->version =
+				TDVMCALL_SERVICE_MIGTD_WAIT_VERSION;
+			if (cmd_migtd->version != status_migtd->version) {
+				printk("%s: version err\n", __func__);
+				status = TDVMCALL_SERVICE_S_UNSUPP;
+				break;
+			}
+			len = migtd_wait_for_request(tdx, status_migtd);
+			status = TDVMCALL_SERVICE_S_RETURNED;
+			break;
+		case TDVMCALL_SERVICE_MIGTD_CMD_REPORT:
+			status_migtd->version =
+				TDVMCALL_SERVICE_MIGTD_REPORT_VERSION;
+			if (cmd_migtd->version != status_migtd->version) {
+				printk("%s: version err\n", __func__);
+				status = TDVMCALL_SERVICE_S_UNSUPP;
+				break;
+			}
+			len = migtd_report_status(tdx,
+						  cmd_migtd,
+						  status_migtd);
+			if (len)
+				status = TDVMCALL_SERVICE_S_RETURNED;
+			else
+				status = TDVMCALL_SERVICE_S_UNSUPP;
+			break;
+		default:
+			printk("%s: cmd %d not supported \n",
+				__func__, cmd_migtd->cmd);
+			status = TDVMCALL_SERVICE_S_UNSUPP;
+	}
+
+	status_hdr->length += len;
+	status_hdr->status = status;
+}
+
+static struct tdvmcall_service *tdvmcall_servbuf_alloc(struct kvm_vcpu *vcpu,
+						       gpa_t gpa)
+{
+	uint32_t length;
+	gfn_t gfn = gpa_to_gfn(gpa);
+	struct tdvmcall_service __user *g_buf, *h_buf;
+
+	if (!PAGE_ALIGNED(gpa)) {
+		pr_err("%s: gpa=%llx not page aligned\n", __func__, gpa);
+		return NULL;
+	}
+
+	g_buf = (struct tdvmcall_service *)kvm_vcpu_gfn_to_hva(vcpu, gfn);
+	if (g_buf && get_user(length, &g_buf->length)) {
+		pr_err("%s: failed to get length\n", __func__);
+		return NULL;
+	}
+
+	if (!length) {
+		pr_err("%s: length being 0 isn't valid\n", __func__);
+		return NULL;
+	}
+
+	/* The status field by default is TDX_VMCALL_SERVICE_S_RETURNED */
+	h_buf = kzalloc(length, GFP_KERNEL_ACCOUNT);
+	if (!h_buf) {
+		pr_err("%s: failed to alloc buf\n", __func__);
+		return NULL;
+	}
+
+	if (copy_from_user(h_buf, g_buf, length)) {
+		pr_err("%s: failed tp copy\n", __func__);
+		return NULL;
+	}
+
+	return h_buf;
+}
+
+static void tdvmcall_status_copy_and_free(struct tdvmcall_service *h_buf,
+					  struct kvm_vcpu *vcpu, gpa_t gpa)
+{
+	gfn_t gfn;
+	struct tdvmcall_service __user *g_buf;
+
+	gfn = gpa_to_gfn(gpa);
+	g_buf = (struct tdvmcall_service *)kvm_vcpu_gfn_to_hva(vcpu, gfn);
+	if (copy_to_user(g_buf, h_buf, h_buf->length)) {
+		/* Guest sees TDVMCALL_SERVICE_S_RSVD in status */
+		pr_err("%s: failed to update the guest buffer\n",
+			__func__);
+	}
+	kfree(h_buf);
+}
+
+static int tdx_handle_service(struct kvm_vcpu *vcpu)
+{
+	struct kvm_tdx *tdx = to_kvm_tdx(vcpu->kvm);
+	gpa_t cmd_gpa = tdvmcall_a1_read(vcpu);
+	gpa_t status_gpa = tdvmcall_a2_read(vcpu);
+	uint64_t nvector = tdvmcall_a3_read(vcpu);
+	struct tdvmcall_service *cmd_buf, *status_buf;
+	enum tdvmcall_service_id service_id;
+
+	if (nvector) {
+		pr_warn("%s: interrupt not supported, nvector %lld\n",
+			__func__, nvector);
+		goto err_cmd;
+	}
+
+	/* TDDO: Sanity check if gpa is private */
+
+	cmd_buf = tdvmcall_servbuf_alloc(vcpu, cmd_gpa);
+	if (!cmd_buf)
+		goto err_cmd;
+	status_buf = tdvmcall_servbuf_alloc(vcpu, status_gpa);
+	if (!status_buf)
+		goto err_status;
+	status_buf->length = sizeof(struct tdvmcall_service);
+
+	service_id = tdvmcall_get_service_id(cmd_buf->guid);
+	switch (service_id) {
+		case TDVMCALL_SERVICE_ID_QUERY:
+			tdx_handle_service_query(cmd_buf, status_buf);
+			break;
+		case TDVMCALL_SERVICE_ID_MIGTD:
+			tdx_handle_service_migtd(tdx, cmd_buf, status_buf);
+			break;
+		default:
+			status_buf->status = TDVMCALL_SERVICE_S_UNSUPP;
+			printk("%s: unsupported service type \n", __func__);
+	}
+
+	/* Update the guest status buf and free the host buf */
+	tdvmcall_status_copy_and_free(status_buf, vcpu, status_gpa);
+err_status:
+	kfree(cmd_buf);
+err_cmd:
+	return 1;
+}
+
 static int handle_tdvmcall(struct kvm_vcpu *vcpu)
 {
 	int r;
@@ -1872,6 +2221,9 @@ static int handle_tdvmcall(struct kvm_vcpu *vcpu)
 		break;
 	case TDG_VP_VMCALL_MAP_GPA:
 		r = tdx_map_gpa(vcpu);
+		break;
+	case TDG_VP_VMCALL_SERVICE:
+		r = tdx_handle_service(vcpu);
 		break;
 	default:
 		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_INVALID_OPERAND);
