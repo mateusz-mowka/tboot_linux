@@ -1512,6 +1512,8 @@ static inline void __stop_tx(struct uart_8250_port *p)
 		unsigned int lsr = serial_lsr_in(p);
 		u64 stop_delay = 0;
 
+		p->lsr_saved_flags |= lsr & LSR_SAVE_FLAGS;
+
 		if (!(lsr & UART_LSR_THRE))
 			return;
 		/*
@@ -1940,7 +1942,7 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	if ((status & UART_LSR_THRE) && (up->ier & UART_IER_THRI)) {
 		if (!up->dma || up->dma->tx_err)
 			serial8250_tx_chars(up);
-		else
+		else if (!up->dma->tx_running)
 			__stop_tx(up);
 	}
 
@@ -2964,8 +2966,10 @@ static int serial8250_request_std_resource(struct uart_8250_port *up)
 	case UPIO_MEM32BE:
 	case UPIO_MEM16:
 	case UPIO_MEM:
-		if (!port->mapbase)
+		if (!port->mapbase) {
+			ret = -EINVAL;
 			break;
+		}
 
 		if (!request_mem_region(port->mapbase, size, "serial")) {
 			ret = -EBUSY;
