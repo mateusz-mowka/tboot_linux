@@ -22,8 +22,12 @@ struct tdx_binding_slot {
 	uint64_t handle;
 	/* UUID of the target TD */
 	uint8_t  uuid[32];
+	/* Is migration source VM */
+	uint8_t	 is_src;
 	/* See enum tdx_binding_slot_status */
 	atomic_t status;
+	/* vsock port for MigTD to connect to host */
+	uint32_t vsock_port;
 };
 
 #define SERVTD_SLOTS_MAX 32

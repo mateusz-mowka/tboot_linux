@@ -544,6 +544,8 @@ enum kvm_tdx_cmd_id {
 	KVM_TDX_FINALIZE_VM,
 	KVM_TDX_SERVTD_PREBIND,
 	KVM_TDX_SERVTD_BIND,
+	KVM_TDX_GET_MIGRATION_INFO,
+	KVM_TDX_SET_MIGRATION_INFO,
 
 	KVM_TDX_CMD_NR_MAX,
 };
@@ -672,8 +674,21 @@ enum tdx_binding_slot_status {
 	TDX_BINDING_SLOT_STATUS_PREBOUND = 1,
 	/* Slot is used, and a servtd instance is bound */
 	TDX_BINDING_SLOT_STATUS_BOUND = 2,
+	/* Slot is used, and holds all the info. Ready for pre-migration */
+	TDX_BINDING_SLOT_STATUS_PREMIG_WAIT = 3,
 
 	TDX_BINDING_SLOT_STATUS_UNKNOWN
+};
+
+struct kvm_tdx_mig_info {
+#define KVM_TDX_MIG_INFO_VERSION	0
+	__u8  version;
+	__u8  pad0;
+	__u16 binding_slot_id;
+	__u32 status;
+	__u8  is_src;
+	__u8  pad1[3];
+	__u32 vsock_port;
 };
 
 #endif /* _ASM_X86_KVM_H */

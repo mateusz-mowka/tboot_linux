@@ -3719,6 +3719,63 @@ static int tdx_servtd_bind(struct kvm *target_kvm, struct kvm_tdx_cmd *cmd)
 	return ret;
 }
 
+static int tdx_migration_info_set(struct kvm_tdx *tdx,
+				  struct kvm_tdx_mig_info *info,
+				  struct tdx_binding_slot *slot)
+{
+	if (tdx_binding_slot_get_status(slot) !=
+	    TDX_BINDING_SLOT_STATUS_BOUND) {
+		pr_err("%s err: servtd not bound\n", __func__);
+		return -EINVAL;
+	}
+
+	slot->vsock_port = info->vsock_port;
+	slot->is_src = info->is_src;
+	tdx_binding_slot_set_status(slot, TDX_BINDING_SLOT_STATUS_PREMIG_WAIT);
+	printk(KERN_EMERG"%s: binding slot status=%d\n",
+		__func__, tdx_binding_slot_get_status(slot));
+	return 0;
+}
+
+static int tdx_migration_info(struct kvm *kvm,
+			      struct kvm_tdx_cmd *cmd,
+			      bool set)
+{
+	struct kvm_tdx *target_tdx = to_kvm_tdx(kvm);
+	struct kvm_tdx *servtd_tdx = target_tdx->servtd_tdx;
+	struct kvm_tdx_mig_info info;
+	struct tdx_binding_slot *slot;
+	uint16_t slot_id;
+
+	if (copy_from_user(&info, (void __user *)cmd->data,
+			   sizeof(struct kvm_tdx_mig_info)))
+		return -EFAULT;
+
+	if (cmd->flags ||
+	    info.version != KVM_TDX_MIG_INFO_VERSION ||
+	    info.binding_slot_id >= tdx_caps.max_servtds)
+		return -EINVAL;
+
+	slot_id = info.binding_slot_id;
+	slot = &target_tdx->binding_slots[slot_id];
+	if (set && tdx_migration_info_set(servtd_tdx, &info, slot))
+		return -EINVAL;
+	/*
+	 * For KVM_TDX_GET_MIGRATION_INFO, only status needs to be copied to
+	 * userspace currently.
+	 * For KVM_TDX_SET_MIGRATION_INFO, after setting the info from
+	 * userspace, also updates to the userspace about the status.
+	 */
+	info.status = tdx_binding_slot_get_status(slot);
+	printk(KERN_EMERG"%s: info.status=%x\n", __func__, info.status);
+
+	if (copy_to_user((void __user *)cmd->data, &info,
+			 sizeof(struct kvm_tdx_mig_info)))
+		return -EFAULT;
+
+	return 0;
+}
+
 int tdx_vm_ioctl(struct kvm *kvm, void __user *argp)
 {
 	struct kvm_tdx_cmd tdx_cmd;
@@ -3746,6 +3803,12 @@ int tdx_vm_ioctl(struct kvm *kvm, void __user *argp)
 		break;
 	case KVM_TDX_SERVTD_BIND:
 		r = tdx_servtd_bind(kvm, &tdx_cmd);
+		break;
+	case KVM_TDX_GET_MIGRATION_INFO:
+		r = tdx_migration_info(kvm, &tdx_cmd, false);
+		break;
+	case KVM_TDX_SET_MIGRATION_INFO:
+		r = tdx_migration_info(kvm, &tdx_cmd, true);
 		break;
 	default:
 		r = -EINVAL;
