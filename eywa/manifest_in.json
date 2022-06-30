@@ -3679,14 +3679,14 @@
                 }
             ],
             "description": "Split lock on MTL and RPL-P",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Tony Luck",
                     "email": "tony.luck@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-2995",
             "name": "splitlock",
             "repourl": "https://github.com/intel-sandbox/kernel",
             "sdl_contact": [
@@ -3697,7 +3697,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "pson_counter",
