@@ -1,0 +1,566 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Intel Meteor Point PCH pinctrl/GPIO driver
+ *
+ * Copyright (C) 2020, Intel Corporation
+ * Author: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+ */
+
+#include <linux/mod_devicetable.h>
+#include <linux/module.h>
+#include <linux/platform_device.h>
+
+#include <linux/pinctrl/pinctrl.h>
+
+#include "pinctrl-intel.h"
+
+#define MTP_PAD_OWN	0x020
+#define MTP_PADCFGLOCK	0x080
+#define MTP_HOSTSW_OWN	0x0b0
+#define MTP_GPI_IS	0x100
+#define MTP_GPI_IE	0x120
+
+#define MTP_GPP(r, s, e)				\
+	{						\
+		.reg_num = (r),				\
+		.base = (s),				\
+		.size = ((e) - (s) + 1),		\
+	}
+
+#define MTP_COMMUNITY(s, e, g)				\
+	{						\
+		.padown_offset = MTP_PAD_OWN,		\
+		.padcfglock_offset = MTP_PADCFGLOCK,	\
+		.hostown_offset = MTP_HOSTSW_OWN,	\
+		.is_offset = MTP_GPI_IS,		\
+		.ie_offset = MTP_GPI_IE,		\
+		.pin_base = (s),			\
+		.npins = ((e) - (s) + 1),		\
+		.gpps = (g),				\
+		.ngpps = ARRAY_SIZE(g),			\
+	}
+
+/* Meteor Point-S */
+static const struct pinctrl_pin_desc mtps_community0_pins[] = {
+	/* GPP_D */
+	PINCTRL_PIN(0, "SRCCLKREQB_0"),
+	PINCTRL_PIN(1, "SRCCLKREQB_1"),
+	PINCTRL_PIN(2, "SRCCLKREQB_2"),
+	PINCTRL_PIN(3, "SRCCLKREQB_3"),
+	PINCTRL_PIN(4, "SML1CLK"),
+	PINCTRL_PIN(5, "I2S2_SFRM"),
+	PINCTRL_PIN(6, "I2S2_TXD"),
+	PINCTRL_PIN(7, "I2S2_RXD"),
+	PINCTRL_PIN(8, "I2S2_SCLK"),
+	PINCTRL_PIN(9, "SML0CLK"),
+	PINCTRL_PIN(10, "SML0DATA"),
+	PINCTRL_PIN(11, "SRCCLKREQB_4"),
+	PINCTRL_PIN(12, "SRCCLKREQB_5"),
+	PINCTRL_PIN(13, "SRCCLKREQB_6"),
+	PINCTRL_PIN(14, "SRCCLKREQB_7"),
+	PINCTRL_PIN(15, "SML1DATA"),
+	PINCTRL_PIN(16, "GSPI3_CS0B"),
+	PINCTRL_PIN(17, "GSPI3_CLK"),
+	PINCTRL_PIN(18, "GSPI3_MISO"),
+	PINCTRL_PIN(19, "GSPI3_MOSI"),
+	PINCTRL_PIN(20, "UART3_RXD"),
+	PINCTRL_PIN(21, "UART3_TXD"),
+	PINCTRL_PIN(22, "UART3_RTSB"),
+	PINCTRL_PIN(23, "UART3_CTSB"),
+	PINCTRL_PIN(24, "GSPI3_CLK_LOOPBK"),
+	/* GPP_R */
+	PINCTRL_PIN(25, "HDA_BCLK"),
+	PINCTRL_PIN(26, "HDA_SYNC"),
+	PINCTRL_PIN(27, "HDA_SDO"),
+	PINCTRL_PIN(28, "HDA_SDI_0"),
+	PINCTRL_PIN(29, "HDA_RSTB"),
+	PINCTRL_PIN(30, "HDA_SDI_1"),
+	PINCTRL_PIN(31, "GPP_R_6"),
+	PINCTRL_PIN(32, "GPP_R_7"),
+	PINCTRL_PIN(33, "GPP_R_8"),
+	PINCTRL_PIN(34, "ISH_SPI_CSB"),
+	PINCTRL_PIN(35, "ISH_SPI_CLK"),
+	PINCTRL_PIN(36, "ISH_SPI_MISO"),
+	PINCTRL_PIN(37, "ISH_SPI_MOSI"),
+	PINCTRL_PIN(38, "GSPI2_CLK_LOOPBK"),
+	/* GPP_J */
+	PINCTRL_PIN(39, "CNV_PA_BLANKING"),
+	PINCTRL_PIN(40, "CNV_BRI_DT"),
+	PINCTRL_PIN(41, "CNV_BRI_RSP"),
+	PINCTRL_PIN(42, "CNV_RGI_DT"),
+	PINCTRL_PIN(43, "CNV_RGI_RSP"),
+	PINCTRL_PIN(44, "CNV_MFUART2_RXD"),
+	PINCTRL_PIN(45, "CNV_MFUART2_TXD"),
+	PINCTRL_PIN(46, "BOOTSTALLB"),
+	PINCTRL_PIN(47, "RTCCLKOUT"),
+	PINCTRL_PIN(48, "BPKI3C_SDA"),
+	PINCTRL_PIN(49, "BPKI3C_SCL"),
+	PINCTRL_PIN(50, "DAM"),
+	PINCTRL_PIN(51, "HDACPU_SDI"),
+	PINCTRL_PIN(52, "HDACPU_SDO"),
+	PINCTRL_PIN(53, "HDACPU_BCLK"),
+	PINCTRL_PIN(54, "AUX_PWRGD"),
+	PINCTRL_PIN(55, "GLB_RST_WARN_B"),
+	/* vGPIO */
+	PINCTRL_PIN(56, "CNV_BTEN"),
+	PINCTRL_PIN(57, "CNV_BT_HOST_WAKEB"),
+	PINCTRL_PIN(58, "CNV_BT_IF_SELECT"),
+	PINCTRL_PIN(59, "vCNV_BT_UART_TXD"),
+	PINCTRL_PIN(60, "vCNV_BT_UART_RXD"),
+	PINCTRL_PIN(61, "vCNV_BT_UART_CTS_B"),
+	PINCTRL_PIN(62, "vCNV_BT_UART_RTS_B"),
+	PINCTRL_PIN(63, "vCNV_MFUART1_TXD"),
+	PINCTRL_PIN(64, "vCNV_MFUART1_RXD"),
+	PINCTRL_PIN(65, "vCNV_MFUART1_CTS_B"),
+	PINCTRL_PIN(66, "vCNV_MFUART1_RTS_B"),
+	PINCTRL_PIN(67, "vUART0_TXD"),
+	PINCTRL_PIN(68, "vUART0_RXD"),
+	PINCTRL_PIN(69, "vUART0_CTS_B"),
+	PINCTRL_PIN(70, "vUART0_RTS_B"),
+	PINCTRL_PIN(71, "vISH_UART0_TXD"),
+	PINCTRL_PIN(72, "vISH_UART0_RXD"),
+	PINCTRL_PIN(73, "vISH_UART0_CTS_B"),
+	PINCTRL_PIN(74, "vISH_UART0_RTS_B"),
+	PINCTRL_PIN(75, "vCNV_BT_I2S_BCLK"),
+	PINCTRL_PIN(76, "vCNV_BT_I2S_WS_SYNC"),
+	PINCTRL_PIN(77, "vCNV_BT_I2S_SDO"),
+	PINCTRL_PIN(78, "vCNV_BT_I2S_SDI"),
+	PINCTRL_PIN(79, "vI2S2_SCLK"),
+	PINCTRL_PIN(80, "vI2S2_SFRM"),
+	PINCTRL_PIN(81, "vI2S2_TXD"),
+	PINCTRL_PIN(82, "vI2S2_RXD"),
+	/* vGPIO_0 */
+	PINCTRL_PIN(83, "ESPI_USB_OCB_0"),
+	PINCTRL_PIN(84, "ESPI_USB_OCB_1"),
+	PINCTRL_PIN(85, "ESPI_USB_OCB_2"),
+	PINCTRL_PIN(86, "ESPI_USB_OCB_3"),
+	PINCTRL_PIN(87, "USB_CPU_OCB_0"),
+	PINCTRL_PIN(88, "USB_CPU_OCB_1"),
+	PINCTRL_PIN(89, "USB_CPU_OCB_2"),
+	PINCTRL_PIN(90, "USB_CPU_OCB_3"),
+};
+
+static const struct intel_padgroup mtps_community0_gpps[] = {
+	MTP_GPP(0, 0, 24),	/* GPP_D */
+	MTP_GPP(1, 25, 38),	/* GPP_R */
+	MTP_GPP(2, 39, 55),	/* GPP_J */
+	MTP_GPP(3, 56, 82),	/* vGPIO */
+	MTP_GPP(4, 83, 90),	/* vGPIO_0 */
+};
+
+static const struct intel_community mtps_community0[] = {
+	MTP_COMMUNITY(0, 90, mtps_community0_gpps),
+};
+
+static const struct intel_pinctrl_soc_data mtps_community0_soc_data = {
+	.uid = "0",
+	.pins = mtps_community0_pins,
+	.npins = ARRAY_SIZE(mtps_community0_pins),
+	.communities = mtps_community0,
+	.ncommunities = ARRAY_SIZE(mtps_community0),
+};
+
+static const struct pinctrl_pin_desc mtps_community1_pins[] = {
+	/* GPP_A */
+	PINCTRL_PIN(0, "ESPI_IO_0"),
+	PINCTRL_PIN(1, "ESPI_IO_1"),
+	PINCTRL_PIN(2, "ESPI_IO_2"),
+	PINCTRL_PIN(3, "ESPI_IO_3"),
+	PINCTRL_PIN(4, "ESPI_CS0B"),
+	PINCTRL_PIN(5, "ESPI_CLK"),
+	PINCTRL_PIN(6, "ESPI_RESETB"),
+	PINCTRL_PIN(7, "ESPI_CS1B"),
+	PINCTRL_PIN(8, "ESPI_CS2B"),
+	PINCTRL_PIN(9, "ESPI_CS3B"),
+	PINCTRL_PIN(10, "ESPI_ALERT0B"),
+	PINCTRL_PIN(11, "ESPI_ALERT1B"),
+	PINCTRL_PIN(12, "ESPI_ALERT2B"),
+	PINCTRL_PIN(13, "ESPI_ALERT3B"),
+	PINCTRL_PIN(14, "ESPI_CLK_LOOPBK"),
+	/* DIR_ESPI */
+	PINCTRL_PIN(15, "DMI_WAKEB"),
+	PINCTRL_PIN(16, "DMI_PERSTB"),
+	PINCTRL_PIN(17, "DMI_CLKREQB"),
+	PINCTRL_PIN(18, "DIR_ESPI_IO_0"),
+	PINCTRL_PIN(19, "DIR_ESPI_IO_1"),
+	PINCTRL_PIN(20, "DIR_ESPI_IO_2"),
+	PINCTRL_PIN(21, "DIR_ESPI_IO_3"),
+	PINCTRL_PIN(22, "DIR_ESPI_CSB"),
+	PINCTRL_PIN(23, "DIR_ESPI_RESETB"),
+	PINCTRL_PIN(24, "DIR_ESPI_CLK"),
+	PINCTRL_PIN(25, "DIR_ESPI_RCLK"),
+	PINCTRL_PIN(26, "DIR_ESPI_ALERTB"),
+	/* GPP_B */
+	PINCTRL_PIN(27, "PCIE_LNK_DOWN"),
+	PINCTRL_PIN(28, "ISH_UART0_RTSB"),
+	PINCTRL_PIN(29, "GPP_B_2"),
+	PINCTRL_PIN(30, "CPU_GP_2"),
+	PINCTRL_PIN(31, "CPU_GP_3"),
+	PINCTRL_PIN(32, "SX_EXIT_HOLDOFFB"),
+	PINCTRL_PIN(33, "CLKOUT_48"),
+	PINCTRL_PIN(34, "ISH_GP_7"),
+	PINCTRL_PIN(35, "ISH_GP_0"),
+	PINCTRL_PIN(36, "ISH_GP_1"),
+	PINCTRL_PIN(37, "ISH_GP_2"),
+	PINCTRL_PIN(38, "I2S_MCLK"),
+	PINCTRL_PIN(39, "SLP_S0B"),
+	PINCTRL_PIN(40, "PLTRSTB"),
+	PINCTRL_PIN(41, "GPP_B_14"),
+	PINCTRL_PIN(42, "ISH_GP_3"),
+	PINCTRL_PIN(43, "ISH_GP_4"),
+	PINCTRL_PIN(44, "ISH_GP_5"),
+	PINCTRL_PIN(45, "PMCALERTB"),
+	PINCTRL_PIN(46, "FUSA_DIAGTEST_EN"),
+	PINCTRL_PIN(47, "FUSA_DIAGTEST_MODE"),
+	PINCTRL_PIN(48, "SML1ALERTB"),
+};
+
+static const struct intel_padgroup mtps_community1_gpps[] = {
+	MTP_GPP(0, 0, 14),	/* GPP_A */
+	MTP_GPP(1, 15, 26),	/* DIR_ESPI */
+	MTP_GPP(2, 27, 48),	/* GPP_B */
+};
+
+static const struct intel_community mtps_community1[] = {
+	MTP_COMMUNITY(0, 48, mtps_community1_gpps),
+};
+
+static const struct intel_pinctrl_soc_data mtps_community1_soc_data = {
+	.uid = "1",
+	.pins = mtps_community1_pins,
+	.npins = ARRAY_SIZE(mtps_community1_pins),
+	.communities = mtps_community1,
+	.ncommunities = ARRAY_SIZE(mtps_community1),
+};
+
+static const struct pinctrl_pin_desc mtps_community3_pins[] = {
+	/* SPI0 */
+	PINCTRL_PIN(0, "SPI0_IO_2"),
+	PINCTRL_PIN(1, "SPI0_IO_3"),
+	PINCTRL_PIN(2, "SPI0_MOSI_IO_0"),
+	PINCTRL_PIN(3, "SPI0_MISO_IO_1"),
+	PINCTRL_PIN(4, "SPI0_TPM_CSB"),
+	PINCTRL_PIN(5, "SPI0_FLASH_0_CSB"),
+	PINCTRL_PIN(6, "SPI0_FLASH_1_CSB"),
+	PINCTRL_PIN(7, "SPI0_CLK"),
+	PINCTRL_PIN(8, "SPI0_CLK_LOOPBK"),
+	/* GPP_C */
+	PINCTRL_PIN(9, "SMBCLK"),
+	PINCTRL_PIN(10, "SMBDATA"),
+	PINCTRL_PIN(11, "SMBALERTB"),
+	PINCTRL_PIN(12, "ISH_UART0_RXD"),
+	PINCTRL_PIN(13, "ISH_UART0_TXD"),
+	PINCTRL_PIN(14, "SML0ALERTB"),
+	PINCTRL_PIN(15, "ISH_I2C2_SDA"),
+	PINCTRL_PIN(16, "ISH_I2C2_SCL"),
+	PINCTRL_PIN(17, "UART0_RXD"),
+	PINCTRL_PIN(18, "UART0_TXD"),
+	PINCTRL_PIN(19, "UART0_RTSB"),
+	PINCTRL_PIN(20, "UART0_CTSB"),
+	PINCTRL_PIN(21, "UART1_RXD"),
+	PINCTRL_PIN(22, "UART1_TXD"),
+	PINCTRL_PIN(23, "UART1_RTSB"),
+	PINCTRL_PIN(24, "UART1_CTSB"),
+	PINCTRL_PIN(25, "USB2_OCB_4"),
+	PINCTRL_PIN(26, "USB2_OCB_5"),
+	PINCTRL_PIN(27, "USB2_OCB_6"),
+	PINCTRL_PIN(28, "USB2_OCB_7"),
+	PINCTRL_PIN(29, "UART2_RXD"),
+	PINCTRL_PIN(30, "UART2_TXD"),
+	PINCTRL_PIN(31, "UART2_RTSB"),
+	PINCTRL_PIN(32, "UART2_CTSB"),
+	/* GPP_H */
+	PINCTRL_PIN(33, "GPP_H_0"),
+	PINCTRL_PIN(34, "SRCCLKREQB_8"),
+	PINCTRL_PIN(35, "SRCCLKREQB_9"),
+	PINCTRL_PIN(36, "SRCCLKREQB_10"),
+	PINCTRL_PIN(37, "SRCCLKREQB_11"),
+	PINCTRL_PIN(38, "SRCCLKREQB_12"),
+	PINCTRL_PIN(39, "SRCCLKREQB_13"),
+	PINCTRL_PIN(40, "SRCCLKREQB_14"),
+	PINCTRL_PIN(41, "SRCCLKREQB_15"),
+	PINCTRL_PIN(42, "SML2CLK"),
+	PINCTRL_PIN(43, "SML2DATA"),
+	PINCTRL_PIN(44, "SML2ALERTB"),
+	PINCTRL_PIN(45, "SML3CLK"),
+	PINCTRL_PIN(46, "SML3DATA"),
+	PINCTRL_PIN(47, "SML3ALERTB"),
+	PINCTRL_PIN(48, "SML4CLK"),
+	PINCTRL_PIN(49, "SML4DATA"),
+	PINCTRL_PIN(50, "SML4ALERTB"),
+	PINCTRL_PIN(51, "ISH_I2C1_SDA"),
+	PINCTRL_PIN(52, "ISH_I2C1_SCL"),
+	/* vGPIO_3 */
+	PINCTRL_PIN(53, "P0_CLKREQTX_VW_0"),
+	PINCTRL_PIN(54, "P0_CLKREQTX_VW_1"),
+	PINCTRL_PIN(55, "P0_CLKREQTX_VW_2"),
+	PINCTRL_PIN(56, "P0_CLKREQTX_VW_3"),
+	PINCTRL_PIN(57, "P0_CLKREQTX_VW_4"),
+	PINCTRL_PIN(58, "P0_CLKREQTX_VW_5"),
+	PINCTRL_PIN(59, "P0_CLKREQTX_VW_6"),
+	PINCTRL_PIN(60, "P0_CLKREQTX_VW_7"),
+	PINCTRL_PIN(61, "P0_CLKREQTX_VW_8"),
+	PINCTRL_PIN(62, "P0_CLKREQTX_VW_9"),
+	PINCTRL_PIN(63, "P0_CLKREQTX_VW_10"),
+	PINCTRL_PIN(64, "P0_CLKREQTX_VW_11"),
+	PINCTRL_PIN(65, "P0_CLKREQTX_VW_12"),
+	PINCTRL_PIN(66, "P0_CLKREQTX_VW_13"),
+	PINCTRL_PIN(67, "P0_CLKREQTX_VW_14"),
+	PINCTRL_PIN(68, "P0_CLKREQTX_VW_15"),
+	PINCTRL_PIN(69, "P1_CLKREQTX_VW_0"),
+	PINCTRL_PIN(70, "P1_CLKREQTX_VW_1"),
+	PINCTRL_PIN(71, "P1_CLKREQTX_VW_2"),
+	PINCTRL_PIN(72, "P1_CLKREQTX_VW_3"),
+	PINCTRL_PIN(73, "P1_CLKREQTX_VW_4"),
+	PINCTRL_PIN(74, "P1_CLKREQTX_VW_5"),
+	PINCTRL_PIN(75, "P1_CLKREQTX_VW_6"),
+	PINCTRL_PIN(76, "P1_CLKREQTX_VW_7"),
+	PINCTRL_PIN(77, "P1_CLKREQTX_VW_8"),
+	PINCTRL_PIN(78, "P1_CLKREQTX_VW_9"),
+	PINCTRL_PIN(79, "P1_CLKREQTX_VW_10"),
+	PINCTRL_PIN(80, "P1_CLKREQTX_VW_11"),
+	PINCTRL_PIN(81, "P1_CLKREQTX_VW_12"),
+	PINCTRL_PIN(82, "P1_CLKREQTX_VW_13"),
+	PINCTRL_PIN(83, "P1_CLKREQTX_VW_14"),
+	PINCTRL_PIN(84, "P1_CLKREQTX_VW_15"),
+	PINCTRL_PIN(85, "P2_CLKREQTX_VW_0"),
+	PINCTRL_PIN(86, "P2_CLKREQTX_VW_1"),
+	PINCTRL_PIN(87, "P2_CLKREQTX_VW_2"),
+	PINCTRL_PIN(88, "P2_CLKREQTX_VW_3"),
+	PINCTRL_PIN(89, "P2_CLKREQTX_VW_4"),
+	PINCTRL_PIN(90, "P2_CLKREQTX_VW_5"),
+	PINCTRL_PIN(91, "P2_CLKREQTX_VW_6"),
+	PINCTRL_PIN(92, "P2_CLKREQTX_VW_7"),
+	PINCTRL_PIN(93, "P2_CLKREQTX_VW_8"),
+	PINCTRL_PIN(94, "P2_CLKREQTX_VW_9"),
+	PINCTRL_PIN(95, "P2_CLKREQTX_VW_10"),
+	PINCTRL_PIN(96, "P2_CLKREQTX_VW_11"),
+	PINCTRL_PIN(97, "P2_CLKREQTX_VW_12"),
+	PINCTRL_PIN(98, "P2_CLKREQTX_VW_13"),
+	PINCTRL_PIN(99, "P2_CLKREQTX_VW_14"),
+	PINCTRL_PIN(100, "P2_CLKREQTX_VW_15"),
+	PINCTRL_PIN(101, "P3_CLKREQTX_VW_0"),
+	PINCTRL_PIN(102, "P3_CLKREQTX_VW_1"),
+	PINCTRL_PIN(103, "P3_CLKREQTX_VW_2"),
+	PINCTRL_PIN(104, "P3_CLKREQTX_VW_3"),
+	PINCTRL_PIN(105, "P3_CLKREQTX_VW_4"),
+	PINCTRL_PIN(106, "P3_CLKREQTX_VW_5"),
+	PINCTRL_PIN(107, "P3_CLKREQTX_VW_6"),
+	PINCTRL_PIN(108, "P3_CLKREQTX_VW_7"),
+	PINCTRL_PIN(109, "P3_CLKREQTX_VW_8"),
+	PINCTRL_PIN(110, "P3_CLKREQTX_VW_9"),
+	PINCTRL_PIN(111, "P3_CLKREQTX_VW_10"),
+	PINCTRL_PIN(112, "P3_CLKREQTX_VW_11"),
+	PINCTRL_PIN(113, "P3_CLKREQTX_VW_12"),
+	PINCTRL_PIN(114, "P3_CLKREQTX_VW_13"),
+	PINCTRL_PIN(115, "P3_CLKREQTX_VW_14"),
+	PINCTRL_PIN(116, "P3_CLKREQTX_VW_15"),
+	PINCTRL_PIN(117, "P0_CLKREQRX_VW_0"),
+	PINCTRL_PIN(118, "P0_CLKREQRX_VW_1"),
+	PINCTRL_PIN(119, "P0_CLKREQRX_VW_2"),
+	PINCTRL_PIN(120, "P0_CLKREQRX_VW_3"),
+	PINCTRL_PIN(121, "P1_CLKREQRX_VW_0"),
+	PINCTRL_PIN(122, "P1_CLKREQRX_VW_1"),
+	PINCTRL_PIN(123, "P1_CLKREQRX_VW_2"),
+	PINCTRL_PIN(124, "P1_CLKREQRX_VW_3"),
+	PINCTRL_PIN(125, "P2_CLKREQRX_VW_0"),
+	PINCTRL_PIN(126, "P2_CLKREQRX_VW_1"),
+	PINCTRL_PIN(127, "P2_CLKREQRX_VW_2"),
+	PINCTRL_PIN(128, "P2_CLKREQRX_VW_3"),
+	PINCTRL_PIN(129, "P3_CLKREQRX_VW_0"),
+	PINCTRL_PIN(130, "P3_CLKREQRX_VW_1"),
+	PINCTRL_PIN(131, "P3_CLKREQRX_VW_2"),
+	PINCTRL_PIN(132, "P3_CLKREQRX_VW_3"),
+	PINCTRL_PIN(133, "CPU_PCIE_LNK_DN_0"),
+	PINCTRL_PIN(134, "CPU_PCIE_LNK_DN_1"),
+	PINCTRL_PIN(135, "CPU_PCIE_LNK_DN_2"),
+	PINCTRL_PIN(136, "CPU_PCIE_LNK_DN_3"),
+};
+
+static const struct intel_padgroup mtps_community3_gpps[] = {
+	MTP_GPP(0, 0, 8),	/* SPI0 */
+	MTP_GPP(1, 9, 32),	/* GPP_C */
+	MTP_GPP(2, 33, 52),	/* GPP_H */
+	MTP_GPP(3, 53, 84),	/* vGPIO_3_0 */
+	MTP_GPP(4, 85, 116),	/* vGPIO_3_1 */
+	MTP_GPP(5, 117, 136),	/* vGPIO_3_2 */
+};
+
+static const struct intel_community mtps_community3[] = {
+	MTP_COMMUNITY(0, 136, mtps_community3_gpps),
+};
+
+static const struct intel_pinctrl_soc_data mtps_community3_soc_data = {
+	.uid = "3",
+	.pins = mtps_community3_pins,
+	.npins = ARRAY_SIZE(mtps_community3_pins),
+	.communities = mtps_community3,
+	.ncommunities = ARRAY_SIZE(mtps_community3),
+};
+
+static const struct pinctrl_pin_desc mtps_community4_pins[] = {
+	/* GPP_S */
+	PINCTRL_PIN(0, "SNDW1_CLK"),
+	PINCTRL_PIN(1, "SNDW1_DATA"),
+	PINCTRL_PIN(2, "SNDW2_CLK"),
+	PINCTRL_PIN(3, "SNDW2_DATA"),
+	PINCTRL_PIN(4, "SNDW3_CLK"),
+	PINCTRL_PIN(5, "SNDW3_DATA"),
+	PINCTRL_PIN(6, "SNDW4_CLK"),
+	PINCTRL_PIN(7, "SNDW4_DATA"),
+	/* GPP_E */
+	PINCTRL_PIN(8, "SATAXPCIE_0"),
+	PINCTRL_PIN(9, "SATAXPCIE_1"),
+	PINCTRL_PIN(10, "SATAXPCIE_2"),
+	PINCTRL_PIN(11, "CPU_GP_0"),
+	PINCTRL_PIN(12, "SATA_DEVSLP_0"),
+	PINCTRL_PIN(13, "SATA_DEVSLP_1"),
+	PINCTRL_PIN(14, "SATA_DEVSLP_2"),
+	PINCTRL_PIN(15, "CPU_GP_1"),
+	PINCTRL_PIN(16, "SATA_LEDB"),
+	PINCTRL_PIN(17, "USB2_OCB_0"),
+	PINCTRL_PIN(18, "USB2_OCB_1"),
+	PINCTRL_PIN(19, "USB2_OCB_2"),
+	PINCTRL_PIN(20, "USB2_OCB_3"),
+	PINCTRL_PIN(21, "SPI1_CSB"),
+	PINCTRL_PIN(22, "SPI1_CLK"),
+	PINCTRL_PIN(23, "SPI1_MISO_IO_1"),
+	PINCTRL_PIN(24, "SPI1_MOSI_IO_0"),
+	PINCTRL_PIN(25, "SPI1_IO_2"),
+	PINCTRL_PIN(26, "SPI1_IO_3"),
+	PINCTRL_PIN(27, "GPP_E_19"),
+	PINCTRL_PIN(28, "GPP_E_20"),
+	PINCTRL_PIN(29, "ISH_UART0_CTSB"),
+	PINCTRL_PIN(30, "SPI1_CLK_LOOPBK"),
+	/* GPP_K */
+	PINCTRL_PIN(31, "GSXDOUT"),
+	PINCTRL_PIN(32, "GSXSLOAD"),
+	PINCTRL_PIN(33, "GSXDIN"),
+	PINCTRL_PIN(34, "GSXSRESETB"),
+	PINCTRL_PIN(35, "GSXCLK"),
+	PINCTRL_PIN(36, "ADR_COMPLETE"),
+	PINCTRL_PIN(37, "GPP_K_6"),
+	PINCTRL_PIN(38, "GPP_K_7"),
+	PINCTRL_PIN(39, "CORE_VID_0"),
+	PINCTRL_PIN(40, "CORE_VID_1"),
+	PINCTRL_PIN(41, "GPP_K_10"),
+	PINCTRL_PIN(42, "RESET_SYNCB"),
+	PINCTRL_PIN(43, "SYS_RESETB"),
+	PINCTRL_PIN(44, "MLK_RSTB"),
+	/* GPP_F */
+	PINCTRL_PIN(45, "SATAXPCIE_3"),
+	PINCTRL_PIN(46, "SATAXPCIE_4"),
+	PINCTRL_PIN(47, "SATAXPCIE_5"),
+	PINCTRL_PIN(48, "SATAXPCIE_6"),
+	PINCTRL_PIN(49, "SATAXPCIE_7"),
+	PINCTRL_PIN(50, "SATA_DEVSLP_3"),
+	PINCTRL_PIN(51, "SATA_DEVSLP_4"),
+	PINCTRL_PIN(52, "SATA_DEVSLP_5"),
+	PINCTRL_PIN(53, "SATA_DEVSLP_6"),
+	PINCTRL_PIN(54, "SATA_DEVSLP_7"),
+	PINCTRL_PIN(55, "SATA_SCLOCK"),
+	PINCTRL_PIN(56, "SATA_SLOAD"),
+	PINCTRL_PIN(57, "SATA_SDATAOUT1"),
+	PINCTRL_PIN(58, "SATA_SDATAOUT0"),
+	PINCTRL_PIN(59, "PS_ONB"),
+	PINCTRL_PIN(60, "M2_SKT2_CFG_0"),
+	PINCTRL_PIN(61, "M2_SKT2_CFG_1"),
+	PINCTRL_PIN(62, "M2_SKT2_CFG_2"),
+	PINCTRL_PIN(63, "M2_SKT2_CFG_3"),
+	PINCTRL_PIN(64, "DNX_FORCE_RELOAD"),
+	PINCTRL_PIN(65, "GMII_MDC_0"),
+	PINCTRL_PIN(66, "GMII_MDIO_0"),
+	PINCTRL_PIN(67, "USBC_SMLCLK"),
+	PINCTRL_PIN(68, "USBC_SMLDATA"),
+};
+
+static const struct intel_padgroup mtps_community4_gpps[] = {
+	MTP_GPP(0, 0, 7),	/* GPP_S */
+	MTP_GPP(1, 8, 30),	/* GPP_E */
+	MTP_GPP(2, 31, 44),	/* GPP_K */
+	MTP_GPP(3, 45, 68),	/* GPP_F */
+};
+
+static const struct intel_community mtps_community4[] = {
+	MTP_COMMUNITY(0, 68, mtps_community4_gpps),
+};
+
+static const struct intel_pinctrl_soc_data mtps_community4_soc_data = {
+	.uid = "4",
+	.pins = mtps_community4_pins,
+	.npins = ARRAY_SIZE(mtps_community4_pins),
+	.communities = mtps_community4,
+	.ncommunities = ARRAY_SIZE(mtps_community4),
+};
+
+static const struct pinctrl_pin_desc mtps_community5_pins[] = {
+	/* GPP_I */
+	PINCTRL_PIN(0, "GSPI0_CS1B"),
+	PINCTRL_PIN(1, "GSPI1_CS1B"),
+	PINCTRL_PIN(2, "I2C0_SDA"),
+	PINCTRL_PIN(3, "I2C0_SCL"),
+	PINCTRL_PIN(4, "I2C1_SDA"),
+	PINCTRL_PIN(5, "I2C1_SCL"),
+	PINCTRL_PIN(6, "GSPI0_CS0B"),
+	PINCTRL_PIN(7, "GSPI0_CLK"),
+	PINCTRL_PIN(8, "GSPI0_MISO"),
+	PINCTRL_PIN(9, "GSPI0_MOSI"),
+	PINCTRL_PIN(10, "GSPI1_CS0B"),
+	PINCTRL_PIN(11, "GSPI1_CLK"),
+	PINCTRL_PIN(12, "GSPI1_MISO"),
+	PINCTRL_PIN(13, "GSPI1_MOSI"),
+	PINCTRL_PIN(14, "ISH_I2C0_SDA"),
+	PINCTRL_PIN(15, "ISH_I2C0_SCL"),
+	PINCTRL_PIN(16, "GPP_I_16"),
+	PINCTRL_PIN(17, "GSPI0_CLK_LOOPBK"),
+	PINCTRL_PIN(18, "GSPI1_CLK_LOOPBK"),
+	PINCTRL_PIN(19, "ISH_I3C0_CLK_LOOPBK"),
+	PINCTRL_PIN(20, "I3C0_CLK_LOOPBK"),
+};
+
+static const struct intel_padgroup mtps_community5_gpps[] = {
+	MTP_GPP(0, 0, 20),	/* GPP_I */
+};
+
+static const struct intel_community mtps_community5[] = {
+	MTP_COMMUNITY(0, 20, mtps_community5_gpps),
+};
+
+static const struct intel_pinctrl_soc_data mtps_community5_soc_data = {
+	.uid = "5",
+	.pins = mtps_community5_pins,
+	.npins = ARRAY_SIZE(mtps_community5_pins),
+	.communities = mtps_community5,
+	.ncommunities = ARRAY_SIZE(mtps_community5),
+};
+
+static const struct intel_pinctrl_soc_data *mtps_soc_data_array[] = {
+	&mtps_community0_soc_data,
+	&mtps_community1_soc_data,
+	&mtps_community3_soc_data,
+	&mtps_community4_soc_data,
+	&mtps_community5_soc_data,
+	NULL
+};
+
+static const struct acpi_device_id mtp_pinctrl_acpi_match[] = {
+	{ "", (kernel_ulong_t)mtps_soc_data_array },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, mtp_pinctrl_acpi_match);
+
+static INTEL_PINCTRL_PM_OPS(mtp_pinctrl_pm_ops);
+
+static struct platform_driver mtp_pinctrl_driver = {
+	.probe = intel_pinctrl_probe_by_uid,
+	.driver = {
+		.name = "meteorpoint-pinctrl",
+		.acpi_match_table = mtp_pinctrl_acpi_match,
+		.pm = &mtp_pinctrl_pm_ops,
+	},
+};
+module_platform_driver(mtp_pinctrl_driver);
+
+MODULE_AUTHOR("Andy Shevchenko <andriy.shevchenko@linux.intel.com>");
+MODULE_DESCRIPTION("Intel Meteor Point PCH pinctrl/GPIO driver");
+MODULE_LICENSE("GPL v2");
