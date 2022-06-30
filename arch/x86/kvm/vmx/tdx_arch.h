@@ -36,6 +36,7 @@
 #define TDH_PHYMEM_PAGE_RECLAIM		28
 #define TDH_MEM_PAGE_REMOVE		29
 #define TDH_MEM_SEPT_REMOVE		30
+#define TDH_SYS_RD			34
 #define TDH_MEM_TRACK			38
 #define TDH_MEM_RANGE_UNBLOCK		39
 #define TDH_PHYMEM_CACHE_WB		40
@@ -204,5 +205,8 @@ enum tdx_ext_exit_qualification_type {
 #define TDX_MD_FID_NOARCH_TDVPS_DETAILS_2_0	0x9120000300000021
 
 u64 tdx_non_arch_field_switch(u64 field);
+
+/* The field id used to access the metadata. Section 5 of the ABI spec */
+#define TDX_MD_FID_SERVTD_MAX_SERVTDS		0xA100000100000000
 
 #endif /* __KVM_X86_TDX_ARCH_H */
