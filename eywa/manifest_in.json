@@ -4545,6 +4545,27 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
+        },
+        {
+            "branch": "intel-5.19-rc4-0627-arch-lbr-cet",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Weijiang Yang",
+                    "email": "weijiang.yang@intel.com"
+                }
+            ],
+            "description": "KVM: Arch LBR and CET features",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-2994",
+            "name": "kvm_lbr_cet",
+            "repourl": "https://github.com/intel-sandbox/weijiang.linux.kvm.git",
+            "sdl_contact": [],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
