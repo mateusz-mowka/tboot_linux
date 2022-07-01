@@ -2447,6 +2447,46 @@ static int kvm_vm_ioctl_clear_dirty_log(struct kvm *kvm,
 }
 #endif /* CONFIG_KVM_GENERIC_DIRTYLOG_READ_PROTECT */
 
+
+static int kvm_get_cgs_log_protect(struct kvm *kvm, struct kvm_cgs_log *log)
+{
+	struct kvm_memslots *slots;
+	struct kvm_memory_slot *memslot;
+	int as_id, id;
+	unsigned long n;
+	int ret;
+
+	as_id = log->slot >> 16;
+	id = (u16)log->slot;
+	if (as_id >= KVM_ADDRESS_SPACE_NUM || id >= KVM_USER_MEM_SLOTS)
+		return -EINVAL;
+
+	slots = __kvm_memslots(kvm, as_id);
+	memslot = id_to_memslot(slots, id);
+	if (!memslot || !memslot->cgs_bitmap)
+		return 0;
+
+	n = kvm_dirty_bitmap_bytes(memslot);
+	ret = copy_to_user(log->bitmap, memslot->cgs_bitmap, n);
+	if (ret)
+		return -EFAULT;
+
+	return 0;
+}
+
+static int kvm_vm_ioctl_get_cgs_log(struct kvm *kvm,
+				    struct kvm_cgs_log *log)
+{
+	int r;
+
+	mutex_lock(&kvm->slots_lock);
+
+	r = kvm_get_cgs_log_protect(kvm, log);
+
+	mutex_unlock(&kvm->slots_lock);
+	return r;
+}
+
 struct kvm_memory_slot *gfn_to_memslot(struct kvm *kvm, gfn_t gfn)
 {
 	return __gfn_to_memslot(kvm_memslots(kvm), gfn);
@@ -4803,6 +4843,19 @@ static long kvm_vm_ioctl(struct file *filp,
 		if (copy_from_user(&log, argp, sizeof(log)))
 			goto out;
 		r = kvm_vm_ioctl_get_dirty_log(kvm, &log);
+		break;
+	}
+	case KVM_GET_CGS_LOG: {
+		struct kvm_cgs_log log;
+
+		r = -EFAULT;
+		if (copy_from_user(&log, argp, sizeof(log)))
+			goto out;
+		r = kvm_vm_ioctl_get_cgs_log(kvm, &log);
+		if (copy_to_user(argp, &log, sizeof(log))) {
+			pr_err("%s: KVM_GET_CGS_LOG failed\n", __func__);
+			goto out;
+		}
 		break;
 	}
 #ifdef CONFIG_KVM_GENERIC_DIRTYLOG_READ_PROTECT

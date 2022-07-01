@@ -2295,4 +2295,15 @@ struct kvm_stats_desc {
 #define KVM_X86_NOTIFY_VMEXIT_ENABLED		(1ULL << 0)
 #define KVM_X86_NOTIFY_VMEXIT_USER		(1ULL << 1)
 
+#define KVM_GET_CGS_LOG	_IOW(KVMIO,  0xd1, struct kvm_cgs_log)
+struct kvm_cgs_log {
+	__u16 flag;
+	__u16 padding1;
+	__u32 slot;
+	union {
+		void __user *bitmap; /* one bit per page */
+		__u64 padding2;
+	};
+};
+
 #endif /* __LINUX_KVM_H */
