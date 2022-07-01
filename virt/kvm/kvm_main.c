@@ -991,6 +991,15 @@ static void kvm_destroy_dirty_bitmap(struct kvm_memory_slot *memslot)
 	memslot->dirty_bitmap = NULL;
 }
 
+static void kvm_destroy_cgs_bitmap(struct kvm_memory_slot *memslot)
+{
+	if (!memslot->cgs_bitmap)
+		return;
+
+	kvfree(memslot->cgs_bitmap);
+	memslot->cgs_bitmap = NULL;
+}
+
 /* This does not remove the slot from struct kvm_memslots data structures */
 static void kvm_free_memslot(struct kvm *kvm, struct kvm_memory_slot *slot)
 {
@@ -1000,6 +1009,7 @@ static void kvm_free_memslot(struct kvm *kvm, struct kvm_memory_slot *slot)
 	}
 
 	kvm_destroy_dirty_bitmap(slot);
+	kvm_destroy_cgs_bitmap(slot);
 
 	kvm_arch_free_memslot(kvm, slot);
 
@@ -1419,6 +1429,23 @@ static int kvm_alloc_dirty_bitmap(struct kvm_memory_slot *memslot)
 	return 0;
 }
 
+static int kvm_alloc_cgs_bitmap(struct kvm_memory_slot *memslot)
+{
+	unsigned long bytes = kvm_dirty_bitmap_bytes(memslot);
+
+	if (memslot->cgs_bitmap) {
+		pr_warn("%s: already allocated\n", __func__);
+		return 0;
+	}
+
+	/*FIXME: check tdx enabled, KVM_MEM_PRIVATE with fd-based later */
+	memslot->cgs_bitmap = kvzalloc(bytes, GFP_KERNEL_ACCOUNT);
+	if (!memslot->cgs_bitmap)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static struct kvm_memslots *kvm_get_inactive_memslots(struct kvm *kvm, int as_id)
 {
 	struct kvm_memslots *active = __kvm_memslots(kvm, as_id);
@@ -1677,6 +1704,17 @@ static int kvm_prepare_memory_region(struct kvm *kvm,
 			if (kvm_dirty_log_manual_protect_and_init_set(kvm))
 				bitmap_set(new->dirty_bitmap, 0, new->npages);
 		}
+
+		if (old && old->cgs_bitmap) {
+			new->cgs_bitmap = old->cgs_bitmap;
+		} else {
+			r = kvm_alloc_cgs_bitmap(new);
+			if (r) {
+				pr_err("%s: fail to alloc cgs bitmap\n",
+				       __func__);
+				return r;
+			}
+		}
 	}
 
 	r = kvm_arch_prepare_memory_region(kvm, old, new, change);
@@ -1763,6 +1801,7 @@ static void kvm_copy_memslot(struct kvm_memory_slot *dest,
 	dest->base_gfn = src->base_gfn;
 	dest->npages = src->npages;
 	dest->dirty_bitmap = src->dirty_bitmap;
+	dest->cgs_bitmap = src->cgs_bitmap;
 	dest->arch = src->arch;
 	dest->userspace_addr = src->userspace_addr;
 	dest->flags = src->flags;

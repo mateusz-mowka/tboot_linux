@@ -4851,6 +4851,8 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
 
 	r = RET_PF_RETRY;
 
+	kvm_mmu_map_gpa(vcpu, fault->addr, fault->addr + PAGE_SIZE);
+
 	if (is_tdp_mmu_fault)
 		read_lock(&vcpu->kvm->mmu_lock);
 	else
@@ -7142,6 +7144,43 @@ static void kvm_mmu_map_gfn_in_slot(struct kvm *kvm,
 	}
 }
 
+static void kvm_vcpu_update_cgs_bitmap(struct kvm_memory_slot *slot, gfn_t gfn_start,
+				gfn_t gfn_end, bool is_private)
+{
+	gfn_t gfn_update;
+	uint64_t bit_update;
+
+	if (!slot || !slot->cgs_bitmap) {
+		pr_err("%s: slot isn't valid\n", __func__);
+		return;
+	}
+
+	if (gfn_start < slot->base_gfn ||
+	    gfn_end - 1 > slot->base_gfn + slot->npages) {
+		pr_err("%s: slot doesn't match\n", __func__);
+		return;
+	}
+
+	/* Sanity check */
+	if (!kvm_is_private_gpa(slot->kvm, gfn_to_gpa(gfn_start))) {
+		pr_err("%s: gfn should have been unaliased\n", __func__);
+		return;
+	}
+
+	if (is_private) {
+		/* TODO: Optimize to set chunks */
+		for (gfn_update = gfn_start; gfn_update < gfn_end; gfn_update++) {
+			bit_update = gfn_update - slot->base_gfn;
+			set_bit_le(bit_update, slot->cgs_bitmap);
+		}
+	} else {
+		for (gfn_update = gfn_start; gfn_update < gfn_end; gfn_update++) {
+			bit_update = gfn_update - slot->base_gfn;
+			clear_bit_le(bit_update, slot->cgs_bitmap);
+		}
+	}
+}
+
 int kvm_mmu_map_gpa(struct kvm_vcpu *vcpu, gpa_t start_gpa, gpa_t end_gpa)
 {
 	struct kvm_memory_slot *memslot;
@@ -7168,6 +7207,7 @@ int kvm_mmu_map_gpa(struct kvm_vcpu *vcpu, gpa_t start_gpa, gpa_t end_gpa)
 				continue;
 
 		kvm_mmu_map_gfn_in_slot(kvm, memslot, start, end, is_private);
+		kvm_vcpu_update_cgs_bitmap(memslot, start, end, is_private);
 	}
 
 	return 0;
