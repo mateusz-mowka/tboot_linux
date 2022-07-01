@@ -4570,6 +4570,37 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
+        },
+        {
+            "branch": "intel-5.19-rc4-0701-gnrsrf",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Jiaxi Chen",
+                    "email": "jiaxi.chen@linux.intel.com"
+                }
+            ],
+            "description": "Add New GNR/SRF Instructions",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Jiaxi Chen",
+                    "email": "jiaxi.chen@linux.intel.com"
+                }
+            ],
+            "jira": "NEXT-3003",
+            "name": "GNR_SRF",
+            "repourl": "https://github.com/intel-sandbox/jiaxi.kernel.kvm.git",
+            "sdl_contact": [
+                {
+                    "name": "Jiaxi Chen",
+                    "email": "jiaxi.chen@linux.intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
