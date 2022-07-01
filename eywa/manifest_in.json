@@ -4238,6 +4238,10 @@
                 {
                     "name": "CONFIG_X86_SLE_SUPPORT",
                     "value": "n"
+                },
+                {
+                    "name": "CONFIG_TEST_FPU",
+                    "value": "m"
                 }
             ],
             "contributor": [
