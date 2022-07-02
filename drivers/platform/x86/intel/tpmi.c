@@ -323,6 +323,8 @@ static int tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
 	ktime_t tm;
 	int ret;
 
+	pr_info("Feature status READ start\n");
+
 	if (!tpmi_info->tpmi_control_mem)
 		return -EFAULT;
 
@@ -331,6 +333,8 @@ static int tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
 	ret = tpmi_wait_for_owner(tpmi_info, TPMI_OWNER_NONE);
 	if (ret)
 		goto err_proc;
+
+	pr_info("Feature status \n");
 
 	/* set command id to 0x10 for TPMI_GET_STATE */
 	data = TPMI_GET_STATE_CMD;
@@ -344,10 +348,13 @@ static int tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
 	if (ret)
 		goto err_proc;
 
+	pr_info("Feature status owner is now inband\n");
+
 	/* Set Run Busy and packet length of 2 dwords */
 	writeq(BIT_ULL(TPMI_CONTROL_RB_BIT) | (TPMI_CMD_PKT_LEN << TPMI_CMD_PKT_LEN_OFFSET),
 	       tpmi_info->tpmi_control_mem + TPMI_CONTROL_STATUS_OFFSET);
 
+	pr_info("Feature status owner Wait for RB = 0\n");
 	/* Poll for rb bit == 0 */
 	tm = ktime_get();
 	do {
@@ -365,6 +372,8 @@ static int tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
 
 	if (ret)
 		goto done_proc;
+
+	pr_info("Feature status owner RB == 0\n");
 
 	control = FIELD_GET(TPMI_GENMASK_STATUS, control);
 	if (control != TPMI_CMD_STATUS_SUCCESS) {
@@ -393,6 +402,7 @@ done_proc:
 
 err_proc:
 	mutex_unlock(&tpmi_dev_lock);
+	pr_info("Feature status READ End\n");
 
 	return ret;
 }
@@ -761,14 +771,8 @@ static int tpmi_create_devices(struct intel_tpmi_info *tpmi_info)
 
 	for (i = 0; i < vsec_dev->num_resources; i++) {
 		struct intel_tpmi_pm_feature *pfs;
-		int locked, disabled;
 
 		pfs = &tpmi_info->tpmi_features[i];
-		ret = tpmi_get_feature_status(tpmi_info, pfs->pfs_header.tpmi_id,
-					      &locked, &disabled);
-		if (!ret)
-			dev_dbg(tpmi_to_dev(tpmi_info), "id:%d, locked:%d disabled:%d\n",
-				pfs->pfs_header.tpmi_id, locked, disabled);
 		/* Todo: Till tested on HW, just create device anyway even if locked */
 		ret = tpmi_create_device(tpmi_info, &tpmi_info->tpmi_features[i],
 					 tpmi_info->pfs_start);
