@@ -142,7 +142,7 @@ struct hfi_instance {
  */
 struct hfi_features {
 	int		nr_classes;
-	unsigned int	nr_table_pages;
+	size_t		nr_table_pages;
 	unsigned int	cpu_stride;
 	unsigned int	class_stride;
 	unsigned int	hdr_size;
