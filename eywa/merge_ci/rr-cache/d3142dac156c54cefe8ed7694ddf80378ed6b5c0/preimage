@@ -300,36 +300,6 @@ static int iommu_skip_te_disable;
 #define IDENTMAP_GFX		2
 #define IDENTMAP_AZALIA		4
 
-<<<<<<<
-=======
-DEFINE_SPINLOCK(device_domain_lock);
-static LIST_HEAD(device_domain_list);
-
-/*
- * Iterate over elements in device_domain_list and call the specified
- * callback @fn against each element.
- */
-int for_each_device_domain(int (*fn)(struct device_domain_info *info,
-				     void *data), void *data)
-{
-	int ret = 0;
-	unsigned long flags;
-	struct device_domain_info *info;
-
-	spin_lock_irqsave(&device_domain_lock, flags);
-	list_for_each_entry(info, &device_domain_list, global) {
-		ret = fn(info, data);
-		if (ret) {
-			spin_unlock_irqrestore(&device_domain_lock, flags);
-			return ret;
-		}
-	}
-	spin_unlock_irqrestore(&device_domain_lock, flags);
-
-	return 0;
-}
-
->>>>>>>
 const struct iommu_ops intel_iommu_ops;
 
 static bool translation_pre_enabled(struct intel_iommu *iommu)
@@ -1716,6 +1686,11 @@ static void free_dmar_iommu(struct intel_iommu *iommu)
 		iommu->domain_ids = NULL;
 	}
 
+<<<<<<<
+=======
+	iommu->flags &= ~VTD_FLAG_IOMMU_PROBED;
+
+>>>>>>>
 	/* free context mapping */
 	free_context_table(iommu);
 
@@ -1773,6 +1748,19 @@ static int domain_attach_iommu(struct dmar_domain *domain,
 	struct iommu_domain_info *info, *curr;
 	unsigned long ndomains;
 	int num, ret = -ENOSPC;
+<<<<<<<
+
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	if (!info)
+		return -ENOMEM;
+
+	spin_lock(&iommu->lock);
+	curr = xa_load(&domain->iommu_array, iommu->seq_id);
+	if (curr) {
+		curr->refcnt++;
+		kfree(info);
+		goto success;
+=======
 
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (!info)
@@ -1804,9 +1792,32 @@ static int domain_attach_iommu(struct dmar_domain *domain,
 	if (curr) {
 		ret = xa_err(curr) ? : -EBUSY;
 		goto err_clear;
+>>>>>>>
 	}
 	domain_update_iommu_cap(domain);
 
+<<<<<<<
+=======
+	ndomains = cap_ndoms(iommu->cap);
+	num = find_first_zero_bit(iommu->domain_ids, ndomains);
+	if (num >= ndomains) {
+		pr_err("%s: No free domain ids\n", iommu->name);
+		goto err_unlock;
+	}
+
+	set_bit(num, iommu->domain_ids);
+	info->refcnt	= 1;
+	info->did	= num;
+	info->iommu	= iommu;
+	domain->nid	= iommu->node;
+	ret = xa_err(xa_store(&domain->iommu_array, iommu->seq_id,
+			      info, GFP_ATOMIC));
+	if (ret)
+		goto err_clear;
+	domain_update_iommu_cap(domain);
+
+success:
+>>>>>>>
 	spin_unlock(&iommu->lock);
 	return 0;
 
@@ -1828,7 +1839,10 @@ static void domain_detach_iommu(struct dmar_domain *domain,
 	if (--info->refcnt == 0) {
 		clear_bit(info->did, iommu->domain_ids);
 		xa_erase(&domain->iommu_array, iommu->seq_id);
+<<<<<<<
+=======
 		domain->nid = NUMA_NO_NODE;
+>>>>>>>
 		domain_update_iommu_cap(domain);
 		kfree(info);
 	}
@@ -2468,6 +2482,10 @@ static int domain_add_dev_info(struct dmar_domain *domain, struct device *dev)
 	ret = domain_attach_iommu(domain, iommu);
 	if (ret)
 		return ret;
+<<<<<<<
+=======
+
+>>>>>>>
 	info->domain = domain;
 	spin_lock(&domain->lock);
 	list_add(&info->link, &domain->devices);
@@ -2941,6 +2959,11 @@ static int __init init_dmars(void)
 						   intel_pasid_max_id);
 		}
 
+<<<<<<<
+=======
+		iommu->flags |= VTD_FLAG_IOMMU_PROBED;
+
+>>>>>>>
 		intel_iommu_init_qi(iommu);
 
 		ret = iommu_init_domains(iommu);
@@ -3446,6 +3469,12 @@ static int intel_iommu_add(struct dmar_drhd_unit *dmaru)
 	int sp, ret;
 	struct intel_iommu *iommu = dmaru->iommu;
 
+<<<<<<<
+=======
+	if (iommu->flags & VTD_FLAG_IOMMU_PROBED)
+		return 0;
+
+>>>>>>>
 	ret = intel_cap_audit(CAP_AUDIT_HOTPLUG_DMAR, iommu);
 	if (ret)
 		goto out;
@@ -3469,6 +3498,10 @@ static int intel_iommu_add(struct dmar_drhd_unit *dmaru)
 	if (iommu->gcmd & DMA_GCMD_TE)
 		iommu_disable_translation(iommu);
 
+<<<<<<<
+=======
+	iommu->flags |= VTD_FLAG_IOMMU_PROBED;
+>>>>>>>
 	ret = iommu_init_domains(iommu);
 	if (ret == 0)
 		ret = iommu_alloc_root_entry(iommu);
