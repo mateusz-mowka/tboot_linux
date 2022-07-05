@@ -7,6 +7,10 @@
 #include <uapi/linux/pci_tdisp.h>
 #include <uapi/linux/kvm.h>
 
+/* MAX TDISP Payload, see FAS 1.2.4 */
+#define TDX_MAX_TDISP_PAYLOAD				(PAGE_SIZE - 43)
+#define TDX_MAX_TDISP_DEVIF_REPORT_LENGTH		(TDX_MAX_TDISP_PAYLOAD - 21)
+
 struct kvm;
 
 struct pci_tdisp_dev {

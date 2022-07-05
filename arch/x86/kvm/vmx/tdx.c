@@ -5557,10 +5557,6 @@ int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
 	return 0;
 }
 
-/* MAX TDISP Payload, see FAS 1.2.4 */
-#define TDX_MAX_TDISP_PAYLOAD				(PAGE_SIZE - 43)
-#define TDX_MAX_TDISP_DEVIF_REPORT_LENGTH		(TDX_MAX_TDISP_PAYLOAD - 21)
-
 int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
 		      struct pci_tdisp_req *req)
 {

@@ -1227,7 +1227,7 @@ long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa)
 
 	/* FIXME: hardcode it now */
 	if (msg == TDISP_GET_DEVIF_REPORT) {
-		rinfo.get_devif_report.length = 0xffff;
+		rinfo.get_devif_report.length = TDX_MAX_TDISP_DEVIF_REPORT_LENGTH;
 		rinfo.get_devif_report.offset = 0;
 	}
 
