@@ -35,7 +35,7 @@ static inline uint64_t kvm_seamcall(u64 op, u64 rcx, u64 rdx, u64 r8,
 				    u64 r9, u64 r10, u64 r11, u64 r12,
 				    u64 r13, struct tdx_module_output *out)
 {
-	u64 err, retries;
+	u64 err, retries = 0;
 
 	do {
 		err = __seamcall(op, rcx, rdx, r8, r9,
