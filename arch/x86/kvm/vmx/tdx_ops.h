@@ -69,7 +69,7 @@ static inline u64 tdh_mem_page_add(hpa_t tdr, gpa_t gpa, int level, hpa_t hpa,
 				   hpa_t source, struct tdx_module_output *out)
 {
 	tdx_clflush_page(hpa, tdx_sept_level_to_pg_level(level));
-	return kvm_seamcall(TDH_MEM_PAGE_ADD, gpa, tdr,
+	return kvm_seamcall(TDH_MEM_PAGE_ADD, gpa | level, tdr,
 			    hpa, source, 0, 0, 0, 0, out);
 }
 
@@ -107,7 +107,7 @@ static inline u64 tdh_mem_page_aug(hpa_t tdr, gpa_t gpa, int level, hpa_t hpa,
 				   struct tdx_module_output *out)
 {
 	tdx_clflush_page(hpa, tdx_sept_level_to_pg_level(level));
-	return kvm_seamcall(TDH_MEM_PAGE_AUG, gpa,
+	return kvm_seamcall(TDH_MEM_PAGE_AUG, gpa | level,
 			    tdr, hpa, 0, 0, 0, 0, 0, out);
 }
 
