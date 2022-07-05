@@ -122,8 +122,10 @@ static int iaa_crypto_enable(const char *val, const struct kernel_param *kp)
 		} else if (ret < 0) {
 			pr_debug("iaa_crypto enable failed: ret=%d\n", ret);
 			return ret;
+		} else {
+			iaa_crypto_enabled = true;
+			ret = 0;
 		}
-		iaa_crypto_enabled = true;
 	} else {
 		pr_debug("iaa_crypto failed, bad enable val: ret=%d\n", -EINVAL);
 		return -EINVAL;
