@@ -114,6 +114,8 @@
 
 #define INTEL_FAM6_RAPTORLAKE		0xB7
 #define INTEL_FAM6_RAPTORLAKE_P		0xBA
+/* Below name is subject to change */
+#define INTEL_FAM6_RAPTORLAKE_S		0xBF
 
 #define INTEL_FAM6_METEORLAKE_X		0xAC
 #define INTEL_FAM6_METEORLAKE_L		0xAA
