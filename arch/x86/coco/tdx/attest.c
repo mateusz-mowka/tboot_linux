@@ -106,7 +106,7 @@ long tdx_get_report(void __user *argp)
 	 */
 	ret = __tdx_module_call(TDX_GET_REPORT, virt_to_phys(tdreport),
 				virt_to_phys(reportdata), req.subtype,
-				0, NULL);
+				0, 0, 0, 0, 0, NULL);
 	if (ret) {
 		ret = -EIO;
 		goto report_failed;

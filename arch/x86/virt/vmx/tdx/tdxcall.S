@@ -32,13 +32,13 @@
 	push %r15
 
 	/* Move output pointer to R15 */
-	mov 0x50(%rsp), %r15
+	mov (FRAME_OFFSET+0x48)(%rsp), %r15
 
 	/* Mangle function call ABI into TDCALL/SEAMCALL ABI: */
 	/* Move Leaf ID to RAX */
-	mov 0x48(%rsp), %r13
-	mov 0x40(%rsp), %r12
-	mov 0x38(%rsp), %r11
+	mov (FRAME_OFFSET+0x40)(%rsp), %r13
+	mov (FRAME_OFFSET+0x38)(%rsp), %r12
+	mov (FRAME_OFFSET+0x30)(%rsp), %r11
 	mov %rdi, %rax
 	mov %r9,  %r10	/* Move input 5 to R10 */
 	/* Move input 4 to R9 */

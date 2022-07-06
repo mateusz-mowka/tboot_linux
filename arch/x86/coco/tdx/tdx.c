@@ -81,7 +81,7 @@ static u64 __trace_tdx_module_call(u64 fn, u64 rcx, u64 rdx, u64 r8,
 		out = &dummy_out;
 
 	trace_tdx_module_call_enter_rcuidle(fn, rcx, rdx, r8, r9);
-	err = __tdx_module_call(fn, rcx, rdx, r8, r9, out);
+	err = __tdx_module_call(fn, rcx, rdx, r8, r9, 0, 0, 0, 0, out);
 	trace_tdx_module_call_exit_rcuidle(err, out->rcx, out->rdx,
 			out->r8, out->r9, out->r10, out->r11);
 
