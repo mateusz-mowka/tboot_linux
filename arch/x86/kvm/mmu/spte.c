@@ -254,7 +254,8 @@ u64 make_huge_page_split_spte(u64 huge_spte, int huge_level, int index)
 	u64 child_spte;
 	int child_level;
 
-	if (WARN_ON_ONCE(!is_shadow_present_pte(huge_spte)))
+	if (WARN_ON_ONCE(!is_shadow_present_pte(huge_spte) &&
+			 !is_private_zapped_spte(huge_spte)))
 		return 0;
 
 	if (WARN_ON_ONCE(!is_large_pte(huge_spte)))
