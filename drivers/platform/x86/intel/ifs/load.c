@@ -252,6 +252,7 @@ void ifs_load_firmware(struct device *dev)
 
 	if (!ifs_image_sanity_check(dev, (struct microcode_header_intel *)fw->data)) {
 		dev_err(dev, "ifs header sanity check failed\n");
+		ret = -EINVAL;
 		goto release;
 	}
 
