@@ -2294,9 +2294,9 @@ static void tdvmcall_status_copy_and_free(struct tdvmcall_service *h_buf,
 static int tdx_handle_service(struct kvm_vcpu *vcpu)
 {
 	struct kvm_tdx *tdx = to_kvm_tdx(vcpu->kvm);
-	gpa_t cmd_gpa = tdvmcall_a1_read(vcpu);
-	gpa_t status_gpa = tdvmcall_a2_read(vcpu);
-	uint64_t nvector = tdvmcall_a3_read(vcpu);
+	gpa_t cmd_gpa = tdvmcall_a0_read(vcpu);
+	gpa_t status_gpa = tdvmcall_a1_read(vcpu);
+	uint64_t nvector = tdvmcall_a2_read(vcpu);
 	struct tdvmcall_service *cmd_buf, *status_buf;
 	enum tdvmcall_service_id service_id;
 
