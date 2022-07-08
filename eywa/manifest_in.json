@@ -1830,46 +1830,6 @@
             "last_enabled": "v5.19"
         },
         {
-            "branch": "intel-next",
-            "branch_type": "expiring",
-            "config_options": [
-                {
-                    "name": "CONFIG_KVM_INTEL_TDX_SEAM_BACKDOOR",
-                    "value": "y"
-                },
-                {
-                    "name": "CONFIG_INTEL_TDX_HOST",
-                    "value": "y"
-                }
-            ],
-            "contributor": [
-                {
-                    "name": "Isaku Yamahata",
-                    "email": "isaku.yamahata@intel.com"
-                }
-            ],
-            "description": "TDX KVM support",
-            "enabled": false,
-            "ip_owner": [
-                {
-                    "name": "Isaku Yamahata",
-                    "email": "isaku.yamahata@intel.com"
-                }
-            ],
-            "jira": "NEXT-2996",
-            "name": "tdx_kvm_support",
-            "repourl": "https://github.com/intel-innersource/virtualization.hypervisors.tdx.linux.git",
-            "sdl_contact": [
-                {
-                    "name": "Isaku Yamahata",
-                    "email": "isaku.yamahata@intel.com"
-                }
-            ],
-            "status": "public",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.19"
-        },
-        {
             "branch": "prm_update_for_intel_next",
             "branch_type": "expiring",
             "config_options": [
@@ -4599,6 +4559,46 @@
                 }
             ],
             "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
+        },
+        {
+            "branch": "intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_KVM_INTEL_TDX_SEAM_BACKDOOR",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_TDX_HOST",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Isaku Yamahata",
+                    "email": "isaku.yamahata@intel.com"
+                }
+            ],
+            "description": "TDX KVM support",
+            "enabled": false,
+            "ip_owner": [
+                {
+                    "name": "Isaku Yamahata",
+                    "email": "isaku.yamahata@intel.com"
+                }
+            ],
+            "jira": "NEXT-2996",
+            "name": "tdx_kvm_support",
+            "repourl": "https://github.com/intel-innersource/virtualization.hypervisors.tdx.linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Isaku Yamahata",
+                    "email": "isaku.yamahata@intel.com"
+                }
+            ],
+            "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
         }
