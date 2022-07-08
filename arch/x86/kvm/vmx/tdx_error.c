@@ -70,6 +70,7 @@ static const char *tdx_seamcall_name(u64 op)
 static const char *tdx_error_name(u64 error_code)
 {
 	static const struct tdx_name names[] = {
+		BUILD_NAME(TDX_SEAMCALL_VMFAILINVALID),
 		BUILD_NAME(TDX_SEAMCALL_STATUS_MASK),
 		BUILD_NAME(TDX_SUCCESS),
 		BUILD_NAME(TDX_NON_RECOVERABLE_VCPU),
