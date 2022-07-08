@@ -39,7 +39,7 @@
  *   # echo 1 > /sys/devices/virtual/misc/intel_ifs_0/reload
  *
  * Similar to microcode, the current version of the scan tests is stored
- * in a fixed location: /lib/firmware/intel/ifs.0/family-model-stepping.scan
+ * in a fixed location: /lib/firmware/intel/ifs/family-model-stepping.scan
  *
  * Running tests
  * -------------
