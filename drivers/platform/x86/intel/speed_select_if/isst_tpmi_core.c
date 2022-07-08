@@ -18,6 +18,7 @@
  */
 #define DEBUG
 #include <linux/auxiliary_bus.h>
+#include <linux/delay.h>
 #include <linux/intel_tpmi.h>
 #include <linux/fs.h>
 #include <linux/io.h>
@@ -788,13 +789,14 @@ static int isst_if_get_perf_level(void __user *argp)
 	return ret;
 }
 
-#define SST_PP_CONTROL_OFFSET	24
+#define SST_PP_CONTROL_OFFSET		24
+#define SST_PP_LEVEL_CHANGE_TIME_MS	5
 
 static int isst_if_set_perf_level(void __user *argp)
 {
 	struct isst_perf_level_control perf_level;
 	struct tpmi_per_power_domain_info *power_domain_info;
-	int ret;
+	int ret, level;
 
 	if (copy_from_user(&perf_level, argp, sizeof(perf_level)))
 		return -EFAULT;
@@ -810,8 +812,33 @@ static int isst_if_set_perf_level(void __user *argp)
 	if (ret < 0)
 		return ret;
 
+	_read_pp_info("current_level", level, SST_PP_STATUS_OFFSET,
+		      SST_PP_LEVEL_START, SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
+
+	/* If the requested new level is same as the current level, reject */
+	if (perf_level.level == level)
+		return -EINVAL;
+
 	_write_pp_info("perf_level", perf_level.level, SST_PP_CONTROL_OFFSET,
 		       SST_PP_LEVEL_START, SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
+
+	/* Give time to FW to process */
+	msleep(SST_PP_LEVEL_CHANGE_TIME_MS);
+
+	_read_pp_info("current_level", level, SST_PP_STATUS_OFFSET,
+		      SST_PP_LEVEL_START, SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
+
+	/* Check if the new level is active */
+	if (perf_level.level != level)
+		return -EFAULT;
+
+	/* Reset the feature state on level change */
+	_write_pp_info("perf_feature", 0, SST_PP_CONTROL_OFFSET,
+		       SST_PP_FEATURE_STATE_START, SST_PP_FEATURE_STATE_WIDTH,
+		       SST_MUL_FACTOR_NONE)
+
+	/* Give time to FW to process */
+	msleep(SST_PP_LEVEL_CHANGE_TIME_MS);
 
 	tpmi_end_mmio_rd_wr(power_domain_info);
 
