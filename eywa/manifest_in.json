@@ -4037,7 +4037,7 @@
             "last_enabled": "v5.19"
         },
         {
-            "branch": "ptm_disable",
+            "branch": "ptm_disable_v2",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
