@@ -803,6 +803,25 @@ static int pci_pm_suspend(struct device *dev)
 		pci_dev_adjust_pme(pci_dev);
 	}
 
+	/*
+	 * PTM must be disabled for all PCI devices and not be limited to PCIe
+	 * root ports only because as per PCIe specification 6.21.3, On
+	 * receiving a PTM Request from a downstream device, if PTM is disabled
+	 * on the root port, such a request would cause an Unsupported Request
+	 * error.
+	 *
+	 * Also, it needs to be done before invoking the suspend() callback for
+	 * the given device, because that callback can put the device into a
+	 * low-power state, which need not be done using the standard PCI power
+	 * management, and the configuration space of the device should not be
+	 * accessed by the generic bus type code after that.
+	 *
+	 * To restore the PTM state, save the state before disabling it for all
+	 * devices.
+	 */
+	pci_save_ptm_state(pci_dev);
+	pci_disable_ptm(pci_dev);
+
 	if (pm->suspend) {
 		pci_power_t prev = pci_dev->current_state;
 		int error;
