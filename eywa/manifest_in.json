@@ -4618,7 +4618,7 @@
                 }
             ],
             "description": "TDX Guest support",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Prajwal Karur Mohan",
