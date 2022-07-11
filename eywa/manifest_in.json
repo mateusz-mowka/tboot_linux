@@ -4601,6 +4601,42 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
+        },
+        {
+            "branch": "guest-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_INTEL_TDX_GUEST",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Sathyanarayanan Kuppuswamy",
+                    "email": "sathyanarayanan.kuppuswamy@linux.intel.com"
+                }
+            ],
+            "description": "TDX Guest support",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Prajwal Karur Mohan",
+                    "email": "prajwal.karur.mohan@intel.com"
+                }
+            ],
+            "jira": "NEXT-3004",
+            "name": "tdx_guest",
+            "repourl": "https://github.com/intel/tdx.git",
+            "sdl_contact": [
+                {
+                    "name": "Prajwal Karur Mohan",
+                    "email": "prajwal.karur.mohan@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
