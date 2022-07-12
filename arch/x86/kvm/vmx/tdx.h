@@ -27,8 +27,12 @@ struct tdx_binding_slot {
 	uint8_t	 is_src;
 	/* See enum tdx_binding_slot_status */
 	atomic_t status;
+	/* Idx to servtd's target_binding_slots array */
+	uint16_t req_id;
 	/* vsock port for MigTD to connect to host */
 	uint32_t vsock_port;
+	/* The servtd that the slot is bound to */
+	struct kvm_tdx *servtd_tdx;
 };
 
 #define SERVTD_SLOTS_MAX 32
@@ -71,12 +75,12 @@ struct kvm_tdx {
 	/* Pointer to the service TD that has been bound to */
 	struct kvm_tdx *servtd_tdx;
 	/*
-	 * Pointer to an array of tdx binding slots, and the number of binding
-	 * slots is tdx_caps.max_servtds. Each binding slot corresponds to an
-	 * entry in the binding table held by TDCS (see TDX module v1.5 Base
-	 * Architecture Spec, 13.2.1).
+	 * Pointer to an array of tdx binding slots. Each servtd type has one
+	 * binding slot in the array, and the slot is indexed using the servtd
+	 * type. Each binding slot corresponds to an entry in the binding table
+	 * held by TDCS (see TDX module v1.5 Base Architecture Spec, 13.2.1).
 	 */
-	struct tdx_binding_slot *binding_slots;
+	struct tdx_binding_slot binding_slots[KVM_TDX_SERVTD_TYPE_MAX];
 
 	/*
 	 * Used when being a servtd. A servtd can be bound to multiple target

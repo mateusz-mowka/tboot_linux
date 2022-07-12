@@ -654,10 +654,8 @@ enum kvm_tdx_servtd_type {
 struct kvm_tdx_servtd {
 #define KVM_TDX_SERVTD_VERSION	0
 	__u8  version;
-	__u8  pad;
-#define KVM_TDX_BINDING_SLOT_ID_UNKNOWN 0xffff
-	__u16 binding_slot_id;
-	__u32 type;
+	__u8  pad[5];
+	__u16 type;
 	__u64 attr;
 	union {
 		/* KVM_TDX_SERVTD_BIND */
@@ -687,11 +685,9 @@ enum tdx_binding_slot_status {
 struct kvm_tdx_mig_info {
 #define KVM_TDX_MIG_INFO_VERSION	0
 	__u8  version;
-	__u8  pad0;
-	__u16 binding_slot_id;
-	__u32 status;
 	__u8  is_src;
-	__u8  pad1[3];
+	__u8  pad1[6];
+	__u32 status;
 	__u32 vsock_port;
 };
 
