@@ -33,6 +33,7 @@
 #include <linux/percpu.h>
 #include <linux/percpu-defs.h>
 #include <linux/printk.h>
+#include <linux/proc_fs.h>
 #include <linux/processor.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -642,6 +643,55 @@ static void hfi_debugfs_populate_instance(struct hfi_instance *hfi_instance,
 {
 }
 #endif /* CONFIG_DEBUG_FS */
+
+#if defined(CONFIG_PROC_FS) && defined(CONFIG_IPC_CLASSES)
+static int hfi_proc_classid_show(struct seq_file *m, void *v)
+{
+	union hfi_thread_feedback_char_msr msr;
+	unsigned long flags;
+
+	if (!cpu_feature_enabled(X86_FEATURE_ITD))
+		seq_printf(m, "%d\n", -ENODEV);
+
+	get_cpu();
+	local_irq_save(flags);
+
+	rdmsrl(MSR_IA32_HW_FEEDBACK_CHAR, msr.full);
+
+	if (!msr.split.valid) {
+		seq_printf(m, "%d\n", IPC_CLASS_UNCLASSIFIED);
+		goto out;
+	}
+
+	seq_printf(m, "%d\n", msr.split.classid + 1);
+
+out:
+	local_irq_restore(flags);
+	put_cpu();
+
+	return 0;
+}
+
+static int hfi_proc_classid_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, hfi_proc_classid_show, NULL);
+}
+
+static const struct proc_ops get_hw_classid_ops = {
+	.proc_open	= hfi_proc_classid_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= single_release,
+};
+
+static void proc_fs_register(void)
+{
+	if (!proc_create("classid", 0, NULL, &get_hw_classid_ops))
+		pr_err("Unable to create /proc/classid!\n");
+}
+#else
+static void proc_fs_register(void) { }
+#endif
 
 #ifdef CONFIG_IPC_CLASSES
 static int __percpu *hfi_ipcc_scores;
@@ -1333,6 +1383,7 @@ void __init intel_hfi_init(void)
 		goto err_ipcc;
 
 	hfi_debugfs_register();
+	proc_fs_register();
 
 	return;
 
