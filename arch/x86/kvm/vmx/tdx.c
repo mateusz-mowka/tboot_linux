@@ -22,6 +22,8 @@
 #include <trace/events/kvm.h>
 #include "trace.h"
 
+#include "tdx_mig.c"
+
 #undef pr_fmt
 #define pr_fmt(fmt) "tdx: " fmt
 
@@ -410,14 +412,14 @@ static int tdx_reclaim_page(unsigned long va, hpa_t pa, enum pg_level level,
 	struct tdx_module_output out;
 	u64 err;
 
+	/*
+	 * Don't print warning here, and let callers decide if warning messages
+	 * are needed. This prevents false alarms from TDX modules, such as
+	 * reclaiming pages that are not added to TDX modules.
+	 */
 	err = tdh_phymem_page_reclaim(pa, &out);
-	if (WARN_ON_ONCE(err)) {
-		pr_err("%s:%d:%s pa 0x%llx level %d hkid 0x%x do_wb %d\n",
-		       __FILE__, __LINE__, __func__,
-		       pa, level, hkid, do_wb);
-		pr_tdx_error(TDH_PHYMEM_PAGE_RECLAIM, err, &out);
+	if (err & TDX_SEAMCALL_STATUS_MASK)
 		return -EIO;
-	}
 	/* out.r8 == tdx sept page level */
 	WARN_ON_ONCE(out.r8 != pg_level_to_tdx_sept_level(level));
 
@@ -434,7 +436,7 @@ static int tdx_reclaim_page(unsigned long va, hpa_t pa, enum pg_level level,
 	return 0;
 }
 
-static int tdx_alloc_td_page(struct tdx_td_page *page)
+int tdx_alloc_td_page(struct tdx_td_page *page)
 {
 	page->va = __get_free_page(GFP_KERNEL_ACCOUNT);
 	if (!page->va)
@@ -444,13 +446,13 @@ static int tdx_alloc_td_page(struct tdx_td_page *page)
 	return 0;
 }
 
-static void tdx_mark_td_page_added(struct tdx_td_page *page)
+void tdx_mark_td_page_added(struct tdx_td_page *page)
 {
 	WARN_ON_ONCE(page->added);
 	page->added = true;
 }
 
-static void tdx_reclaim_td_page(struct tdx_td_page *page)
+void tdx_reclaim_td_page(struct tdx_td_page *page)
 {
 	if (page->added) {
 		/*
@@ -506,7 +508,7 @@ static void tdx_flush_vp(void *arg_)
 	tdx_disassociate_vp(vcpu);
 }
 
-static void tdx_flush_vp_on_cpu(struct kvm_vcpu *vcpu)
+void tdx_flush_vp_on_cpu(struct kvm_vcpu *vcpu)
 {
 	struct tdx_flush_vp_arg arg = {
 		.vcpu = vcpu,
@@ -662,6 +664,7 @@ void tdx_vm_free(struct kvm *kvm)
 		return;
 
 	tdx_binding_slots_cleanup(kvm_tdx);
+	tdx_mig_state_cleanup(kvm_tdx);
 
 	for (i = 0; i < tdx_caps.tdcs_nr_pages; i++)
 		tdx_reclaim_td_page(&kvm_tdx->tdcs[i]);
@@ -737,8 +740,10 @@ int tdx_vm_init(struct kvm *kvm)
 	kvm_mmu_set_mmio_spte_mask(kvm, 0, VMX_EPT_RWX_MASK, 0);
 
 	/* TODO: test 1GB support and remove tdp_max_page_level */
-	kvm->arch.tdp_max_page_level = PG_LEVEL_2M;
-
+	if (kvm_tdx->attributes & TDX_TD_ATTRIBUTE_MIG)
+		kvm->arch.tdp_max_page_level = PG_LEVEL_4K;
+	else
+		kvm->arch.tdp_max_page_level = PG_LEVEL_2M;
 	/* vCPUs can't be created until after KVM_TDX_INIT_VM. */
 	kvm->max_vcpus = 0;
 
@@ -921,6 +926,7 @@ int tdx_vcpu_create(struct kvm_vcpu *vcpu)
 	tdx->update_nb.notifier_call = tdx_update_notifier_call;
 	WARN_ON(register_tdx_update(&tdx->update_nb));
 
+	tdx->tdvmcall.regs_mask = 0xffffffff;
 	return 0;
 
 free_tdvpx:
@@ -934,16 +940,8 @@ free_tdvpr:
 	return ret;
 }
 
-void tdx_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
+void tdx_add_vcpu_association(struct vcpu_tdx *tdx, int cpu)
 {
-	struct vcpu_tdx *tdx = to_tdx(vcpu);
-
-	vmx_vcpu_pi_load(vcpu, cpu);
-	if (vcpu->cpu == cpu)
-		return;
-
-	tdx_flush_vp_on_cpu(vcpu);
-
 	local_irq_disable();
 	/*
 	 * Pairs with the smp_wmb() in tdx_disassociate_vp() to ensure
@@ -953,6 +951,18 @@ void tdx_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 
 	list_add(&tdx->cpu_list, &per_cpu(associated_tdvcpus, cpu));
 	local_irq_enable();
+}
+
+void tdx_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
+{
+	struct vcpu_tdx *tdx = to_tdx(vcpu);
+
+	vmx_vcpu_pi_load(vcpu, cpu);
+	if (vcpu->cpu == cpu)
+		return;
+
+	tdx_flush_vp_on_cpu(vcpu);
+	tdx_add_vcpu_association(tdx, cpu);
 }
 
 bool tdx_protected_apic_has_interrupt(struct kvm_vcpu *vcpu)
@@ -1065,6 +1075,9 @@ void tdx_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)
 	struct msr_data apic_base_msr;
 	u64 err;
 	int i;
+
+	if (!kvm_tdx->initialized)
+		return;
 
 	/* TDX doesn't support INIT event. */
 	if (WARN_ON(init_event))
@@ -2417,6 +2430,14 @@ static int handle_tdvmcall(struct kvm_vcpu *vcpu)
 
 void tdx_load_mmu_pgd(struct kvm_vcpu *vcpu, hpa_t root_hpa, int pgd_level)
 {
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(vcpu->kvm);
+
+	if (!kvm_tdx->initialized) {
+		vcpu->load_mmu_pgd_pending = true;
+		return;
+	}
+
+	vcpu->load_mmu_pgd_pending = false;
 	td_vmcs_write64(to_tdx(vcpu), SHARED_EPT_POINTER, root_hpa & PAGE_MASK);
 }
 
@@ -2530,6 +2551,9 @@ static void tdx_sept_set_private_spte(struct kvm *kvm, gfn_t gfn,
 {
 	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
 
+	if (!kvm_tdx->initialized)
+		return;
+
 	spin_lock(&kvm_tdx->seamcall_lock);
 	__tdx_sept_set_private_spte(kvm, gfn, level, pfn);
 	spin_unlock(&kvm_tdx->seamcall_lock);
@@ -2546,6 +2570,13 @@ static void tdx_sept_drop_private_spte(
 	struct tdx_module_output out;
 	u64 err = 0;
 	int i;
+
+	/*
+	 * Allow TD tearing down (hkid has been freed in kvm_flush_shadow_all)
+	 * due to migration cancel to reclaim pages that have been imported.
+	 */
+	if (!kvm_tdx->initialized && is_hkid_assigned(kvm_tdx))
+		return;
 
 	/* Only support 4KB and 2MB pages */
 	if (KVM_BUG_ON(level > PG_LEVEL_2M, kvm))
@@ -2582,9 +2613,11 @@ static void tdx_sept_drop_private_spte(
 		spin_unlock(&kvm_tdx->seamcall_lock);
 		if (!err)
 			tdx_unpin(kvm, gfn, pfn, level);
+/*
 		else
 			pr_err("%s:%d:%s gfn 0x%llx level 0x%x pfn 0x%llx\n",
 			       __FILE__, __LINE__, __func__, gfn, level, pfn);
+*/
 	}
 }
 
@@ -2640,11 +2673,8 @@ static void tdx_sept_zap_private_spte(struct kvm *kvm, gfn_t gfn,
 	struct tdx_module_output out;
 	u64 err;
 
-	if (!is_hkid_assigned(kvm_tdx)) {
-//		printk("%s: return, gfn=%llx \n", __func__, gfn);
+	if (!kvm_tdx->initialized || !is_hkid_assigned(kvm_tdx))
 		return;
-	}
-
 
 	spin_lock(&kvm_tdx->seamcall_lock);
 	err = tdh_mem_range_block(kvm_tdx->tdr.pa, gpa, tdx_level, &out);
@@ -2668,7 +2698,7 @@ static void tdx_sept_zap_private_spte(struct kvm *kvm, gfn_t gfn,
  *   epoch counter.  If the local epoch counter is older than the global epoch
  *   counter, update the local epoch counter and flushes TLB.
  */
-static void tdx_track(struct kvm_tdx *kvm_tdx)
+void tdx_track(struct kvm_tdx *kvm_tdx)
 {
 	u64 err;
 
@@ -2886,6 +2916,24 @@ static void tdx_handle_changed_private_spte(
 	lockdep_assert_held(&kvm->mmu_lock);
 
 	if (change->new.is_present) {
+		/* Only flags changed */
+		if (change->old.is_present) {
+			/* Write disable. TODO: do batching at the caller */
+			if (change->old.is_writable &&
+			    !change->new.is_writable) {
+				tdx_sept_write_disable_spte(kvm, (gfn_t *)&gfn,
+							    1, level);
+				return;
+			}
+
+			/* Write enable */
+			if (!change->old.is_writable &&
+			    change->new.is_writable) {
+				tdx_sept_write_enable_spte(kvm, gfn, level);
+				return;
+			}
+		}
+
 		if (level > PG_LEVEL_4K && was_leaf && !is_leaf) {
 			tdx_sept_zap_private_spte(kvm, gfn, level);
 			tdx_sept_tlb_remote_flush(kvm);
@@ -3241,14 +3289,14 @@ bool tdx_is_emulated_msr(u32 index, bool write)
 
 int tdx_get_msr(struct kvm_vcpu *vcpu, struct msr_data *msr)
 {
-	if (tdx_is_emulated_msr(msr->index, false))
+	if (msr->host_initiated || tdx_is_emulated_msr(msr->index, false))
 		return kvm_get_msr_common(vcpu, msr);
 	return 1;
 }
 
 int tdx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr)
 {
-	if (tdx_is_emulated_msr(msr->index, true))
+	if (msr->host_initiated || tdx_is_emulated_msr(msr->index, true))
 		return kvm_set_msr_common(vcpu, msr);
 	return 1;
 }
@@ -3843,6 +3891,14 @@ static int setup_tdparams(struct kvm *kvm, struct td_params *td_params,
 	return 0;
 }
 
+int tdx_td_post_init(struct kvm_tdx *kvm_tdx)
+{
+	kvm_tdx->tsc_offset = td_tdcs_exec_read64(kvm_tdx, TD_TDCS_EXEC_TSC_OFFSET);
+	kvm_tdx->initialized = true;
+
+	return 0;
+}
+
 static int tdx_td_init(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 {
 	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
@@ -3857,10 +3913,10 @@ static int tdx_td_init(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 		     sizeof(init_vm->entries[0]) < KVM_MAX_CPUID_ENTRIES);
 	BUILD_BUG_ON(sizeof(struct td_params) != 1024);
 
-	if (is_td_initialized(kvm))
+	if (kvm_tdx->initialized)
 		return -EINVAL;
 
-	if (cmd->flags)
+	if (cmd->flags && cmd->flags != KVM_TDX_INIT_VM_F_POST_INIT)
 		return -EINVAL;
 
 	init_vm = kzalloc(sizeof(*init_vm), GFP_KERNEL);
@@ -3884,14 +3940,7 @@ static int tdx_td_init(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 	if (ret)
 		goto out;
 
-	err = tdh_mng_init(kvm_tdx->tdr.pa, __pa(td_params), &out);
-	if (WARN_ON_ONCE(err)) {
-		pr_tdx_error(TDH_MNG_INIT, err, &out);
-		ret = -EIO;
-		goto out;
-	}
 
-	kvm_tdx->tsc_offset = td_tdcs_exec_read64(kvm_tdx, TD_TDCS_EXEC_TSC_OFFSET);
 	kvm_tdx->attributes = td_params->attributes;
 	kvm_tdx->xfam = td_params->xfam;
 	kvm_tdx->tsc_khz = TDX_TSC_25MHZ_TO_KHZ(td_params->tsc_frequency);
@@ -3902,6 +3951,15 @@ static int tdx_td_init(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 	else
 		kvm->arch.gfn_shared_mask = gpa_to_gfn(BIT_ULL(47));
 
+	if (cmd->flags != KVM_TDX_INIT_VM_F_POST_INIT) {
+		err = tdh_mng_init(kvm_tdx->tdr.pa, __pa(td_params), &out);
+		if (WARN_ON_ONCE(err)) {
+			pr_tdx_error(TDH_MNG_INIT, err, &out);
+			ret = -EIO;
+			goto out;
+		}
+		tdx_td_post_init(kvm_tdx);
+	}
 out:
 	/* kfree() accepts NULL. */
 	kfree(init_vm);
@@ -3930,13 +3988,15 @@ void tdx_flush_tlb(struct kvm_vcpu *vcpu)
 
 #define TDX_SEPT_PFERR	PFERR_WRITE_MASK
 
-static int tdx_init_mem_region(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
+static int tdx_sept_prealloc(struct kvm *kvm,
+			     uint64_t source_addr,
+			     uint64_t gpa,
+			     uint64_t nr_pages,
+			     bool need_measure)
 {
 	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
-	struct kvm_tdx_init_mem_region region;
 	struct kvm_vcpu *vcpu;
 	struct page *page;
-	u64 error_code;
 	kvm_pfn_t pfn;
 	int idx, ret = 0;
 
@@ -3944,19 +4004,13 @@ static int tdx_init_mem_region(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 	if (!atomic_read(&kvm->online_vcpus))
 		return -EINVAL;
 
-	if (cmd->flags & ~KVM_TDX_MEASURE_MEMORY_REGION)
-		return -EINVAL;
-
-	if (copy_from_user(&region, (void __user *)cmd->data, sizeof(region)))
-		return -EFAULT;
-
 	/* Sanity check */
-	if (!IS_ALIGNED(region.source_addr, PAGE_SIZE) ||
-	    !IS_ALIGNED(region.gpa, PAGE_SIZE) ||
-	    !region.nr_pages ||
-	    region.gpa + (region.nr_pages << PAGE_SHIFT) <= region.gpa ||
-	    !kvm_is_private_gpa(kvm, region.gpa) ||
-	    !kvm_is_private_gpa(kvm, region.gpa + (region.nr_pages << PAGE_SHIFT)))
+	if (!IS_ALIGNED(source_addr, PAGE_SIZE) ||
+	    !IS_ALIGNED(gpa, PAGE_SIZE) ||
+	    !nr_pages ||
+	    gpa + (nr_pages << PAGE_SHIFT) <= gpa ||
+	    !kvm_is_private_gpa(kvm, gpa) ||
+	    !kvm_is_private_gpa(kvm, gpa + (nr_pages << PAGE_SHIFT)))
 		return -EINVAL;
 
 	vcpu = kvm_get_vcpu(kvm, 0);
@@ -3968,7 +4022,7 @@ static int tdx_init_mem_region(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 
 	kvm_mmu_reload(vcpu);
 
-	while (region.nr_pages) {
+	while (nr_pages) {
 		if (signal_pending(current)) {
 			ret = -ERESTARTSYS;
 			break;
@@ -3979,7 +4033,7 @@ static int tdx_init_mem_region(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 
 
 		/* Pin the source page. */
-		ret = get_user_pages_fast(region.source_addr, 1, 0, &page);
+		ret = get_user_pages_fast(source_addr, 1, 0, &page);
 		if (ret < 0)
 			break;
 		if (ret != 1) {
@@ -3987,14 +4041,11 @@ static int tdx_init_mem_region(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 			break;
 		}
 
-		kvm_tdx->source_pa = pfn_to_hpa(page_to_pfn(page)) |
-				     (cmd->flags & KVM_TDX_MEASURE_MEMORY_REGION);
+		kvm_tdx->source_pa = pfn_to_hpa(page_to_pfn(page));
+		if (need_measure)
+			kvm_tdx->source_pa |= KVM_TDX_MEASURE_MEMORY_REGION;
 
-		/* TODO: large page support. */
-		error_code = TDX_SEPT_PFERR;
-		error_code |= (PG_LEVEL_4K << PFERR_LEVEL_START_BIT) &
-			PFERR_LEVEL_MASK;
-		pfn = kvm_mmu_map_tdp_page(vcpu, region.gpa, error_code,
+		pfn = kvm_mmu_map_tdp_page(vcpu, gpa, TDX_SEPT_PFERR,
 					   PG_LEVEL_4K);
 		if (is_error_noslot_pfn(pfn) || kvm->vm_bugged)
 			ret = -EFAULT;
@@ -4005,9 +4056,9 @@ static int tdx_init_mem_region(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 		if (ret)
 			break;
 
-		region.source_addr += PAGE_SIZE;
-		region.gpa += PAGE_SIZE;
-		region.nr_pages--;
+		source_addr += PAGE_SIZE;
+		gpa += PAGE_SIZE;
+		nr_pages--;
 	}
 
 	srcu_read_unlock(&kvm->srcu, idx);
@@ -4015,8 +4066,45 @@ static int tdx_init_mem_region(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 
 	mutex_unlock(&vcpu->mutex);
 
+	return ret;
+}
+
+static int tdx_init_mem_region(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
+{
+	struct kvm_tdx_init_mem_region region;
+	int ret = 0;
+
+	if (cmd->flags & ~KVM_TDX_MEASURE_MEMORY_REGION)
+		return -EINVAL;
+
+	if (copy_from_user(&region, (void __user *)cmd->data, sizeof(region)))
+		return -EFAULT;
+
+	ret = tdx_sept_prealloc(kvm, region.source_addr,
+				region.gpa, region.nr_pages,
+				cmd->flags & KVM_TDX_MEASURE_MEMORY_REGION);
+
 	if (copy_to_user((void __user *)cmd->data, &region, sizeof(region)))
 		ret = -EFAULT;
+
+	return ret;
+}
+
+int tdx_init_sept(struct kvm *kvm)
+{
+	struct kvm_memory_slot *memslot;
+	struct kvm_memslots *slots = kvm_memslots(kvm);
+	int bkt, ret = 0;
+
+	kvm_for_each_memslot(memslot, bkt, slots) {
+		ret = tdx_sept_prealloc(kvm, memslot->userspace_addr,
+					gfn_to_gpa(memslot->base_gfn),
+					memslot->npages, false);
+		if (ret) {
+			pr_err("%s: failed\n", __func__);
+			return ret;
+		}
+	}
 
 	return ret;
 }
@@ -4026,7 +4114,7 @@ static int tdx_td_finalizemr(struct kvm *kvm)
 	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
 	u64 err;
 
-	if (!is_td_initialized(kvm) || is_td_finalized(kvm_tdx))
+	if (!kvm_tdx->initialized || is_td_finalized(kvm_tdx))
 		return -EINVAL;
 
 	err = tdh_mr_finalize(kvm_tdx->tdr.pa);
@@ -4312,6 +4400,13 @@ out:
 	return r;
 }
 
+void tdx_vcpu_posted_intr_setup(struct vcpu_tdx *tdx)
+{
+	td_vmcs_write16(tdx, POSTED_INTR_NV, POSTED_INTR_VECTOR);
+	td_vmcs_write64(tdx, POSTED_INTR_DESC_ADDR, __pa(&tdx->pi_desc));
+	td_vmcs_setbit32(tdx, PIN_BASED_VM_EXEC_CONTROL, PIN_BASED_POSTED_INTR);
+}
+
 int tdx_vcpu_ioctl(struct kvm_vcpu *vcpu, void __user *argp)
 {
 	struct kvm_tdx *kvm_tdx = to_kvm_tdx(vcpu->kvm);
@@ -4322,7 +4417,7 @@ int tdx_vcpu_ioctl(struct kvm_vcpu *vcpu, void __user *argp)
 	if (tdx->initialized)
 		return -EINVAL;
 
-	if (!is_td_initialized(vcpu->kvm) || is_td_finalized(kvm_tdx))
+	if (!kvm_tdx->initialized || is_td_finalized(kvm_tdx))
 		return -EINVAL;
 
 	if (copy_from_user(&cmd, argp, sizeof(cmd)))
@@ -4339,9 +4434,7 @@ int tdx_vcpu_ioctl(struct kvm_vcpu *vcpu, void __user *argp)
 		return -EIO;
 	}
 
-	td_vmcs_write16(tdx, POSTED_INTR_NV, POSTED_INTR_VECTOR);
-	td_vmcs_write64(tdx, POSTED_INTR_DESC_ADDR, __pa(&tdx->pi_desc));
-	td_vmcs_setbit32(tdx, PIN_BASED_VM_EXEC_CONTROL, PIN_BASED_POSTED_INTR);
+	tdx_vcpu_posted_intr_setup(tdx);
 
 	/*
 	 * Check if VM_{ENTRY, EXIT}_LOAD_IA32_PERF_GLOBAL_CTRL are set in case
@@ -4457,6 +4550,12 @@ int tdx_module_setup(void)
 			tdsysinfo->num_cpuid_config *
 			sizeof(struct tdx_cpuid_config)))
 		return -EIO;
+
+	ret = kvm_tdx_mig_stream_ops_init();
+	if (ret) {
+		pr_err("%s: failed to init tdx mig, %d\n", __func__, ret);
+		return ret;
+	}
 
 	return 0;
 }
@@ -4627,13 +4726,15 @@ static int tdx_read_write_memory(struct kvm *kvm, gpa_t gpa, u64 len,
 
 static int tdx_guest_memory_access_check(struct kvm *kvm, struct kvm_rw_memory *rw_memory)
 {
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+
 	if (!is_td(kvm))
 		return -EINVAL;
 
 	if (!(to_kvm_tdx(kvm)->attributes & TDX_TD_ATTRIBUTE_DEBUG))
 		return -EINVAL;
 
-	if (!is_td_initialized(kvm))
+	if (!kvm_tdx->initialized)
 		return -EINVAL;
 
 	if (rw_memory->len == 0 || !rw_memory->ubuf)
@@ -4894,6 +4995,8 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 	x86_ops->link_private_sp = tdx_sept_link_private_sp;
 	x86_ops->mem_enc_read_memory = tdx_read_guest_memory;
 	x86_ops->mem_enc_write_memory = tdx_write_guest_memory;
+	x86_ops->write_disable_spte = tdx_sept_write_disable_spte;
+	x86_ops->write_enable_spte = tdx_sept_write_enable_spte;
 
 	kvm_set_tdx_guest_pmi_handler(tdx_guest_pmi_handler);
 	return tdx_module_update_init();
@@ -4901,6 +5004,7 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 
 void tdx_hardware_unsetup(void)
 {
+	kvm_tdx_mig_stream_ops_exit();
 	/* kfree accepts NULL. */
 	kfree(tdx_mng_key_config_lock);
 	misc_cg_set_capacity(MISC_CG_RES_TDX, 0);

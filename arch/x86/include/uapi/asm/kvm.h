@@ -546,9 +546,27 @@ enum kvm_tdx_cmd_id {
 	KVM_TDX_SERVTD_BIND,
 	KVM_TDX_GET_MIGRATION_INFO,
 	KVM_TDX_SET_MIGRATION_INFO,
+	KVM_TDX_MIG_STREAM_CREATE,
+	KVM_TDX_MIG_EXPORT_BLOCKW,
+	KVM_TDX_MIG_EXPORT_UNBLOCKW,
+	KVM_TDX_MIG_EXPORT_STATE_IMMUTABLE,
+	KVM_TDX_MIG_IMPORT_STATE_IMMUTABLE,
+	KVM_TDX_MIG_EXPORT_MEM,
+	KVM_TDX_MIG_IMPORT_MEM,
+	KVM_TDX_MIG_EXPORT_PAUSE,
+	KVM_TDX_MIG_EXPORT_STATE_TD,
+	KVM_TDX_MIG_IMPORT_STATE_TD,
+	KVM_TDX_MIG_EXPORT_STATE_VP,
+	KVM_TDX_MIG_IMPORT_STATE_VP,
+	KVM_TDX_MIG_EXPORT_TRACK,
+	KVM_TDX_MIG_IMPORT_TRACK,
+	KVM_TDX_MIG_IMPORT_END,
+	KVM_TDX_MIG_EXPORT_ABORT,
 
 	KVM_TDX_CMD_NR_MAX,
 };
+
+#define KVM_TDX_INIT_VM_F_POST_INIT	1
 
 struct kvm_tdx_cmd {
 	/* enum kvm_tdx_cmd_id */
@@ -689,6 +707,21 @@ struct kvm_tdx_mig_info {
 	__u8  pad1[6];
 	__u32 status;
 	__u32 vsock_port;
+};
+
+#define TDX_MIG_STREAM_MBMD_MAP_OFFSET		0
+#define TDX_MIG_STREAM_GPA_LIST_MAP_OFFSET	1
+#define TDX_MIG_STREAM_MAC_LIST_MAP_OFFSET	2
+#define TDX_MIG_STREAM_BUF_LIST_MAP_OFFSET	4
+
+#define KVM_DEV_TDX_MIG_INFO	0x1
+struct kvm_dev_tdx_mig_info {
+	__u32 kvm_version;
+	__u32 max_migs;
+	__u32 mbmd_size;
+	__u32 gpa_list_size;
+	__u32 mac_list_size;
+	__u32 buf_list_size;
 };
 
 #endif /* _ASM_X86_KVM_H */

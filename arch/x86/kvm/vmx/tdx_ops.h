@@ -302,6 +302,173 @@ static inline u64 tdh_servtd_bind(hpa_t servtd_tdr,
 			    servtd_tdr, slot_idx, type, attr, 0, 0, 0, out);
 }
 
+static inline u64 tdh_stream_create(hpa_t tdr, hpa_t migsc)
+{
+	return kvm_seamcall(TDH_STREAM_CREATE, migsc, tdr,
+			    0, 0, 0, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_export_state_immutable(hpa_t tdr,
+					     u64 mbmd_config,
+					     u64 buf_list_config,
+					     u64 mig_stream_config,
+					     struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_EXPORT_STATE_IMMUTABLE, tdr, 0, mbmd_config,
+			    buf_list_config, mig_stream_config, 0, 0, 0,out);
+}
+
+static inline u64 tdh_import_state_immutable(hpa_t tdr,
+					     u64 mbmd_config,
+					     u64 buf_list_config,
+					     u64 mig_stream_config,
+					     struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_IMPORT_STATE_IMMUTABLE, tdr, 0, mbmd_config,
+			    buf_list_config, mig_stream_config, 0, 0, 0, out);
+}
+
+static inline u64 tdh_export_blockw(hpa_t tdr,
+				    u64 gpa_list_config,
+				    struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_EXPORT_BLOCKW, gpa_list_config, tdr,
+			    0, 0, 0, 0, 0, 0, out);
+}
+
+static inline u64 tdh_export_unblockw(hpa_t tdr,
+				      hpa_t ept_config,
+				      struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_EXPORT_UNBLOCKW, ept_config, tdr,
+			    0, 0, 0, 0, 0, 0, out);
+}
+
+static inline u64 tdh_export_track(hpa_t tdr,
+				   u64 mbmd_config,
+				   u64 mig_stream_config)
+{
+	return kvm_seamcall(TDH_EXPORT_TRACK, tdr, 0, mbmd_config, 0,
+			    mig_stream_config, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_import_track(hpa_t tdr,
+				    u64 mbmd_config,
+				    u64 mig_stream_config)
+{
+	return kvm_seamcall(TDH_IMPORT_TRACK, tdr, 0, mbmd_config, 0,
+			    mig_stream_config, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_export_mem(hpa_t tdr,
+				 u64 mbmd_config,
+				 u64 gpa_list_config,
+				 u64 buf_list_config,
+				 u64 mac_list_config_0,
+				 u64 mac_list_config_1,
+				 u64 mig_stream_config,
+				 struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_EXPORT_MEM,
+			    gpa_list_config,
+			    tdr,
+			    mbmd_config,
+			    buf_list_config,
+			    mig_stream_config,
+			    mac_list_config_0,
+			    mac_list_config_1,
+			    0,
+			    out);
+}
+
+static inline u64 tdh_import_mem(hpa_t tdr,
+				 u64 mbmd_config,
+				 u64 gpa_list_config,
+				 u64 buf_list_config,
+				 u64 mac_list_config_0,
+				 u64 mac_list_config_1,
+				 u64 private_page_list,
+				 u64 mig_stream_config,
+				 struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_IMPORT_MEM,
+			    gpa_list_config,
+			    tdr,
+			    mbmd_config,
+			    buf_list_config,
+			    mig_stream_config,
+			    mac_list_config_0,
+			    mac_list_config_1,
+			    private_page_list,
+			    out);
+}
+
+static inline u64 tdh_export_pasue(hpa_t tdr)
+{
+	return kvm_seamcall(TDH_EXPORT_PAUSE, tdr, 0, 0, 0, 0, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_export_state_vp(hpa_t tdvpr,
+				      u64 mbmd_config,
+				      u64 buf_list_config,
+				      u64 mig_stream_config,
+				      struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_EXPORT_STATE_VP, tdvpr, 0, mbmd_config,
+			    buf_list_config, mig_stream_config, 0, 0, 0, out);
+}
+
+static inline u64 tdh_import_state_vp(hpa_t tdvpr,
+				      u64 mbmd_config,
+				      u64 buf_list_config,
+				      u64 mig_stream_config,
+				      struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_IMPORT_STATE_VP, tdvpr, 0, mbmd_config,
+			    buf_list_config, mig_stream_config, 0, 0, 0, out);
+}
+
+static inline u64 tdh_export_state_td(hpa_t tdr,
+				      u64 mbmd_config,
+				      u64 buf_list_config,
+				      u64 mig_stream_config,
+				      struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_EXPORT_STATE_TD, tdr, 0, mbmd_config,
+			    buf_list_config, mig_stream_config, 0, 0, 0, out);
+}
+
+static inline u64 tdh_import_state_td(hpa_t tdr,
+				      u64 mbmd_config,
+				      u64 buf_list_config,
+				      u64 mig_stream_config,
+				      struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_IMPORT_STATE_TD, tdr, 0, mbmd_config,
+			    buf_list_config, mig_stream_config, 0, 0, 0, out);
+}
+
+static inline u64 tdh_import_end(hpa_t tdr)
+{
+	return kvm_seamcall(TDH_IMPORT_END, tdr, 0, 0, 0, 0, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_export_abort(hpa_t tdr,
+				   u64 abort_token_config,
+				   u64 mig_stream_config)
+{
+	return kvm_seamcall(TDH_EXPORT_ABORT, tdr, 0, abort_token_config,
+			    0, mig_stream_config, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_export_restore(hpa_t tdr,
+				     u64 gpa_list_config,
+				     struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_EXPORT_RESTORE, gpa_list_config, tdr,
+			    0, 0, 0, 0, 0, 0, out);
+}
+
 #endif /* CONFIG_INTEL_TDX_HOST */
 
 #endif /* __KVM_X86_TDX_OPS_H */

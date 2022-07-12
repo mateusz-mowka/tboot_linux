@@ -1472,6 +1472,7 @@ struct kvm_spte {
 	bool is_present;
 	bool is_last;
 	bool is_private_zapped;
+	bool is_writable;
 };
 
 struct kvm_spte_change {
@@ -1621,6 +1622,9 @@ struct kvm_x86_ops {
 			       void *private_sp);
 	int (*split_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
 				  void *private_sp);
+	int (*write_enable_spte)(struct kvm *kvm, gfn_t gfn, int level);
+	int (*write_disable_spte)(struct kvm *kvm, gfn_t *gfns, uint32_t num,
+				  int level);
 
 	bool (*has_wbinvd_exit)(void);
 

@@ -125,6 +125,7 @@ int kvm_handle_page_fault(struct kvm_vcpu *vcpu, u64 error_code,
 				u64 fault_address, char *insn, int insn_len);
 
 int kvm_mmu_load(struct kvm_vcpu *vcpu);
+void kvm_mmu_load_pending_pgd(struct kvm_vcpu *vcpu);
 void kvm_mmu_unload(struct kvm_vcpu *vcpu);
 void kvm_mmu_free_obsolete_roots(struct kvm_vcpu *vcpu);
 void kvm_mmu_sync_roots(struct kvm_vcpu *vcpu);
@@ -132,8 +133,10 @@ void kvm_mmu_sync_prev_roots(struct kvm_vcpu *vcpu);
 
 static inline int kvm_mmu_reload(struct kvm_vcpu *vcpu)
 {
-	if (likely(vcpu->arch.mmu->root.hpa != INVALID_PAGE))
+	if (likely(vcpu->arch.mmu->root.hpa != INVALID_PAGE)) {
+		kvm_mmu_load_pending_pgd(vcpu);
 		return 0;
+	}
 
 	return kvm_mmu_load(vcpu);
 }
@@ -311,6 +314,11 @@ static inline gfn_t kvm_gfn_shared_mask(const struct kvm *kvm)
 static inline gfn_t kvm_gfn_shared(const struct kvm *kvm, gfn_t gfn)
 {
 	return gfn | kvm_gfn_shared_mask(kvm);
+}
+
+static inline gpa_t kvm_gpa_shared(const struct kvm *kvm, gpa_t gpa)
+{
+	return gpa | gfn_to_gpa(kvm_gfn_shared_mask(kvm));
 }
 
 static inline gfn_t kvm_gfn_private(const struct kvm *kvm, gfn_t gfn)

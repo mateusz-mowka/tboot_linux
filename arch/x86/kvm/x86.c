@@ -3696,47 +3696,54 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		vcpu->arch.smi_count = data;
 		break;
 	case MSR_KVM_WALL_CLOCK_NEW:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE2))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE2))
 			return 1;
 
 		vcpu->kvm->arch.wall_clock = data;
 		kvm_write_wall_clock(vcpu->kvm, data, 0);
 		break;
 	case MSR_KVM_WALL_CLOCK:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE))
 			return 1;
 
 		vcpu->kvm->arch.wall_clock = data;
 		kvm_write_wall_clock(vcpu->kvm, data, 0);
 		break;
 	case MSR_KVM_SYSTEM_TIME_NEW:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE2))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE2))
 			return 1;
 
 		kvm_write_system_time(vcpu, data, false, msr_info->host_initiated);
 		break;
 	case MSR_KVM_SYSTEM_TIME:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE))
 			return 1;
 
 		kvm_write_system_time(vcpu, data, true,  msr_info->host_initiated);
 		break;
 	case MSR_KVM_ASYNC_PF_EN:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF))
 			return 1;
 
 		if (kvm_pv_enable_async_pf(vcpu, data))
 			return 1;
 		break;
 	case MSR_KVM_ASYNC_PF_INT:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF_INT))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF_INT))
 			return 1;
 
 		if (kvm_pv_enable_async_pf_int(vcpu, data))
 			return 1;
 		break;
 	case MSR_KVM_ASYNC_PF_ACK:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF_INT))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF_INT))
 			return 1;
 		if (data & 0x1) {
 			vcpu->arch.apf.pageready_pending = false;
@@ -3744,7 +3751,8 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		}
 		break;
 	case MSR_KVM_STEAL_TIME:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_STEAL_TIME))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_STEAL_TIME))
 			return 1;
 
 		if (unlikely(!sched_info_on()))
@@ -3762,7 +3770,8 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 
 		break;
 	case MSR_KVM_PV_EOI_EN:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_PV_EOI))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_PV_EOI))
 			return 1;
 
 		if (kvm_lapic_set_pv_eoi(vcpu, data, sizeof(u8)))
@@ -3770,7 +3779,8 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		break;
 
 	case MSR_KVM_POLL_CONTROL:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_POLL_CONTROL))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_POLL_CONTROL))
 			return 1;
 
 		/* only enable bit supported */
@@ -4061,61 +4071,71 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		msr_info->data = vcpu->arch.efer;
 		break;
 	case MSR_KVM_WALL_CLOCK:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE))
 			return 1;
 
 		msr_info->data = vcpu->kvm->arch.wall_clock;
 		break;
 	case MSR_KVM_WALL_CLOCK_NEW:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE2))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE2))
 			return 1;
 
 		msr_info->data = vcpu->kvm->arch.wall_clock;
 		break;
 	case MSR_KVM_SYSTEM_TIME:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE))
 			return 1;
 
 		msr_info->data = vcpu->arch.time;
 		break;
 	case MSR_KVM_SYSTEM_TIME_NEW:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE2))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_CLOCKSOURCE2))
 			return 1;
 
 		msr_info->data = vcpu->arch.time;
 		break;
 	case MSR_KVM_ASYNC_PF_EN:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF))
 			return 1;
 
 		msr_info->data = vcpu->arch.apf.msr_en_val;
 		break;
 	case MSR_KVM_ASYNC_PF_INT:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF_INT))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF_INT))
 			return 1;
 
 		msr_info->data = vcpu->arch.apf.msr_int_val;
 		break;
 	case MSR_KVM_ASYNC_PF_ACK:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF_INT))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_ASYNC_PF_INT))
 			return 1;
 
 		msr_info->data = 0;
 		break;
 	case MSR_KVM_STEAL_TIME:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_STEAL_TIME))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_STEAL_TIME))
 			return 1;
 
 		msr_info->data = vcpu->arch.st.msr_val;
 		break;
 	case MSR_KVM_PV_EOI_EN:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_PV_EOI))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_PV_EOI))
 			return 1;
 
 		msr_info->data = vcpu->arch.pv_eoi.msr_val;
 		break;
 	case MSR_KVM_POLL_CONTROL:
-		if (!guest_pv_has(vcpu, KVM_FEATURE_POLL_CONTROL))
+		if (!msr_info->host_initiated &&
+		    !guest_pv_has(vcpu, KVM_FEATURE_POLL_CONTROL))
 			return 1;
 
 		msr_info->data = vcpu->arch.msr_kvm_poll_control;
@@ -4398,6 +4418,7 @@ int kvm_vm_ioctl_check_extension(struct kvm *kvm, long ext)
 	case KVM_CAP_SYS_ATTRIBUTES:
 	case KVM_CAP_VAPIC:
 	case KVM_CAP_ENABLE_CAP:
+	case KVM_CAP_DEVICE_CTRL:
 		r = 1;
 		break;
 	case KVM_CAP_EXIT_HYPERCALL:
@@ -6503,6 +6524,15 @@ static int kvm_vm_ioctl_set_clock(struct kvm *kvm, void __user *argp)
 	return 0;
 }
 
+static int kvm_vm_map_gpa(struct kvm *kvm, struct kvm_map_gpa *map)
+{
+	struct kvm_vcpu *vcpu = kvm_get_vcpu(kvm, 0);
+	gpa_t gpa = map->is_private ? kvm_gpa_private(kvm, map->gpa) :
+				      kvm_gpa_shared(kvm, map->gpa);
+
+	return kvm_mmu_map_gpa(vcpu, gpa, gpa + PAGE_SIZE);
+}
+
 long kvm_arch_vm_ioctl(struct file *filp,
 		       unsigned int ioctl, unsigned long arg)
 {
@@ -6869,6 +6899,15 @@ set_pit2_out:
 	case KVM_X86_SET_MSR_FILTER:
 		r = kvm_vm_ioctl_set_msr_filter(kvm, argp);
 		break;
+	case KVM_MAP_GPA: {
+		struct kvm_map_gpa map;
+
+		r = -EFAULT;
+		if (copy_from_user(&map, argp, sizeof(map)))
+			goto out;
+		r = kvm_vm_map_gpa(kvm, &map);
+		break;
+	}
 	default:
 		r = -ENOTTY;
 	}
@@ -12624,8 +12663,11 @@ static void kvm_mmu_slot_apply_flags(struct kvm *kvm,
 			kvm_mmu_slot_try_split_huge_pages(kvm, new, PG_LEVEL_4K);
 
 		if (kvm_x86_ops.cpu_dirty_log_size) {
+			int level = min(PG_LEVEL_2M,
+					kvm->arch.tdp_max_page_level);
+
 			kvm_mmu_slot_leaf_clear_dirty(kvm, new);
-			kvm_mmu_slot_remove_write_access(kvm, new, PG_LEVEL_2M);
+			kvm_mmu_slot_remove_write_access(kvm, new, level);
 		} else {
 			kvm_mmu_slot_remove_write_access(kvm, new, PG_LEVEL_4K);
 		}
@@ -13505,7 +13547,7 @@ EXPORT_SYMBOL_GPL(kvm_sev_es_string_io);
 
 bool kvm_arch_dirty_log_supported(struct kvm *kvm)
 {
-	return kvm->arch.vm_type != KVM_X86_TDX_VM;
+	return true;
 }
 
 bool kvm_arch_private_mem_supported(struct kvm *kvm)

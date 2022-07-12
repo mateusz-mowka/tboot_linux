@@ -1520,6 +1520,8 @@ enum kvm_device_type {
 #define KVM_DEV_TYPE_XIVE		KVM_DEV_TYPE_XIVE
 	KVM_DEV_TYPE_ARM_PV_TIME,
 #define KVM_DEV_TYPE_ARM_PV_TIME	KVM_DEV_TYPE_ARM_PV_TIME
+	KVM_DEV_TYPE_TDX_MIG_STREAM,
+#define KVM_DEV_TYPE_TDX_MIG_STREAM	KVM_DEV_TYPE_TDX_MIG_STREAM
 	KVM_DEV_TYPE_MAX,
 };
 
@@ -2305,5 +2307,13 @@ struct kvm_cgs_log {
 		__u64 padding2;
 	};
 };
+
+struct kvm_map_gpa {
+	__u8  is_private;
+	__u8  padding1[7];
+	__u64 gpa;
+};
+
+#define KVM_MAP_GPA	_IOW(KVMIO,  0xd2, struct kvm_map_gpa)
 
 #endif /* __LINUX_KVM_H */

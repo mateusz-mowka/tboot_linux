@@ -581,6 +581,8 @@ static void __handle_changed_spte(struct kvm *kvm, int as_id, gfn_t gfn,
 	bool pfn_changed = old_pfn != new_pfn;
 	bool was_private_zapped = is_private_zapped_spte(old_spte);
 	bool is_private_zapped = is_private_zapped_spte(new_spte);
+	bool was_writable = is_writable_pte(old_spte);
+	bool is_writable = is_writable_pte(new_spte);
 	struct kvm_spte_change change = {
 		.gfn = gfn,
 		.level = level,
@@ -589,12 +591,14 @@ static void __handle_changed_spte(struct kvm *kvm, int as_id, gfn_t gfn,
 			.is_present = was_present,
 			.is_last = was_last,
 			.is_private_zapped = was_private_zapped,
+			.is_writable = was_writable,
 		},
 		.new = {
 			.pfn = new_pfn,
 			.is_present = is_present,
 			.is_last = is_last,
 			.is_private_zapped = is_private_zapped,
+			.is_writable = is_writable,
 		},
 	};
 
@@ -702,15 +706,18 @@ static void __handle_changed_spte(struct kvm *kvm, int as_id, gfn_t gfn,
 	if (private_spte &&
 	    /* Ignore change of software only bits. e.g. host_writable */
 	    (was_leaf != is_leaf || was_present != is_present || pfn_changed ||
-	     was_private_zapped != is_private_zapped)) {
+	     was_private_zapped != is_private_zapped ||
+	     was_writable != is_writable)) {
 		change.sept_page = tdx_get_sept_page(&change);
 		WARN_ON(was_private_zapped && is_private_zapped);
 		/*
-		 * When write lock is held, leaf pte should be zapping or
-		 * prohibiting.  Not directly was_present=1 -> zero EPT entry.
+		 * When write lock is held, leaf pte should be zapping,
+		 * prohibiting, or changing write permission. Not directly
+		 * was_present=1 -> zero EPT entry.
 		 */
 		WARN_ON(!shared && is_leaf &&
-			!is_private_zapped);
+			!is_private_zapped &&
+			!(is_writable != was_writable));
 		static_call(kvm_x86_handle_changed_private_spte)(kvm, &change);
 	}
 }
@@ -2324,13 +2331,11 @@ u64 *kvm_tdp_mmu_fast_pf_get_last_sptep(struct kvm_vcpu *vcpu, u64 addr,
 {
 	struct tdp_iter iter;
 	struct kvm_mmu *mmu = vcpu->arch.mmu;
-	gfn_t gfn = addr >> PAGE_SHIFT;
+	bool is_private = kvm_is_private_gpa(vcpu->kvm, addr);
+	gfn_t gfn = gpa_to_gfn(addr) & ~kvm_gfn_shared_mask(vcpu->kvm);
 	tdp_ptep_t sptep = NULL;
 
-	/* fast page fault for private GPA isn't supported. */
-	WARN_ON_ONCE(kvm_is_private_gpa(vcpu->kvm, addr));
-
-	tdp_mmu_for_each_pte(iter, mmu, false, gfn, gfn + 1) {
+	tdp_mmu_for_each_pte(iter, mmu, is_private, gfn, gfn + 1) {
 		*spte = iter.old_spte;
 		sptep = iter.sptep;
 	}

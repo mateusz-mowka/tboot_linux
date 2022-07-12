@@ -49,6 +49,7 @@ struct kvm_tdx {
 
 	hpa_t source_pa;
 
+	bool initialized;
 	bool finalized;
 	atomic_t tdh_mem_track;
 
@@ -88,6 +89,7 @@ struct kvm_tdx {
 	 * slot.
 	 */
 	struct tdx_binding_slot *target_binding_slots[SERVTD_SLOTS_MAX];
+	void *mig_state;
 };
 
 union tdx_exit_reason {
@@ -303,11 +305,6 @@ static inline struct vcpu_tdx *to_tdx(struct kvm_vcpu *vcpu)
 	return container_of(vcpu, struct vcpu_tdx, vcpu);
 }
 
-static inline bool is_td_initialized(struct kvm *kvm)
-{
-	return !!kvm->max_vcpus;
-}
-
 static __always_inline void tdvps_vmcs_check(u32 field, u8 bits)
 {
 	BUILD_BUG_ON_MSG(__builtin_constant_p(field) && (field) & 0x1,
@@ -427,6 +424,26 @@ static __always_inline int pg_level_to_tdx_sept_level(enum pg_level level)
 	WARN_ON(level == PG_LEVEL_NONE);
 	return level - 1;
 }
+
+int tdx_td_post_init(struct kvm_tdx *kvm_tdx);
+
+void tdx_flush_vp_on_cpu(struct kvm_vcpu *vcpu);
+
+void tdx_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event);
+
+int tdx_init_sept(struct kvm *kvm);
+
+void tdx_vcpu_posted_intr_setup(struct vcpu_tdx *tdx);
+
+void tdx_add_vcpu_association(struct vcpu_tdx *tdx, int cpu);
+
+int tdx_alloc_td_page(struct tdx_td_page *page);
+
+void tdx_mark_td_page_added(struct tdx_td_page *page);
+
+void tdx_reclaim_td_page(struct tdx_td_page *page);
+
+void tdx_track(struct kvm_tdx *kvm_tdx);
 
 #else
 static inline int tdx_module_setup(void) { return -ENODEV; };
