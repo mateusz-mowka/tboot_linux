@@ -70,7 +70,7 @@ static int idxd_vdcm_bind_iommufd(struct vfio_device *vdev,
 		goto out;
 	}
 
-	idev = iommufd_bind_device(bind->iommufd, idxd->pdev,
+	idev = iommufd_bind_device(bind->iommufd, &idxd->pdev->dev,
 				       IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP, &id);
 	if (IS_ERR(idev)) {
 		rc = PTR_ERR(idev);
@@ -119,7 +119,7 @@ static int idxd_vdcm_attach_ioas(struct vfio_device *vdev,
 		goto out;
 	}
 
-	rc = iommufd_device_attach_pasid(vidxd->idev, &pt_id, pasid,
+	rc = iommufd_device_pasid_attach(vidxd->idev, &pt_id, pasid,
 					 IOMMUFD_ATTACH_FLAGS_ALLOW_UNSAFE_INTERRUPT);
 	if (rc)
 		goto out;
