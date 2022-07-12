@@ -92,7 +92,14 @@ static void idxd_vdcm_unbind_iommufd(struct vfio_device *vdev)
 
 	mutex_lock(&vidxd->dev_lock);
 	if (vidxd->idev) {
-		iommufd_device_detach(vidxd->idev, vidxd->pt_id);
+		u32 pasid;
+
+		/*
+		 * unbind() is called before close(). So pasid should be valid
+		 * now.
+		 */
+		pasid = vfio_device_get_pasid(vdev);
+		iommufd_device_pasid_detach(vidxd->idev, pasid);
 		iommufd_unbind_device(vidxd->idev);
 		vidxd->idev = NULL;
 	}
