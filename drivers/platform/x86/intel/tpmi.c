@@ -126,9 +126,6 @@ static DEFINE_IDA(intel_vsec_tpmi_ida);
 static struct intel_tpmi_info *tpmi_instances[TPMI_MAX_INSTANCE];
 static int tpmi_instance_count;
 
-static int tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
-				   int feature_id, int *locked, int *disabled);
-
 static struct intel_tpmi_pm_feature *tpmi_pfs_info(int package_id, int tpmi_id)
 {
 	int i;
@@ -261,8 +258,13 @@ EXPORT_SYMBOL_NS_GPL(tpmi_get_resource_at_index, INTEL_TPMI);
 #define TPMI_CONTROL_STATUS_OFFSET	0x00
 #define TPMI_COMMAND_OFFSET		0x08
 #define TPMI_DATA_OFFSET		0x0C
-#define TPMI_CONTROL_TIMEOUT_MS		1000
-#define TPMI_MAX_OWNER_LOOP_COUNT	2
+/*
+ * Spec is calling for max 1 seconds to get ownership at the worst,
+ * case, So combined with the loop count it will be 1 second max
+ */
+#define TPMI_CONTROL_TIMEOUT_MS		10
+#define TPMI_MAX_OWNER_LOOP_COUNT	100
+
 #define TPMI_RB_TIMEOUT_RESCHD_MS	10
 #define TPMI_RB_TIMEOUT_MS		1000
 #define TPMI_OWNER_NONE			0
@@ -299,12 +301,6 @@ static int tpmi_wait_for_owner(struct intel_tpmi_info *tpmi_info, u8 owner)
 		if (control != owner) {
 			ret = -EBUSY;
 			pr_info("Waiting for mailbox ownership\n");
-			/*
-			 * Spec is calling for 1 Second wait here.
-			 * This is highly unlikely that owner will not match,
-			 * unless some out or band agent is doing something bad.
-			 * Also spec calls for loop forever, here we limit to 2.
-			 */
 			msleep(TPMI_CONTROL_TIMEOUT_MS);
 			continue;
 		}
@@ -315,8 +311,8 @@ static int tpmi_wait_for_owner(struct intel_tpmi_info *tpmi_info, u8 owner)
 	return ret;
 }
 
-static int tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
-				   int feature_id, int *locked, int *disabled)
+static int _tpmi_get_feature_status(struct intel_tpmi_info *tpmi_info,
+				    int feature_id, int *locked, int *disabled)
 {
 	u64 control, data;
 	s64 tm_delta = 0;
@@ -407,6 +403,16 @@ err_proc:
 	return ret;
 }
 
+int tpmi_get_feature_status(struct auxiliary_device *auxdev,
+			    int feature_id, int *locked, int *disabled)
+{
+	struct intel_vsec_device *intel_vsec_dev = dev_to_ivdev(auxdev->dev.parent);
+	struct intel_tpmi_info *tpmi_info = auxiliary_get_drvdata(&intel_vsec_dev->auxdev);
+
+	return _tpmi_get_feature_status(tpmi_info, feature_id, locked, disabled);
+}
+EXPORT_SYMBOL_NS_GPL(tpmi_get_feature_status, INTEL_TPMI);
+
 static int tpmi_help_show(struct seq_file *s, void *unused)
 {
 	seq_puts(s, "TPMI debugfs help\n");
@@ -448,7 +454,7 @@ static int tpmi_pfs_dbg_show(struct seq_file *s, void *unused)
 		int locked, disabled;
 
 		pfs = &tpmi_info->tpmi_features[i];
-		ret = tpmi_get_feature_status(tpmi_info, pfs->pfs_header.tpmi_id, &locked, &disabled);
+		ret = _tpmi_get_feature_status(tpmi_info, pfs->pfs_header.tpmi_id, &locked, &disabled);
 		if (ret) {
 			locked = 'U';
 			disabled = 'U';
