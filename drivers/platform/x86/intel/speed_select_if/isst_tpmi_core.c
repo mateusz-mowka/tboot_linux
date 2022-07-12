@@ -1245,14 +1245,11 @@ static int isst_if_get_base_freq_mask(void __user *argp)
 	return ret;
 }
 
-#define TPMI_ID_SST	5
-
 static int isst_if_get_tpmi_instance_count(void __user *argp)
 {
 	struct isst_tpmi_instance_count tpmi_inst;
-	struct tpmi_per_power_domain_info *pd_info;
 	struct tpmi_sst_struct *sst_inst;
-	int locked, disabled, ret, i;
+	int i;
 
 	if (copy_from_user(&tpmi_inst, argp, sizeof(tpmi_inst)))
 		return -EFAULT;
@@ -1264,21 +1261,12 @@ static int isst_if_get_tpmi_instance_count(void __user *argp)
 
 	sst_inst = isst_common.sst_inst[tpmi_inst.socket_id];
 	tpmi_inst.valid_mask = 0;
-	pd_info = NULL;
 	for (i = 0; i < sst_inst->number_of_power_domains; ++i) {
+		struct tpmi_per_power_domain_info *pd_info;
+
 		pd_info = &sst_inst->power_domain_info[i];
 		if (pd_info->sst_base)
 			tpmi_inst.valid_mask |= BIT(i);
-	}
-
-	/* The lock is for whole feature, so any one domain read is enough */
-	if (pd_info) {
-		ret = tpmi_get_feature_status(pd_info->auxdev, TPMI_ID_SST, &locked, &disabled);
-		if (!ret) {
-			pr_info("tpmi_get_feature_status %d %d %d\n", ret, locked, disabled);
-			tpmi_inst.locked = locked;
-			tpmi_inst.disabled = disabled;
-		}
 	}
 
 	if (copy_to_user(argp, &tpmi_inst, sizeof(tpmi_inst)))

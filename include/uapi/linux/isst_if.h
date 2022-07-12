@@ -244,8 +244,6 @@ struct isst_if_clos_assoc_cmds {
  * @socket_id:	Socket/package id
  * @count:	Number of instances
  * @valid_mask: Mask of instances as there can be holes
- * @locked:	Write interface is locked, if the value == 1
- * @disabled:	Disabled for use at this time, if the value == 1
  *
  * Structure used to get TPMI instances information using
  * IOCTL ISST_IF_COUNT_TPMI_INSTANCES.
@@ -254,8 +252,6 @@ struct isst_tpmi_instance_count {
 	__u8 socket_id;
 	__u8 count;
 	__u16 valid_mask;
-	__u8 locked;
-	__u8 disabled;
 };
 
 /**
