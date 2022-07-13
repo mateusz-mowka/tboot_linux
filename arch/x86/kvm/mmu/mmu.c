@@ -7144,6 +7144,16 @@ static void kvm_mmu_map_gfn_in_slot(struct kvm *kvm,
 	}
 }
 
+bool kvm_unaliased_gpa_is_private(struct kvm *kvm, gpa_t gpa)
+{
+	gfn_t gfn = gpa_to_gfn(gpa);
+	struct kvm_memory_slot *slot = gfn_to_memslot(kvm, gfn);
+	uint64_t bit = gfn - slot->base_gfn;
+
+	return test_bit_le(bit, slot->cgs_bitmap);
+}
+EXPORT_SYMBOL_GPL(kvm_unaliased_gpa_is_private);
+
 static void kvm_vcpu_update_cgs_bitmap(struct kvm_memory_slot *slot, gfn_t gfn_start,
 				gfn_t gfn_end, bool is_private)
 {

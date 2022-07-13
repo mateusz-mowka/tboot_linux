@@ -2302,9 +2302,12 @@ static void tdvmcall_status_copy_and_free(struct tdvmcall_service *h_buf,
 
 static int tdx_handle_service(struct kvm_vcpu *vcpu)
 {
-	struct kvm_tdx *tdx = to_kvm_tdx(vcpu->kvm);
-	gpa_t cmd_gpa = tdvmcall_a0_read(vcpu);
-	gpa_t status_gpa = tdvmcall_a1_read(vcpu);
+	struct kvm *kvm = vcpu->kvm;
+	struct kvm_tdx *tdx = to_kvm_tdx(kvm);
+	gpa_t cmd_gpa = tdvmcall_a0_read(vcpu) &
+			~gfn_to_gpa(kvm_gfn_shared_mask(kvm));
+	gpa_t status_gpa = tdvmcall_a1_read(vcpu) &
+			~gfn_to_gpa(kvm_gfn_shared_mask(kvm));
 	uint64_t nvector = tdvmcall_a2_read(vcpu);
 	struct tdvmcall_service *cmd_buf, *status_buf;
 	enum tdvmcall_service_id service_id;
@@ -2315,7 +2318,13 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 		goto err_cmd;
 	}
 
-	/* TDDO: Sanity check if gpa is private */
+	/* Sanity check if gpa is private */
+	if (kvm_unaliased_gpa_is_private(kvm, cmd_gpa) ||
+	    kvm_unaliased_gpa_is_private(kvm, status_gpa)) {
+		pr_err("%s: cmd_gpa=%llx or status_gpa=%llx is private\n",
+			__func__, cmd_gpa, status_gpa);
+		goto err_cmd;
+	}
 
 	cmd_buf = tdvmcall_servbuf_alloc(vcpu, cmd_gpa);
 	if (!cmd_buf)

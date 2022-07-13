@@ -330,4 +330,6 @@ static inline bool kvm_is_private_gpa(const struct kvm *kvm, gpa_t gpa)
 	return mask && !(gpa_to_gfn(gpa) & mask);
 }
 
+bool kvm_unaliased_gpa_is_private(struct kvm *kvm, gpa_t gpa);
+
 #endif
