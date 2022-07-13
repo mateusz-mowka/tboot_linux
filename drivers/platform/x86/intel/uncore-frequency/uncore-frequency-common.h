@@ -21,7 +21,6 @@
  * @valid:		Mark the data valid/invalid
  * @package_id:	Package id for this instance
  * @die_id:		Die id for this instance
- * @fabric_id:		fabric id for this instance when present
  * @name:		Sysfs entry name for this instance
  * @uncore_attr_group:	Attribute group storage
  * @max_freq_khz_dev_attr: Storage for device attribute max_freq_khz
@@ -42,8 +41,7 @@ struct uncore_data {
 	bool valid;
 	int package_id;
 	int die_id;
-	int fabric_id;
-	char name[64];
+	char name[32];
 
 	struct attribute_group uncore_attr_group;
 	struct device_attribute max_freq_khz_dev_attr;
@@ -53,8 +51,6 @@ struct uncore_data {
 	struct device_attribute current_freq_khz_dev_attr;
 	struct attribute *uncore_attrs[6];
 };
-
-#define UNCORE_FABRIC_ID_INVALID	-1
 
 int uncore_freq_common_init(int (*read_control_freq)(struct uncore_data *data, unsigned int *min, unsigned int *max),
 			     int (*write_control_freq)(struct uncore_data *data, unsigned int input, unsigned int min_max),

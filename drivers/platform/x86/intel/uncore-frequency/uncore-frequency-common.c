@@ -187,11 +187,7 @@ int uncore_freq_add_entry(struct uncore_data *data, int cpu)
 		goto uncore_unlock;
 	}
 
-	if (data->fabric_id >= 0)
-		sprintf(data->name, "package_%02d_die_%02d_fabric_%02d",
-			data->package_id, data->die_id, data->fabric_id);
-	else
-		sprintf(data->name, "package_%02d_die_%02d", data->package_id, data->die_id);
+	sprintf(data->name, "package_%02d_die_%02d", data->package_id, data->die_id);
 
 	uncore_read(data, &data->initial_min_freq_khz, &data->initial_max_freq_khz);
 

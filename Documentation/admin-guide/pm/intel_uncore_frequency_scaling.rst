@@ -38,15 +38,6 @@ package for single die per package SoCs. The name represents the
 scope of control. For example: 'package_00_die_00' is for package id 0 and
 die 0.
 
-An SoC can contain multiple power domains with individual or collection
-of mesh partitions. This power domain is called fabric domain.
-
-The currently the sysfs interface support control at package_*_die_*.
-Each of them can contain one or more fabric domains. On such SoCs to
-allow monitoring and control at fabric domain level, the folder name
-will have a suffix _fabric_*. For example for package 0, die 0 and
-fabric domain id 0, the name will be "package_00_die_00_fabric_00".
-
 Each package_*_die_* contains the following attributes:
 
 ``initial_max_freq_khz``

@@ -136,7 +136,6 @@ static int uncore_event_cpu_online(unsigned int cpu)
 
 	data->package_id = topology_physical_package_id(cpu);
 	data->die_id = topology_die_id(cpu);
-	data->fabric_id = UNCORE_FABRIC_ID_INVALID;
 
 	return uncore_freq_add_entry(data, cpu);
 }
