@@ -392,7 +392,7 @@ static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxilia
 	return 0;
 
 abort_probe:
-	pmt_telem_remove(auxdev);
+	/* pmt_telem_remove(auxdev); */
 	return ret;
 }
 
