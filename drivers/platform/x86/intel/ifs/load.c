@@ -48,12 +48,22 @@ static bool copy_hashes(struct device *dev, int *num_chunks, int *chunk_size)
 {
 	union ifs_scan_hashes_status hashes_status;
 	struct ifs_data *ifsd = ifs_get_data(dev);
+	int wr_msr_addr, rd_msr_addr;
 	u32 err_code;
 
 	ifsd = ifs_get_data(dev);
+
+	if (ifsd->integrity_cap_bit == MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT) {
+		wr_msr_addr = MSR_COPY_SCAN_HASHES;
+		rd_msr_addr = MSR_SCAN_HASHES_STATUS;
+	} else {
+		wr_msr_addr = MSR_COPY_SBFT_HASHES;
+		rd_msr_addr = MSR_SBFT_HASHES_STATUS;
+	}
+
 	/* run scan hash copy */
-	wrmsrl(MSR_COPY_SCAN_HASHES, ifs_hash_ptr);
-	rdmsrl(MSR_SCAN_HASHES_STATUS, hashes_status.data);
+	wrmsrl(wr_msr_addr, ifs_hash_ptr);
+	rdmsrl(rd_msr_addr, hashes_status.data);
 
 	/* enumerate the scan image information */
 	*chunk_size = hashes_status.chunk_size * 1024;
@@ -153,6 +163,48 @@ done:
 	complete(&ifs_done);
 }
 
+static void copy_sbft_hashes_authenticate_chunks(struct device *dev)
+{
+	union ifs_sbft_chunks_auth_status chunk_status;
+	int i, num_chunks, chunk_size;
+	struct ifs_data *ifsd;
+	u64 chunk_table[2];
+	u64 linear_addr;
+	u32 err_code;
+
+	ifsd = ifs_get_data(dev);
+
+	if (!copy_hashes(dev, &num_chunks, &chunk_size)) {
+		ifsd->loading_error = true;
+		return;
+	}
+
+	for (i = 0; i < num_chunks; i++) {
+		linear_addr = ifs_test_image_ptr + i * chunk_size;
+		chunk_table[0] = i;
+		chunk_table[1] = linear_addr;
+		wrmsrl(MSR_AUTHENTICATE_AND_COPY_SBFT_CHUNK, (u64)chunk_table);
+		rdmsrl(MSR_SBFT_CHUNKS_AUTHENTICATION_STATUS, chunk_status.data);
+
+		err_code = chunk_status.error_code;
+		if (err_code) {
+			ifsd->valid_chunks = chunk_status.valid_chunks;
+			ifsd->loading_error = true;
+			auth_err_message(dev, err_code);
+			return;
+		}
+	}
+
+	ifsd->valid_chunks = chunk_status.valid_chunks;
+	ifsd->max_bundle = chunk_status.max_bundle;
+
+	if (chunk_status.valid_chunks != chunk_status.total_chunks) {
+		ifsd->loading_error = true;
+		dev_err(dev, "Couldn't authenticate all the chunks.Authenticated %d total %d.\n",
+			chunk_status.valid_chunks, chunk_status.total_chunks);
+	}
+}
+
 /*
  * IFS requires scan chunks authenticated per each socket in the platform.
  * Once the test chunk is authenticated, it is automatically copied to secured memory
@@ -183,6 +235,13 @@ static int scan_chunks_sanity_check(struct device *dev)
 
 	ifs_test_image_ptr = (u64)test_ptr;
 	ifsd->loaded_version = ifs_header_ptr->blob_revision;
+
+	if (ifsd->integrity_cap_bit == MSR_INTEGRITY_CAPS_SBFT_AT_FIELD) {
+		copy_sbft_hashes_authenticate_chunks(dev);
+		if (!ifsd->loading_error)
+			ret = 0;
+		return ret;
+	}
 
 	package_authenticated = kcalloc(topology_max_packages(), sizeof(bool), GFP_KERNEL);
 	if (!package_authenticated)
@@ -288,9 +347,12 @@ void ifs_load_firmware(struct device *dev)
 	/* The Array scan test does not require any loaded firmware */
 	if (ifsd->integrity_cap_bit == MSR_INTEGRITY_CAPS_ARRAY_BIST_BIT)
 		goto done;
-
-	snprintf(scan_path, sizeof(scan_path), "intel/ifs/%02x-%02x-%02x.scan",
-		 boot_cpu_data.x86, boot_cpu_data.x86_model, boot_cpu_data.x86_stepping);
+	else if (ifsd->integrity_cap_bit == MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT)
+		snprintf(scan_path, sizeof(scan_path), "intel/ifs/%02x-%02x-%02x.scan",
+			 boot_cpu_data.x86, boot_cpu_data.x86_model, boot_cpu_data.x86_stepping);
+	else
+		snprintf(scan_path, sizeof(scan_path), "intel/ifs/%02x-%02x-%02x.sbft",
+			 boot_cpu_data.x86, boot_cpu_data.x86_model, boot_cpu_data.x86_stepping);
 
 	ret = request_firmware_direct(&fw, scan_path, dev);
 	if (ret) {

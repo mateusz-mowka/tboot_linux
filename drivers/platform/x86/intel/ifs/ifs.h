@@ -125,6 +125,12 @@
 #define MSR_SCAN_STATUS				0x000002c7
 #define MSR_ARRAY_BIST				0x00000105
 #define MSR_ARRAY_BIST_STATUS			0x00000106
+#define MSR_COPY_SBFT_HASHES			0x000002b8
+#define MSR_SBFT_HASHES_STATUS			0x000002b9
+#define MSR_AUTHENTICATE_AND_COPY_SBFT_CHUNK	0x000002ba
+#define MSR_SBFT_CHUNKS_AUTHENTICATION_STATUS	0x000002bb
+#define MSR_ACTIVATE_SBFT			0x000002bc
+#define MSR_SBFT_STATUS				0x000002bd
 #define SCAN_NOT_TESTED				0
 #define SCAN_TEST_PASS				1
 #define SCAN_TEST_FAIL				2
@@ -217,6 +223,46 @@ union ifs_array_status {
 	};
 };
 
+/* MSR_CHUNKS_AUTH_STATUS bit fields */
+union ifs_sbft_chunks_auth_status {
+	u64	data;
+	struct {
+		u32	valid_chunks	:16;
+		u32	total_chunks	:16;
+		u32	error_code	:8;
+		u32	rsvd		:8;
+		u32	max_bundle	:16;
+	};
+};
+
+/* MSR_ACTIVATE_SCAN bit fields */
+union ifs_sbft {
+	u64	data;
+	struct {
+		u32	bundle_idx	:9;
+		u32	rsvd1		:5;
+		u32	pgm_idx		:2;
+		u32	rsvd2		:16;
+		u32	delay		:31;
+		u32	sigmce		:1;
+	};
+};
+
+/* MSR_SCAN_STATUS bit fields */
+union ifs_sbft_status {
+	u64	data;
+	struct {
+		u32	bundle_idx	:9;
+		u32	rsvd1		:5;
+		u32	pgm_idx		:2;
+		u32	rsvd2		:16;
+		u32	error_code	:8;
+		u32	rsvd3		:21;
+		u32	test_fail	:1;
+		u32	sbft_status	:2;
+	};
+};
+
 /*
  * Driver populated error-codes
  * 0xFD: Test timed out before completing all the chunks.
@@ -232,8 +278,10 @@ union ifs_array_status {
  * @loaded: If a valid test binary has been loaded into the memory
  * @loading_error: Error occurred on another CPU while loading image
  * @valid_chunks: number of chunks which could be validated.
+ * @max_bundle: number of SBFT bundles
  * @status: it holds simple status pass/fail/untested
  * @scan_details: opaque scan status code from h/w
+ * @test_name: decsriptive name of the test
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -241,9 +289,11 @@ struct ifs_data {
 	bool	loaded;
 	bool	loading_error;
 	int	valid_chunks;
+	int	max_bundle;
 	int	status;
 	u32	test_gen;
 	u64	scan_details;
+	char	test_name[10];
 };
 
 struct ifs_work {
