@@ -4649,7 +4649,7 @@
                 }
             ],
             "description": "Introduces DSA vDEV enabling on EMR/GNR in Intel Next",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Ravi Shankar",
