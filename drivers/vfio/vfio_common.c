@@ -94,3 +94,12 @@ int vfio_set_req_trigger(struct vfio_device *vdev, unsigned int index,
 	return vfio_set_ctx_trigger_single(&vdev->req_trigger, count, flags, data);
 }
 EXPORT_SYMBOL_GPL(vfio_set_req_trigger);
+
+#define DRIVER_VERSION	"0.3"
+#define DRIVER_AUTHOR	"Alex Williamson <alex.williamson@redhat.com>"
+#define DRIVER_DESC	"VFIO common helper functions"
+
+MODULE_VERSION(DRIVER_VERSION);
+MODULE_LICENSE("GPL v2");
+MODULE_AUTHOR(DRIVER_AUTHOR);
+MODULE_DESCRIPTION(DRIVER_DESC);
