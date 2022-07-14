@@ -32,24 +32,13 @@ Sysfs Interface
 To control uncore frequency, a sysfs interface is provided in the directory:
 `/sys/devices/system/cpu/intel_uncore_frequency/`.
 
-The scope of control for uncore frequency is at package/die level for
-processor generations prior to Granite Rapids CPUs. Granite Rapids generation
-and later SoCs can provide more granular interface. They can contain multiple
-power domains with individual or collection of mesh partitions. Each of this
-partition is called fabric cluster.
+There is one directory for each package and die combination as the scope of
+uncore scaling control is per die in multiple die/package SoCs or per
+package for single die per package SoCs. The name represents the
+scope of control. For example: 'package_00_die_00' is for package id 0 and
+die 0.
 
-When there is no power domain level control, there is one directory
-for each package and die combination. The scope of uncore scaling control
-is per die in multiple die/package SoCs or per package for single die per
-package SoCs. The name represents the scope of control.
-For example: 'package_00_die_00' is for package id 0 and die 0.
-
-When there are multiple power domains present, then an unique instance
-id is appended. For example
-package_00_die_00.00, package_00_die_00.01 etc. The sysfs attributes
-present inside the folder identify power domain and fabric cluster.
-
-Each package_*_die_* directory can contain the following attributes:
+Each package_*_die_* contains the following attributes:
 
 ``initial_max_freq_khz``
 	Out of reset, this attribute represent the maximum possible frequency.
@@ -69,11 +58,3 @@ Each package_*_die_* directory can contain the following attributes:
 
 ``current_freq_khz``
 	This attribute is used to get the current uncore frequency.
-
-``domain_id``
-	This attribute is used to get the power domain id of this instance.
-	Present only when there are multiple power domains.
-
-``fabric_cluster_id``
-	This attribute is used to get the fabric cluster id of this instance.
-	Present only when there are multiple power domains.
