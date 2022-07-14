@@ -323,7 +323,7 @@ static inline int vfio_ims_init(struct vfio_device *vdev, int num, bool *ims_map
 	return -EOPNOTSUPP;
 }
 
-static inline void void vfio_ims_free(struct vfio_device *vdev) {}
+static inline void vfio_ims_free(struct vfio_device *vdev) {}
 #endif /* CONFIG_VFIO_MDEV_IMS */
 
 #endif /* VFIO_H */
