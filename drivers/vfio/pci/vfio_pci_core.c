@@ -713,10 +713,11 @@ static int vfio_pci_pasid_attach_hwpt(struct vfio_pci_core_device *vdev,
 	int ret;
 
 	if (pasid == INVALID_IOASID)
-		ret = iommufd_device_attach(vdev->idev, hwpt_id, 0);
+		ret = iommufd_device_attach(vdev->idev, hwpt_id,
+					    IOMMUFD_ATTACH_FLAGS_ALLOW_UNSAFE_INTERRUPT);
 	else
 		ret = iommufd_device_pasid_attach(vdev->idev, hwpt_id,
-						  pasid, 0);
+						  pasid, IOMMUFD_ATTACH_FLAGS_ALLOW_UNSAFE_INTERRUPT);
 	//TODO: needs to hold pasid reference
 	return ret;
 }
