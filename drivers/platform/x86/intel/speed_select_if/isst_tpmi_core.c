@@ -1279,7 +1279,7 @@ static int isst_if_get_tpmi_instance_count(void __user *argp)
 #define SST_TF_INFO_1_OFFSET	8
 #define SST_TF_INFO_2_OFFSET	16
 
-#define SST_TF_MAX_LP_CLIP_RATIOS	4
+#define SST_TF_MAX_LP_CLIP_RATIOS	TRL_MAX_LEVELS
 
 #define SST_TF_LP_CLIP_RATIO_0_START	16
 #define SST_TF_LP_CLIP_RATIO_0_WIDTH	8
