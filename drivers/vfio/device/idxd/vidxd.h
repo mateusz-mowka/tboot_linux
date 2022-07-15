@@ -57,6 +57,12 @@ struct vdcm_idxd {
 	struct mutex dev_lock; /* lock for vidxd resources */
 	ioasid_t pasid;
 	struct eventfd_ctx *req_trigger;
+	struct xarray pasid_xa;
+};
+
+struct vdcm_hwpt {
+	ioasid_t	pasid;
+	u32		hwpt_id;
 };
 
 static inline struct vdcm_idxd *vdev_to_vidxd(struct vfio_device *vdev)
