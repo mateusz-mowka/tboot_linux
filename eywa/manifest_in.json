@@ -4521,7 +4521,7 @@
                 }
             ],
             "description": "KVM: Arch LBR and CET features",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [],
             "jira": "NEXT-2994",
             "name": "kvm_lbr_cet",
@@ -4542,7 +4542,7 @@
                 }
             ],
             "description": "Add New GNR/SRF Instructions",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Jiaxi Chen",
