@@ -335,7 +335,7 @@ static int sst_add_perf_profiles(struct auxiliary_device *auxdev,
 	for (i = 0; i < levels; ++i) {
 		u64 offset;
 
-		offset = perf_level_offsets & (0xff << (i * SST_PP_OFFSET_SIZE));
+		offset = perf_level_offsets & (0xffULL << (i * SST_PP_OFFSET_SIZE));
 		offset >>= (i * 8);
 		offset &= 0xff;
 		offset *= 8; /* Convert to byte from QWORD offset */
