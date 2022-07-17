@@ -789,6 +789,16 @@ do {									\
 	dump_sd_properties(m, cpu);
 
 	P(nr_running);
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	{
+		int i;
+
+		SEQ_printf(m, "nr_running_classes:");
+		for (i = 0; i < sched_nr_task_classes; i++)
+			SEQ_printf(m, " %u", rq->nr_running_classes[i]);
+		SEQ_printf(m, "\n");
+	}
+#endif
 	P(nr_switches);
 	P(nr_uninterruptible);
 	PN(next_balance);
