@@ -9696,6 +9696,9 @@ void __init sched_init(void)
 
 		rq->core_cookie = 0UL;
 #endif
+#ifdef CONFIG_SCHED_TASK_CLASSES
+		rq->nr_running_classes = NULL;
+#endif
 	}
 
 	set_load_weight(&init_task, false);

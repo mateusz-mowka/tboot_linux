@@ -1108,6 +1108,9 @@ struct rq {
 	unsigned int		core_forceidle_occupation;
 	u64			core_forceidle_start;
 #endif
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	unsigned int		*nr_running_classes;
+#endif
 };
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -2471,6 +2474,7 @@ void arch_scale_freq_tick(void)
 
 #ifdef CONFIG_SCHED_TASK_CLASSES
 DECLARE_STATIC_KEY_FALSE(sched_task_classes);
+extern __read_mostly int sched_nr_task_classes;
 
 static inline bool sched_task_classes_enabled(void)
 {
