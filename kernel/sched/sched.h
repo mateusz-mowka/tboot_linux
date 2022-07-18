@@ -2528,13 +2528,60 @@ int arch_get_task_class_score(int class, int cpu)
 	return 1;
 }
 #endif
+
+static inline void add_nr_running_task_class(struct rq *rq, short class)
+{
+	if (!sched_task_classes_enabled())
+		return;
+
+	/* Ignore unclassified tasks. */
+	if (class == TASK_CLASS_UNCLASSIFIED)
+		return;
+
+	rq->nr_running_classes[class]++;
+}
+
+static inline void sub_nr_running_task_class(struct rq *rq, short class)
+{
+	if (!sched_task_classes_enabled())
+		return;
+
+	/* Ignore unclassified tasks. */
+	if (class == TASK_CLASS_UNCLASSIFIED)
+		return;
+
+	rq->nr_running_classes[class]--;
+}
+
+static inline void update_nr_running_task_class(struct rq *rq, short new_class,
+						short old_class)
+{
+	if (new_class == old_class)
+		return;
+
+	add_nr_running_task_class(rq, new_class);
+	sub_nr_running_task_class(rq, old_class);
+}
+
+static inline int class_of(struct task_struct *p)
+{
+	return p->class;
+}
+
 #else /* CONFIG_SCHED_TASK_CLASSES */
 
 #define arch_get_task_class_score(class, cpu) (-EINVAL)
 #define arch_update_task_class(curr, smt_siblings_idle)
 
 static inline bool sched_task_classes_enabled(void) { return false; }
-
+static inline void add_nr_running_task_class(struct rq *rq, short class) { }
+static inline void sub_nr_running_task_class(struct rq *rq, short class) { }
+static inline void update_nr_running_task_class(struct rq *rq, short new_class,
+						short old_class) { }
+static inline short class_of(struct task_struct *p)
+{
+	return TASK_CLASS_UNCLASSIFIED;
+}
 #endif /* CONFIG_SCHED_TASK_CLASSES */
 
 #ifndef arch_scale_freq_capacity

@@ -5411,8 +5411,12 @@ void scheduler_tick(bool user_tick)
 	unsigned long thermal_pressure;
 	u64 resched_latency;
 
-	if (sched_task_classes_enabled() && user_tick)
+	if (sched_task_classes_enabled() && user_tick) {
+		unsigned short old_class = class_of(curr);
+
 		arch_update_task_class(curr, is_core_idle(cpu));
+		update_nr_running_task_class(rq, class_of(curr), old_class);
+	}
 
 	arch_scale_freq_tick();
 	sched_clock_tick();

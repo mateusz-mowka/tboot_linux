@@ -5707,6 +5707,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 
 	/* At this point se is NULL and we are at root level*/
 	add_nr_running(rq, 1);
+	add_nr_running_task_class(rq, class_of(p));
 
 	/*
 	 * Since new tasks are assigned an initial util_avg equal to
@@ -5813,6 +5814,7 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 
 	/* At this point se is NULL and we are at root level*/
 	sub_nr_running(rq, 1);
+	sub_nr_running_task_class(rq, class_of(p));
 
 	/* balance early to pull high priority tasks */
 	if (unlikely(!was_sched_idle && sched_idle_rq(rq)))
