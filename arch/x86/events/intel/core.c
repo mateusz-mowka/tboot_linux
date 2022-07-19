@@ -2206,6 +2206,11 @@ static void __intel_pmu_enable_all(int added, bool pmi)
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	u64 intel_ctrl = hybrid(cpuc->pmu, intel_ctrl);
 
+	if (cpuc->fixed_ctrl_val != cpuc->active_fixed_ctrl_val) {
+		wrmsrl(MSR_ARCH_PERFMON_FIXED_CTR_CTRL, cpuc->fixed_ctrl_val);
+		cpuc->active_fixed_ctrl_val = cpuc->fixed_ctrl_val;
+	}
+
 	intel_pmu_lbr_enable_all(pmi);
 	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL,
 	       intel_ctrl & ~cpuc->intel_ctrl_guest_mask);
@@ -2424,9 +2429,10 @@ static inline void intel_clear_masks(struct perf_event *event, int idx)
 
 static void intel_pmu_disable_fixed(struct perf_event *event)
 {
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	struct hw_perf_event *hwc = &event->hw;
-	u64 ctrl_val, mask = 0;
 	int idx = hwc->idx;
+	u64 mask = 0;
 
 	if (is_topdown_idx(idx)) {
 		struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
@@ -2445,9 +2451,7 @@ static void intel_pmu_disable_fixed(struct perf_event *event)
 	intel_clear_masks(event, idx);
 
 	mask |= 0xfULL << ((idx - INTEL_PMC_IDX_FIXED) * 4);
-	rdmsrl(hwc->config_base, ctrl_val);
-	ctrl_val &= ~mask;
-	wrmsrl(hwc->config_base, ctrl_val);
+	cpuc->fixed_ctrl_val &= ~mask;
 }
 
 static void intel_pmu_disable_event(struct perf_event *event)
@@ -2743,8 +2747,9 @@ static inline bool intel_pmu_disable_usr_rdpmc(struct perf_event *event)
 
 static void intel_pmu_enable_fixed(struct perf_event *event)
 {
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	struct hw_perf_event *hwc = &event->hw;
-	u64 ctrl_val, mask, bits = 0;
+	u64 mask, bits = 0;
 	int idx = hwc->idx;
 
 	if (is_topdown_idx(idx)) {
@@ -2798,10 +2803,8 @@ static void intel_pmu_enable_fixed(struct perf_event *event)
 		mask |= FIXED_0_RDPMC_USR_DISABLE << (idx * 4);
 	}
 
-	rdmsrl(hwc->config_base, ctrl_val);
-	ctrl_val &= ~mask;
-	ctrl_val |= bits;
-	wrmsrl(hwc->config_base, ctrl_val);
+	cpuc->fixed_ctrl_val &= ~mask;
+	cpuc->fixed_ctrl_val |= bits;
 }
 
 static inline void intel_pmu_event_msr_write(unsigned int gp_msr,
