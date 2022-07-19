@@ -608,7 +608,7 @@ void kvm_set_cpu_caps(void)
 		F(AVX_IFMA));
 
 	kvm_cpu_cap_mask(CPUID_7_1_EDX,
-		F(AVX_VNNI_INT8) | F(AVX_NE_CONVERT)
+		F(AVX_VNNI_INT8) | F(AVX_NE_CONVERT) | F(PREFETCHIT_0_1)
 	);
 
 	kvm_cpu_cap_mask(CPUID_D_1_EAX,
