@@ -4689,6 +4689,27 @@
             "status": "public",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
+        },
+        {
+            "branch": "perf_fixup",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Mike Bottini",
+                    "email": "michael.a.bottini@intel.com"
+                }
+            ],
+            "description": "Fixup branch to restore iommu file location",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "",
+            "name": "perf_fixup",
+            "repourl": "https://github.com/intel-innersource/os.linux.intelnext.kernel",
+            "sdl_contact": [],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
