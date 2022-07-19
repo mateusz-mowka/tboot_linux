@@ -4668,6 +4668,27 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
+        },
+        {
+            "branch": "dsa.fix.intel_iommu.h",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Fenghua Yu",
+                    "email": "fenghua.yu@intel.com"
+                }
+            ],
+            "description": "Fixup branch for missing file in dsa_enabling branch, caused by Baolu's branch.",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-3012",
+            "name": "dsa_fixup",
+            "repourl": "https://github.com/intel-sandbox/kernel",
+            "sdl_contact": [],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
