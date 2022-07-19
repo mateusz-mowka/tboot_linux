@@ -1129,6 +1129,8 @@ static inline int
 iommu_get_hw_info(struct device *dev, struct iommu_hw_info *info)
 {
 	return -EINVAL;
+}
+
 static ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain)
 {
 	return INVALID_IOASID;
