@@ -371,7 +371,7 @@
                 }
             ],
             "status": "intel confidential",
-            "stuck_at_ref": "f5337f80f5c6a3c99f2bafa3299a09ded26a8b1f",
+            "stuck_at_ref": "",
             "last_enabled": "v5.19"
         },
         {
