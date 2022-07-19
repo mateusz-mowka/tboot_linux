@@ -4670,7 +4670,7 @@
             "last_enabled": "v5.19"
         },
         {
-            "branch": "dsa.fix.intel_iommu.h",
+            "branch": "dsa_fixup",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -4680,11 +4680,11 @@
                 }
             ],
             "description": "Fixup branch for missing file in dsa_enabling branch, caused by Baolu's branch.",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-3012",
             "name": "dsa_fixup",
-            "repourl": "https://github.com/intel-sandbox/kernel",
+            "repourl": "https://github.com/intel-innersource/os.linux.intelnext.kernel",
             "sdl_contact": [],
             "status": "public",
             "stuck_at_ref": "",
