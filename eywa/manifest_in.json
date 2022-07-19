@@ -344,37 +344,6 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "dsa",
-            "branch_type": "expiring",
-            "config_options": [],
-            "contributor": [
-                {
-                    "name": "Fenghua Yu",
-                    "email": "fenghua.yu@intel.com"
-                }
-            ],
-            "description": "DSA enabling on SPR/EMR/GNR in Intel Next",
-            "enabled": true,
-            "ip_owner": [
-                {
-                    "name": "Tony Luck",
-                    "email": "tony.luck@intel.com"
-                }
-            ],
-            "jira": "NEXT-2986",
-            "name": "dsa_enabling",
-            "repourl": "https://github.com/intel-sandbox/kernel",
-            "sdl_contact": [
-                {
-                    "name": "Ravi Shankar",
-                    "email": "ravi.v.shankar@intel.com"
-                }
-            ],
-            "status": "intel confidential",
-            "stuck_at_ref": "",
-            "last_enabled": "v5.19"
-        },
-        {
             "branch": "cse-5.18",
             "branch_type": "expiring",
             "config_options": [
@@ -4635,6 +4604,37 @@
                 }
             ],
             "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
+        },
+        {
+            "branch": "dsa",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Fenghua Yu",
+                    "email": "fenghua.yu@intel.com"
+                }
+            ],
+            "description": "DSA enabling on SPR/EMR/GNR in Intel Next",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "jira": "NEXT-2986",
+            "name": "dsa_enabling",
+            "repourl": "https://github.com/intel-sandbox/kernel",
+            "sdl_contact": [
+                {
+                    "name": "Ravi Shankar",
+                    "email": "ravi.v.shankar@intel.com"
+                }
+            ],
+            "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
         },
