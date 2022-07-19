@@ -4691,7 +4691,7 @@
             "last_enabled": "v5.19"
         },
         {
-            "branch": "perf_fixup",
+            "branch": "perf_fix",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
