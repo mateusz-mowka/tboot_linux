@@ -459,8 +459,7 @@ static int alloc_hpa(struct cxl_region *cxlr, resource_size_t size)
 		return -EBUSY;
 
 	/* ways, granularity and uuid (if PMEM) need to be set before HPA */
-	if (!p->interleave_ways || !p->interleave_granularity ||
-	    (cxlr->mode == CXL_DECODER_PMEM && uuid_is_null(&p->uuid)))
+	if (!p->interleave_ways || !p->interleave_granularity)
 		return -ENXIO;
 
 	div_u64_rem(size, SZ_256M * p->interleave_ways, &remainder);
