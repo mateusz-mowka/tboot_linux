@@ -762,7 +762,7 @@
                 }
             ],
             "description": "PMU core/uncore support on Cannon Lake, Rocket Lake, Jasper Lake, SPR and ADL-s, Hybrid PMU support, CET perf, Topdown support, Discovery methodology support for uncore",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Beeman Strong",
@@ -4490,7 +4490,7 @@
                 }
             ],
             "description": "KVM: Arch LBR and CET features",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [],
             "jira": "NEXT-2994",
             "name": "kvm_lbr_cet",
@@ -4710,7 +4710,7 @@
                 }
             ],
             "description": "Fixup branch to restore iommu file location",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "",
             "name": "perf_fixup",
