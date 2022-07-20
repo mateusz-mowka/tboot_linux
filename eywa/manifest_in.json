@@ -4016,7 +4016,7 @@
                 }
             ],
             "description": "SVOS TDX Modifications for v5.19",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Tom Stonecypher",
@@ -4717,6 +4717,27 @@
             "repourl": "https://github.com/intel-innersource/os.linux.intelnext.kernel",
             "sdl_contact": [],
             "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
+        },
+        {
+            "branch": "svos_fixup",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Mike Bottini",
+                    "email": "michael.a.bottini@intel.com"
+                }
+            ],
+            "description": "Fixup build error with svos DEF_QI_LENGTH",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "",
+            "name": "svos_fixup",
+            "repourl": "https://github.com/intel-innersource/os.linux.intelnext.kernel",
+            "sdl_contact": [],
+            "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
         }
