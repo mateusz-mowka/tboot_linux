@@ -4641,7 +4641,16 @@
         {
             "branch": "dsa",
             "branch_type": "expiring",
-            "config_options": [],
+            "config_options": [
+                {
+                    "name": "CONFIG_IMS_MSI",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_IMS_MSI_ARRAY",
+                    "value": "y"
+                }
+            ],
             "contributor": [
                 {
                     "name": "Fenghua Yu",
