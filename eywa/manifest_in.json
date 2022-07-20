@@ -4490,7 +4490,7 @@
                 }
             ],
             "description": "KVM: Arch LBR and CET features",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2994",
             "name": "kvm_lbr_cet",
