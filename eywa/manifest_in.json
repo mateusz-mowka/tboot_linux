@@ -4016,7 +4016,7 @@
                 }
             ],
             "description": "SVOS TDX Modifications for v5.19",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Tom Stonecypher",
