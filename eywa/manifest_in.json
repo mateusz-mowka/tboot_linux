@@ -4511,7 +4511,7 @@
                 }
             ],
             "description": "Add New GNR/SRF Instructions",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Jiaxi Chen",
