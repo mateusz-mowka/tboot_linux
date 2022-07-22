@@ -413,7 +413,6 @@ static int tdx_mig_streamd_buf_list_add(struct kvm *kvm,
 	for (i = 0; i < npages; i++) {
 		gfn = (gfn_t)gpa_list->entries[i].gfn;
 		entries[i].pfn = gfn_to_pfn(kvm, gfn);
-		get_page(pfn_to_page(entries[i].pfn));
 		entries[i].invalid = false;
 	}
 	if (i < TDX_MIG_BUF_LIST_NPAGES_MAX)
