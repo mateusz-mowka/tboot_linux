@@ -423,6 +423,7 @@
 /* Intel-defined CPU features, CPUID level 0x00000007:1 (EDX), word 20 */
 #define X86_FEATURE_AVX_VNNI_INT8       (20*32+ 4) /* Support for VPDPB[SU,UU,SS]D[,S] */
 #define X86_FEATURE_AVX_NE_CONVERT      (20*32+ 5) /* AVX NE CONVERT Instructions */
+#define X86_FEATURE_PREFETCHIT_0_1      (20*32+14) /* PREFETCHh instructions */
 
 /*
  * BUG word(s)
