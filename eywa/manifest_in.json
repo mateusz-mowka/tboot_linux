@@ -38,7 +38,12 @@
         {
             "branch": "configs",
             "branch_type": "internal nonexpiring",
-            "config_options": [],
+            "config_options": [
+                {
+                    "name": "CONFIG_VFIO_DEVICE_IDXD",
+                    "value": "m"
+                }
+            ],
             "contributor": [
                 {
                     "name": "Intel Next Maintainers",
