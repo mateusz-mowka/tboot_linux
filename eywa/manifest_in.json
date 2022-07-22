@@ -1944,7 +1944,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.16"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "sgx-bootless-next-v5.16-rc2",
@@ -3603,7 +3603,7 @@
             "last_enabled": "v5.17"
         },
         {
-            "branch": "sep_socwatch_linux_5_17",
+            "branch": "sep_socwatch_linux_5_18",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -3613,14 +3613,14 @@
                 }
             ],
             "description": "SoCWatch and SEP drivers",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Benmlih Faycal",
                     "email": "faycal.benmlih@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-3013",
             "name": "sep_socwatch",
             "repourl": "https://github.com/mchinth/linux.git",
             "sdl_contact": [
@@ -3631,7 +3631,7 @@
             ],
             "status": "public",
             "stuck_at_ref": "",
-            "last_enabled": "v5.17"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "split_lock",
