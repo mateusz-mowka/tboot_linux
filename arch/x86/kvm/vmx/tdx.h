@@ -139,6 +139,7 @@ struct vcpu_tdx {
 enum tdvmcall_service_id {
 	TDVMCALL_SERVICE_ID_QUERY,
 	TDVMCALL_SERVICE_ID_MIGTD,
+	TDVMCALL_SERVICE_ID_TDCM,
 
 	TDVMCALL_SERVICE_ID_UNKNOWN,
 };
@@ -171,6 +172,18 @@ struct tdvmcall_service_query {
 	uint8_t status;
 	uint8_t rsvd;
 	guid_t  guid;
+};
+
+struct tdvmcall_service_tdcm {
+	uint8_t version;
+#define TDVMCALL_SERVICE_TDCM_CMD_GETDEVICEHANDLE	0
+#define TDVMCALL_SERVICE_TDCM_CMD_DEVIF			1
+#define TDVMCALL_SERVICE_TDCM_CMD_MAPDMAGPA		2
+#define TDVMCALL_SERVICE_TDCM_CMD_GETDEVICEINFO		3
+	uint8_t cmd;
+	uint8_t status;
+	uint8_t rsvd;
+	uint8_t data[0];
 };
 
 static inline bool is_td(struct kvm *kvm)

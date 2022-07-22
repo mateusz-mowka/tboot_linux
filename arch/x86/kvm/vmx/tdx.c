@@ -1794,6 +1794,11 @@ static enum tdvmcall_service_id tdvmcall_get_service_id(guid_t guid)
 	if (guid_equal(&guid, &temp))
 		return TDVMCALL_SERVICE_ID_MIGTD;
 
+	temp = GUID_INIT(0x6270da51, 0x9a23, 0x4b6b, 0x81, 0xce,
+			 0xdd, 0xd8, 0x69, 0x70, 0xf2, 0x96);
+	if (guid_equal(&guid, &temp))
+		return TDVMCALL_SERVICE_ID_TDCM;
+
 	return TDVMCALL_SERVICE_ID_UNKNOWN;
 }
 
@@ -1823,6 +1828,27 @@ static void tdx_handle_service_query(struct tdvmcall_service *cmd_hdr,
 	import_guid(&status_query->guid, cmd_query->guid.b);
 
 	status_hdr->length += sizeof(struct tdvmcall_service_query);
+}
+
+static int tdx_handle_service_tdcm(struct kvm_vcpu *vcpu,
+				   struct tdvmcall_service *cmd_hdr,
+				   struct tdvmcall_service *status_hdr)
+{
+	struct tdvmcall_service_tdcm *cmd_tdcm =
+			(struct tdvmcall_service_tdcm *)cmd_hdr->data;
+
+	switch (cmd_tdcm->cmd) {
+	case TDVMCALL_SERVICE_TDCM_CMD_GETDEVICEHANDLE:
+	case TDVMCALL_SERVICE_TDCM_CMD_DEVIF:
+	case TDVMCALL_SERVICE_TDCM_CMD_GETDEVICEINFO:
+		return tdx_vp_vmcall_to_user(vcpu);
+	default:
+		printk("%s: tdcm cmd %d not supported \n",
+		       __func__, cmd_tdcm->cmd);
+		status_hdr->status = TDVMCALL_SERVICE_S_UNSUPP;
+	};
+
+	return 1;
 }
 
 static struct tdvmcall_service *tdvmcall_servbuf_alloc(struct kvm_vcpu *vcpu,
@@ -1889,6 +1915,7 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 	uint64_t nvector = tdvmcall_a2_read(vcpu);
 	struct tdvmcall_service *cmd_buf, *status_buf;
 	enum tdvmcall_service_id service_id;
+	int ret = 1;
 
 	if (nvector) {
 		pr_warn("%s: interrupt not supported, nvector %lld\n",
@@ -1897,6 +1924,7 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 	}
 
 	/* TODO: Sanity check if gpa is private */
+
 
 	cmd_buf = tdvmcall_servbuf_alloc(vcpu, cmd_gpa);
 	if (!cmd_buf)
@@ -1911,17 +1939,24 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 		case TDVMCALL_SERVICE_ID_QUERY:
 			tdx_handle_service_query(cmd_buf, status_buf);
 			break;
+		case TDVMCALL_SERVICE_ID_TDCM:
+			ret = tdx_handle_service_tdcm(vcpu, cmd_buf, status_buf);
+			break;
 		default:
 			status_buf->status = TDVMCALL_SERVICE_S_UNSUPP;
 			printk("%s: unsupported service type \n", __func__);
 	}
 
-	/* Update the guest status buf and free the host buf */
-	tdvmcall_status_copy_and_free(status_buf, vcpu, status_gpa);
+	if (ret == 0) {
+		kfree(status_buf);
+	} else {
+		/* Update the guest status buf and free the host buf */
+		tdvmcall_status_copy_and_free(status_buf, vcpu, status_gpa);
+	}
 err_status:
 	kfree(cmd_buf);
 err_cmd:
-	return 1;
+	return ret;
 }
 
 static int handle_tdvmcall(struct kvm_vcpu *vcpu)
