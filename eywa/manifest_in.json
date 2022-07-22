@@ -4506,7 +4506,7 @@
             "last_enabled": "v5.19"
         },
         {
-            "branch": "intel-5.19-rc4-0701-gnrsrf",
+            "branch": "gnr_srf_rc7",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -4516,7 +4516,7 @@
                 }
             ],
             "description": "Add New GNR/SRF Instructions",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Jiaxi Chen",
