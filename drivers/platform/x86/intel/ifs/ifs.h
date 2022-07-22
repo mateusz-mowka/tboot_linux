@@ -185,6 +185,12 @@ union ifs_scan {
 		u32	delay	:31;
 		u32	sigmce	:1;
 	};
+	struct {
+		u32	start	:16;
+		u32	stop	:16;
+		u32	delay	:31;
+		u32	sigmce	:1;
+	} gen1;
 };
 
 /* MSR_SCAN_STATUS bit fields */
@@ -199,6 +205,14 @@ union ifs_status {
 		u32	control_error		:1;
 		u32	signature_error		:1;
 	};
+	struct {
+		u32	chunk_num		:16;
+		u32	chunk_stop_index	:16;
+		u32	error_code		:8;
+		u32	rsvd1			:22;
+		u32	control_error		:1;
+		u32	signature_error		:1;
+	} gen1;
 };
 
 /* MSR_ARRAY_BIST bit fields */

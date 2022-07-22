@@ -219,21 +219,33 @@ static void ifs_test_core(int cpu, struct device *dev)
 	union ifs_status status;
 	unsigned long timeout;
 	struct ifs_data *ifsd;
+	int to_start, to_stop;
+	int status_chunk;
 	u64 msrvals[2];
 	int retries;
 
 	ifsd = ifs_get_data(dev);
 
-	activate.rsvd = 0;
 	activate.delay = IFS_THREAD_WAIT;
 	activate.sigmce = 0;
-	activate.start = 0;
-	activate.stop = ifsd->valid_chunks - 1;
+	to_start = 0;
+	to_stop = ifsd->valid_chunks - 1;
+
+	switch (ifsd->test_gen) {
+	case 0:
+		activate.start = to_start;
+		activate.stop = to_stop;
+		activate.rsvd = 0;
+		break;
+	default:
+		activate.gen1.start = to_start;
+		activate.gen1.stop = to_stop;
+	}
 
 	timeout = jiffies + HZ / 2;
 	retries = MAX_IFS_RETRIES;
 
-	while (activate.start <= activate.stop) {
+	while (to_start <= to_stop) {
 		if (time_after(jiffies, timeout)) {
 			status.error_code = IFS_SW_TIMEOUT;
 			break;
@@ -250,7 +262,10 @@ static void ifs_test_core(int cpu, struct device *dev)
 		if (!can_restart(status))
 			break;
 
-		if (status.chunk_num == activate.start) {
+		ifsd->test_gen ? (status_chunk = status.gen1.chunk_num) :
+		 (status_chunk = status.chunk_num);
+
+		if (status_chunk == to_start) {
 			/* Check for forward progress */
 			if (--retries == 0) {
 				if (status.error_code == IFS_NO_ERROR)
@@ -259,7 +274,9 @@ static void ifs_test_core(int cpu, struct device *dev)
 			}
 		} else {
 			retries = MAX_IFS_RETRIES;
-			activate.start = status.chunk_num;
+			ifsd->test_gen ? (activate.gen1.start = status_chunk) :
+			 (activate.start = status_chunk);
+			to_start = status_chunk;
 		}
 	}
 
