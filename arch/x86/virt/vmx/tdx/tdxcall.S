@@ -57,7 +57,7 @@
 	 * This value will never be used as actual SEAMCALL error code as
 	 * it is from the Reserved status code class.
 	 */
-	jnc .Lno_vmfailinvalid
+	jmp .Lno_vmfailinvalid
 	mov $TDX_SEAMCALL_VMFAILINVALID, %rax
 .Lno_vmfailinvalid:
 
