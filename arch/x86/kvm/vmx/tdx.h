@@ -135,6 +135,44 @@ struct vcpu_tdx {
 	unsigned long dr6;
 };
 
+/* TDG.VP.VMCALL.SERVICE related struct */
+enum tdvmcall_service_id {
+	TDVMCALL_SERVICE_ID_QUERY,
+	TDVMCALL_SERVICE_ID_MIGTD,
+
+	TDVMCALL_SERVICE_ID_UNKNOWN,
+};
+
+enum tdvmcall_service_status {
+	TDVMCALL_SERVICE_S_RETURNED = 0x0,
+	TDVMCALL_SERVICE_S_BAD_CMD_BUF = 0x4,
+	TDVMCALL_SERVICE_S_OUT_OF_RES = 0x8,
+
+	TDVMCALL_SERVICE_S_UNSUPP = 0xFFFFFFFE,
+	TDVMCALL_SERVICE_S_RSVD = 0xFFFFFFFF,
+};
+
+struct tdvmcall_service
+{
+	guid_t   guid;
+	/* Length of the hdr and payload */
+	uint32_t length;
+	uint32_t status;
+	uint8_t  data[0];
+};
+
+struct tdvmcall_service_query {
+#define TDVMCALL_SERVICE_QUERY_VERSION	0
+	uint8_t version;
+#define TDVMCALL_SERVICE_CMD_QUERY	0
+	uint8_t cmd;
+#define TDVMCALL_SERVICE_QUERY_S_SUPPORTED	0
+#define TDVMCALL_SERVICE_QUERY_S_UNSUPPORTED	1
+	uint8_t status;
+	uint8_t rsvd;
+	guid_t  guid;
+};
+
 static inline bool is_td(struct kvm *kvm)
 {
 	return kvm->arch.vm_type == KVM_X86_TDX_VM;

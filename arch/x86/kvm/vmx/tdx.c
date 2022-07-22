@@ -1779,6 +1779,151 @@ static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+
+static enum tdvmcall_service_id tdvmcall_get_service_id(guid_t guid)
+{
+	guid_t temp;
+
+	temp = GUID_INIT(0xfb6fc5e1, 0x3378, 0x4acb, 0x89, 0x64,
+			 0xfa, 0x5e, 0xe4, 0x3b, 0x9c, 0x8a);
+	if (guid_equal(&guid, &temp))
+		return TDVMCALL_SERVICE_ID_QUERY;
+
+	temp = GUID_INIT(0xe60e6330, 0x1e09, 0x4387, 0xa4, 0x44,
+			 0x8f, 0x32, 0xb8, 0xd6, 0x11, 0xe5);
+	if (guid_equal(&guid, &temp))
+		return TDVMCALL_SERVICE_ID_MIGTD;
+
+	return TDVMCALL_SERVICE_ID_UNKNOWN;
+}
+
+static void tdx_handle_service_query(struct tdvmcall_service *cmd_hdr,
+				     struct tdvmcall_service *status_hdr)
+{
+	struct tdvmcall_service_query *cmd_query =
+			(struct tdvmcall_service_query *)cmd_hdr->data;
+	struct tdvmcall_service_query *status_query =
+			(struct tdvmcall_service_query *)status_hdr->data;
+	enum tdvmcall_service_id service_id;
+
+	status_query->version = TDVMCALL_SERVICE_QUERY_VERSION;
+	if (cmd_query->version != status_query->version ||
+	    cmd_query->cmd != TDVMCALL_SERVICE_CMD_QUERY) {
+		printk("%s: not supported \n", __func__);
+		status_hdr->status = TDVMCALL_SERVICE_S_UNSUPP;
+	}
+
+	service_id = tdvmcall_get_service_id(cmd_query->guid);
+	if (service_id == TDVMCALL_SERVICE_ID_UNKNOWN)
+		status_query->status = TDVMCALL_SERVICE_QUERY_S_UNSUPPORTED;
+	else
+		status_query->status = TDVMCALL_SERVICE_QUERY_S_SUPPORTED;
+
+	status_query->cmd = cmd_query->cmd;
+	import_guid(&status_query->guid, cmd_query->guid.b);
+
+	status_hdr->length += sizeof(struct tdvmcall_service_query);
+}
+
+static struct tdvmcall_service *tdvmcall_servbuf_alloc(struct kvm_vcpu *vcpu,
+						       gpa_t gpa)
+{
+	uint32_t length;
+	gfn_t gfn = gpa_to_gfn(gpa);
+	struct tdvmcall_service __user *g_buf, *h_buf;
+
+	if (!PAGE_ALIGNED(gpa)) {
+		pr_err("%s: gpa=%llx not page aligned\n", __func__, gpa);
+		return NULL;
+	}
+
+	g_buf = (struct tdvmcall_service *)kvm_vcpu_gfn_to_hva(vcpu, gfn);
+	if (g_buf && get_user(length, &g_buf->length)) {
+		pr_err("%s: failed to get length\n", __func__);
+		return NULL;
+	}
+
+	if (!length) {
+		pr_err("%s: length being 0 isn't valid\n", __func__);
+		return NULL;
+	}
+
+	/* The status field by default is TDX_VMCALL_SERVICE_S_RETURNED */
+	h_buf = kzalloc(length, GFP_KERNEL_ACCOUNT);
+	if (!h_buf) {
+		pr_err("%s: failed to alloc buf\n", __func__);
+		return NULL;
+	}
+
+	if (copy_from_user(h_buf, g_buf, length)) {
+		pr_err("%s: failed tp copy\n", __func__);
+		return NULL;
+	}
+
+	return h_buf;
+}
+
+static void tdvmcall_status_copy_and_free(struct tdvmcall_service *h_buf,
+					  struct kvm_vcpu *vcpu, gpa_t gpa)
+{
+	gfn_t gfn;
+	struct tdvmcall_service __user *g_buf;
+
+	gfn = gpa_to_gfn(gpa);
+	g_buf = (struct tdvmcall_service *)kvm_vcpu_gfn_to_hva(vcpu, gfn);
+	if (copy_to_user(g_buf, h_buf, h_buf->length)) {
+		/* Guest sees TDVMCALL_SERVICE_S_RSVD in status */
+		pr_err("%s: failed to update the guest buffer\n",
+			__func__);
+	}
+	kfree(h_buf);
+}
+
+static int tdx_handle_service(struct kvm_vcpu *vcpu)
+{
+	struct kvm *kvm = vcpu->kvm;
+	gpa_t cmd_gpa = tdvmcall_a0_read(vcpu) &
+			~gfn_to_gpa(kvm_gfn_shared_mask(kvm));
+	gpa_t status_gpa = tdvmcall_a1_read(vcpu) &
+			~gfn_to_gpa(kvm_gfn_shared_mask(kvm));
+	uint64_t nvector = tdvmcall_a2_read(vcpu);
+	struct tdvmcall_service *cmd_buf, *status_buf;
+	enum tdvmcall_service_id service_id;
+
+	if (nvector) {
+		pr_warn("%s: interrupt not supported, nvector %lld\n",
+			__func__, nvector);
+		goto err_cmd;
+	}
+
+	/* TODO: Sanity check if gpa is private */
+
+	cmd_buf = tdvmcall_servbuf_alloc(vcpu, cmd_gpa);
+	if (!cmd_buf)
+		goto err_cmd;
+	status_buf = tdvmcall_servbuf_alloc(vcpu, status_gpa);
+	if (!status_buf)
+		goto err_status;
+	status_buf->length = sizeof(struct tdvmcall_service);
+
+	service_id = tdvmcall_get_service_id(cmd_buf->guid);
+	switch (service_id) {
+		case TDVMCALL_SERVICE_ID_QUERY:
+			tdx_handle_service_query(cmd_buf, status_buf);
+			break;
+		default:
+			status_buf->status = TDVMCALL_SERVICE_S_UNSUPP;
+			printk("%s: unsupported service type \n", __func__);
+	}
+
+	/* Update the guest status buf and free the host buf */
+	tdvmcall_status_copy_and_free(status_buf, vcpu, status_gpa);
+err_status:
+	kfree(cmd_buf);
+err_cmd:
+	return 1;
+}
+
 static int handle_tdvmcall(struct kvm_vcpu *vcpu)
 {
 	int r;
@@ -1825,6 +1970,9 @@ static int handle_tdvmcall(struct kvm_vcpu *vcpu)
 		break;
 	case TDG_VP_VMCALL_MAP_GPA:
 		r = tdx_map_gpa(vcpu);
+		break;
+	case TDG_VP_VMCALL_SERVICE:
+		r = tdx_handle_service(vcpu);
 		break;
 	default:
 		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_INVALID_OPERAND);
