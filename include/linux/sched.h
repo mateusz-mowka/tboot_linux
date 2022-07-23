@@ -1505,6 +1505,16 @@ struct task_struct {
 #ifdef CONFIG_SCHED_TASK_CLASSES
 	/* Class of task that the scheduler uses for task placement decisions */
 	short				class;
+	/*
+	 * A candidate classification that arch-specific implementations must
+	 * qualify for correctness.
+	 */
+	short				class_candidate;
+	/*
+	 * Counter to filter out transient the candidate classification
+	 * of a task
+	 */
+	char				class_debounce_counter;
 #endif
 
 	/*
