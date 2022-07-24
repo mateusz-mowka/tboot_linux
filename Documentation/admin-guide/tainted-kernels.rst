@@ -133,6 +133,10 @@ More detailed explanation for tainting
        scsi/snic on something else than x86_64, scsi/ips on non
        x86/x86_64/itanium, have broken firmware settings for the
        irqchip/irq-gic on arm64 ...).
+     - on intel: mixed stepping are risky and not advised. There can be
+       incompatible differences and its not possible to precisely identify
+       them. If the BSP and AP's have different family-model-stepping or
+       differ in platform flags the kernel will be tainted.
 
  3)  ``R`` if a module was force unloaded by ``rmmod -f``, ``' '`` if all
      modules were unloaded normally.

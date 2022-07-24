@@ -644,6 +644,8 @@ reget:
 		/* Mixed-silicon system? Try to refetch the proper patch: */
 		*iup = NULL;
 
+		pr_notice_once("Mixed stepping detected, not advised\n");
+		add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_STILL_OK);
 		goto reget;
 	}
 }
