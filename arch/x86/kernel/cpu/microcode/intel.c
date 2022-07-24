@@ -729,7 +729,6 @@ static int collect_cpu_info(int cpu_num, struct cpu_signature *csig)
 {
 	static struct cpu_signature prev;
 	struct cpuinfo_x86 *c = &cpu_data(cpu_num);
-	bool bsp = c->cpu_index == boot_cpu_data.cpu_index;
 	unsigned int val[2];
 
 	memset(csig, 0, sizeof(*csig));
@@ -793,6 +792,23 @@ static enum ucode_load_scope get_load_scope_intel(void)
 	return NO_UPDATE_SCOPE;
 }
 
+static enum ucode_state ucode_load_status(void)
+{
+	enum ucode_state ucode_update_status = UCODE_UPDATED;
+	ucode_status_t ucode_status = {.data=0};
+
+	if (boot_cpu_has(X86_FEATURE_UCODE_UNIFORM)) {
+		rdmsrl(MSR_IA32_UCODE_STATUS, ucode_status.data);
+
+		if (ucode_status.data) {
+			if (ucode_status.auth_fail ||
+			    ucode_status.partial)
+				ucode_update_status = UCODE_UPDATED_PART_ERR;
+		}
+	}
+	return ucode_update_status;
+}
+
 static enum ucode_state apply_microcode_intel(int cpu)
 {
 	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
@@ -846,15 +862,18 @@ static enum ucode_state apply_microcode_intel(int cpu)
 		prev_rev = rev;
 	}
 
-	ret = UCODE_UPDATED;
+	ret = ucode_load_status();
 
 out:
 	uci->cpu_sig.rev = rev;
 	c->microcode	 = rev;
 
 	/* Update boot_cpu_data's revision too, if we're on the BSP: */
-	if (bsp)
+	if (bsp) {
 		boot_cpu_data.microcode = rev;
+		if (ret == UCODE_UPDATED_PART_ERR)
+			pr_info("CPU%d update failed, need reset\n", cpu);
+	}
 
 	return ret;
 }

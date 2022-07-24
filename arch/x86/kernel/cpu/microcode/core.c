@@ -410,6 +410,7 @@ static int check_online_cpus(void)
 
 static atomic_t late_cpus_in;
 static atomic_t late_cpus_out;
+static atomic_t load_failed;
 static enum ucode_load_scope ucode_scope;
 
 static int __wait_for_cpus(atomic_t *t, long long timeout)
@@ -433,6 +434,22 @@ static int __wait_for_cpus(atomic_t *t, long long timeout)
 	return 0;
 }
 
+static int get_cpu_from_scope(void)
+{
+       int cpu = smp_processor_id();
+
+       switch(ucode_scope) {
+               case SOCKET_SCOPE:
+		       return (cpumask_first(topology_core_cpumask(cpu)));
+               case PLATFORM_SCOPE:
+		       return (cpumask_first(cpu_online_mask));
+               case CORE_SCOPE:
+               default:
+		       return (cpumask_first(topology_sibling_cpumask(cpu)));
+       }
+}
+
+
 /*
  * Returns:
  * < 0 - on error
@@ -442,6 +459,7 @@ static int __reload_late(void *info)
 {
 	int cpu = smp_processor_id();
 	enum ucode_state err;
+	int target_cpu;
 	int ret = 0;
 
 	/*
@@ -451,6 +469,8 @@ static int __reload_late(void *info)
 	if (__wait_for_cpus(&late_cpus_in, NSEC_PER_SEC))
 		return -1;
 
+	target_cpu = get_cpu_from_scope();
+
 	/*
 	 * On an SMT system, it suffices to load the microcode on one sibling of
 	 * the core because the microcode engine is shared between the threads.
@@ -458,8 +478,11 @@ static int __reload_late(void *info)
 	 * loading attempts happen on multiple threads of an SMT core. See
 	 * below.
 	 */
-	if (cpumask_first(topology_sibling_cpumask(cpu)) == cpu)
+	if (target_cpu == cpu) {
 		apply_microcode_local(&err);
+		if (err == UCODE_UPDATED_PART_ERR)
+			atomic_inc(&load_failed);
+	}
 	else
 		goto wait_for_siblings;
 
@@ -480,8 +503,11 @@ wait_for_siblings:
 	 * per-cpu cpuinfo can be updated with right microcode
 	 * revision.
 	 */
-	if (cpumask_first(topology_sibling_cpumask(cpu)) != cpu)
+	if (!ret && target_cpu != cpu)
 		apply_microcode_local(&err);
+
+	if (err == UCODE_UPDATED_PART_ERR)
+		atomic_inc(&load_failed);
 
 	return ret;
 }
@@ -506,12 +532,20 @@ static int microcode_reload_late(void)
 
 	atomic_set(&late_cpus_in,  0);
 	atomic_set(&late_cpus_out, 0);
+	atomic_set(&load_failed, 0);
 
 	ret = stop_machine_cpuslocked(__reload_late, NULL, cpu_online_mask);
 	if (ret == 0)
 		microcode_check();
 
 	pr_info("Reload completed, microcode revision: 0x%x\n", boot_cpu_data.microcode);
+
+       if (atomic_read(&load_failed)) {
+               pr_warn("Microcode load failed on some CPU's, "
+                       "its dangerous to continue, please reboot\n");
+               add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_STILL_OK);
+       }
+
 
 	return ret;
 }

@@ -142,6 +142,10 @@ More detailed explanation for tainting
        incompatible differences and its not possible to precisely identify
        them. If the BSP and AP's have different family-model-stepping or
        differ in platform flags the kernel will be tainted.
+     - on CPUs supporting UNIFORM microcode updates, if authentication
+       failures happen on some parts of the SOC, the hardware will indicate
+       such failures. When such failures are indicated, the kernel will
+       tainted since its unsafe configuration.
 
  3)  ``R`` if a module was force unloaded by ``rmmod -f``, ``' '`` if all
      modules were unloaded normally.
