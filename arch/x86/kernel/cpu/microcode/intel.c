@@ -37,6 +37,8 @@
 #include <asm/setup.h>
 #include <asm/msr.h>
 
+#include "../cpu.h"
+
 static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 
 /* Current microcode patch used in early patching on the APs. */
@@ -44,6 +46,27 @@ static struct microcode_intel *intel_ucode_patch;
 
 /* last level cache size per core */
 static int llc_size_per_core;
+
+typedef union ucode_cap {
+	u64     data;
+	struct {
+		u64     present:1;
+		u64     required:1;
+		u64     cfg_done:1;
+		u64     rsvd1:5;
+		u64     scope:8;
+		u64     rsvd2:48;
+	};
+} ucode_cap_t;
+
+typedef union ucode_status {
+	u64     data;
+	struct {
+		u64     partial:1;
+		u64     auth_fail:1;
+		u64     rsvd1:62;
+	};
+} ucode_status_t;
 
 /*
  * Returns 1 if update has been found, 0 otherwise.
@@ -706,6 +729,7 @@ static int collect_cpu_info(int cpu_num, struct cpu_signature *csig)
 {
 	static struct cpu_signature prev;
 	struct cpuinfo_x86 *c = &cpu_data(cpu_num);
+	bool bsp = c->cpu_index == boot_cpu_data.cpu_index;
 	unsigned int val[2];
 
 	memset(csig, 0, sizeof(*csig));
@@ -725,6 +749,15 @@ static int collect_cpu_info(int cpu_num, struct cpu_signature *csig)
 		pr_info("sig=0x%x, pf=0x%x, revision=0x%x\n",
 			csig->sig, csig->pf, csig->rev);
 		prev = *csig;
+	}
+
+	if (x86_read_arch_cap_msr() & ARCH_CAP_UNIFORM_MSR) {
+		ucode_cap_t ucode_cap;
+		rdmsrl(MSR_IA32_UCODE_CAP, ucode_cap.data);
+		if (!ucode_cap.present)
+			return 0;
+
+		set_cpu_cap(c, X86_FEATURE_UCODE_UNIFORM);
 	}
 
 	return 0;
@@ -978,5 +1011,14 @@ struct microcode_ops * __init init_intel_microcode(void)
 
 	llc_size_per_core = calc_llc_size_per_core(c);
 
+	if (x86_read_arch_cap_msr() & ARCH_CAP_UNIFORM_MSR) {
+		ucode_cap_t ucode_cap;
+		rdmsrl(MSR_IA32_UCODE_CAP, ucode_cap.data);
+		if (!ucode_cap.present)
+			goto done;
+
+		set_cpu_cap(c, X86_FEATURE_UCODE_UNIFORM);
+	}
+done:
 	return &microcode_intel_ops;
 }

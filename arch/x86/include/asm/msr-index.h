@@ -134,6 +134,14 @@
 						 * Processor MMIO stale data
 						 * vulnerabilities.
 						 */
+#define ARCH_CAP_UNIFORM_MSR           BIT(16) /*
+                                                 * Indicates presence of
+                                                 * MSR's to support
+                                                 * Uniform Microcode
+                                                 * Update. Enumeration
+                                                 * (0x7b) and Status (0x7c)
+                                                 */
+
 #define ARCH_CAP_FB_CLEAR		BIT(17)	/*
 						 * VERW clears CPU fill buffer
 						 * even on MDS_NO CPUs.
@@ -726,6 +734,8 @@
 #define MSR_IA32_APICBASE_BASE		(0xfffff<<12)
 
 #define MSR_IA32_UCODE_WRITE		0x00000079
+#define MSR_IA32_UCODE_CAP		0x0000007b
+#define MSR_IA32_UCODE_STATUS		0x0000007c
 #define MSR_IA32_UCODE_REV		0x0000008b
 
 /* Intel SGX Launch Enclave Public Key Hash MSRs */
