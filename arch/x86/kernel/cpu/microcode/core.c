@@ -491,10 +491,17 @@ wait_for_siblings:
  */
 static int microcode_reload_late(void)
 {
+	struct cpuinfo_x86 *c = &boot_cpu_data;
 	int ret;
 
-	pr_err("Attempting late microcode loading - it is dangerous and taints the kernel.\n");
-	pr_err("You should switch to early loading, if possible.\n");
+	/*
+	 * Until AMD gets a way to pass this meta data
+	 * warn only for AMD
+	 */
+	if (c->x86_vendor != X86_VENDOR_INTEL) {
+		pr_err("Attempting late microcode loading - it is dangerous and taints the kernel.\n");
+		pr_err("You should switch to early loading, if possible.\n");
+	}
 
 	atomic_set(&late_cpus_in,  0);
 	atomic_set(&late_cpus_out, 0);
@@ -512,6 +519,7 @@ static ssize_t reload_store(struct device *dev,
 			    struct device_attribute *attr,
 			    const char *buf, size_t size)
 {
+	struct cpuinfo_x86 *c = &boot_cpu_data;
 	enum ucode_state tmp_ret = UCODE_OK;
 	int bsp = boot_cpu_data.cpu_index;
 	unsigned long val;
@@ -543,8 +551,11 @@ put:
 
 	/*
 	 * Taint only if the late-loading was successful
+	 * If the vendor supports meta-data to indicate a min_version
+	 * required to update to this new version, tainting isn't
+	 * required.
 	 */
-	if (ret == 0) {
+	if (ret == 0 && c->x86_vendor != X86_VENDOR_INTEL) {
 		ret = size;
 		add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_STILL_OK);
 	}
