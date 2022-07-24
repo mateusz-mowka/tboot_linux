@@ -763,6 +763,36 @@ static int collect_cpu_info(int cpu_num, struct cpu_signature *csig)
 	return 0;
 }
 
+static enum ucode_load_scope get_load_scope_intel(void)
+{
+	ucode_cap_t ucode_cap;
+
+	/*
+	 * Check if UNIFORM update MSR's are enumerated
+	 */
+	if (!boot_cpu_has(X86_FEATURE_UCODE_UNIFORM))
+		return CORE_SCOPE;
+
+	rdmsrl(MSR_IA32_UCODE_CAP, ucode_cap.data);
+
+	if (ucode_cap.required && !ucode_cap.cfg_done)
+		return NO_UPDATE_SCOPE;
+	else if (ucode_cap.scope) {
+		switch (ucode_cap.scope) {
+			case 0x02:
+				return CORE_SCOPE;
+			case 0x08:
+				return SOCKET_SCOPE;
+			case 0xC0:
+				return PLATFORM_SCOPE;
+			default:
+				return NO_UPDATE_SCOPE;
+		}
+	}
+
+	return NO_UPDATE_SCOPE;
+}
+
 static enum ucode_state apply_microcode_intel(int cpu)
 {
 	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
@@ -988,6 +1018,7 @@ static struct microcode_ops microcode_intel_ops = {
 	.request_microcode_fw             = request_microcode_fw,
 	.collect_cpu_info                 = collect_cpu_info,
 	.apply_microcode                  = apply_microcode_intel,
+	.get_ucode_scope		  = get_load_scope_intel,
 };
 
 static int __init calc_llc_size_per_core(struct cpuinfo_x86 *c)

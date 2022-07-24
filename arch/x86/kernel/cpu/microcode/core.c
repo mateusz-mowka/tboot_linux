@@ -410,6 +410,7 @@ static int check_online_cpus(void)
 
 static atomic_t late_cpus_in;
 static atomic_t late_cpus_out;
+static enum ucode_load_scope ucode_scope;
 
 static int __wait_for_cpus(atomic_t *t, long long timeout)
 {
@@ -762,6 +763,9 @@ static int __init microcode_init(void)
 
 	if (!microcode_ops)
 		return -ENODEV;
+
+	if (microcode_ops->get_ucode_scope)
+		ucode_scope = microcode_ops->get_ucode_scope();
 
 	microcode_pdev = platform_device_register_simple("microcode", -1,
 							 NULL, 0);
