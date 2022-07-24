@@ -541,10 +541,13 @@ static ssize_t reload_store(struct device *dev,
 put:
 	cpus_read_unlock();
 
-	if (ret == 0)
+	/*
+	 * Taint only if the late-loading was successful
+	 */
+	if (ret == 0) {
 		ret = size;
-
-	add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_STILL_OK);
+		add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_STILL_OK);
+	}
 
 	return ret;
 }
