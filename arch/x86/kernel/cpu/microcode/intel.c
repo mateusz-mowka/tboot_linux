@@ -114,10 +114,18 @@ static void save_microcode_patch(struct ucode_cpu_info *uci, void *data, unsigne
 
 	list_for_each_entry_safe(iter, tmp, &microcode_cache, plist) {
 		mc_saved_hdr = (struct microcode_header_intel *)iter->data;
-		sig	     = mc_saved_hdr->sig;
-		pf	     = mc_saved_hdr->pf;
 
-		if (find_matching_signature(data, sig, pf)) {
+		sig = uci->cpu_sig.sig;
+		pf = uci->cpu_sig.pf;
+
+		/*
+		 * Compare the current CPUs signature with the ones in the
+		 * cache to identify the right candidate to replace. At any
+		 * given time, we should have no more than one valid patch
+		 * file for a given CPU fms+pf in the cache list.
+		 */
+
+		if (find_matching_signature(iter->data, sig, pf)) {
 			prev_found = true;
 
 			if (mc_hdr->rev <= mc_saved_hdr->rev)
