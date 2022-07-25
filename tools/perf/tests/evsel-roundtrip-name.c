@@ -104,8 +104,13 @@ static int test__perf_evsel__roundtrip_name_test(struct test_suite *test __maybe
 {
 	int err = 0, ret = 0;
 
-	if (perf_pmu__has_hybrid() && perf_pmu__hybrid_mounted("cpu_atom"))
-		return perf_evsel__name_array_test(evsel__hw_names, 2);
+	if (perf_pmu__has_hybrid()) {
+		if (perf_pmu__hybrid_mounted("cpu_core")
+		    && perf_pmu__hybrid_mounted("cpu_atom"))
+			return perf_evsel__name_array_test(evsel__hw_names, 2);
+		else
+			return perf_evsel__name_array_test(evsel__hw_names, 1);
+	}
 
 	err = perf_evsel__name_array_test(evsel__hw_names, 1);
 	if (err)
