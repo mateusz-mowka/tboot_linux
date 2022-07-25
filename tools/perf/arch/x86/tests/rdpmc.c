@@ -10,6 +10,7 @@
 #include <linux/types.h>
 #include "perf-sys.h"
 #include "debug.h"
+#include "pmu-hybrid.h"
 #include "tests/tests.h"
 #include "cloexec.h"
 #include "event.h"
@@ -112,6 +113,15 @@ static int __test__rdpmc(void)
 	sa.sa_sigaction = segfault_handler;
 	sa.sa_flags = 0;
 	sigaction(SIGSEGV, &sa, NULL);
+
+	if (perf_pmu__has_hybrid()) {
+		if (perf_pmu__hybrid_mounted("cpu_core"))
+			attr.config |=
+			    ((__u64) PMU_TYPE_CORE << PERF_PMU_TYPE_SHIFT);
+		else
+			attr.config |=
+			    ((__u64) PMU_TYPE_ATOM << PERF_PMU_TYPE_SHIFT);
+	}
 
 	fd = sys_perf_event_open(&attr, 0, -1, -1,
 				 perf_event_open_cloexec_flag());
