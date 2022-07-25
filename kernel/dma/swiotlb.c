@@ -309,7 +309,10 @@ retry:
 	else
 		tlb = memblock_alloc_low(bytes, PAGE_SIZE);
 	if (!tlb) {
-		pr_warn("%s: failed to allocate tlb structure\n", __func__);
+		if (cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT))
+			panic("%s: failed to allocate tlb structure", __func__);
+		else
+			pr_warn("%s: failed to allocate tlb structure\n", __func__);
 		return;
 	}
 
