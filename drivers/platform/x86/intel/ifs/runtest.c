@@ -256,7 +256,7 @@ static void ifs_test_core(int cpu, struct device *dev)
 
 		status.data = msrvals[1];
 
-		trace_ifs_status(cpu, activate, status);
+		trace_ifs_status(cpu, to_start, to_stop, status);
 
 		/* Some cases can be retried, give up for others */
 		if (!can_restart(status))
