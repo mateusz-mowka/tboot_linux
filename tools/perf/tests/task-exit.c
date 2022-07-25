@@ -5,8 +5,8 @@
 #include "target.h"
 #include "thread_map.h"
 #include "tests.h"
+#include "pmu-hybrid.h"
 #include "util/mmap.h"
-
 #include <errno.h>
 #include <signal.h>
 #include <linux/string.h>
@@ -97,6 +97,14 @@ static int test__task_exit(struct test_suite *test __maybe_unused, int subtest _
 	evsel->core.attr.watermark = 0;
 	evsel->core.attr.wakeup_events = 1;
 	evsel->core.attr.exclude_kernel = 1;
+	if (perf_pmu__has_hybrid()) {
+		if (perf_pmu__hybrid_mounted("cpu_core"))
+			evsel->core.attr.config |=
+			    ((__u64) PMU_TYPE_CORE << PERF_PMU_TYPE_SHIFT);
+		else
+			evsel->core.attr.config |=
+			    ((__u64) PMU_TYPE_ATOM << PERF_PMU_TYPE_SHIFT);
+	}
 
 	err = evlist__open(evlist);
 	if (err < 0) {

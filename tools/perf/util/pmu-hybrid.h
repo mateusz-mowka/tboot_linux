@@ -9,6 +9,9 @@
 #include <stdbool.h>
 #include "pmu.h"
 
+#define PMU_TYPE_CORE 4
+#define PMU_TYPE_ATOM 8
+
 extern struct list_head perf_pmu__hybrid_pmus;
 
 #define perf_pmu__for_each_hybrid_pmu(pmu)	\
