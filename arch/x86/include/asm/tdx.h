@@ -152,6 +152,9 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 
 #define TDH_IOMMU_SETREG	128
 #define TDH_IOMMU_GETREG	129
+#define TDH_MMIO_MAP		158
+#define TDH_MMIO_BLOCK		159
+#define TDH_MMIO_UNMAP		160
 
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
 {
@@ -191,6 +194,58 @@ static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val)
 		*val = out.r8;
 
         return ret;
+}
+
+typedef union page_info_api_input_s {
+    struct
+    {
+        uint64_t
+            level          : 3,		/* Level */
+            reserved_0     : 9,		/* Must be 0 */
+            gpa            : 40,	/* GPA of the page */
+            reserved_1     : 12;	/* Must be 0 */
+    };
+    uint64_t raw;
+} page_info_api_input_t;
+
+static inline u64 tdh_mmio_map(u64 gpa_page_info, u64 tdr_pa, u64 mmio_pa)
+{
+	/*
+	 * TDH.MMIO.MAP
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX -  GPA PAGE INFO
+	 * Input: RDX - TDR PA
+	 * Input: R8 - MMIO PA
+	 */
+	return __seamcall_io(TDH_MMIO_MAP, gpa_page_info, tdr_pa, mmio_pa,
+			     0, 0, 0, 0, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_mmio_block(u64 gpa_page_info, u64 tdr_pa)
+{
+	/*
+	 * TDH.MMIO.BLOCK
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX -  GPA PAGE INFO
+	 * Input: RDX - TDR PA
+	 */
+	return __seamcall_io(TDH_MMIO_BLOCK, gpa_page_info, tdr_pa,
+			     0, 0, 0, 0, 0, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_mmio_unmap(u64 gpa_page_info, u64 tdr_pa)
+{
+	/*
+	 * TDH.MMIO.UNMAP
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX -  GPA PAGE INFO
+	 * Input: RDX - TDR PA
+	 */
+	return __seamcall_io(TDH_MMIO_UNMAP, gpa_page_info, tdr_pa,
+			     0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
 #else	/* !CONFIG_INTEL_TDX_HOST */
