@@ -4745,6 +4745,27 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
+        },
+        {
+            "branch": "for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "description": "Ashok Raj's microcode patches",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-3015",
+            "name": "microcode",
+            "repourl": "https://github.com/intel-sandbox/microcode.git",
+            "sdl_contact": [],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
