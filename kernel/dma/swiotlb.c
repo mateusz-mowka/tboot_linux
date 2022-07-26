@@ -613,7 +613,7 @@ static int swiotlb_do_find_slots(struct io_tlb_mem *mem,
 			continue;
 
 		/* Ensure requested alignment is met */
-		if (alloc_align_mask && (slot_dma_addr & alloc_align_mask - 1))
+		if (alloc_align_mask && (slot_dma_addr & (alloc_align_mask - 1)))
 			continue;
 
 		if (io_tlb_offset(index) + nslots > IO_TLB_SEGSIZE)
