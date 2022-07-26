@@ -235,6 +235,7 @@ static bool classification_is_reliable(u8 class, bool smt_siblings_idle)
 	case INTEL_FAM6_ALDERLAKE_L:
 	case INTEL_FAM6_RAPTORLAKE:
 	case INTEL_FAM6_RAPTORLAKE_P:
+	case 0xBF: /* INTEL_FAM6_RAPTORLAKE_S */
 		if (class == 3 || class == 2 || smt_siblings_idle)
 			return true;
 
