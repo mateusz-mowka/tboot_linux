@@ -1481,8 +1481,10 @@ int kvm_tdp_mmu_map(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault)
 
 	if (is_error_noslot_pfn(fault->pfn) || kvm_is_reserved_pfn(fault->pfn)) {
 		if (is_private) {
-			rcu_read_unlock();
-			return -EFAULT;
+			if (is_error_noslot_pfn(fault->pfn)) {
+				rcu_read_unlock();
+				return -EFAULT;
+			}
 		}
 	}
 

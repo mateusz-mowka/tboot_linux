@@ -78,6 +78,8 @@ static struct tdx_capabilities tdx_caps;
 static DEFINE_MUTEX(tdx_lock);
 static struct mutex *tdx_mng_key_config_lock;
 
+static u64 tdx_mmio_map(hpa_t tdr, gpa_t gpa, hpa_t mmio_pa, int level);
+
 /*
  * A per-CPU list of TD vCPUs associated with a given CPU.  Used when a CPU
  * is brought down to invoke TDH_VP_FLUSH on the approapriate TD vCPUS.
@@ -271,6 +273,9 @@ static int tdx_reclaim_page(unsigned long va, hpa_t pa, enum pg_level level,
 {
 	struct tdx_module_output out;
 	u64 err;
+
+	if (kvm_is_reserved_pfn(pa >> PAGE_SHIFT))
+		return -EIO;
 
 	err = tdh_phymem_page_reclaim(pa, &out);
 	if (WARN_ON_ONCE(err)) {
@@ -2114,8 +2119,16 @@ static void __tdx_sept_set_private_spte(struct kvm *kvm, gfn_t gfn,
 	u64 err;
 	int i;
 
-	if (WARN_ON_ONCE(is_error_noslot_pfn(pfn) || kvm_is_reserved_pfn(pfn)))
+	if (WARN_ON_ONCE(is_error_noslot_pfn(pfn) || kvm_is_reserved_pfn(pfn))) {
+		if (kvm_is_mmio_pfn(pfn)) {
+			u64 ret;
+
+			ret = tdx_mmio_map(kvm_tdx->tdr.pa, gfn << PAGE_SHIFT, pfn << PAGE_SHIFT, level);
+			if (ret)
+				return;
+		}
 		return;
+	}
 
 	/* Only support 4KB and 2MB pages */
 	if (KVM_BUG_ON(level > PG_LEVEL_2M, kvm))
@@ -2199,9 +2212,11 @@ static void tdx_sept_drop_private_spte(
 		return;
 
 	if (is_hkid_assigned(kvm_tdx)) {
-		spin_lock(&kvm_tdx->seamcall_lock);
-		err = tdh_mem_page_remove(kvm_tdx->tdr.pa, gpa, tdx_level, &out);
-		spin_unlock(&kvm_tdx->seamcall_lock);
+		if (!kvm_is_mmio_pfn(pfn)) {
+			spin_lock(&kvm_tdx->seamcall_lock);
+			err = tdh_mem_page_remove(kvm_tdx->tdr.pa, gpa, tdx_level, &out);
+			spin_unlock(&kvm_tdx->seamcall_lock);
+		}
 		if (KVM_BUG_ON(err, kvm)) {
 			pr_tdx_error(TDH_MEM_PAGE_REMOVE, err, &out);
 			return;
@@ -4349,4 +4364,26 @@ void tdx_hardware_unsetup(void)
 	kfree(tdx_mng_key_config_lock);
 	misc_cg_set_capacity(MISC_CG_RES_TDX, 0);
 	kvm_set_tdx_guest_pmi_handler(NULL);
+}
+
+/* level 0 corresponds to PG_LEVEL_4K */
+#define to_gpa_info_level(x)   ((x) - 1)
+
+static u64 tdx_mmio_map(hpa_t tdr, gpa_t gpa, hpa_t mmio_pa, int level)
+{
+	page_info_api_input_t gpa_page_info = { 0 };
+	u64 ret;
+
+	if (level < PG_LEVEL_4K) {
+		pr_err("tdx_mmio_map wrong level %d\n", level);
+		return -EINVAL;
+	}
+
+	gpa_page_info.level = to_gpa_info_level(level);
+	gpa_page_info.gpa = (gpa & GENMASK(51, 12)) >> 12;
+
+	ret = tdh_mmio_map(gpa_page_info.raw, tdr, mmio_pa);
+	pr_debug("%s: ret=%llx tdr %llx mmio_pa %llx gpa info %llx\n", __func__, ret, tdr, mmio_pa, gpa);
+
+	return ret;
 }
