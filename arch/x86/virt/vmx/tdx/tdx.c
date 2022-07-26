@@ -1524,6 +1524,56 @@ int tdx_enable(void)
 }
 EXPORT_SYMBOL_GPL(tdx_enable);
 
+static bool tdxio;
+
+static int __init tdxio_setup(char *s)
+{
+	if (s)
+		return -EINVAL;
+
+	pr_info("TDX-IO allowed\n");
+	tdxio = true;
+	return 0;
+}
+early_param("tdxio", tdxio_setup);
+
+#include <asm/vmx.h>
+/*
+ * Do tdx init early only for tdxio case, otherwise skip early initialization
+ * work. e.g. leave kvm-intel to init tdx during loading.
+ */
+int tdx_init_early(void)
+{
+	int ret;
+
+	if (!tdxio)
+		return 0;
+
+	ret = vmxon_all();
+	if (ret)
+		return ret;
+
+	ret = tdx_enable();
+	vmxoff_all();
+	return ret;
+}
+arch_initcall(tdx_init_early);
+
+bool tdx_io_support(void)
+{
+	const struct tdsysinfo_struct *tdsysinfo;
+
+	tdsysinfo = tdx_get_sysinfo();
+	if (!tdsysinfo)
+		return false;
+
+	if (tdsysinfo->major_version > 1)
+		return true;
+
+	return false;
+}
+EXPORT_SYMBOL_GPL(tdx_io_support);
+
 #ifdef CONFIG_SYSFS
 
 static struct kobject *tdx_kobj;
