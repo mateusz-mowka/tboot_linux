@@ -4485,7 +4485,7 @@
             "last_enabled": "v5.19"
         },
         {
-            "branch": "intel-5.19-rc4-0627-arch-lbr-cet",
+            "branch": "arch-lbr-cet-0726-pull-request",
             "branch_type": "expiring",
             "config_options": [],
             "contributor": [
@@ -4495,7 +4495,7 @@
                 }
             ],
             "description": "KVM: Arch LBR and CET features",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [],
             "jira": "NEXT-2994",
             "name": "kvm_lbr_cet",
