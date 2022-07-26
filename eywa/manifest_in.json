@@ -4609,7 +4609,7 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "dc4c40e6f8f5b46de00065620bb088525e5f813e",
+            "stuck_at_ref": "",
             "last_enabled": "v5.19"
         },
         {
