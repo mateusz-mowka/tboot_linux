@@ -4552,12 +4552,6 @@ int tdx_module_setup(void)
 			sizeof(struct tdx_cpuid_config)))
 		return -EIO;
 
-	ret = kvm_tdx_mig_stream_ops_init();
-	if (ret) {
-		pr_err("%s: failed to init tdx mig, %d\n", __func__, ret);
-		return ret;
-	}
-
 	return 0;
 }
 
@@ -4924,7 +4918,7 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 {
 	int max_pkgs;
 	u32 max_pa;
-	int i;
+	int i, ret;
 
 	if (!enable_ept) {
 		pr_warn("Cannot enable TDX with EPT disabled\n");
@@ -5000,6 +4994,13 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 	x86_ops->write_enable_spte = tdx_sept_write_enable_spte;
 
 	kvm_set_tdx_guest_pmi_handler(tdx_guest_pmi_handler);
+
+	ret = kvm_tdx_mig_stream_ops_init();
+	if (ret) {
+		pr_err("%s: failed to init tdx mig, %d\n", __func__, ret);
+		return ret;
+	}
+
 	return tdx_module_update_init();
 }
 
