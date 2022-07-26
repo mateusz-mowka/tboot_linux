@@ -29,6 +29,7 @@
 #include <asm/cpu.h>
 #include <asm/smp.h>
 #include <asm/tdx.h>
+#include <asm/virtext.h>
 #include "tdx.h"
 
 /*
@@ -1684,6 +1685,127 @@ int tdx_init(void)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(tdx_init);
+
+static bool tdxio;
+
+static int __init tdxio_setup(char *s)
+{
+	if (s)
+		return -EINVAL;
+
+	pr_info("TDX-IO allowed\n");
+	tdxio = true;
+	return 0;
+}
+early_param("tdxio", tdxio_setup);
+
+/*
+ * Ideally we need split related vmxon/vmxoff code from kvm to common place.
+ * Currently just implement it again here to avoid code conflicts.
+ */
+struct vmcs_hdr {
+	u32 revision_id:31;
+	u32 shadow_vmcs:1;
+};
+
+struct vmcs {
+	struct vmcs_hdr hdr;
+	u32 abort;
+	char data[];
+};
+
+static DEFINE_PER_CPU(struct vmcs *, vmxarea);
+
+static __init int tdx_init_vmcs_area(void)
+{
+	struct page *pages;
+	struct vmcs *vmcs;
+	u32 vmx_msr;
+	int cpu;
+
+	rdmsrl(MSR_IA32_VMX_BASIC, vmx_msr);
+
+	for_each_possible_cpu(cpu) {
+		pages = __alloc_pages_node(cpu_to_node(cpu), GFP_KERNEL, 0);
+		if (!pages)
+			return -ENOMEM;
+
+		vmcs = page_address(pages);
+		memset(vmcs, 0, PAGE_SIZE);
+		vmcs->hdr.revision_id = vmx_msr;
+
+		per_cpu(vmxarea, cpu) = vmcs;
+	}
+
+	return 0;
+}
+
+void tdx_hw_enable(void *junk)
+{
+	int cpu = raw_smp_processor_id();
+	u64 phys_addr = __pa(per_cpu(vmxarea, cpu));
+
+	cpu_vmxon(phys_addr);
+}
+EXPORT_SYMBOL_GPL(tdx_hw_enable);
+
+void tdx_hw_disable(void *junk)
+{
+	cpu_vmxoff();
+}
+EXPORT_SYMBOL_GPL(tdx_hw_disable);
+
+static void tdx_hardware_enable_all(void)
+{
+	on_each_cpu(tdx_hw_enable, NULL, 1);
+}
+
+static void tdx_hardware_disable_all(void)
+{
+	on_each_cpu(tdx_hw_disable, NULL, 1);
+}
+
+/*
+ * Do tdx init early only for tdxio case, otherwise skip early initialization
+ * work. e.g. leave kvm-intel to init tdx during loading.
+ */
+int tdx_init_early(void)
+{
+	int ret;
+
+	if (!tdxio)
+		return 0;
+
+	ret = tdx_init_vmcs_area();
+	if (ret)
+		return ret;
+
+	tdx_hardware_enable_all();
+
+	ret = tdx_init();
+	if (ret) {
+		tdx_hardware_disable_all();
+		return ret;
+	}
+
+	tdx_hardware_disable_all();
+	return ret;
+}
+arch_initcall(tdx_init_early);
+
+bool tdx_io_support(void)
+{
+	bool support = false;
+
+	mutex_lock(&tdx_module_lock);
+	if (tdx_module_status == TDX_MODULE_INITIALIZED) {
+		if (tdx_sysinfo.major_version > 1)
+			support = true;
+	}
+	mutex_unlock(&tdx_module_lock);
+	return support;
+}
+EXPORT_SYMBOL_GPL(tdx_io_support);
 
 #ifdef CONFIG_SYSFS
 
