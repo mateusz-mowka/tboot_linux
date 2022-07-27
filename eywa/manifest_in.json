@@ -1528,6 +1528,10 @@
                 {
                     "name": "CONFIG_INTEL_HFI_THERMAL",
                     "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_THREAD_DIRECTOR",
+                    "value": "y"
                 }
             ],
             "contributor": [
@@ -1537,7 +1541,7 @@
                 }
             ],
             "description": "Support for hybrid CPUs and Hardware Feedback Interface",
-            "enabled": false,
+            "enabled": true,
             "ip_owner": [
                 {
                     "name": "Eliezer Weissman",
@@ -1548,7 +1552,7 @@
                     "email": "muhammad.abozaed@intel.com"
                 }
             ],
-            "jira": "",
+            "jira": "NEXT-3016",
             "name": "hybrid",
             "repourl": "https://github.com/intel-sandbox/ranerica.linux.git",
             "sdl_contact": [
@@ -1559,7 +1563,7 @@
             ],
             "status": "intel confidential",
             "stuck_at_ref": "",
-            "last_enabled": "v5.18"
+            "last_enabled": "v5.19"
         },
         {
             "branch": "lass-5.19-rc1",
@@ -4609,7 +4613,7 @@
                 }
             ],
             "status": "public",
-            "stuck_at_ref": "dc4c40e6f8f5b46de00065620bb088525e5f813e",
+            "stuck_at_ref": "",
             "last_enabled": "v5.19"
         },
         {
