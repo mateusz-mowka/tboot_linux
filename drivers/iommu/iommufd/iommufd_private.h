@@ -52,6 +52,9 @@ int iopt_unmap_iova(struct io_pagetable *iopt, unsigned long iova,
 		    unsigned long length, unsigned long *unmapped);
 int iopt_unmap_all(struct io_pagetable *iopt, unsigned long *unmapped);
 
+int iopt_set_dirty_tracking(struct io_pagetable *iopt,
+			    struct iommu_domain *domain, bool enable);
+
 int iopt_access_pages(struct io_pagetable *iopt, unsigned long iova,
 		      unsigned long npages, struct page **out_pages, bool write);
 void iopt_unaccess_pages(struct io_pagetable *iopt, unsigned long iova,
