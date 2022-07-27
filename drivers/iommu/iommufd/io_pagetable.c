@@ -325,7 +325,7 @@ err_undo:
 	list_for_each_entry(undo_elm, pages_list, next) {
 		if (undo_elm == elm)
 			break;
-		iopt_area_unfill_domains(undo_elm->area, undo_elm->pages);
+		iopt_area_unfill_domains(undo_elm->area, undo_elm->pages, NULL);
 	}
 	return rc;
 }
@@ -706,8 +706,25 @@ err_free:
 	return rc;
 }
 
+static int __iopt_unmap_iova(struct io_pagetable *iopt, struct iopt_area *area,
+			     struct iopt_pages *pages,
+			     struct iommufd_dirty_data *bitmap)
+{
+	/* Drivers have to unpin on notification. */
+	if (WARN_ON(READ_ONCE(area->num_accesses)))
+		return -EBUSY;
+
+	iopt_area_unfill_domains(area, pages, bitmap);
+	WARN_ON(READ_ONCE(area->num_accesses));
+	iopt_abort_area(area);
+	iopt_put_pages(pages);
+
+	return pages;
+}
+
 static int iopt_unmap_iova_range(struct io_pagetable *iopt, unsigned long start,
-				 unsigned long last, unsigned long *unmapped)
+				 unsigned long last, unsigned long *unmapped,
+				 struct iommufd_dirty_data *bitmap)
 {
 	struct iopt_area *area;
 	unsigned long unmapped_bytes = 0;
@@ -758,9 +775,12 @@ again:
 		area->pages = NULL;
 		up_write(&iopt->iova_rwsem);
 
-		iopt_area_unfill_domains(area, pages);
+		iopt_area_unfill_domains(area, pages, bitmap);
 		iopt_abort_area(area);
 		iopt_put_pages(pages);
+		rc = __iopt_unmap_iova(iopt, area, pages, bitmap);
+		if (rc)
+			goto out_unlock_iova;
 
 		unmapped_bytes += area_last - area_first + 1;
 
@@ -783,12 +803,14 @@ out_unlock_iova:
  * @iova: Starting iova to unmap
  * @length: Number of bytes to unmap
  * @unmapped: Return number of bytes unmapped
+ * @bitmap: Bitmap of dirtied IOVAs
  *
  * The requested range must be a superset of existing ranges.
  * Splitting/truncating IOVA mappings is not allowed.
  */
 int iopt_unmap_iova(struct io_pagetable *iopt, unsigned long iova,
-		    unsigned long length, unsigned long *unmapped)
+		    unsigned long length, unsigned long *unmapped,
+		    struct iommufd_dirty_data *bitmap)
 {
 	unsigned long iova_last;
 
@@ -798,14 +820,14 @@ int iopt_unmap_iova(struct io_pagetable *iopt, unsigned long iova,
 	if (check_add_overflow(iova, length - 1, &iova_last))
 		return -EOVERFLOW;
 
-	return iopt_unmap_iova_range(iopt, iova, iova_last, unmapped);
+	return iopt_unmap_iova_range(iopt, iova, iova_last, unmapped, bitmap);
 }
 
 int iopt_unmap_all(struct io_pagetable *iopt, unsigned long *unmapped)
 {
 	int rc;
 
-	rc = iopt_unmap_iova_range(iopt, 0, ULONG_MAX, unmapped);
+	rc = iopt_unmap_iova_range(iopt, 0, ULONG_MAX, unmapped, NULL);
 	/* If the IOVAs are empty then unmap all succeeds */
 	if (rc == -ENOENT)
 		return 0;

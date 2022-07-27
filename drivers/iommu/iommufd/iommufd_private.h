@@ -68,8 +68,6 @@ int iopt_map_user_pages(struct iommufd_ctx *ictx, struct io_pagetable *iopt,
 int iopt_map_pages(struct io_pagetable *iopt, struct list_head *pages_list,
 		   unsigned long length, unsigned long *dst_iova,
 		   int iommu_prot, unsigned int flags);
-int iopt_unmap_iova(struct io_pagetable *iopt, unsigned long iova,
-		    unsigned long length, unsigned long *unmapped);
 int iopt_unmap_all(struct io_pagetable *iopt, unsigned long *unmapped);
 
 void iommufd_access_notify_unmap(struct io_pagetable *iopt, unsigned long iova,
@@ -86,6 +84,9 @@ int iopt_set_dirty_tracking(struct io_pagetable *iopt,
 int iopt_read_and_clear_dirty_data(struct io_pagetable *iopt,
 				   struct iommu_domain *domain,
 				   struct iommufd_dirty_data *bitmap);
+int iopt_unmap_iova(struct io_pagetable *iopt, unsigned long iova,
+		    unsigned long length, unsigned long *unmapped,
+		    struct iommufd_dirty_data *bitmap);
 
 struct iommufd_dirty_iter {
 	struct iommu_dirty_bitmap dirty;

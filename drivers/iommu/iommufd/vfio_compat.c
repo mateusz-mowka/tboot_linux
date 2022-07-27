@@ -192,7 +192,7 @@ static int iommufd_vfio_unmap_dma(struct iommufd_ctx *ictx, unsigned int cmd,
 				goto err_put;
 		}
 		rc = iopt_unmap_iova(&ioas->iopt, unmap.iova, unmap.size,
-				     &unmapped);
+				     &unmapped, NULL);
 	}
 	unmap.size = unmapped;
 	if (copy_to_user(arg, &unmap, minsz))
