@@ -144,6 +144,27 @@ static int iommufd_vfio_map_dma(struct iommufd_ctx *ictx, unsigned int cmd,
 	return rc;
 }
 
+static unsigned long iommufd_get_pagesizes(struct iommufd_ioas *ioas)
+{
+	struct io_pagetable *iopt = &ioas->iopt;
+	unsigned long pgsize_bitmap = ULONG_MAX;
+	struct iommu_domain *domain;
+	unsigned long index;
+
+	down_read(&iopt->domains_rwsem);
+	xa_for_each(&iopt->domains, index, domain)
+		pgsize_bitmap &= domain->pgsize_bitmap;
+
+	/* See vfio_update_pgsize_bitmap() */
+	if (pgsize_bitmap & ~PAGE_MASK) {
+		pgsize_bitmap &= PAGE_MASK;
+		pgsize_bitmap |= PAGE_SIZE;
+	}
+	pgsize_bitmap = max(pgsize_bitmap, ioas->iopt.iova_alignment);
+	up_read(&iopt->domains_rwsem);
+	return pgsize_bitmap;
+}
+
 static int iommufd_vfio_unmap_dma(struct iommufd_ctx *ictx, unsigned int cmd,
 				  void __user *arg)
 {
@@ -154,10 +175,15 @@ static int iommufd_vfio_unmap_dma(struct iommufd_ctx *ictx, unsigned int cmd,
 	 *  https://lore.kernel.org/kvm/20220731125503.142683-1-yishaih@nvidia.com/
 	 *  https://lore.kernel.org/kvm/20220428210933.3583-1-joao.m.martins@oracle.com/
 	 */
-	u32 supported_flags = VFIO_DMA_UNMAP_FLAG_ALL;
+	u32 supported_flags = VFIO_DMA_UNMAP_FLAG_ALL |
+		VFIO_DMA_UNMAP_FLAG_GET_DIRTY_BITMAP;
+	struct iommufd_dirty_data dirty, *dirtyp = NULL;
 	struct vfio_iommu_type1_dma_unmap unmap;
-	unsigned long unmapped = 0;
+	struct vfio_bitmap bitmap;
 	struct iommufd_ioas *ioas;
+	unsigned long unmapped = 0;
+	unsigned long pgshift;
+	size_t pgsize;
 	int rc;
 
 	if (copy_from_user(&unmap, arg, minsz))
@@ -166,9 +192,45 @@ static int iommufd_vfio_unmap_dma(struct iommufd_ctx *ictx, unsigned int cmd,
 	if (unmap.argsz < minsz || unmap.flags & ~supported_flags)
 		return -EINVAL;
 
+	if (unmap.flags & VFIO_DMA_UNMAP_FLAG_GET_DIRTY_BITMAP) {
+		unsigned long npages;
+
+		if (copy_from_user(&bitmap,
+				   (void __user *)(arg + minsz),
+				   sizeof(bitmap)))
+			return -EFAULT;
+
+		if (!access_ok((void __user *)bitmap.data, bitmap.size))
+			return -EINVAL;
+
+		pgshift = __ffs(bitmap.pgsize);
+		npages = unmap.size >> pgshift;
+
+		if (!npages || !bitmap.size ||
+		    (bitmap.size > DIRTY_BITMAP_SIZE_MAX) ||
+		    (bitmap.size < dirty_bitmap_bytes(npages)))
+			return -EINVAL;
+
+		dirty.iova = unmap.iova;
+		dirty.length = unmap.size;
+		dirty.data = bitmap.data;
+		dirty.page_size = 1 << pgshift;
+		dirtyp = &dirty;
+	}
+
 	ioas = get_compat_ioas(ictx);
 	if (IS_ERR(ioas))
 		return PTR_ERR(ioas);
+
+	pgshift = __ffs(iommufd_get_pagesizes(ioas)),
+	pgsize = (size_t)1 << pgshift;
+
+	/* When dirty tracking is enabled, allow only min supported pgsize */
+	if ((unmap.flags & VFIO_DMA_UNMAP_FLAG_GET_DIRTY_BITMAP) &&
+	    (bitmap.pgsize != pgsize)) {
+		rc = -EINVAL;
+		goto err_put;
+	}
 
 	if (unmap.flags & VFIO_DMA_UNMAP_FLAG_ALL) {
 		if (unmap.iova != 0 || unmap.size != 0) {
@@ -192,7 +254,7 @@ static int iommufd_vfio_unmap_dma(struct iommufd_ctx *ictx, unsigned int cmd,
 				goto err_put;
 		}
 		rc = iopt_unmap_iova(&ioas->iopt, unmap.iova, unmap.size,
-				     &unmapped, NULL);
+				     &unmapped, dirtyp);
 	}
 	unmap.size = unmapped;
 	if (copy_to_user(arg, &unmap, minsz))
@@ -286,27 +348,6 @@ static int iommufd_vfio_set_iommu(struct iommufd_ctx *ictx, unsigned long type)
 	return rc;
 }
 
-static unsigned long iommufd_get_pagesizes(struct iommufd_ioas *ioas)
-{
-	struct io_pagetable *iopt = &ioas->iopt;
-	unsigned long pgsize_bitmap = ULONG_MAX;
-	struct iommu_domain *domain;
-	unsigned long index;
-
-	down_read(&iopt->domains_rwsem);
-	xa_for_each(&iopt->domains, index, domain)
-		pgsize_bitmap &= domain->pgsize_bitmap;
-
-	/* See vfio_update_pgsize_bitmap() */
-	if (pgsize_bitmap & ~PAGE_MASK) {
-		pgsize_bitmap &= PAGE_MASK;
-		pgsize_bitmap |= PAGE_SIZE;
-	}
-	pgsize_bitmap = max(pgsize_bitmap, ioas->iopt.iova_alignment);
-	up_read(&iopt->domains_rwsem);
-	return pgsize_bitmap;
-}
-
 static int iommufd_fill_cap_iova(struct iommufd_ioas *ioas,
 				 struct vfio_info_cap_header __user *cur,
 				 size_t avail)
@@ -369,6 +410,26 @@ static int iommufd_fill_cap_dma_avail(struct iommufd_ioas *ioas,
 	return sizeof(cap_dma);
 }
 
+static int iommufd_fill_cap_migration(struct iommufd_ioas *ioas,
+				      struct vfio_info_cap_header __user *cur,
+				      size_t avail)
+{
+	struct vfio_iommu_type1_info_cap_migration cap_mig = {
+		.header = {
+			.id = VFIO_IOMMU_TYPE1_INFO_CAP_MIGRATION,
+			.version = 1,
+		},
+		.flags = 0,
+		.pgsize_bitmap = (size_t) 1 << __ffs(iommufd_get_pagesizes(ioas)),
+		.max_dirty_bitmap_size = DIRTY_BITMAP_SIZE_MAX,
+	};
+
+	if (avail >= sizeof(cap_mig) &&
+	    copy_to_user(cur, &cap_mig, sizeof(cap_mig)))
+		return -EFAULT;
+	return sizeof(cap_mig);
+}
+
 static int iommufd_vfio_iommu_get_info(struct iommufd_ctx *ictx,
 				       void __user *arg)
 {
@@ -378,6 +439,7 @@ static int iommufd_vfio_iommu_get_info(struct iommufd_ctx *ictx,
 	static const fill_cap_fn fill_fns[] = {
 		iommufd_fill_cap_dma_avail,
 		iommufd_fill_cap_iova,
+		iommufd_fill_cap_migration,
 	};
 	size_t minsz = offsetofend(struct vfio_iommu_type1_info, iova_pgsizes);
 	struct vfio_info_cap_header __user *last_cap = NULL;
@@ -446,6 +508,136 @@ out_put:
 	return rc;
 }
 
+static int iommufd_vfio_dirty_pages_start(struct iommufd_ctx *ictx,
+				struct vfio_iommu_type1_dirty_bitmap *dirty)
+{
+	struct iommufd_ioas *ioas;
+	int ret = -EINVAL;
+
+	ioas = get_compat_ioas(ictx);
+	if (IS_ERR(ioas))
+		return PTR_ERR(ioas);
+
+	ret = iopt_set_dirty_tracking(&ioas->iopt, NULL, true);
+
+	iommufd_put_object(&ioas->obj);
+
+	return ret;
+}
+
+static int iommufd_vfio_dirty_pages_stop(struct iommufd_ctx *ictx,
+				struct vfio_iommu_type1_dirty_bitmap *dirty)
+{
+	struct iommufd_ioas *ioas;
+	int ret;
+
+	ioas = get_compat_ioas(ictx);
+	if (IS_ERR(ioas))
+		return PTR_ERR(ioas);
+
+	ret = iopt_set_dirty_tracking(&ioas->iopt, NULL, false);
+
+	iommufd_put_object(&ioas->obj);
+
+	return ret;
+}
+
+static int iommufd_vfio_dirty_pages_get_bitmap(struct iommufd_ctx *ictx,
+				struct vfio_iommu_type1_dirty_bitmap_get *range)
+{
+	struct iommufd_dirty_data bitmap;
+	uint64_t npages, bitmap_size;
+	struct iommufd_ioas *ioas;
+	unsigned long pgshift;
+	size_t iommu_pgsize;
+	int ret = -EINVAL;
+
+	ioas = get_compat_ioas(ictx);
+	if (IS_ERR(ioas))
+		return PTR_ERR(ioas);
+
+	down_read(&ioas->iopt.iova_rwsem);
+	pgshift = __ffs(range->bitmap.pgsize);
+	npages = range->size >> pgshift;
+	bitmap_size = range->bitmap.size;
+
+	if (!npages || !bitmap_size || (bitmap_size > DIRTY_BITMAP_SIZE_MAX) ||
+	    (bitmap_size < dirty_bitmap_bytes(npages)))
+		goto out_put;
+
+	iommu_pgsize = 1 << __ffs(iommufd_get_pagesizes(ioas));
+
+	/* allow only smallest supported pgsize */
+	if (range->bitmap.pgsize != iommu_pgsize)
+		goto out_put;
+
+	if (range->iova & (iommu_pgsize - 1))
+		goto out_put;
+
+	if (!range->size || range->size & (iommu_pgsize - 1))
+		goto out_put;
+
+	bitmap.iova = range->iova;
+	bitmap.length = range->size;
+	bitmap.data = range->bitmap.data;
+	bitmap.page_size = 1 << pgshift;
+
+	ret = iopt_read_and_clear_dirty_data(&ioas->iopt, NULL, &bitmap);
+
+out_put:
+	up_read(&ioas->iopt.iova_rwsem);
+	iommufd_put_object(&ioas->obj);
+	return ret;
+}
+
+static int iommufd_vfio_dirty_pages(struct iommufd_ctx *ictx, unsigned int cmd,
+				    void __user *arg)
+{
+	size_t minsz = offsetofend(struct vfio_iommu_type1_dirty_bitmap, flags);
+	struct vfio_iommu_type1_dirty_bitmap dirty;
+	u32 supported_flags = VFIO_IOMMU_DIRTY_PAGES_FLAG_START |
+			VFIO_IOMMU_DIRTY_PAGES_FLAG_STOP |
+			VFIO_IOMMU_DIRTY_PAGES_FLAG_GET_BITMAP;
+	int ret = 0;
+
+	if (copy_from_user(&dirty, (void __user *)arg, minsz))
+		return -EFAULT;
+
+	if (dirty.argsz < minsz || dirty.flags & ~supported_flags)
+		return -EINVAL;
+
+	/* only one flag should be set at a time */
+	if (__ffs(dirty.flags) != __fls(dirty.flags))
+		return -EINVAL;
+
+	if (dirty.flags & VFIO_IOMMU_DIRTY_PAGES_FLAG_START) {
+		ret = iommufd_vfio_dirty_pages_start(ictx, &dirty);
+	} else if (dirty.flags & VFIO_IOMMU_DIRTY_PAGES_FLAG_STOP) {
+		ret = iommufd_vfio_dirty_pages_stop(ictx, &dirty);
+	} else if (dirty.flags & VFIO_IOMMU_DIRTY_PAGES_FLAG_GET_BITMAP) {
+		struct vfio_iommu_type1_dirty_bitmap_get range;
+		size_t data_size = dirty.argsz - minsz;
+
+		if (!data_size || data_size < sizeof(range))
+			return -EINVAL;
+
+		if (copy_from_user(&range, (void __user *)(arg + minsz),
+				   sizeof(range)))
+			return -EFAULT;
+
+		if (range.iova + range.size < range.iova)
+			return -EINVAL;
+
+		if (!access_ok((void __user *)range.bitmap.data,
+			       range.bitmap.size))
+			return -EINVAL;
+
+		ret = iommufd_vfio_dirty_pages_get_bitmap(ictx, &range);
+	}
+
+	return ret;
+}
+
 int iommufd_vfio_ioctl(struct iommufd_ctx *ictx, unsigned int cmd,
 		       unsigned long arg)
 {
@@ -465,6 +657,7 @@ int iommufd_vfio_ioctl(struct iommufd_ctx *ictx, unsigned int cmd,
 	case VFIO_IOMMU_UNMAP_DMA:
 		return iommufd_vfio_unmap_dma(ictx, cmd, uarg);
 	case VFIO_IOMMU_DIRTY_PAGES:
+		return iommufd_vfio_dirty_pages(ictx, cmd, uarg);
 	default:
 		return -ENOIOCTLCMD;
 	}
