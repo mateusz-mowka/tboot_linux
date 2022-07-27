@@ -72,13 +72,6 @@ int iopt_unmap_all(struct io_pagetable *iopt, unsigned long *unmapped);
 
 void iommufd_access_notify_unmap(struct io_pagetable *iopt, unsigned long iova,
 				 unsigned long length);
-struct iommufd_dirty_data {
-	unsigned long iova;
-	unsigned long length;
-	unsigned long page_size;
-	unsigned long *data;
-};
-
 int iopt_set_dirty_tracking(struct io_pagetable *iopt,
 			    struct iommu_domain *domain, bool enable);
 int iopt_read_and_clear_dirty_data(struct io_pagetable *iopt,
@@ -302,6 +295,9 @@ int iommufd_option_rlimit_mode(struct iommu_option *cmd,
 			       struct iommufd_ctx *ictx);
 
 int iommufd_vfio_ioas(struct iommufd_ucmd *ucmd);
+int iommufd_ioas_unmap_dirty(struct iommufd_ucmd *ucmd);
+int iommufd_check_iova_range(struct iommufd_ioas *ioas,
+			     struct iommufd_dirty_data *bitmap);
 
 /*
  * A iommufd_device object represents the binding relationship between a
@@ -365,6 +361,10 @@ struct iommufd_hw_pagetable {
 	void *cache;
 	struct iommufd_fault *fault;
 };
+
+int iommufd_hwpt_set_dirty(struct iommufd_ucmd *ucmd);
+int iommufd_hwpt_get_dirty_iova(struct iommufd_ucmd *ucmd);
+int iommufd_hwpt_unmap_dirty(struct iommufd_ucmd *ucmd);
 
 struct iommufd_hw_pagetable *
 iommufd_hw_pagetable_alloc(struct iommufd_ctx *ictx, struct iommufd_ioas *ioas,

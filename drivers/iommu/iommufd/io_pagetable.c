@@ -718,8 +718,7 @@ static int __iopt_unmap_iova(struct io_pagetable *iopt, struct iopt_area *area,
 	WARN_ON(READ_ONCE(area->num_accesses));
 	iopt_abort_area(area);
 	iopt_put_pages(pages);
-
-	return pages;
+	return 0;
 }
 
 static int iopt_unmap_iova_range(struct io_pagetable *iopt, unsigned long start,

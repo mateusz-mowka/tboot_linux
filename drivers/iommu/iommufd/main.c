@@ -287,6 +287,12 @@ static const struct iommufd_ioctl_op iommufd_ioctl_ops[] = {
 		 __reserved),
 	IOCTL_OP(IOMMU_HWPT_INVALIDATE, iommufd_hwpt_invalidate,
 		 struct iommu_hwpt_invalidate, data_uptr),
+	IOCTL_OP(IOMMU_IOAS_UNMAP_DIRTY, iommufd_ioas_unmap_dirty,
+		 struct iommu_ioas_unmap_dirty, bitmap.data),
+	IOCTL_OP(IOMMU_HWPT_SET_DIRTY, iommufd_hwpt_set_dirty,
+		 struct iommu_hwpt_set_dirty, __reserved),
+	IOCTL_OP(IOMMU_HWPT_GET_DIRTY_IOVA, iommufd_hwpt_get_dirty_iova,
+		 struct iommu_hwpt_get_dirty_iova, bitmap.data),
 	IOCTL_OP(IOMMU_PAGE_RESPONSE, iommufd_hwpt_page_response, struct iommu_hwpt_page_response,
 		 resp),
 #ifdef CONFIG_IOMMUFD_TEST
