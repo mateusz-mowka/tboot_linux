@@ -150,7 +150,7 @@ static int iommufd_vfio_unmap_dma(struct iommufd_ctx *ictx, unsigned int cmd,
 		rc = iopt_unmap_all(&ioas->iopt, &unmapped);
 	else
 		rc = iopt_unmap_iova(&ioas->iopt, unmap.iova,
-				     unmap.size, &unmapped);
+				     unmap.size, &unmapped, NULL);
 	iommufd_put_object(&ioas->obj);
 	unmap.size = unmapped;
 

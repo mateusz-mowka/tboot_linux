@@ -248,7 +248,7 @@ int iommufd_ioas_unmap(struct iommufd_ucmd *ucmd)
 			goto out_put;
 		}
 		rc = iopt_unmap_iova(&ioas->iopt, cmd->iova, cmd->length,
-				     &unmapped);
+				     &unmapped, NULL);
 		if (rc)
 			goto out_put;
 	}
