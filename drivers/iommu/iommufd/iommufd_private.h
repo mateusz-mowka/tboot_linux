@@ -52,13 +52,6 @@ int iopt_map_pages(struct io_pagetable *iopt, struct iopt_pages *pages,
 		   unsigned long length, int iommu_prot, unsigned int flags);
 int iopt_unmap_all(struct io_pagetable *iopt, unsigned long *unmapped);
 
-struct iommufd_dirty_data {
-	unsigned long iova;
-	unsigned long length;
-	unsigned long page_size;
-	unsigned long *data;
-};
-
 int iopt_set_dirty_tracking(struct io_pagetable *iopt,
 			    struct iommu_domain *domain, bool enable);
 int iopt_read_and_clear_dirty_data(struct io_pagetable *iopt,
@@ -264,7 +257,10 @@ int iommufd_ioas_iova_ranges(struct iommufd_ucmd *ucmd);
 int iommufd_ioas_map(struct iommufd_ucmd *ucmd);
 int iommufd_ioas_copy(struct iommufd_ucmd *ucmd);
 int iommufd_ioas_unmap(struct iommufd_ucmd *ucmd);
+int iommufd_ioas_unmap_dirty(struct iommufd_ucmd *ucmd);
 int iommufd_vfio_ioas(struct iommufd_ucmd *ucmd);
+int iommufd_check_iova_range(struct iommufd_ioas *ioas,
+			     struct iommufd_dirty_data *bitmap);
 int iommufd_device_get_info(struct iommufd_ucmd *ucmd);
 int iommufd_alloc_user_hwpt(struct iommufd_ucmd *ucmd);
 int iommufd_hwpt_invalidate_cache(struct iommufd_ucmd *ucmd);
@@ -343,6 +339,17 @@ struct iommufd_device {
 	struct iommu_group *group;
 	bool dma_owner_claimed;
 };
+
+static inline struct iommufd_hw_pagetable *iommufd_get_hwpt(
+					struct iommufd_ucmd *ucmd, u32 id)
+{
+	return container_of(iommufd_get_object(ucmd->ictx, id,
+					       IOMMUFD_OBJ_HW_PAGETABLE),
+			    struct iommufd_hw_pagetable, obj);
+}
+int iommufd_hwpt_set_dirty(struct iommufd_ucmd *ucmd);
+int iommufd_hwpt_get_dirty_iova(struct iommufd_ucmd *ucmd);
+int iommufd_hwpt_unmap_dirty(struct iommufd_ucmd *ucmd);
 
 struct iommufd_hw_pagetable *
 iommufd_hw_pagetable_alloc(struct iommufd_ctx *ictx, struct iommufd_ioas *ioas,
