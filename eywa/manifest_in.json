@@ -46,6 +46,10 @@
                 {
                     "name": "CONFIG_INTEL_RAPL_TPMI",
                     "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_TDX_MODULE_LOADER_OLD",
+                    "value": "y"
                 }
             ],
             "contributor": [
