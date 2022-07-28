@@ -4770,12 +4770,22 @@
             ],
             "description": "Ashok Raj's microcode patches",
             "enabled": true,
-            "ip_owner": [],
+            "ip_owner": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
             "jira": "NEXT-3015",
             "name": "microcode",
             "repourl": "https://github.com/intel-sandbox/microcode.git",
-            "sdl_contact": [],
-            "status": "public",
+            "sdl_contact": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
         }
