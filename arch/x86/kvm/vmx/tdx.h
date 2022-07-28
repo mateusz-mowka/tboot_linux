@@ -73,8 +73,6 @@ struct kvm_tdx {
 	 */
 	spinlock_t seamcall_lock;
 
-	/* Pointer to the service TD that has been bound to */
-	struct kvm_tdx *servtd_tdx;
 	/*
 	 * Pointer to an array of tdx binding slots. Each servtd type has one
 	 * binding slot in the array, and the slot is indexed using the servtd
