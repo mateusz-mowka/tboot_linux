@@ -145,6 +145,20 @@
 #define DMAR_VCMD_REG		0xe00 /* Virtual command register */
 #define DMAR_VCRSP_REG		0xe10 /* Virtual command response register */
 
+/* For TDX-IO mode */
+#define DMAR_IOMMU_ID_REG       0x80000001
+#define DMAR_IOMMU_STATE_REG    0x80000002
+#define DMAR_IQPAGE_REG         0x80000003
+#define DMAR_IQCTXPAGE_REG      0x80000004
+#define DMAR_RTPAGE_REG         0x80000005
+#define DMAR_STINFOPA0_REG      0x80000006
+#define DMAR_STINFOPA1_REG      0x80000007
+#define DMAR_SPDMDIRPA_REG      0x80000008
+#define DMAR_CONFIG_IOMMU_REG   0x80000009
+#define DMAR_CLEAR_IOMMU_REG    0x8000000A
+#define DMAR_CONFIG_RP_REG      0x8000000B
+#define DMAR_CLEAR_RP_REG       0x8000000C
+
 #define DMAR_IQER_REG_IQEI(reg)		FIELD_GET(GENMASK_ULL(3, 0), reg)
 #define DMAR_IQER_REG_ITESID(reg)	FIELD_GET(GENMASK_ULL(47, 32), reg)
 #define DMAR_IQER_REG_ICESID(reg)	FIELD_GET(GENMASK_ULL(63, 48), reg)

@@ -34,4 +34,6 @@ arch_rmrr_sanity_check(struct acpi_dmar_reserved_memory *rmrr)
 	return -EINVAL;
 }
 
+#include <asm/tdx.h>
+
 #endif /* _ASM_X86_IOMMU_H */

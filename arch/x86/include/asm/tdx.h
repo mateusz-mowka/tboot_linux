@@ -146,6 +146,48 @@ bool tdx_io_support(void);
 
 u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9,
 	       struct tdx_module_output *out);
+
+#define TDH_IOMMU_SETREG	128
+#define TDH_IOMMU_GETREG	129
+
+static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
+{
+	u64 ret;
+
+        /*
+         * Input: RCX: iommu id
+         * Input: RDX: register id
+         * Input: R8:  register value
+         */
+	ret = __seamcall(TDH_IOMMU_SETREG, iommu_id, reg, val, 0, NULL);
+
+	pr_info("%s: iommu_id 0x%llx reg 0x%llx val 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, reg, val, ret);
+
+	return ret;
+}
+
+static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val)
+{
+        struct tdx_module_output out;
+        u64 ret;
+
+	/*
+         * Input: RCX: iommu id
+         * Input: RDX: register id
+         * Output: R8: register value
+	 */
+	ret = __seamcall(TDH_IOMMU_GETREG, iommu_id, reg, 0, 0, &out);
+
+	pr_info("%s: iommu_id 0x%llx reg 0x%llx val 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, reg, out.r8, ret);
+
+	if (!ret)
+		*val = out.r8;
+
+        return ret;
+}
+
 #else	/* !CONFIG_INTEL_TDX_HOST */
 static inline bool platform_tdx_enabled(void) { return false; }
 static inline int tdx_init(void)  { return -ENODEV; }
@@ -158,6 +200,8 @@ static inline void tdx_keyid_free(int keyid) { }
 static inline void tdx_hw_enable(void *junk) { }
 static inline void tdx_hw_disable(void *junk) { }
 static inline bool tdx_io_support(void) { return false; }
+static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val) { return 0; }
+static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val) { return 0; }
 #endif	/* CONFIG_INTEL_TDX_HOST */
 
 #endif /* !__ASSEMBLY__ */
