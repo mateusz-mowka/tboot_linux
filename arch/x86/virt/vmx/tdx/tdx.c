@@ -515,7 +515,7 @@ const struct tdsysinfo_struct *tdx_get_sysinfo(void)
 }
 EXPORT_SYMBOL_GPL(tdx_get_sysinfo);
 
-#ifdef CONFIG_INTEL_TDX_HOST_OLD
+#if defined(CONFIG_INTEL_TDX_HOST_OLD) && defined(CONFIG_SVOS)
 
 /* Check whether one e820 entry is RAM and could be used as TDX memory */
 static bool e820_entry_is_ram(struct e820_entry *entry)
@@ -711,7 +711,7 @@ static struct e820_table *get_e820_table(void)
  */
 #define memblock_for_each_tdx_mem_pfn_range(_i, _start, _end, _nid)	\
 	_e820_for_each_mem(get_e820_table(), _i, _start, _end, _nid)
-#else /* !CONFIG_INTEL_TDX_HOST_OLD */
+#else /* !CONFIG_INTEL_TDX_HOST_OLD && !CONFIG_SVOS */
 
 /*
  * Skip the memory region below 1MB.  Return true if the entire
@@ -751,7 +751,7 @@ static bool pfn_range_skip_lowmem(unsigned long *p_start_pfn,
 	for_each_mem_pfn_range(i, MAX_NUMNODES, p_start, p_end, p_nid)	\
 		if (!pfn_range_skip_lowmem(p_start, p_end))
 
-#endif /* CONFIG_INTEL_TDX_HOST_OLD */
+#endif /* CONFIG_INTEL_TDX_HOST_OLD && CONFIG_SVOS */
 
 /* Check whether first range is the subrange of the second */
 static bool is_subrange(u64 r1_start, u64 r1_end, u64 r2_start, u64 r2_end)
