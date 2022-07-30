@@ -195,6 +195,49 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 		  u64 r12, u64 r13, u64 r14, u64 r15,
 		  struct tdx_module_output *out);
 
+#define TDH_IOMMU_SETREG	128
+#define TDH_IOMMU_GETREG	129
+
+static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
+{
+	u64 ret;
+
+        /*
+         * Input: RCX: iommu id
+         * Input: RDX: register id
+         * Input: R8:  register value
+         */
+	ret = __seamcall_io(TDH_IOMMU_SETREG, iommu_id, reg, val,
+			    0, 0, 0, 0, 0, 0, 0, NULL);
+
+	pr_info("%s: iommu_id 0x%llx reg 0x%llx val 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, reg, val, ret);
+
+	return ret;
+}
+
+static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val)
+{
+        struct tdx_module_output out;
+        u64 ret;
+
+	/*
+         * Input: RCX: iommu id
+         * Input: RDX: register id
+         * Output: R8: register value
+	 */
+	ret = __seamcall_io(TDH_IOMMU_GETREG, iommu_id, reg,
+			    0, 0, 0, 0, 0, 0, 0, 0, &out);
+
+	pr_info("%s: iommu_id 0x%llx reg 0x%llx val 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, reg, out.r8, ret);
+
+	if (!ret)
+		*val = out.r8;
+
+        return ret;
+}
+
 #else	/* !CONFIG_INTEL_TDX_HOST */
 struct tdsysinfo_struct;
 static inline const struct tdsysinfo_struct *tdx_get_sysinfo(void) { return NULL; }
@@ -204,6 +247,8 @@ static inline u32 tdx_get_num_keyid(void) { return 0; }
 static inline int tdx_keyid_alloc(void) { return -EOPNOTSUPP; }
 static inline void tdx_keyid_free(int keyid) { }
 static inline bool tdx_io_support(void) { return false; }
+static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val) { return 0; }
+static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val) { return 0; }
 #endif	/* CONFIG_INTEL_TDX_HOST */
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
