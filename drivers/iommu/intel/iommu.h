@@ -139,6 +139,7 @@
 
 #define DMAR_ECMD_REG		0x400
 #define DMAR_ECRSP_REG		0x410
+#define DMAR_ECSTS_REG		0x420
 #define DMAR_ECCAP3_REG		0x448
 
 #define DMAR_VCCAP_REG		0xe30 /* Virtual command capability register */
@@ -174,6 +175,17 @@
 #define DMAR_VER_MINOR(v)		((v) & 0x0f)
 
 /*
+ * ECMD Response Register
+ */
+#define ecrsp_ip(r)             ((r) & 1)
+#define ecrsp_sc(r)             (((r) >> 1) & 0x7f)
+
+/*
+ * ECMD Status Register
+ */
+#define ecsts_tdx_mode(s)        (((s) >> 1) & 1)
+
+/*
  * Decoding Capability Register
  */
 #define cap_5lp_support(c)	(((c) >> 60) & 1)
@@ -207,6 +219,7 @@
  * Extended Capability Register
  */
 
+#define	ecap_tdxio(e)		(((e) >> 50) & 0x1)
 #define	ecap_rps(e)		(((e) >> 49) & 0x1)
 #define ecap_smpwc(e)		(((e) >> 48) & 0x1)
 #define ecap_flts(e)		(((e) >> 47) & 0x1)
@@ -537,6 +550,7 @@ extern spinlock_t device_domain_lock;
 #define sm_supported(iommu)	(intel_iommu_sm && ecap_smts((iommu)->ecap))
 #define pasid_supported(iommu)	(sm_supported(iommu) &&			\
 				 ecap_pasid((iommu)->ecap))
+#define tdxio_supported(iommu)  (tdx_io_support() && ecap_tdxio((iommu)->ecap))
 
 struct pasid_entry;
 struct pasid_state_entry;
@@ -688,6 +702,10 @@ struct intel_iommu {
 	void *perf_statistic;
 
 	struct iommu_pmu *pmu;
+
+	unsigned long tdxio_config;
+	bool tdxio_enabled;
+	u64 id;
 };
 
 /* PCI domain-subdevice relationship */
