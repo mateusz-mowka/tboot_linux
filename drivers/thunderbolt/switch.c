@@ -27,9 +27,16 @@ struct nvm_auth_status {
 	u32 status;
 };
 
-static bool clx_enabled = true;
+#if IS_ENABLED(CONFIG_USB4_DEBUGFS_MARGINING)
+#define CLX_DEFAULT		false
+#else
+#define CLX_DEFAULT		true
+#endif
+
+static bool clx_enabled = CLX_DEFAULT;
 module_param_named(clx, clx_enabled, bool, 0444);
-MODULE_PARM_DESC(clx, "allow low power states on the high-speed lanes (default: true)");
+MODULE_PARM_DESC(clx, "allow low power states on the high-speed lanes (default: "
+		 __MODULE_STRING(CLX_DEFAULT) ")");
 
 /*
  * Hold NVM authentication failure status per switch This information
@@ -567,36 +574,44 @@ int tb_wait_for_port(struct tb_port *port, bool wait_if_unplugged)
 
 	while (retries--) {
 		state = tb_port_state(port);
-		if (state < 0)
-			return state;
-		if (state == TB_PORT_DISABLED) {
+		switch (state) {
+		case TB_PORT_DISABLED:
 			tb_port_dbg(port, "is disabled (state: 0)\n");
 			return 0;
-		}
-		if (state == TB_PORT_UNPLUGGED) {
+
+		case TB_PORT_UNPLUGGED:
 			if (wait_if_unplugged) {
 				/* used during resume */
 				tb_port_dbg(port,
 					    "is unplugged (state: 7), retrying...\n");
 				msleep(100);
-				continue;
+				break;
 			}
 			tb_port_dbg(port, "is unplugged (state: 7)\n");
 			return 0;
-		}
-		if (state == TB_PORT_UP) {
-			tb_port_dbg(port, "is connected, link is up (state: 2)\n");
+
+		case TB_PORT_UP:
+		case TB_PORT_TX_CL0S:
+		case TB_PORT_RX_CL0S:
+		case TB_PORT_CL1:
+		case TB_PORT_CL2:
+			tb_port_dbg(port, "is connected, link is up (state: %d)\n", state);
 			return 1;
+
+		default:
+			if (state < 0)
+				return state;
+
+			/*
+			 * After plug-in the state is TB_PORT_CONNECTING. Give it some
+			 * time.
+			 */
+			tb_port_dbg(port,
+				    "is connected, link is not up (state: %d), retrying...\n",
+				    state);
+			msleep(100);
 		}
 
-		/*
-		 * After plug-in the state is TB_PORT_CONNECTING. Give it some
-		 * time.
-		 */
-		tb_port_dbg(port,
-			    "is connected, link is not up (state: %d), retrying...\n",
-			    state);
-		msleep(100);
 	}
 	tb_port_warn(port,
 		     "failed to reach state TB_PORT_UP. Ignoring port...\n");
@@ -3786,14 +3801,18 @@ int tb_switch_pcie_l1_enable(struct tb_switch *sw)
  */
 int tb_switch_xhci_connect(struct tb_switch *sw)
 {
-	bool usb_port1, usb_port3, xhci_port1, xhci_port3;
 	struct tb_port *port1, *port3;
 	int ret;
+
+	if (sw->generation != 3)
+		return 0;
 
 	port1 = &sw->ports[1];
 	port3 = &sw->ports[3];
 
 	if (tb_switch_is_alpine_ridge(sw)) {
+		bool usb_port1, usb_port3, xhci_port1, xhci_port3;
+
 		usb_port1 = tb_lc_is_usb_plugged(port1);
 		usb_port3 = tb_lc_is_usb_plugged(port3);
 		xhci_port1 = tb_lc_is_xhci_connected(port1);
