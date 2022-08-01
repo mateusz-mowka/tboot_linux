@@ -148,6 +148,15 @@ static int report__config(const char *var, const char *value, void *cb)
 	return 0;
 }
 
+static int lbr_event_config(void)
+{
+	/*
+	 * Will read the value from sysfs when kernel supports.
+	 */
+	symbol_conf.lbr_max_occur = LBR_EVENT_MAX_OCCUR;
+	return 0;
+}
+
 static int hist_iter__report_callback(struct hist_entry_iter *iter,
 				      struct addr_location *al, bool single,
 				      void *arg)
@@ -525,6 +534,7 @@ static int evlist__tui_block_hists_browse(struct evlist *evlist, struct report *
 	struct evsel *pos;
 	int i = 0, ret;
 
+	rep->annotation_opts.evlist = evlist;
 	evlist__for_each_entry(evlist, pos) {
 		ret = report__browse_block_hists(&rep->block_reports[i++].hist,
 						 rep->min_percent, pos,
@@ -1015,18 +1025,8 @@ static int __cmd_report(struct report *rep)
 	report__output_resort(rep);
 
 	if (rep->total_cycles_mode) {
-		int block_hpps[6] = {
-			PERF_HPP_REPORT__BLOCK_TOTAL_CYCLES_PCT,
-			PERF_HPP_REPORT__BLOCK_LBR_CYCLES,
-			PERF_HPP_REPORT__BLOCK_CYCLES_PCT,
-			PERF_HPP_REPORT__BLOCK_AVG_CYCLES,
-			PERF_HPP_REPORT__BLOCK_RANGE,
-			PERF_HPP_REPORT__BLOCK_DSO,
-		};
-
 		rep->block_reports = block_info__create_report(session->evlist,
 							       rep->total_cycles,
-							       block_hpps, 6,
 							       &rep->nr_block_reports);
 		if (!rep->block_reports)
 			return -1;
@@ -1374,6 +1374,10 @@ int cmd_report(int argc, const char **argv)
 	ret = perf_config(report__config, &report);
 	if (ret)
 		goto exit;
+
+	ret = lbr_event_config();
+	if (ret)
+		return ret;
 
 	argc = parse_options(argc, argv, options, report_usage, 0);
 	if (argc) {

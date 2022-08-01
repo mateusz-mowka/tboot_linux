@@ -216,7 +216,7 @@ name_tag	[\'][a-zA-Z_*?\[\]][a-zA-Z0-9_*?\-,\.\[\]:=]*[\']
 name_minus	[a-zA-Z_*?][a-zA-Z0-9\-_*?.:]*
 drv_cfg_term	[a-zA-Z0-9_\.]+(=[a-zA-Z0-9_*?\.:]+)?
 /* If you add a modifier you need to update check_modifier() */
-modifier_event	[ukhpPGHSDIWeb]+
+modifier_event	[ukhpPGHSDIWebB]+
 modifier_bp	[rwx]{1,3}
 
 %%
@@ -302,6 +302,7 @@ percore			{ return term(yyscanner, PARSE_EVENTS__TERM_TYPE_PERCORE); }
 aux-output		{ return term(yyscanner, PARSE_EVENTS__TERM_TYPE_AUX_OUTPUT); }
 aux-sample-size		{ return term(yyscanner, PARSE_EVENTS__TERM_TYPE_AUX_SAMPLE_SIZE); }
 metric-id		{ return term(yyscanner, PARSE_EVENTS__TERM_TYPE_METRIC_ID); }
+reload			{ return term(yyscanner, PARSE_EVENTS__TERM_TYPE_RELOAD); }
 r{num_raw_hex}		{ return raw(yyscanner); }
 r0x{num_raw_hex}	{ return raw(yyscanner); }
 ,			{ return ','; }

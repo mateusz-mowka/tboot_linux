@@ -861,11 +861,12 @@ mispred_str(struct branch_entry *br)
 
 static int print_bstack_flags(FILE *fp, struct branch_entry *br)
 {
-	return fprintf(fp, "/%c/%c/%c/%d/%s ",
+	return fprintf(fp, "/%c/%c/%c/%d/0x%x/%s ",
 		       mispred_str(br),
 		       br->flags.in_tx ? 'X' : '-',
 		       br->flags.abort ? 'A' : '-',
 		       br->flags.cycles,
+			   br->flags.events,
 		       br->flags.type ? branch_type_name(br->flags.type) : "-");
 }
 
@@ -1143,6 +1144,10 @@ static int ip__fprintf_jump(uint64_t ip, struct branch_entry *en,
 		if (insn)
 			printed += fprintf(fp, " %.2f IPC", (float)insn / en->flags.cycles);
 	}
+
+	if (en->flags.events)
+		printed += fprintf(fp, " events log 0x%x", en->flags.events);
+
 	return printed + fprintf(fp, "\n");
 }
 

@@ -12,6 +12,7 @@
 #include "fncache.h"
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <linux/kernel.h>
 #include <linux/hw_breakpoint.h>
@@ -20,6 +21,8 @@
 #define PERF_TP_SAMPLE_TYPE (PERF_SAMPLE_RAW | PERF_SAMPLE_TIME | \
 			     PERF_SAMPLE_CPU | PERF_SAMPLE_PERIOD)
 
+static __u32 hybrid_type_raw = PERF_TYPE_RAW;
+static int hybrid_entries = 2;
 #if defined(__s390x__)
 /* Return true if kvm module is available and loaded. Test this
  * and return success when trace point kvm_s390_create_vm
@@ -441,6 +444,24 @@ static int test__checkevent_pmu(struct evlist *evlist)
 
 	TEST_ASSERT_VAL("wrong number of entries", 1 == evlist->core.nr_entries);
 	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong config",    10 == evsel->core.attr.config);
+	TEST_ASSERT_VAL("wrong config1",    1 == evsel->core.attr.config1);
+	TEST_ASSERT_VAL("wrong config2",    3 == evsel->core.attr.config2);
+	/*
+	 * The period value gets configured within evlist__config,
+	 * while this test executes only parse events method.
+	 */
+	TEST_ASSERT_VAL("wrong period",     0 == evsel->core.attr.sample_period);
+
+	return TEST_OK;
+}
+
+static int test__hybrid_checkevent_pmu(struct evlist *evlist)
+{
+	struct evsel *evsel = evlist__first(evlist);
+
+	TEST_ASSERT_VAL("wrong number of entries", 1 == evlist->core.nr_entries);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config",    10 == evsel->core.attr.config);
 	TEST_ASSERT_VAL("wrong config1",    1 == evsel->core.attr.config1);
 	TEST_ASSERT_VAL("wrong config2",    3 == evsel->core.attr.config2);
@@ -1519,7 +1540,7 @@ static int test__hybrid_hw_event_with_pmu(struct evlist *evlist)
 	struct evsel *evsel = evlist__first(evlist);
 
 	TEST_ASSERT_VAL("wrong number of entries", 1 == evlist->core.nr_entries);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0x3c == evsel->core.attr.config);
 	return TEST_OK;
 }
@@ -1530,12 +1551,12 @@ static int test__hybrid_hw_group_event(struct evlist *evlist)
 
 	evsel = leader = evlist__first(evlist);
 	TEST_ASSERT_VAL("wrong number of entries", 2 == evlist->core.nr_entries);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0x3c == evsel->core.attr.config);
 	TEST_ASSERT_VAL("wrong leader", evsel__has_leader(evsel, leader));
 
 	evsel = evsel__next(evsel);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0xc0 == evsel->core.attr.config);
 	TEST_ASSERT_VAL("wrong leader", evsel__has_leader(evsel, leader));
 	return TEST_OK;
@@ -1551,7 +1572,7 @@ static int test__hybrid_sw_hw_group_event(struct evlist *evlist)
 	TEST_ASSERT_VAL("wrong leader", evsel__has_leader(evsel, leader));
 
 	evsel = evsel__next(evsel);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0x3c == evsel->core.attr.config);
 	TEST_ASSERT_VAL("wrong leader", evsel__has_leader(evsel, leader));
 	return TEST_OK;
@@ -1563,7 +1584,7 @@ static int test__hybrid_hw_sw_group_event(struct evlist *evlist)
 
 	evsel = leader = evlist__first(evlist);
 	TEST_ASSERT_VAL("wrong number of entries", 2 == evlist->core.nr_entries);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0x3c == evsel->core.attr.config);
 	TEST_ASSERT_VAL("wrong leader", evsel__has_leader(evsel, leader));
 
@@ -1579,14 +1600,14 @@ static int test__hybrid_group_modifier1(struct evlist *evlist)
 
 	evsel = leader = evlist__first(evlist);
 	TEST_ASSERT_VAL("wrong number of entries", 2 == evlist->core.nr_entries);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0x3c == evsel->core.attr.config);
 	TEST_ASSERT_VAL("wrong leader", evsel__has_leader(evsel, leader));
 	TEST_ASSERT_VAL("wrong exclude_user", evsel->core.attr.exclude_user);
 	TEST_ASSERT_VAL("wrong exclude_kernel", !evsel->core.attr.exclude_kernel);
 
 	evsel = evsel__next(evsel);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0xc0 == evsel->core.attr.config);
 	TEST_ASSERT_VAL("wrong leader", evsel__has_leader(evsel, leader));
 	TEST_ASSERT_VAL("wrong exclude_user", !evsel->core.attr.exclude_user);
@@ -1605,13 +1626,15 @@ static int test__hybrid_raw1(struct evlist *evlist)
 		return TEST_OK;
 	}
 
-	TEST_ASSERT_VAL("wrong number of entries", 2 == evlist->core.nr_entries);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong number of entries", hybrid_entries == evlist->core.nr_entries);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0x1a == evsel->core.attr.config);
 
 	/* The type of second event is randome value */
-	evsel = evsel__next(evsel);
-	TEST_ASSERT_VAL("wrong config", 0x1a == evsel->core.attr.config);
+	if (hybrid_entries == 2) {
+		evsel = evsel__next(evsel);
+		TEST_ASSERT_VAL("wrong config", 0x1a == evsel->core.attr.config);
+	}
 	return TEST_OK;
 }
 
@@ -1620,7 +1643,7 @@ static int test__hybrid_raw2(struct evlist *evlist)
 	struct evsel *evsel = evlist__first(evlist);
 
 	TEST_ASSERT_VAL("wrong number of entries", 1 == evlist->core.nr_entries);
-	TEST_ASSERT_VAL("wrong type", PERF_TYPE_RAW == evsel->core.attr.type);
+	TEST_ASSERT_VAL("wrong type", hybrid_type_raw == evsel->core.attr.type);
 	TEST_ASSERT_VAL("wrong config", 0x1a == evsel->core.attr.config);
 	return TEST_OK;
 }
@@ -1988,7 +2011,7 @@ static const struct terms_test test__terms[] = {
 	},
 };
 
-static const struct evlist_test test__hybrid_events[] = {
+static const struct evlist_test test__hybrid_events_core[] = {
 	{
 		.name  = "cpu_core/cpu-cycles/",
 		.check = test__hybrid_hw_event_with_pmu,
@@ -2034,6 +2057,54 @@ static const struct evlist_test test__hybrid_events[] = {
 		.check = test__hybrid_cache_event,
 		/* 8 */
 	},
+};
+
+static const struct evlist_test test__hybrid_events_atom[] = {
+	{
+		.name = "cpu_atom/cpu-cycles/",
+		.check = test__hybrid_hw_event_with_pmu,
+		/* 0 */
+	  },
+	{
+		.name = "{cpu_atom/cpu-cycles/,cpu_atom/instructions/}",
+		.check = test__hybrid_hw_group_event,
+		/* 1 */
+	  },
+	{
+		.name = "{cpu-clock,cpu_atom/cpu-cycles/}",
+		.check = test__hybrid_sw_hw_group_event,
+		/* 2 */
+	  },
+	{
+		.name = "{cpu_atom/cpu-cycles/,cpu-clock}",
+		.check = test__hybrid_hw_sw_group_event,
+		/* 3 */
+	  },
+	{
+		.name = "{cpu_atom/cpu-cycles/k,cpu_atom/instructions/u}",
+		.check = test__hybrid_group_modifier1,
+		/* 4 */
+	  },
+	{
+		.name = "r1a",
+		.check = test__hybrid_raw1,
+		/* 5 */
+	  },
+	{
+		.name = "cpu_atom/r1a/",
+		.check = test__hybrid_raw2,
+		/* 6 */
+	  },
+	{
+		.name = "cpu_atom/config=10,config1,config2=3,period=1000/u",
+		.check = test__hybrid_checkevent_pmu,
+		/* 7 */
+	  },
+	{
+		.name = "cpu_atom/LLC-loads/",
+		.check = test__hybrid_cache_event,
+		/* 8 */
+	  },
 };
 
 static int test_event(const struct evlist_test *e)
@@ -2125,6 +2196,9 @@ static int test_events(const struct evlist_test *events, int cnt)
 
 static int test__events2(struct test_suite *test __maybe_unused, int subtest __maybe_unused)
 {
+	if (perf_pmu__has_hybrid())
+		return TEST_SKIP;
+
 	return test_events(test__events, ARRAY_SIZE(test__events));
 }
 
@@ -2176,6 +2250,33 @@ static int test__terms2(struct test_suite *test __maybe_unused, int subtest __ma
 	return test_terms(test__terms, ARRAY_SIZE(test__terms));
 }
 
+static int test_pmu_core_is_off(void)
+{
+	char path[PATH_MAX];
+	char cpus[128];
+	int fd;
+	ssize_t sret;
+	int ret = 0;
+
+	snprintf(path, PATH_MAX, "%s/bus/event_source/devices/cpu_core/cpus",
+		 sysfs__mountpoint());
+
+	fd = open(path, O_RDONLY);
+	if (fd == -1)
+		return -1;
+
+	sret = read(fd, cpus, sizeof(cpus) - 1);
+	if (sret < 0) {
+		ret = -1;
+		goto error;
+	}
+	if (cpus[0] == '\n')
+		ret = -1;
+error:
+	close(fd);
+	return ret;
+}
+
 static int test_pmu(void)
 {
 	struct stat st;
@@ -2184,7 +2285,6 @@ static int test_pmu(void)
 
 	snprintf(path, PATH_MAX, "%s/bus/event_source/devices/cpu/format/",
 		 sysfs__mountpoint());
-
 	ret = stat(path, &st);
 	if (ret)
 		pr_debug("omitting PMU cpu tests\n");
@@ -2322,7 +2422,14 @@ static int test__hybrid(struct test_suite *test __maybe_unused, int subtest __ma
 	if (!perf_pmu__has_hybrid())
 		return TEST_SKIP;
 
-	return test_events(test__hybrid_events, ARRAY_SIZE(test__hybrid_events));
+	if (test_pmu_core_is_off()) {
+		hybrid_type_raw = PERF_TYPE_RAW << 1;
+		hybrid_entries = 1;
+		return test_events(test__hybrid_events_atom,
+				   ARRAY_SIZE(test__hybrid_events_atom));
+	} else
+		return test_events(test__hybrid_events_core,
+				   ARRAY_SIZE(test__hybrid_events_core));
 }
 
 static int test__checkevent_pmu_events_alias(struct evlist *evlist)

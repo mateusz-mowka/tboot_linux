@@ -1,0 +1,2003 @@
+[
+    {
+        "BriefDescription": "Each cycle count number of Valid relevant Egress entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x01",
+        "EventName": "UNC_CBO_EGRESS_OCCUPANCY.AD_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid relevant Egress entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x01",
+        "EventName": "UNC_CBO_EGRESS_OCCUPANCY.AK_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid relevant Egress entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x01",
+        "EventName": "UNC_CBO_EGRESS_OCCUPANCY.BL_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid relevant Egress entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x01",
+        "EventName": "UNC_CBO_EGRESS_OCCUPANCY.IV_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid relevant Egress entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x01",
+        "EventName": "UNC_CBO_EGRESS_OCCUPANCY.AD_CORE",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid relevant Egress entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x01",
+        "EventName": "UNC_CBO_EGRESS_OCCUPANCY.AK_CORE",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid relevant Egress entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x01",
+        "EventName": "UNC_CBO_EGRESS_OCCUPANCY.BL_CORE",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid relevant Egress entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x01",
+        "EventName": "UNC_CBO_EGRESS_OCCUPANCY.BL_SPACK",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of entries allocated in that Egress",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x02",
+        "EventName": "UNC_CBO_EGRESS_ALLOCATION.AD_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of entries allocated in that Egress",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x02",
+        "EventName": "UNC_CBO_EGRESS_ALLOCATION.AK_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of entries allocated in that Egress",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x02",
+        "EventName": "UNC_CBO_EGRESS_ALLOCATION.BL_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of entries allocated in that Egress",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x02",
+        "EventName": "UNC_CBO_EGRESS_ALLOCATION.IV_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of entries allocated in that Egress",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x02",
+        "EventName": "UNC_CBO_EGRESS_ALLOCATION.AD_CORE",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of entries allocated in that Egress",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x02",
+        "EventName": "UNC_CBO_EGRESS_ALLOCATION.AK_CORE",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of entries allocated in that Egress",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x02",
+        "EventName": "UNC_CBO_EGRESS_ALLOCATION.BL_CORE",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of entries allocated in that Egress",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x02",
+        "EventName": "UNC_CBO_EGRESS_ALLOCATION.BL_SPACK",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles the queue was in Starvation Injection non-idle mode",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x03",
+        "EventName": "UNC_CBO_EGRESS_STARVATION.AD_CACHE",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles the AK Cache- or Core-queue was in Starvation Injection non-idle mode",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x03",
+        "EventName": "UNC_CBO_EGRESS_STARVATION.AK_ANY",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles the BL Cache- or Core-queue was in Starvation Injection non-idle mode",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x03",
+        "EventName": "UNC_CBO_EGRESS_STARVATION.BL_ANY",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count number of times a C2S AD request sent on real Anti-Deadlock Slot (ADS). Doesn't check for block_IA and/or block_GT indications",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x04",
+        "EventName": "UNC_CBO_EGRESS_ADS_USED.ADS_USED",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count number of times a C2S AD request sent on ARAC Blocked Slot - real ADS bit is OFF and either block_IA or block_GT (or both) are asserted",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x04",
+        "EventName": "UNC_CBO_EGRESS_ADS_USED.ARAC_BLOCKED_USED",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "A request in ring targeted for this IRQ but no place in IRQ. The count is done at the target Cbo. (P2C)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x05",
+        "EventName": "UNC_CBO_RING_BOUNCES.AD",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times Responses (GO, WR-Pull) to Core bounce on that ring. (C2P)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x05",
+        "EventName": "UNC_CBO_RING_BOUNCES.AK",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times Data to core bounce on BL ring. (C2P)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x05",
+        "EventName": "UNC_CBO_RING_BOUNCES.BL",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times Requests (snoops) to Core bounce on that ring. (C2P)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x05",
+        "EventName": "UNC_CBO_RING_BOUNCES.IV",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times Starvation Sink mechanism was applied on IRQ side. (P2C)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x06",
+        "EventName": "UNC_CBO_SINK_STARVATION.AD",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times Starvation Sink mechanism was applied on that ring.  (C2P)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x06",
+        "EventName": "UNC_CBO_SINK_STARVATION.AK",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times Starvation Sink mechanism was applied on that ring. (C2P)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x06",
+        "EventName": "UNC_CBO_SINK_STARVATION.BL",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times Starvation Sink mechanism was applied on that ring.  (C2P)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x06",
+        "EventName": "UNC_CBO_SINK_STARVATION.IV",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "counts evictions form LLC caused by DCS mechanism (while flushing LLC)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x07",
+        "EventName": "UNC_CBO_DCS_EVICTION.WBMTOI",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts the amount of snoops which reached timeout before they were sent",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x08",
+        "EventName": "UNC_CBO_SNP_SCRUB_TIMEOUT",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts transactions which were dropped due to ISQ full",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x09",
+        "EventName": "UNC_CBO_ISQ_DROPPED.ISQ_FULL",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts transactions which were dropped due to ISQ timeout",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x09",
+        "EventName": "UNC_CBO_ISQ_DROPPED.ISQ_TIMEOUT",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts transactions which were dropped due to TOR full",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x09",
+        "EventName": "UNC_CBO_ISQ_DROPPED.TOR_FULL",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts transactions which were dropped due to lack of IDP credits",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x09",
+        "EventName": "UNC_CBO_ISQ_DROPPED.IDP_CREDITS",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts transactions which were dropped due to PA match",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x09",
+        "EventName": "UNC_CBO_ISQ_DROPPED.PA_MATCH",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts transactions which were dropped due to lack of egress credits",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x09",
+        "EventName": "UNC_CBO_ISQ_DROPPED.EGRESS_CREDITS",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of D2C GOs, which were throtteled",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0B",
+        "EventName": "UNC_CBO_EGRESS.D2C_GO_THROTTLED",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of D2C data, which were throtteled",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0B",
+        "EventName": "UNC_CBO_EGRESS.D2C_DATA_THROTTLED",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of total D2C-GO requests that were received from IDP (including the ones that got throttled afterwards)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0B",
+        "EventName": "UNC_CBO_EGRESS.D2C_GO_TOTAL_REQ",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of total D2C-data request that were received from IDP (including the ones that got throttled afterwards)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0B",
+        "EventName": "UNC_CBO_EGRESS.D2C_DATA_TOTAL_REQ",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of D2C data from SPACK, which were throtteled",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0B",
+        "EventName": "UNC_CBO_EGRESS.D2C_SPACK_DATA_THROTTLED",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of total D2C-data request that were received from SPack (including the ones that got throttled afterwards)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0B",
+        "EventName": "UNC_CBO_EGRESS.D2C_SPACK_DATA_TOTAL_REQ",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of cycles no credits available in the CBO to IDP0",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0D",
+        "EventName": "UNC_CBO_CREDITS_FOR_IDP.NO_CREDITS_IN_CBO_TO_IDP0",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of cycles no credits available in the CBO",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0D",
+        "EventName": "UNC_CBO_CREDITS_FOR_IDP.NO_CREDITS_IN_CBO",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_TRAVEL_RING_SWITCHED.AK_RING_SWITCHED",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0E",
+        "EventName": "UNC_CBO_TRAVEL_RING_SWITCHED.AK_RING_SWITCHED",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_TRAVEL_RING_SWITCHED.BL_RING_SWITCHED",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0E",
+        "EventName": "UNC_CBO_TRAVEL_RING_SWITCHED.BL_RING_SWITCHED",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_TRAVEL_RING_SWITCHED.AK_EGRESS_BIAS",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0E",
+        "EventName": "UNC_CBO_TRAVEL_RING_SWITCHED.AK_EGRESS_BIAS",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_TRAVEL_RING_SWITCHED.BL_EGRESS_BIAS",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0E",
+        "EventName": "UNC_CBO_TRAVEL_RING_SWITCHED.BL_EGRESS_BIAS",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_TRAVEL_RING_SWITCHED.AK_STARVATION",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0E",
+        "EventName": "UNC_CBO_TRAVEL_RING_SWITCHED.AK_STARVATION",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_TRAVEL_RING_SWITCHED.BL_STARVATION",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x0E",
+        "EventName": "UNC_CBO_TRAVEL_RING_SWITCHED.BL_STARVATION",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Encoded LRU age. Counts true LRU hits of age equal or greater than encoded. Needs to be qualified with bits 4-7",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CBO_TRUELRU_HITS.AGE0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Encoded LRU age. Counts true LRU hits of age equal or greater than encoded. Needs to be qualified with bits 4-7",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CBO_TRUELRU_HITS.AGE1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Encoded LRU age. Counts true LRU hits of age equal or greater than encoded. Needs to be qualified with bits 4-7",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CBO_TRUELRU_HITS.AGE2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Encoded LRU age. Counts true LRU hits of age equal or greater than encoded. Needs to be qualified with bits 4-7",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CBO_TRUELRU_HITS.AGE3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts all thransactions",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CBO_TRUELRU_HITS.ALL",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "count reads + MLC prefetches only( DRd/DRd_pref/DRd_opt/DRd_PTE/CRd/CRd_Pref/RFO/RFO_Pref)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CBO_TRUELRU_HITS.READ",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts LLC prefetches",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CBO_TRUELRU_HITS.LLCPF",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "counts writes from core (Wb*to*)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x10",
+        "EventName": "UNC_CBO_TRUELRU_HITS.WRB",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid IRQ entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_CBO_INGRESS_OCCUPANCY.IRQ",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count for valid IRQ entries with Real-Rejected (RR) bit set. The bit is set when the entry was first rejected",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_CBO_INGRESS_OCCUPANCY.IRQ_REJECTS",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of Valid IPQ entries from allocation till deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x11",
+        "EventName": "UNC_CBO_INGRESS_OCCUPANCY.IPQ",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles in Inter-queue (external) starvation mode for IRQ. That specific queue is bidding for the pipe (Half-0) but doesn't win InterQ arbitration for a very long time",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_CBO_INGRESS_ARBITER.BLOCK_IRQ_HA0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles in Inter-queue (external) starvation mode for IPQ. That specific queue is bidding for the pipe (Half-0) but doesn't win InterQ arbitration for a very long time",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_CBO_INGRESS_ARBITER.BLOCK_IPQ_HA0",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles in Inter-queue (external) starvation mode for IRQ and IPQ. (only ISMQ can be served) bidding to Half-0",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_CBO_INGRESS_ARBITER.BLOCK_IRQ_IPQ_HA0",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "ISMQ queue not empty and have ready requests to send (bidding) for Half-0",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_CBO_INGRESS_ARBITER.ISMQ_BID_HA0",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Same as above, but to Half1",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_CBO_INGRESS_ARBITER.BLOCK_IRQ_HA1",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Same as above, but to Half1",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_CBO_INGRESS_ARBITER.BLOCK_IPQ_HA1",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Same as above, but to Half1",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_CBO_INGRESS_ARBITER.BLOCK_IRQ_IPQ_HA1",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Same as above, but to Half1",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x12",
+        "EventName": "UNC_CBO_INGRESS_ARBITER.ISMQ_BID_HA1",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of IRQ entries allocated",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x13",
+        "EventName": "UNC_CBO_INGRESS_ALLOCATION.IRQ",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count number of times the RR bit was set for IRQ entry",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x13",
+        "EventName": "UNC_CBO_INGRESS_ALLOCATION.IRQ_REJECTS",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of IPQ entries allocated",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x13",
+        "EventName": "UNC_CBO_INGRESS_ALLOCATION.IPQ",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles IRQ in (internal) Starvation mode when request can't complete the LLC pipeline. (specific entry in a queue is starved)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x14",
+        "EventName": "UNC_CBO_INGRESS_STARVATION.IRQ",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles IPQ in (internal) Starvation mode when request can't complete the LLC pipeline. (specific entry in a queue is starved)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x14",
+        "EventName": "UNC_CBO_INGRESS_STARVATION.IPQ",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles ISMQ in (internal) Starvation mode when request can't complete the LLC pipeline. (specific entry in a queue is starved)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x14",
+        "EventName": "UNC_CBO_INGRESS_STARVATION.ISMQ",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "ARAC Distress inputs from Ingress  towards SBO",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_CBO_INGRESS_ARAC_DISTRESS.THROTTLE_NONE",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "ARAC Distress inputs from Ingress  towards SBO",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_CBO_INGRESS_ARAC_DISTRESS.THROTTLE_IA",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "ARAC Distress inputs from Ingress  towards SBO",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_CBO_INGRESS_ARAC_DISTRESS.THROTTLE_GT",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "ARAC Distress inputs from Ingress  towards SBO",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x16",
+        "EventName": "UNC_CBO_INGRESS_ARAC_DISTRESS.THROTTLE_IA_GT",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts ring stops blocked by ARAC for IA. In dual ring - counting only on one ring, since the blocking is identical for both rings",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x17",
+        "EventName": "UNC_CBO_SBO_ARAC_RING.BLOCK_IA",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts ring stops blocked by ARAC for GT. In dual ring - counting only on one ring, since the blocking is identical for both rings",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x17",
+        "EventName": "UNC_CBO_SBO_ARAC_RING.BLOCK_GT",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts ring stops blocked by ARAC for IA and GT. In dual ring - counting only on one ring, since the blocking is identical for both rings",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x17",
+        "EventName": "UNC_CBO_SBO_ARAC_RING.BLOCK_BOTH",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts allocations to overflow vector",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x18",
+        "EventName": "UNC_CBO_MONITOR_ARRAY_ALLOCATION.OVERFLOW_ALLOC",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts allocations to valid monitor entry (2nd and more thread monitoring same line)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x18",
+        "EventName": "UNC_CBO_MONITOR_ARRAY_ALLOCATION.MULTIPLE_ENTRY_ALLOC_TO_SAME_ENTRY",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count when ring-slot is utilized while taking into account sending rules",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1B",
+        "EventName": "UNC_CBO_AD_RING_IN_USE.UP_EVEN",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_AD_RING_IN_USE.UP_ODD",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1B",
+        "EventName": "UNC_CBO_AD_RING_IN_USE.UP_ODD",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_AD_RING_IN_USE.DN_EVEN",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1B",
+        "EventName": "UNC_CBO_AD_RING_IN_USE.DN_EVEN",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_AD_RING_IN_USE.DN_ODD",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1B",
+        "EventName": "UNC_CBO_AD_RING_IN_USE.DN_ODD",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count when ring-slot is utilized while taking into account sending rules",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CBO_AK_RING_IN_USE.UP_EVEN",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_AK_RING_IN_USE.UP_ODD",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CBO_AK_RING_IN_USE.UP_ODD",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_AK_RING_IN_USE.DN_EVEN",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CBO_AK_RING_IN_USE.DN_EVEN",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_AK_RING_IN_USE.DN_ODD",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1C",
+        "EventName": "UNC_CBO_AK_RING_IN_USE.DN_ODD",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count when ring-slot is utilized while taking into account sending rules",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CBO_BL_RING_IN_USE.UP_EVEN",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_BL_RING_IN_USE.UP_ODD",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CBO_BL_RING_IN_USE.UP_ODD",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_BL_RING_IN_USE.DN_EVEN",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CBO_BL_RING_IN_USE.DN_EVEN",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_BL_RING_IN_USE.DN_ODD",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1D",
+        "EventName": "UNC_CBO_BL_RING_IN_USE.DN_ODD",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count when ring-slot is utilized while taking into account sending rules",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1E",
+        "EventName": "UNC_CBO_IV_RING_IN_USE.UP_EVEN",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_IV_RING_IN_USE.UP_ODD",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1E",
+        "EventName": "UNC_CBO_IV_RING_IN_USE.UP_ODD",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_IV_RING_IN_USE.DN_EVEN",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1E",
+        "EventName": "UNC_CBO_IV_RING_IN_USE.DN_EVEN",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "UNC_CBO_IV_RING_IN_USE.DN_ODD",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x1E",
+        "EventName": "UNC_CBO_IV_RING_IN_USE.DN_ODD",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count the number of times that a Core enters C6",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x20",
+        "EventName": "UNC_CBO_BIG_CORE.C6_ENTER",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count the number of times that at least a Core is asleep",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x20",
+        "EventName": "UNC_CBO_BIG_CORE.C6_SLEEP_CYCLES",
+        "PerPkg": "1",
+        "UMask": "0x81",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count the number of times that a Core enters C6",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x21",
+        "EventName": "UNC_CBO_PIPE_ATOM_CORE.C6_ENTER",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count the number of times that at least a Core is asleep",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x21",
+        "EventName": "UNC_CBO_PIPE_ATOM_CORE.C6_SLEEP_CYCLES",
+        "PerPkg": "1",
+        "UMask": "0x81",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIHit/RspFlushed snoop response from Core",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x22",
+        "EventName": "UNC_CBO_ISMQ_CORE_XSNP_RESPONSE.RSPFLUSHED_RSPIHITI",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIHitFSE snoop response from Core",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x22",
+        "EventName": "UNC_CBO_ISMQ_CORE_XSNP_RESPONSE.RSPIHITFSE",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSHitFSE/RspSI snoop response from Core",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x22",
+        "EventName": "UNC_CBO_ISMQ_CORE_XSNP_RESPONSE.RSPSHITFSE_RSPSI",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSFwdMO snoop response from Core",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x22",
+        "EventName": "UNC_CBO_ISMQ_CORE_XSNP_RESPONSE.RSPSFWDM",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIFwdMO snoop response from Core",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x22",
+        "EventName": "UNC_CBO_ISMQ_CORE_XSNP_RESPONSE.RSPIFWDM",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSFwdFE snoop response from Core",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x22",
+        "EventName": "UNC_CBO_ISMQ_CORE_XSNP_RESPONSE.RSPSFWDFE",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIFwdFE snoop response from Core",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x22",
+        "EventName": "UNC_CBO_ISMQ_CORE_XSNP_RESPONSE.RSPIFWDFE",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times that snoops were sent to number of cores >= SNP_NUM as result of request specified in the filter. SNP_NUM=0 has similar behavior like SNP_NUM=1 (i.e. if no snoop sents then count 0).  Note that for ARL, with 16 IDI attaches, it is impossible to program this to count only when 16 snoops are sent",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x23",
+        "EventName": "UNC_CBO_ISMQ_C2P_SNP_REQ.ALL",
+        "PerPkg": "1",
+        "UMask": "0x11",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of times that snoops were sent to number of cores >= SNP_NUM as result of request specified in the filter. SNP_NUM=0 has similar behavior like SNP_NUM=1 (i.e. if no snoop sents then count 0).  Note that for ARL, with 16 IDI attaches, it is impossible to program this to count only when 16 snoops are sent",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x23",
+        "EventName": "UNC_CBO_ISMQ_C2P_SNP_REQ.EXT_SNP",
+        "PerPkg": "1",
+        "UMask": "0x21",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counts all snoops",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x23",
+        "EventName": "UNC_CBO_ISMQ_C2P_SNP_REQ.CORE_REQ",
+        "PerPkg": "1",
+        "UMask": "0x41",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Filter on cross-core snoops resulted of External snoop request (include CmpFwd)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x23",
+        "EventName": "UNC_CBO_ISMQ_C2P_SNP_REQ.EVICTION",
+        "PerPkg": "1",
+        "UMask": "0x81",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIHit/RspFlushed snoop response from Victim",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x24",
+        "EventName": "UNC_CBO_ISMQ_VICTIM_XSNP_RESPONSE.RSPFLUSHED_RSPIHITI",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIHitFSE snoop response from Victim",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x24",
+        "EventName": "UNC_CBO_ISMQ_VICTIM_XSNP_RESPONSE.RSPIHITFSE",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSHitFSE/RspSI snoop response from Victim",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x24",
+        "EventName": "UNC_CBO_ISMQ_VICTIM_XSNP_RESPONSE.RSPSHITFSE_RSPSI",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSFwdMO snoop response from Victim",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x24",
+        "EventName": "UNC_CBO_ISMQ_VICTIM_XSNP_RESPONSE.RSPSFWDM",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIFwdMO snoop response from Victim",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x24",
+        "EventName": "UNC_CBO_ISMQ_VICTIM_XSNP_RESPONSE.RSPIFWDM",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSFwdFE snoop response from Victim",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x24",
+        "EventName": "UNC_CBO_ISMQ_VICTIM_XSNP_RESPONSE.RSPSFWDFE",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIFwdFE snoop response from Victim",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x24",
+        "EventName": "UNC_CBO_ISMQ_VICTIM_XSNP_RESPONSE.RSPIFWDFE",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIHit/RspFlushed snoop response from External",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x25",
+        "EventName": "UNC_CBO_ISMQ_EXTERNAL_XSNP_RESPONSE.RSPFLUSHED_RSPIHITI",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIHitFSE snoop response from External",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x25",
+        "EventName": "UNC_CBO_ISMQ_EXTERNAL_XSNP_RESPONSE.RSPIHITFSE",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSHitFSE/RspSI snoop response from External",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x25",
+        "EventName": "UNC_CBO_ISMQ_EXTERNAL_XSNP_RESPONSE.RSPSHITFSE_RSPSI",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSFwdMO snoop response from External",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x25",
+        "EventName": "UNC_CBO_ISMQ_EXTERNAL_XSNP_RESPONSE.RSPSFWDM",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIFwdMO snoop response from External",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x25",
+        "EventName": "UNC_CBO_ISMQ_EXTERNAL_XSNP_RESPONSE.RSPIFWDM",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspSFwdFE snoop response from External",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x25",
+        "EventName": "UNC_CBO_ISMQ_EXTERNAL_XSNP_RESPONSE.RSPSFWDFE",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "RspIFwdFE snoop response from External",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x25",
+        "EventName": "UNC_CBO_ISMQ_EXTERNAL_XSNP_RESPONSE.RSPIFWDFE",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Account for any reject in this queue. E.g. in addition to next reject-types (having dedicated sub-events) no-tracker-credits, set match (includes many conditions incl. victim pending), All ways reserved, ?",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x31",
+        "EventName": "UNC_CBO_IPQ_REJECTS.ANY",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Physical Address (PA) match",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x31",
+        "EventName": "UNC_CBO_IPQ_REJECTS.ADDRESS_CONFLICT",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "New in MTL",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x31",
+        "EventName": "UNC_CBO_IPQ_REJECTS.ALL_RESERVED",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "New in MTL",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x31",
+        "EventName": "UNC_CBO_IPQ_REJECTS.SET_MATCH_CONFLICT",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "New in MTL",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x31",
+        "EventName": "UNC_CBO_IPQ_REJECTS.EARLY_LATE_CONFLICT",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Account for any reject in this queue. E.g. set-match, no-tracker-credits, All ways reserved, AckCnflt-pending, victim entry occupied, etc.. in addition to below mentioned common reject-types (having dedicated sub-events)\nCount 1 if more than 1 reject reason is applied",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x32",
+        "EventName": "UNC_CBO_IRQ_REJECTS.ANY",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "IRQ Reject due to No Egress credits",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x32",
+        "EventName": "UNC_CBO_IRQ_REJECTS.EGRESS_FULL",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Physical Address (PA) match. Does not account for set-match",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x32",
+        "EventName": "UNC_CBO_IRQ_REJECTS.ADDRESS_CONFLICT",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "No available IDP credits",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x32",
+        "EventName": "UNC_CBO_IRQ_REJECTS.NO_IDP_CREDITS",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "IRQ reject because the request was promoted onto a prefetch",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x32",
+        "EventName": "UNC_CBO_IRQ_REJECTS.PREFETCHPROMOTION",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "IRQ reject because there are no TOR entries available for a victim flow",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x32",
+        "EventName": "UNC_CBO_IRQ_REJECTS.NO_VICTIM_TOR",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "IRQ reject because there are no TOR entries available for requests that are not to memory (last TOR entrie is reserved memory bound requests)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x32",
+        "EventName": "UNC_CBO_IRQ_REJECTS.NO_NONHOM_TOR",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "IRQ reject because of early/late command conflict (new for MTL)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x32",
+        "EventName": "UNC_CBO_IRQ_REJECTS.EARLY_LATE_CONFLICT",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Account for any reject in this queue. (Incl. GO-pending for GT, no-tracker-credits, All ways reserved, ?",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x33",
+        "EventName": "UNC_CBO_ISMQ_REJECTS.ANY",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "No Egress credits",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x33",
+        "EventName": "UNC_CBO_ISMQ_REJECTS.EGRESS_FULL",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "No available IDP credits",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x33",
+        "EventName": "UNC_CBO_ISMQ_REJECTS.NO_IDP_CREDITS",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "LLC Lookup request that access cache and found line in M-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x34",
+        "EventName": "UNC_CBO_CACHE_LOOKUP.STATE_M",
+        "PerPkg": "1",
+        "UMask": "0x81",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "LLC Lookup request that access cache and found line in E-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x34",
+        "EventName": "UNC_CBO_CACHE_LOOKUP.STATE_E",
+        "PerPkg": "1",
+        "UMask": "0x82",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "LLC Lookup request that access cache and found line in S-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x34",
+        "EventName": "UNC_CBO_CACHE_LOOKUP.STATE_S",
+        "PerPkg": "1",
+        "UMask": "0x84",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "LLC Lookup request that access cache and found line in I-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x34",
+        "EventName": "UNC_CBO_CACHE_LOOKUP.MISS",
+        "PerPkg": "1",
+        "UMask": "0x88",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted on coherent DRD + DRdPref  allocations into the queue. Cacheable only",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x35",
+        "EventName": "UNC_CBO_TOR_ALLOCATION.DRD",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of first requests sent to iMPH",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x35",
+        "EventName": "UNC_CBO_TOR_ALLOCATION.IMPHREQ",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of LLC evictions",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x35",
+        "EventName": "UNC_CBO_TOR_ALLOCATION.EVICTIONS",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of all entries allocated. Includes also retries",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x35",
+        "EventName": "UNC_CBO_TOR_ALLOCATION.ALL",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cacheable Core WB allocated",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x35",
+        "EventName": "UNC_CBO_TOR_ALLOCATION.WB",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of allocations for WCIL",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x35",
+        "EventName": "UNC_CBO_TOR_ALLOCATION.WCIL",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of allocations to SnoopReservedSlot",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x35",
+        "EventName": "UNC_CBO_TOR_ALLOCATION.EXT_SNP_RESERVED_SLOT",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of allocations to VictimReservedSlot",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x35",
+        "EventName": "UNC_CBO_TOR_ALLOCATION.VIC_RESERVED_SLOT",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of valid Coherent Data Read + DataReadPref entries from Allocation till Deallocation. Cacheable only",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x36",
+        "EventName": "UNC_CBO_TOR_OCCUPANCY.DRD_VALID",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Counting starts when we send a request to the IMPH and ends when the TOR entry is deallocated",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x36",
+        "EventName": "UNC_CBO_TOR_OCCUPANCY.IMPHREQ",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of valid LLC eviction entries from Allocation till Deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x36",
+        "EventName": "UNC_CBO_TOR_OCCUPANCY.EVICTIONS",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of all valid entries from Allocation till Deallocation",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x36",
+        "EventName": "UNC_CBO_TOR_OCCUPANCY.ALL",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count the occupancy of requests that match the DFV event, mask 0.  This requires configuration of the ***  register",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x36",
+        "EventName": "UNC_CBO_TOR_OCCUPANCY.DFV",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Each cycle count number of all valid WCIL entries",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x36",
+        "EventName": "UNC_CBO_TOR_OCCUPANCY.WCIL",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count the occupancy of requests that originated at an IA core (only).  This is AND'd with the other masks, not OR'd",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x36",
+        "EventName": "UNC_CBO_TOR_OCCUPANCY.AND_IA",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Count the occupancy of reqeusts that originated at a GT core (only).  This is AND'd with the other masks, nor OR'd",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x36",
+        "EventName": "UNC_CBO_TOR_OCCUPANCY.AND_GT",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted when the victimized line (due to replacement) is in the selected state and when the access was not rejected.\nMESI here is combined socket-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x37",
+        "EventName": "UNC_CBO_LINES_VICTIMIZED.STATE_M",
+        "PerPkg": "1",
+        "UMask": "0x81",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted when the victimized line (due to replacement) is in the selected state and when the access was not rejected.\nMESI here is combined socket-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x37",
+        "EventName": "UNC_CBO_LINES_VICTIMIZED.STATE_E",
+        "PerPkg": "1",
+        "UMask": "0x82",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted when the victimized line (due to replacement) is in the selected state and when the access was not rejected.\nMESI here is combined socket-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x37",
+        "EventName": "UNC_CBO_LINES_VICTIMIZED.STATE_S",
+        "PerPkg": "1",
+        "UMask": "0x84",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted when the victimized line (due to replacement) is in the selected state and when the access was not rejected.\nMESI here is combined socket-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x37",
+        "EventName": "UNC_CBO_LINES_VICTIMIZED.MISS",
+        "PerPkg": "1",
+        "UMask": "0x88",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted on the last pipeline pass of a WbInvd from GT.\nMESI here is combined socket-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x38",
+        "EventName": "UNC_CBO_LINES_GT_WBINVD.STATE_M",
+        "PerPkg": "1",
+        "UMask": "0x81",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted on the last pipeline pass of a WbInvd from GT.\nMESI here is combined socket-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x38",
+        "EventName": "UNC_CBO_LINES_GT_WBINVD.STATE_E",
+        "PerPkg": "1",
+        "UMask": "0x82",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted on the last pipeline pass of a WbInvd from GT.\nMESI here is combined socket-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x38",
+        "EventName": "UNC_CBO_LINES_GT_WBINVD.STATE_S",
+        "PerPkg": "1",
+        "UMask": "0x84",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Asserted on the last pipeline pass of a WbInvd from GT.\nMESI here is combined socket-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x38",
+        "EventName": "UNC_CBO_LINES_GT_WBINVD.MISS",
+        "PerPkg": "1",
+        "UMask": "0x88",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Response RspI was returned to External SnoopInv and socket state of line was S or E (regardless of cross-core snoop was sent or not)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x39",
+        "EventName": "UNC_CBO_MISC.RSPI_WAS_FSE",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "A coherent WC hitting LLC is in M-state in and a WB to Memory is generated",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x39",
+        "EventName": "UNC_CBO_MISC.WC_ALIASING",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Cycles the CPIPE was activated. CPIPE is the Cbo main pipeline for any transaction (like to access the cache or do coherency, etc..)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x39",
+        "EventName": "UNC_CBO_MISC.CPIPE_STARTED",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "EarlyAndLate Conflicts",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x39",
+        "EventName": "UNC_CBO_MISC_EARLY_LATE_ANTI_STARVATION",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "EarlyAndLate Conflicts",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x39",
+        "EventName": "UNC_CBO_MISC_EARLY_LATE_ANTI_STARVATION.ISMQ",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "EarlyAndLate Conflicts",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x39",
+        "EventName": "UNC_CBO_MISC_EARLY_LATE_ANTI_STARVATION.IPQ",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "EarlyAndLate Conflicts",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x39",
+        "EventName": "UNC_CBO_MISC_EARLY_LATE_ANTI_STARVATION.IRQ",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of cycles in which TOR is full",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3A",
+        "EventName": "UNC_CBO_TOR_FULL.TOR_FULL",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of cycles in which Half 0 of TOR is full",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3A",
+        "EventName": "UNC_CBO_TOR_FULL.HA0_FULL",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of cycles in which Half 0 of TOR is full -1",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3A",
+        "EventName": "UNC_CBO_TOR_FULL.HA0FULL_MINUS_1",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of cycles in which Half 1 of TOR is full",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3A",
+        "EventName": "UNC_CBO_TOR_FULL.HA1FULL",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of cycles in which Half 1 of TOR is full -1",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3A",
+        "EventName": "UNC_CBO_TOR_FULL.HA1FULL_MINUS_1",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "WbEFtoI or WbEFtoS hit a line that is already in the LLC and so the data was not needed",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3B",
+        "EventName": "UNC_CBO_MLC_EVICTION.CLEAN_EVICT_HIT",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "WbEFtoI or WbEFtoS data was dropped (GO_PULL_DROP) for some other reason",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3B",
+        "EventName": "UNC_CBO_MLC_EVICTION.CLEAN_EVICT_DROP",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "A WbMtoI or WbMtoE had to be written back to memory",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3B",
+        "EventName": "UNC_CBO_MLC_EVICTION.DIRTY_EVICT_TO_MEMORY",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of LRU updates to age 0 (excluding adjustments)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3C",
+        "EventName": "UNC_CBO_QLRU.AGE_0",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of LRU updates to age 1 (excluding adjustments)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3C",
+        "EventName": "UNC_CBO_QLRU.AGE_1",
+        "PerPkg": "1",
+        "UMask": "0x2",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of LRU updates to age 2 (excluding adjustments)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3C",
+        "EventName": "UNC_CBO_QLRU.AGE_2",
+        "PerPkg": "1",
+        "UMask": "0x4",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of LRU updates to age 3 (excluding adjustments)",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3C",
+        "EventName": "UNC_CBO_QLRU.AGE_3",
+        "PerPkg": "1",
+        "UMask": "0x8",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of victims selected with age > 0",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3C",
+        "EventName": "UNC_CBO_QLRU.VICTIMS_NON_ZERO",
+        "PerPkg": "1",
+        "UMask": "0x10",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of global adjustments by 1",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3C",
+        "EventName": "UNC_CBO_QLRU.ADJUSTMENTS_BY_1",
+        "PerPkg": "1",
+        "UMask": "0x20",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of global adjustments by 2",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3C",
+        "EventName": "UNC_CBO_QLRU.ADJUSTMENTS_BY_2",
+        "PerPkg": "1",
+        "UMask": "0x40",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of global adjustments by 3",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3C",
+        "EventName": "UNC_CBO_QLRU.ADJUSTMENTS_BY_3",
+        "PerPkg": "1",
+        "UMask": "0x80",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Number of occurrence of specific cpipe response flow path",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3D",
+        "EventName": "UNC_CBO_PIPE_DFV.DFV_RSP",
+        "PerPkg": "1",
+        "UMask": "0x1",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "IA initiated LLC Lookup request that access cache and found line in M/E/S-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3E",
+        "EventName": "UNC_CBO_CACHE_HITS.IA_HITS_SNOOP_FILTER",
+        "PerPkg": "1",
+        "UMask": "0x11",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "GT initiated LLC Lookup request that access cache and found line in M/E/S-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3E",
+        "EventName": "UNC_CBO_CACHE_HITS.GT_HITS_SNOOP_FILTER",
+        "PerPkg": "1",
+        "UMask": "0x12",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "WRC initiated LLC Lookup request that access cache and found line in M/E/S-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3E",
+        "EventName": "UNC_CBO_CACHE_HITS.WRC_HITS_SNOOP_FILTER",
+        "PerPkg": "1",
+        "UMask": "0x14",
+        "Unit": "CBO"
+    },
+    {
+        "BriefDescription": "Any LLC Lookup request from IPQ or ISQ that access cache and found line in M/E/S-state",
+        "Counter": "0,1",
+        "CounterType": "PGMABLE",
+        "EventCode": "0x3E",
+        "EventName": "UNC_CBO_CACHE_HITS.IO_HITS_SNOOP_FILTER",
+        "PerPkg": "1",
+        "UMask": "0x18",
+        "Unit": "CBO"
+    }
+]

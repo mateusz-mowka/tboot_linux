@@ -202,32 +202,14 @@ free_box_offset:
 
 }
 
-static int parse_discovery_table(struct pci_dev *dev, int die,
-				 u32 bar_offset, bool *parsed)
+static int __parse_discovery_table(resource_size_t addr, int die, bool *parsed)
 {
 	struct uncore_global_discovery global;
 	struct uncore_unit_discovery unit;
 	void __iomem *io_addr;
-	resource_size_t addr;
-	unsigned long size;
-	u32 val;
+	unsigned long size = UNCORE_DISCOVERY_GLOBAL_MAP_SIZE;
 	int i;
 
-	pci_read_config_dword(dev, bar_offset, &val);
-
-	if (val & ~PCI_BASE_ADDRESS_MEM_MASK & ~PCI_BASE_ADDRESS_MEM_TYPE_64)
-		return -EINVAL;
-
-	addr = (resource_size_t)(val & PCI_BASE_ADDRESS_MEM_MASK);
-#ifdef CONFIG_PHYS_ADDR_T_64BIT
-	if ((val & PCI_BASE_ADDRESS_MEM_TYPE_MASK) == PCI_BASE_ADDRESS_MEM_TYPE_64) {
-		u32 val2;
-
-		pci_read_config_dword(dev, bar_offset + 4, &val2);
-		addr |= ((resource_size_t)val2) << 32;
-	}
-#endif
-	size = UNCORE_DISCOVERY_GLOBAL_MAP_SIZE;
 	io_addr = ioremap(addr, size);
 	if (!io_addr)
 		return -ENOMEM;
@@ -266,7 +248,30 @@ static int parse_discovery_table(struct pci_dev *dev, int die,
 	return 0;
 }
 
-bool intel_uncore_has_discovery_tables(void)
+static int parse_discovery_table_bar(struct pci_dev *dev, int die,
+				     u32 bar_offset, bool *parsed)
+{
+	resource_size_t addr;
+	u32 val;
+
+	pci_read_config_dword(dev, bar_offset, &val);
+
+	if (val & ~PCI_BASE_ADDRESS_MEM_MASK & ~PCI_BASE_ADDRESS_MEM_TYPE_64)
+		return -EINVAL;
+
+	addr = (resource_size_t)(val & PCI_BASE_ADDRESS_MEM_MASK);
+#ifdef CONFIG_PHYS_ADDR_T_64BIT
+	if ((val & PCI_BASE_ADDRESS_MEM_TYPE_MASK) == PCI_BASE_ADDRESS_MEM_TYPE_64) {
+		u32 val2;
+
+		pci_read_config_dword(dev, bar_offset + 4, &val2);
+		addr |= ((resource_size_t)val2) << 32;
+	}
+#endif
+	return __parse_discovery_table(addr, die, parsed);
+}
+
+static bool intel_uncore_has_discovery_tables_pci(void)
 {
 	u32 device, val, entry_id, bar_offset;
 	int die, dvsec = 0, ret = true;
@@ -302,7 +307,7 @@ bool intel_uncore_has_discovery_tables(void)
 			if (die < 0)
 				continue;
 
-			parse_discovery_table(dev, die, bar_offset, &parsed);
+			parse_discovery_table_bar(dev, die, bar_offset, &parsed);
 		}
 	}
 
@@ -313,6 +318,28 @@ err:
 	pci_dev_put(dev);
 
 	return ret;
+}
+
+static bool intel_uncore_has_discovery_tables_msr(void)
+{
+	bool parsed = false;
+
+	/* Read the addr from the MSR for each die */
+	__parse_discovery_table(0 /*addr*/, 0 /* for each die */, &parsed);
+
+	if (!parsed)
+		return false;
+
+	return true;
+}
+
+bool intel_uncore_has_discovery_tables(void)
+{
+	/* TODO: MSR on LNL to the discovery table is still TBD */
+	if (0)
+		return intel_uncore_has_discovery_tables_msr();
+
+	return intel_uncore_has_discovery_tables_pci();
 }
 
 void intel_uncore_clear_discovery_tables(void)

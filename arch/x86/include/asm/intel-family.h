@@ -106,12 +106,24 @@
 
 #define INTEL_FAM6_SAPPHIRERAPIDS_X	0x8F	/* Golden Cove */
 
+#define INTEL_FAM6_GRANITERAPIDS_X	0xAD
+
 #define INTEL_FAM6_ALDERLAKE		0x97	/* Golden Cove / Gracemont */
 #define INTEL_FAM6_ALDERLAKE_L		0x9A	/* Golden Cove / Gracemont */
 #define INTEL_FAM6_ALDERLAKE_N		0xBE
 
 #define INTEL_FAM6_RAPTORLAKE		0xB7
 #define INTEL_FAM6_RAPTORLAKE_P		0xBA
+/* Below name is subject to change */
+#define INTEL_FAM6_RAPTORLAKE_S		0xBF
+
+#define INTEL_FAM6_EMERALDRAPIDS_X	0xCF
+
+#define INTEL_FAM6_METEORLAKE_X		0xAC
+#define INTEL_FAM6_METEORLAKE_L		0xAA
+#define INTEL_FAM6_METEORLAKE		0xAB
+
+#define INTEL_FAM6_LUNARLAKE_M		0xBD	/* Lion Cove / Skymont */
 
 /* "Small Core" Processors (Atom) */
 
@@ -139,6 +151,8 @@
 #define INTEL_FAM6_ATOM_TREMONT_D	0x86 /* Jacobsville */
 #define INTEL_FAM6_ATOM_TREMONT		0x96 /* Elkhart Lake */
 #define INTEL_FAM6_ATOM_TREMONT_L	0x9C /* Jasper Lake */
+
+#define INTEL_FAM6_ATOM_CRESTMONT_D	0xB6 /* Grand Ridge */
 
 /* Xeon Phi */
 

@@ -19,7 +19,6 @@
 #include <linux/pci.h>
 #include <linux/dmar.h>
 #include <linux/iova.h>
-#include <linux/intel-iommu.h>
 #include <linux/timer.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
@@ -30,10 +29,11 @@
 #include <linux/numa.h>
 #include <linux/limits.h>
 #include <asm/irq_remapping.h>
-#include <trace/events/intel_iommu.h>
 
+#include "iommu.h"
 #include "../irq_remapping.h"
 #include "perf.h"
+#include "trace.h"
 
 typedef int (*dmar_res_handler_t)(struct acpi_dmar_header *, void *);
 struct dmar_res_callback {
@@ -1138,6 +1138,10 @@ static int alloc_iommu(struct dmar_drhd_unit *drhd)
 		err = iommu_device_register(&iommu->iommu, &intel_iommu_ops, NULL);
 		if (err)
 			goto err_sysfs;
+
+		err = iommu_pmu_register(iommu);
+		if (err)
+			goto err_unregister;
 	}
 
 	drhd->iommu = iommu;
@@ -1145,6 +1149,8 @@ static int alloc_iommu(struct dmar_drhd_unit *drhd)
 
 	return 0;
 
+err_unregister:
+	iommu_device_unregister(&iommu->iommu);
 err_sysfs:
 	iommu_device_sysfs_remove(&iommu->iommu);
 err_unmap:
@@ -1161,6 +1167,7 @@ static void free_iommu(struct intel_iommu *iommu)
 	if (intel_iommu_enabled && !iommu->drhd->ignored) {
 		iommu_device_unregister(&iommu->iommu);
 		iommu_device_sysfs_remove(&iommu->iommu);
+		iommu_pmu_unregister(iommu);
 	}
 
 	if (iommu->irq) {
@@ -1870,6 +1877,8 @@ static inline int dmar_msi_reg(struct intel_iommu *iommu, int irq)
 		return DMAR_FECTL_REG;
 	else if (iommu->pr_irq == irq)
 		return DMAR_PECTL_REG;
+	else if (iommu->perf_irq == irq)
+		return DMAR_PERFINTRCTL_REG;
 	else
 		BUG();
 }

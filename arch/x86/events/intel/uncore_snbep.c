@@ -5743,13 +5743,28 @@ static struct intel_uncore_ops spr_uncore_mmio_ops = {
 	.read_counter		= uncore_mmio_read_counter,
 };
 
+static struct uncore_event_desc spr_uncore_imc_events[] = {
+	INTEL_UNCORE_EVENT_DESC(clockticks,      "event=0x01,umask=0x01"),
+	INTEL_UNCORE_EVENT_DESC(cas_count_read,  "event=0x05,umask=0xcf"),
+	INTEL_UNCORE_EVENT_DESC(cas_count_read.scale, "6.103515625e-5"),
+	INTEL_UNCORE_EVENT_DESC(cas_count_read.unit, "MiB"),
+	INTEL_UNCORE_EVENT_DESC(cas_count_write, "event=0x05,umask=0xf0"),
+	INTEL_UNCORE_EVENT_DESC(cas_count_write.scale, "6.103515625e-5"),
+	INTEL_UNCORE_EVENT_DESC(cas_count_write.unit, "MiB"),
+	{ /* end: all zeroes */ },
+};
+
+#define SPR_UNCORE_MMIO_COMMON_FORMAT()				\
+	SPR_UNCORE_COMMON_FORMAT(),				\
+	.ops			= &spr_uncore_mmio_ops
+
 static struct intel_uncore_type spr_uncore_imc = {
-	SPR_UNCORE_COMMON_FORMAT(),
+	SPR_UNCORE_MMIO_COMMON_FORMAT(),
 	.name			= "imc",
 	.fixed_ctr_bits		= 48,
 	.fixed_ctr		= SNR_IMC_MMIO_PMON_FIXED_CTR,
 	.fixed_ctl		= SNR_IMC_MMIO_PMON_FIXED_CTL,
-	.ops			= &spr_uncore_mmio_ops,
+	.event_descs		= spr_uncore_imc_events,
 };
 
 static void spr_uncore_pci_enable_event(struct intel_uncore_box *box,
@@ -5796,7 +5811,22 @@ static struct intel_uncore_type spr_uncore_mdf = {
 	.name			= "mdf",
 };
 
-#define UNCORE_SPR_NUM_UNCORE_TYPES		12
+static struct intel_uncore_type spr_uncore_cxl_0 = {
+	SPR_UNCORE_COMMON_FORMAT(),
+	.name			= "cxl_0",
+};
+
+static struct intel_uncore_type spr_uncore_cxl_1 = {
+	SPR_UNCORE_COMMON_FORMAT(),
+	.name			= "cxl_1",
+};
+
+static struct intel_uncore_type spr_uncore_hbm = {
+	SPR_UNCORE_COMMON_FORMAT(),
+	.name			= "hbm",
+};
+
+#define UNCORE_SPR_NUM_UNCORE_TYPES		15
 #define UNCORE_SPR_IIO				1
 #define UNCORE_SPR_IMC				6
 
@@ -5813,6 +5843,9 @@ static struct intel_uncore_type *spr_uncores[UNCORE_SPR_NUM_UNCORE_TYPES] = {
 	&spr_uncore_m3upi,
 	NULL,
 	&spr_uncore_mdf,
+	&spr_uncore_cxl_0,
+	&spr_uncore_cxl_1,
+	&spr_uncore_hbm,
 };
 
 enum perf_uncore_spr_iio_freerunning_type_id {
@@ -5990,7 +6023,8 @@ static void uncore_type_customized_copy(struct intel_uncore_type *to_type,
 
 static struct intel_uncore_type **
 uncore_get_uncores(enum uncore_access_type type_id, int num_extra,
-		    struct intel_uncore_type **extra)
+		   struct intel_uncore_type **extra, int max_num_types,
+		   struct intel_uncore_type **uncores)
 {
 	struct intel_uncore_type **types, **start_types;
 	int i;
@@ -5999,9 +6033,9 @@ uncore_get_uncores(enum uncore_access_type type_id, int num_extra,
 
 	/* Only copy the customized features */
 	for (; *types; types++) {
-		if ((*types)->type_id >= UNCORE_SPR_NUM_UNCORE_TYPES)
+		if ((*types)->type_id >= max_num_types)
 			continue;
-		uncore_type_customized_copy(*types, spr_uncores[(*types)->type_id]);
+		uncore_type_customized_copy(*types, uncores[(*types)->type_id]);
 	}
 
 	for (i = 0; i < num_extra; i++, types++)
@@ -6043,14 +6077,18 @@ void spr_uncore_cpu_init(void)
 {
 	uncore_msr_uncores = uncore_get_uncores(UNCORE_ACCESS_MSR,
 						UNCORE_SPR_MSR_EXTRA_UNCORES,
-						spr_msr_uncores);
+						spr_msr_uncores,
+						UNCORE_SPR_NUM_UNCORE_TYPES,
+						spr_uncores);
 
 	spr_uncore_iio_free_running.num_boxes = uncore_type_max_boxes(uncore_msr_uncores, UNCORE_SPR_IIO);
 }
 
 int spr_uncore_pci_init(void)
 {
-	uncore_pci_uncores = uncore_get_uncores(UNCORE_ACCESS_PCI, 0, NULL);
+	uncore_pci_uncores = uncore_get_uncores(UNCORE_ACCESS_PCI, 0, NULL,
+						UNCORE_SPR_NUM_UNCORE_TYPES,
+						spr_uncores);
 	return 0;
 }
 
@@ -6058,15 +6096,93 @@ void spr_uncore_mmio_init(void)
 {
 	int ret = snbep_pci2phy_map_init(0x3250, SKX_CPUNODEID, SKX_GIDNIDMAP, true);
 
-	if (ret)
-		uncore_mmio_uncores = uncore_get_uncores(UNCORE_ACCESS_MMIO, 0, NULL);
-	else {
+	if (ret) {
+		uncore_mmio_uncores = uncore_get_uncores(UNCORE_ACCESS_MMIO, 0, NULL,
+							 UNCORE_SPR_NUM_UNCORE_TYPES,
+							 spr_uncores);
+	} else {
 		uncore_mmio_uncores = uncore_get_uncores(UNCORE_ACCESS_MMIO,
 							 UNCORE_SPR_MMIO_EXTRA_UNCORES,
-							 spr_mmio_uncores);
+							 spr_mmio_uncores,
+							 UNCORE_SPR_NUM_UNCORE_TYPES,
+							 spr_uncores);
 
 		spr_uncore_imc_free_running.num_boxes = uncore_type_max_boxes(uncore_mmio_uncores, UNCORE_SPR_IMC) / 2;
 	}
 }
 
 /* end of SPR uncore support */
+
+/* GNR uncore support */
+
+#define UNCORE_GNR_NUM_UNCORE_TYPES	20
+
+static struct intel_uncore_type gnr_uncore_b2hot = {
+	SPR_UNCORE_COMMON_FORMAT(),
+	.name			= "b2hot",
+};
+
+static struct intel_uncore_type gnr_uncore_b2cmi = {
+	SPR_UNCORE_MMIO_COMMON_FORMAT(),
+	.name			= "b2cmi",
+};
+
+static struct intel_uncore_type gnr_uncore_b2cxl = {
+	SPR_UNCORE_MMIO_COMMON_FORMAT(),
+	.name			= "b2cxl",
+};
+static struct intel_uncore_type gnr_uncore_b2upi = {
+	SPR_UNCORE_MMIO_COMMON_FORMAT(),
+	.name			= "b2upi",
+};
+static struct intel_uncore_type gnr_uncore_mse = {
+	SPR_UNCORE_MMIO_COMMON_FORMAT(),
+	.name			= "mse",
+};
+
+static struct intel_uncore_type *gnr_uncores[UNCORE_GNR_NUM_UNCORE_TYPES] = {
+	&spr_uncore_chabox,
+	&spr_uncore_iio,
+	&spr_uncore_irp,
+	&spr_uncore_m2pcie,
+	&spr_uncore_pcu,
+	NULL,
+	&spr_uncore_imc,
+	&spr_uncore_m2m,
+	&spr_uncore_upi,
+	&spr_uncore_m3upi,
+	NULL,
+	&spr_uncore_mdf,
+	&spr_uncore_cxl_0,
+	&spr_uncore_cxl_1,
+	&spr_uncore_hbm,
+	&gnr_uncore_b2hot,
+	&gnr_uncore_b2cmi,
+	&gnr_uncore_b2cxl,
+	&gnr_uncore_b2upi,
+	&gnr_uncore_mse,
+};
+
+void gnr_uncore_cpu_init(void)
+{
+	uncore_msr_uncores = uncore_get_uncores(UNCORE_ACCESS_MSR, 0, NULL,
+						UNCORE_GNR_NUM_UNCORE_TYPES,
+						gnr_uncores);
+}
+
+int gnr_uncore_pci_init(void)
+{
+	uncore_pci_uncores = uncore_get_uncores(UNCORE_ACCESS_PCI, 0, NULL,
+						UNCORE_GNR_NUM_UNCORE_TYPES,
+						gnr_uncores);
+	return 0;
+}
+
+void gnr_uncore_mmio_init(void)
+{
+	uncore_mmio_uncores = uncore_get_uncores(UNCORE_ACCESS_MMIO, 0, NULL,
+						 UNCORE_GNR_NUM_UNCORE_TYPES,
+						 gnr_uncores);
+}
+
+/* end of GNR uncore support */

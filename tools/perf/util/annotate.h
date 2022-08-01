@@ -10,6 +10,7 @@
 #include <linux/rbtree.h>
 #include <pthread.h>
 #include <asm/bug.h>
+#include <linux/perf_event.h>
 #include "symbol_conf.h"
 #include "spark.h"
 
@@ -23,6 +24,10 @@ struct option;
 struct perf_sample;
 struct evsel;
 struct symbol;
+struct branch_flags;
+struct evlist;
+
+#define LBR_EVENT_MAX_OCCUR	3
 
 struct ins {
 	const char     *name;
@@ -97,6 +102,7 @@ struct annotation_options {
 	const char *disassembler_style;
 	const char *prefix;
 	const char *prefix_strip;
+	struct evlist *evlist;
 	unsigned int percent_type;
 };
 
@@ -145,6 +151,8 @@ struct annotation_line {
 	u64			 cycles_min;
 	char			*path;
 	u32			 idx;
+	u32			 event_occurs[PERF_MAX_BRANCH_EVENTS];
+	u8			 max_occurs[PERF_MAX_BRANCH_EVENTS];
 	int			 idx_asm;
 	int			 data_nr;
 	struct annotation_data	 data[];
@@ -242,6 +250,8 @@ struct cyc_hist {
 	s64	cycles_spark[NUM_SPARKS];
 	u32	num;
 	u32	num_aggr;
+	u32	event_occurs[PERF_MAX_BRANCH_EVENTS];
+	u8	max_occurs[PERF_MAX_BRANCH_EVENTS];
 	u8	have_start;
 	/* 1 byte padding */
 	u16	reset;
@@ -315,6 +325,8 @@ static inline int annotation__pcnt_width(struct annotation *notes)
 	return (symbol_conf.show_total_period ? 12 : 7) * notes->nr_events;
 }
 
+int annotation__events_width(struct annotation *notes);
+
 static inline bool annotation_line__filter(struct annotation_line *al, struct annotation *notes)
 {
 	return notes->options->hide_src_code && al->offset == -1;
@@ -346,7 +358,7 @@ int addr_map_symbol__inc_samples(struct addr_map_symbol *ams, struct perf_sample
 
 int addr_map_symbol__account_cycles(struct addr_map_symbol *ams,
 				    struct addr_map_symbol *start,
-				    unsigned cycles);
+				    struct branch_flags *flags);
 
 int hist_entry__inc_addr_samples(struct hist_entry *he, struct perf_sample *sample,
 				 struct evsel *evsel, u64 addr);

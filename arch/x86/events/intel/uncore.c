@@ -1765,6 +1765,11 @@ static const struct intel_uncore_init_fun adl_uncore_init __initconst = {
 	.mmio_init = adl_uncore_mmio_init,
 };
 
+static const struct intel_uncore_init_fun mtl_uncore_init __initconst = {
+	.cpu_init = mtl_uncore_cpu_init,
+	.mmio_init = adl_uncore_mmio_init,
+};
+
 static const struct intel_uncore_init_fun icx_uncore_init __initconst = {
 	.cpu_init = icx_uncore_cpu_init,
 	.pci_init = icx_uncore_pci_init,
@@ -1781,6 +1786,13 @@ static const struct intel_uncore_init_fun spr_uncore_init __initconst = {
 	.cpu_init = spr_uncore_cpu_init,
 	.pci_init = spr_uncore_pci_init,
 	.mmio_init = spr_uncore_mmio_init,
+	.use_discovery = true,
+};
+
+static const struct intel_uncore_init_fun gnr_uncore_init __initconst = {
+	.cpu_init = gnr_uncore_cpu_init,
+	.pci_init = gnr_uncore_pci_init,
+	.mmio_init = gnr_uncore_mmio_init,
 	.use_discovery = true,
 };
 
@@ -1831,7 +1843,12 @@ static const struct x86_cpu_id intel_uncore_match[] __initconst = {
 	X86_MATCH_INTEL_FAM6_MODEL(ALDERLAKE_N,		&adl_uncore_init),
 	X86_MATCH_INTEL_FAM6_MODEL(RAPTORLAKE,		&adl_uncore_init),
 	X86_MATCH_INTEL_FAM6_MODEL(RAPTORLAKE_P,	&adl_uncore_init),
+	X86_MATCH_INTEL_FAM6_MODEL(METEORLAKE,		&mtl_uncore_init),
+	X86_MATCH_INTEL_FAM6_MODEL(METEORLAKE_L,	&mtl_uncore_init),
+	X86_MATCH_INTEL_FAM6_MODEL(METEORLAKE_X,	&mtl_uncore_init),
 	X86_MATCH_INTEL_FAM6_MODEL(SAPPHIRERAPIDS_X,	&spr_uncore_init),
+	X86_MATCH_INTEL_FAM6_MODEL(GRANITERAPIDS_X,	&gnr_uncore_init),
+	X86_MATCH_INTEL_FAM6_MODEL(ATOM_CRESTMONT_D,	&gnr_uncore_init),
 	X86_MATCH_INTEL_FAM6_MODEL(ATOM_TREMONT_D,	&snr_uncore_init),
 	{},
 };

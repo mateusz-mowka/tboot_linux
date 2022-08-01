@@ -21,6 +21,7 @@
 #include <linux/dmar.h>
 #include <linux/ioasid.h>
 #include <linux/bitfield.h>
+#include <linux/perf_event.h>
 
 #include <asm/cacheflush.h>
 #include <asm/iommu.h>
@@ -124,6 +125,22 @@
 #define DMAR_MTRR_PHYSMASK8_REG 0x208
 #define DMAR_MTRR_PHYSBASE9_REG 0x210
 #define DMAR_MTRR_PHYSMASK9_REG 0x218
+#define DMAR_PERFCAP_REG	0x300
+#define DMAR_PERFCFGOFF_REG	0x310
+#define DMAR_PERFFRZOFF_REG	0x314
+#define DMAR_PERFOVFOFF_REG	0x318
+#define DMAR_PERFCNTROFF_REG	0x31c
+#define DMAR_PERFINTRSTS_REG	0x324
+#define DMAR_PERFINTRCTL_REG	0x328
+#define DMAR_PERFINTRDATA_REG	0x32c
+#define DMAR_PERFINTRADDR_REG	0x330
+#define DMAR_PERFINTRUADDR_REG	0x334
+#define DMAR_PERFEVNTCAP_REG	0x380
+
+#define DMAR_ECMD_REG		0x400
+#define DMAR_ECRSP_REG		0x410
+#define DMAR_ECCAP3_REG		0x448
+
 #define DMAR_VCCAP_REG		0xe30 /* Virtual command capability register */
 #define DMAR_VCMD_REG		0xe00 /* Virtual command register */
 #define DMAR_VCRSP_REG		0xe10 /* Virtual command response register */
@@ -207,6 +224,24 @@
 #define ecap_dev_iotlb_support(e)	(((e) >> 2) & 0x1)
 #define ecap_max_handle_mask(e) (((e) >> 20) & 0xf)
 #define ecap_sc_support(e)	(((e) >> 7) & 0x1) /* Snooping Control */
+
+/*
+ * Decoding Perf Capability Register
+ */
+#define pcap_num_cntr(p)	((p) & 0xffff)
+#define pcap_cntr_width(p)	(((p) >> 16) & 0x7f)
+#define pcap_num_event_group(p)	(((p) >> 24) & 0x1f)
+#define pcap_filters_mask(p)	(((p) >> 32) & 0x3fff)
+#define pcap_cntr_wr(p)		(((p) >> 48) & 0x1)
+#define pcap_cntr_freeze(p)	(((p) >> 49) & 0x1)
+#define pcap_interrupt(p)	(((p) >> 50) & 0x1)
+#define pcap_per_cntr_cap(p)	(((p) >> 51) & 0x1)
+#define pcap_cntr_stride(p)	(((p) >> 52) & 0x7)
+
+/*
+ * Decoding Perf Event Capability Register
+ */
+#define pecap_es(p)		((p) & 0xfffffff)
 
 /* Virtual command interface capability */
 #define vccap_pasid(v)		(((v) & DMA_VCS_PAS)) /* PASID allocation */
@@ -307,6 +342,9 @@
 #define DMA_PRS_PRO	((u32)2)
 
 #define DMA_VCS_PAS	((u64)1)
+
+/* PERFINTRSTS_REG */
+#define DMA_PERFINTRSTS_PIS	((u32)1)
 
 #define IOMMU_WAIT_OP(iommu, offset, op, cond, sts)			\
 do {									\
@@ -561,6 +599,32 @@ struct dmar_domain {
 					   iommu core */
 };
 
+#define IOMMU_PMU_IDX_MAX		64
+
+struct iommu_pmu {
+	struct intel_iommu	*iommu;
+	struct pmu		pmu;
+	unsigned char		irq_name[16];
+	u32			num_cntr;	/* Number of counters */
+	u32			num_eg;		/* Number of event group */
+	u32			cntr_width;	/* Counter width */
+	u32			cntr_stride;	/* Counter Stride */
+	u32			filter;		/* Bitmask of filter support */
+	void __iomem		*base;		/* the PerfMon base address */
+	void __iomem		*cfg;		/* counter configuration base address */
+	void __iomem		*cntr;		/* counter 0 address*/
+	void __iomem		*overflow;	/* overflow status register */
+
+	DECLARE_BITMAP(used_mask, IOMMU_PMU_IDX_MAX);
+	struct perf_event	*event_list[IOMMU_PMU_IDX_MAX];
+
+	u64			*evcap;		/* The events supported in each event group */
+	u32			**cntr_evcap;	/* The events and event groups supported in each counter. */
+};
+
+#define IOMMU_IRQ_ID_OFFSET_SVM		(DMAR_UNITS_SUPPORTED)
+#define IOMMU_IRQ_ID_OFFSET_PERF	(2 * DMAR_UNITS_SUPPORTED)
+
 struct intel_iommu {
 	void __iomem	*reg; /* Pointer to hardware regs, virtual addr */
 	u64 		reg_phys; /* physical address of hw register set */
@@ -573,7 +637,7 @@ struct intel_iommu {
 	int		seq_id;	/* sequence id of the iommu */
 	int		agaw; /* agaw of this iommu */
 	int		msagaw; /* max sagaw of this iommu */
-	unsigned int 	irq, pr_irq;
+	unsigned int	irq, pr_irq, perf_irq;
 	u16		segment;     /* PCI segment# */
 	unsigned char 	name[13];    /* Device Name */
 
@@ -606,6 +670,8 @@ struct intel_iommu {
 
 	struct dmar_drhd_unit *drhd;
 	void *perf_statistic;
+
+	struct iommu_pmu *pmu;
 };
 
 /* PCI domain-device relationship */
@@ -787,7 +853,6 @@ extern int iommu_calculate_agaw(struct intel_iommu *iommu);
 extern int iommu_calculate_max_sagaw(struct intel_iommu *iommu);
 extern int dmar_disabled;
 extern int intel_iommu_enabled;
-extern int intel_iommu_gfx_mapped;
 #else
 static inline int iommu_calculate_agaw(struct intel_iommu *iommu)
 {
@@ -828,5 +893,16 @@ static inline const char *decode_prq_descriptor(char *str, size_t size,
 
 	return str;
 }
+
+#if IS_ENABLED(CONFIG_INTEL_IOMMU_PERF_EVENTS)
+extern int iommu_pmu_register(struct intel_iommu *iommu);
+extern void iommu_pmu_unregister(struct intel_iommu *iommu);
+#else
+static inline int iommu_pmu_register(struct intel_iommu *iommu)
+{
+	return 0;
+}
+static inline void iommu_pmu_unregister(struct intel_iommu *iommu) {}
+#endif
 
 #endif

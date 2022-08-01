@@ -31,6 +31,8 @@
 #include "bpf-utils.h"
 #include "block-range.h"
 #include "string2.h"
+#include "branch.h"
+#include "strbuf.h"
 #include "util/event.h"
 #include "arch/common.h"
 #include "namespaces.h"
@@ -832,11 +834,27 @@ void symbol__annotate_zero_histograms(struct symbol *sym)
 	pthread_mutex_unlock(&notes->lock);
 }
 
+static void update_event_occur(u32 *event_occurs, u8 *max_occurs, u32 events)
+{
+	for (int i = 0; i < PERF_MAX_BRANCH_EVENTS; i++) {
+		int value = events & 0x3;
+
+		if (value == symbol_conf.lbr_max_occur)
+			max_occurs[i] = 1;
+
+		event_occurs[i] += value;
+		events >>= 2;
+	}
+}
+
 static int __symbol__account_cycles(struct cyc_hist *ch,
 				    u64 start,
-				    unsigned offset, unsigned cycles,
+				    unsigned offset, struct branch_flags *flags,
 				    unsigned have_start)
 {
+	unsigned cycles = flags->cycles;
+	unsigned events = flags->events;
+
 	/*
 	 * For now we can only account one basic block per
 	 * final jump. But multiple could be overlapping.
@@ -867,6 +885,10 @@ static int __symbol__account_cycles(struct cyc_hist *ch,
 			ch[offset].num = 0;
 			if (ch[offset].reset < 0xffff)
 				ch[offset].reset++;
+			memset(ch[offset].event_occurs, 0,
+			       sizeof(ch[offset].event_occurs));
+			memset(ch[offset].max_occurs, 0,
+			       sizeof(ch[offset].max_occurs));
 		} else if (have_start &&
 			   ch[offset].start < start)
 			return 0;
@@ -879,6 +901,12 @@ static int __symbol__account_cycles(struct cyc_hist *ch,
 	ch[offset].start = start;
 	ch[offset].cycles += cycles;
 	ch[offset].num++;
+
+	if (events) {
+		update_event_occur(ch[offset].event_occurs,
+				   ch[offset].max_occurs, events);
+	}
+
 	return 0;
 }
 
@@ -971,7 +999,8 @@ static int symbol__inc_addr_samples(struct map_symbol *ms,
 }
 
 static int symbol__account_cycles(u64 addr, u64 start,
-				  struct symbol *sym, unsigned cycles)
+				  struct symbol *sym,
+				  struct branch_flags *flags)
 {
 	struct cyc_hist *cycles_hist;
 	unsigned offset;
@@ -993,18 +1022,18 @@ static int symbol__account_cycles(u64 addr, u64 start,
 	offset = addr - sym->start;
 	return __symbol__account_cycles(cycles_hist,
 					start ? start - sym->start : 0,
-					offset, cycles,
+					offset, flags,
 					!!start);
 }
 
 int addr_map_symbol__account_cycles(struct addr_map_symbol *ams,
 				    struct addr_map_symbol *start,
-				    unsigned cycles)
+				    struct branch_flags *flags)
 {
 	u64 saddr = 0;
 	int err;
 
-	if (!cycles)
+	if (!flags->cycles)
 		return 0;
 
 	/*
@@ -1025,7 +1054,7 @@ int addr_map_symbol__account_cycles(struct addr_map_symbol *ams,
 			start ? start->addr : 0,
 			ams->ms.sym ? ams->ms.sym->start + ams->ms.map->start : 0,
 			saddr);
-	err = symbol__account_cycles(ams->al_addr, saddr, ams->ms.sym, cycles);
+	err = symbol__account_cycles(ams->al_addr, saddr, ams->ms.sym, flags);
 	if (err)
 		pr_debug2("account_cycles failed %d\n", err);
 	return err;
@@ -1074,6 +1103,15 @@ static void annotation__count_and_fill(struct annotation *notes, u64 start, u64 
 	}
 }
 
+static void init_branch_events(struct annotation_line *al, struct cyc_hist *ch)
+{
+	for (int i = 0; i < PERF_MAX_BRANCH_EVENTS; i++) {
+		al->event_occurs[i] = (u32)((float)ch->event_occurs[i] /
+					    (float)ch->num + 0.5);
+		al->max_occurs[i] = ch->max_occurs[i];
+	}
+}
+
 void annotation__compute_ipc(struct annotation *notes, size_t size)
 {
 	s64 offset;
@@ -1101,6 +1139,7 @@ void annotation__compute_ipc(struct annotation *notes, size_t size)
 				al->cycles = ch->cycles_aggr / ch->num_aggr;
 				al->cycles_max = ch->cycles_max;
 				al->cycles_min = ch->cycles_min;
+				init_branch_events(al, ch);
 			}
 			notes->have_cycles = true;
 		}
@@ -2951,6 +2990,91 @@ static void ipc_coverage_string(char *bf, int size, struct annotation *notes)
 		  ipc, coverage);
 }
 
+int annotation__events_width(struct annotation *notes)
+{
+	struct evlist *evlist = notes->options->evlist;
+	struct evsel *pos;
+	int width = 0, branch_events_nr = 0;
+
+	if (!evlist)
+		return 0;
+
+	evlist__for_each_entry(evlist, pos) {
+		if (pos->core.attr.branch_events) {
+			branch_events_nr++;
+			if (pos->name)
+				width += strlen(pos->name) + 1;
+		}
+		if (branch_events_nr == PERF_MAX_BRANCH_EVENTS)
+			break;
+	}
+
+	return width;
+}
+
+static void lbr_events_title(void (*obj__printf)(void *obj, const char *fmt, ...),
+			     void *obj, struct evlist *evlist)
+{
+	struct evsel *pos;
+	int branch_events_nr = 0;
+
+	evlist__for_each_entry(evlist, pos) {
+		if (pos->core.attr.branch_events) {
+			branch_events_nr++;
+			obj__printf(obj, "%-*s ", strlen(pos->name), pos->name);
+		}
+
+		if (branch_events_nr == PERF_MAX_BRANCH_EVENTS)
+			break;
+	}
+}
+
+static int lbr_occur_indications(struct strbuf *buf, u32 *event_occurs,
+				 u8 *max_occurs, int idx)
+{
+	if (strbuf_init(buf, 64) < 0)
+		return -1;
+
+	if (event_occurs[idx] == 0) {
+		strbuf_addch(buf, '-');
+		return 0;
+	}
+
+	for (unsigned int i = 0; i < event_occurs[idx]; i++)
+		strbuf_addch(buf, '#');
+
+	if (max_occurs[idx])
+		strbuf_addch(buf, '+');
+
+	return 0;
+}
+
+static void lbr_events_value(void (*obj__printf)(void *obj, const char *fmt, ...),
+			     void *obj, struct evlist *evlist,
+			     struct annotation_line *al)
+{
+	struct evsel *pos;
+	int branch_events_nr = 0;
+	struct strbuf buf;
+
+	evlist__for_each_entry(evlist, pos) {
+		if (pos->core.attr.branch_events) {
+			if (lbr_occur_indications(&buf, al->event_occurs,
+						  al->max_occurs, pos->core.idx)) {
+				obj__printf(obj, "%-*s ", strlen(pos->name), "n/a");
+				continue;
+			}
+
+			obj__printf(obj, "%-*s ", strlen(pos->name), buf.buf);
+			strbuf_release(&buf);
+			branch_events_nr++;
+		}
+
+		if (branch_events_nr == PERF_MAX_BRANCH_EVENTS)
+			break;
+	}
+}
+
 static void __annotation_line__write(struct annotation_line *al, struct annotation *notes,
 				     bool first_line, bool current_entry, bool change_color, int width,
 				     void *obj, unsigned int percent_type,
@@ -2967,6 +3091,7 @@ static void __annotation_line__write(struct annotation_line *al, struct annotati
 	bool show_title = false;
 	char bf[256];
 	int printed;
+	struct evlist *evlist = notes->options->evlist;
 
 	if (first_line && (al->offset == -1 || percent_max == 0.0)) {
 		if (notes->have_cycles) {
@@ -3046,6 +3171,11 @@ static void __annotation_line__write(struct annotation_line *al, struct annotati
 					    ANNOTATION__MINMAX_CYCLES_WIDTH - 1,
 					    "Cycle(min/max)");
 		}
+
+		if (show_title)
+			lbr_events_title(obj__printf, obj, evlist);
+		else
+			lbr_events_value(obj__printf, obj, evlist, al);
 
 		if (show_title && !*al->line) {
 			ipc_coverage_string(bf, sizeof(bf), notes);
