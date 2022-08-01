@@ -1,0 +1,11 @@
+intel-next merge buildbot processes
+
+Login to buildbot 
+http://otcpl-manager.jf.intel.com:8000
+Username:nextbot
+Password:ask intel-next-maintainers
+
+Copy setup.sh/merge.py to the kernel root.
+Run ./setup.sh - This will setup the kernel directory for the merge
+Run ./merge.py to complete the merge
+See ./merge.py -h for more information on options
