@@ -781,6 +781,7 @@ static int msc_configure(struct msc *msc)
 	if (msc->mode == MSC_MODE_SINGLE) {
 		reg = msc->nr_pages;
 		iowrite32(reg, msc->reg_base + REG_MSU_MSC0SIZE);
+		iowrite32(0, msc->reg_base + REG_MSU_MSC0MWP);
 	}
 
 	reg = ioread32(msc->reg_base + REG_MSU_MSC0CTL);
@@ -1067,6 +1068,16 @@ msc_buffer_set_uc(struct msc *msc) {}
 static inline void msc_buffer_set_wb(struct msc *msc) {}
 #endif /* CONFIG_X86 */
 
+static struct page *msc_sg_page(struct scatterlist *sg)
+{
+	void *addr = sg_virt(sg);
+
+	if (is_vmalloc_addr(addr))
+		return vmalloc_to_page(addr);
+
+	return sg_page(sg);
+}
+
 /**
  * msc_buffer_win_alloc() - alloc a window for a multiblock mode
  * @msc:	MSC device
@@ -1137,7 +1148,7 @@ static void __msc_buffer_win_free(struct msc *msc, struct msc_window *win)
 	int i;
 
 	for_each_sg(win->sgt->sgl, sg, win->nr_segs, i) {
-		struct page *page = sg_page(sg);
+		struct page *page = msc_sg_page(sg);
 
 		page->mapping = NULL;
 		dma_free_coherent(msc_dev(win->msc)->parent->parent, PAGE_SIZE,
@@ -1401,7 +1412,7 @@ found:
 	pgoff -= win->pgoff;
 
 	for_each_sg(win->sgt->sgl, sg, win->nr_segs, blk) {
-		struct page *page = sg_page(sg);
+		struct page *page = msc_sg_page(sg);
 		size_t pgsz = PFN_DOWN(sg->length);
 
 		if (pgoff < pgsz)
@@ -1948,6 +1959,29 @@ unlock:
 static DEVICE_ATTR_RW(mode);
 
 static ssize_t
+modes_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct msu_buffer_entry *mbe;
+	ssize_t ret = 0;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(msc_mode); i++)
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%s\n",
+				 msc_mode[i]);
+
+	mutex_lock(&msu_buffer_mutex);
+	list_for_each_entry(mbe, &msu_buffer_list, entry) {
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%s\n",
+				 mbe->mbuf->name);
+	}
+	mutex_unlock(&msu_buffer_mutex);
+
+	return ret;
+}
+
+static DEVICE_ATTR_RO(modes);
+
+static ssize_t
 nr_pages_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct msc *msc = dev_get_drvdata(dev);
@@ -2103,6 +2137,7 @@ static DEVICE_ATTR_RW(stop_on_full);
 static struct attribute *msc_output_attrs[] = {
 	&dev_attr_wrap.attr,
 	&dev_attr_mode.attr,
+	&dev_attr_modes.attr,
 	&dev_attr_nr_pages.attr,
 	&dev_attr_win_switch.attr,
 	&dev_attr_stop_on_full.attr,

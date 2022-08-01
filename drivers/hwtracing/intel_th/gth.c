@@ -592,7 +592,7 @@ static void intel_th_gth_enable(struct intel_th_device *thdev,
 {
 	struct gth_device *gth = dev_get_drvdata(&thdev->dev);
 	struct intel_th *th = to_intel_th(thdev);
-	int master;
+	int master, count;
 	u32 scrpd;
 
 	spin_lock(&gth->gth_lock);
@@ -612,6 +612,11 @@ static void intel_th_gth_enable(struct intel_th_device *thdev,
 	iowrite32(scrpd, gth->base + REG_GTH_SCRPD0);
 
 	intel_th_gth_start(gth, output);
+
+	/* spin on reset bit */
+	for (count = GTH_PLE_WAITLOOP_DEPTH;
+	     count && (gth_output_get(gth, output->port) & BIT(5)); count--)
+		cpu_relax();
 }
 
 /**

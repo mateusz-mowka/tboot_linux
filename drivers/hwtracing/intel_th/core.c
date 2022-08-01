@@ -294,6 +294,34 @@ static void intel_th_output_deactivate(struct intel_th_device *thdev)
 	module_put(thdrv->driver.owner);
 }
 
+void intel_th_suspend(struct intel_th *th)
+{
+	int i;
+
+	for (i = 0; i < th->num_thdevs; i++) {
+		struct intel_th_device *thdev = th->thdev[i];
+
+		if (thdev->type == INTEL_TH_OUTPUT && thdev->output.active) {
+			intel_th_output_deactivate(thdev);
+			th->suspended |= BIT(i);
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(intel_th_suspend);
+
+void intel_th_resume(struct intel_th *th)
+{
+	int i;
+
+	for_each_set_bit(i, &th->suspended, th->num_thdevs) {
+		struct intel_th_device *thdev = th->thdev[i];
+
+		intel_th_output_activate(thdev);
+		th->suspended ^= BIT(i);
+	}
+}
+EXPORT_SYMBOL_GPL(intel_th_resume);
+
 static ssize_t active_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
@@ -577,6 +605,10 @@ static const struct intel_th_subdevice {
 		.id	= -1,
 		.name	= "dcih",
 		.type	= INTEL_TH_OUTPUT,
+		.scrpd	= SCRPD_DBC_IS_PRIM_DEST |
+			  SCRPD_MSC0_IS_ENABLED  |
+			  SCRPD_MSC1_IS_ENABLED  |
+			  SCRPD_DCIH_IS_ENABLED,
 	},
 };
 
