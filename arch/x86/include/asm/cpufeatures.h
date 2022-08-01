@@ -304,6 +304,9 @@
 #define X86_FEATURE_UNRET		(11*32+15) /* "" AMD BTB untrain return */
 #define X86_FEATURE_USE_IBPB_FW		(11*32+16) /* "" Use IBPB during runtime firmware calls */
 #define X86_FEATURE_HRESET		(11*32+17) /* Hardware history reset instruction */
+#define X86_FEATURE_CAT_L3_IO		(11*32+18) /* I/O RDT L3 cache allocation. */
+#define X86_FEATURE_CQM_OCCUP_LLC_IO	(11*32+19) /* I/O RDT L3 occupancy monitoring */
+#define X86_FEATURE_CQM_MBM_IO		(11*32+20) /* I/O RDT memory L3 external bandwidth monitoring. */
 
 /* Intel-defined CPU features, CPUID level 0x00000007:1 (EAX), word 12 */
 #define X86_FEATURE_AVX_VNNI		(12*32+ 4) /* AVX VNNI instructions */

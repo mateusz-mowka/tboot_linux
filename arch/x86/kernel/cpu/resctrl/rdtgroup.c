@@ -26,6 +26,7 @@
 #include <linux/slab.h>
 #include <linux/task_work.h>
 #include <linux/user_namespace.h>
+#include <linux/pci.h>
 
 #include <uapi/linux/magic.h>
 
@@ -740,6 +741,135 @@ static int rdtgroup_tasks_show(struct kernfs_open_file *of,
 	rdtgrp = rdtgroup_kn_lock_live(of->kn);
 	if (rdtgrp)
 		show_rdt_tasks(rdtgrp, s);
+	else
+		ret = -ENOENT;
+	rdtgroup_kn_unlock(of->kn);
+
+	return ret;
+}
+
+static int __rdtgroup_move_channel(struct iordt_chan *c,
+				   struct rdtgroup *rdtgrp)
+{
+	/* If the channel is already in rdtgrp, no need to move it. */
+	if ((rdtgrp->type == RDTCTRL_GROUP && c->closid == rdtgrp->closid &&
+	     c->rmid == rdtgrp->mon.rmid) ||
+	    (rdtgrp->type == RDTMON_GROUP && c->rmid == rdtgrp->mon.rmid &&
+	     c->closid == rdtgrp->mon.parent->closid))
+		return 0;
+
+	/*
+	 * Set the channel's closid/rmid before the PQR_ASSOC MSR can be
+	 * updated by them.
+	 *
+	 * For ctrl_mon groups, move both closid and rmid.
+	 * For monitor groups, can move the channels only from
+	 * their parent CTRL group.
+	 */
+	if (rdtgrp->type == RDTCTRL_GROUP) {
+		iordt_closid_write(c, rdtgrp->closid);
+		iordt_rmid_write(c, rdtgrp->mon.rmid);
+		c->rdtgrp = rdtgrp;
+	} else if (rdtgrp->type == RDTMON_GROUP) {
+		if (rdtgrp->mon.parent->closid == c->closid) {
+			iordt_rmid_write(c, rdtgrp->mon.rmid);
+			c->rdtgrp = rdtgrp;
+		} else {
+			rdt_last_cmd_puts("Can't move channel to different control group\n");
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+static int rdtgroup_move_channel(u32 channel, struct rdtgroup *rdtgrp,
+				 struct kernfs_open_file *of)
+{
+	struct iordt_chan *c;
+	int ret;
+
+	rcu_read_lock();
+	c = iordt_channel_find(channel);
+	if (!c) {
+		rcu_read_unlock();
+		rdt_last_cmd_printf("No channel %d\n", channel);
+
+		return -ESRCH;
+	}
+
+	rcu_read_unlock();
+
+	ret = __rdtgroup_move_channel(c, rdtgrp);
+
+	return ret;
+}
+
+static ssize_t rdtgroup_channels_write(struct kernfs_open_file *of,
+				       char *buf, size_t nbytes, loff_t off)
+{
+	struct rdtgroup *rdtgrp;
+	int ret = 0;
+	u32 channel;
+
+	if (kstrtoint(strstrip(buf), 0, &channel) || channel < 0)
+		return -EINVAL;
+	rdtgrp = rdtgroup_kn_lock_live(of->kn);
+	if (!rdtgrp) {
+		rdtgroup_kn_unlock(of->kn);
+		return -ENOENT;
+	}
+	rdt_last_cmd_clear();
+
+	if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED ||
+	    rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP) {
+		ret = -EINVAL;
+		rdt_last_cmd_puts("Pseudo-locking in progress\n");
+		goto unlock;
+	}
+
+	ret = rdtgroup_move_channel(channel, rdtgrp, of);
+
+unlock:
+	rdtgroup_kn_unlock(of->kn);
+
+	return ret ?: nbytes;
+}
+
+static bool is_closid_match_channel(struct iordt_chan *c, struct rdtgroup *r)
+{
+	return (rdt_alloc_capable &&
+	       (r->type == RDTCTRL_GROUP) && (c->closid == r->closid));
+}
+
+static bool is_rmid_match_channel(struct iordt_chan *c, struct rdtgroup *r)
+{
+	return (rdt_mon_capable &&
+	       (r->type == RDTMON_GROUP) && (c->rmid == r->mon.rmid));
+}
+
+static void show_rdt_channels(struct rdtgroup *r, struct seq_file *s)
+{
+	struct iordt_chan *c;
+
+	rcu_read_lock();
+	for_each_iordt_channel(c) {
+		if (is_closid_match_channel(c, r) ||
+		    is_rmid_match_channel(c, r))
+			seq_printf(s, "%d\n", c->channel);
+	}
+	rcu_read_unlock();
+}
+
+static int rdtgroup_channels_show(struct kernfs_open_file *of,
+				  struct seq_file *s, void *v)
+{
+	struct rdtgroup *rdtgrp;
+	int ret = 0;
+
+	rdtgrp = rdtgroup_kn_lock_live(of->kn);
+	if (rdtgrp)
+		show_rdt_channels(rdtgrp, s);
 	else
 		ret = -ENOENT;
 	rdtgroup_kn_unlock(of->kn);
@@ -1592,18 +1722,200 @@ static struct rftype res_common_files[] = {
 		.seq_show	= rdtgroup_size_show,
 		.fflags		= RF_CTRL_BASE,
 	},
+	{
+		.name		= "channels",
+		.mode		= 0644,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.write		= rdtgroup_channels_write,
+		.seq_show	= rdtgroup_channels_show,
+		.fflags		= RFTYPE_BASE,
+	},
 
 };
+
+static int rdtgroup_cat_l3_show(struct kernfs_open_file *of,
+				struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "%d\n", iordt_feature_enabled(IO_CAT_L3_ENABLED));
+
+	return 0;
+}
+
+static int rdtgroup_cmt_l3_show(struct kernfs_open_file *of,
+				struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "%d\n", iordt_feature_enabled(IO_CMT_L3_ENABLED));
+
+	return 0;
+}
+
+static int rdtgroup_mbm_l3_show(struct kernfs_open_file *of,
+				struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "%d\n", iordt_feature_enabled(IO_MBM_L3_ENABLED));
+
+	return 0;
+}
+
+#ifdef RESCTRL_DEBUG
+static int rdtgroup_iordt_misc_show(struct kernfs_open_file *of,
+				    struct seq_file *seq, void *v)
+{
+	iordt_misc_show(seq);
+
+	return 0;
+}
+#endif
+
+/* Common information files under /sys/fs/resctrl/info/IO. */
+static struct rftype io_common_files[] = {
+	{
+		.name		= "cat_l3",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_cat_l3_show,
+		.fflags		= RF_IORDT_INFO,
+	},
+	{
+		.name		= "cmt_l3",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_cmt_l3_show,
+		.fflags		= RF_IORDT_INFO,
+	},
+	{
+		.name		= "mbm_l3",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_mbm_l3_show,
+		.fflags		= RF_IORDT_INFO,
+	},
+#ifdef RESCTRL_DEBUG
+	{
+		.name		= "misc",
+		.mode		= 0444,
+		.kf_ops		= &rdtgroup_kf_single_ops,
+		.seq_show	= rdtgroup_iordt_misc_show,
+		.fflags		= RF_IORDT_INFO,
+	},
+
+#endif
+};
+
+static int rdtgroup_channel_show(struct kernfs_open_file *of,
+				 struct seq_file *seq, void *v)
+{
+	struct iordt_chan *channel;
+
+	for_each_iordt_channel(channel) {
+		char buf[16];
+
+		sprintf(buf, "%d", channel->channel);
+		if (!strcmp(of->kn->name, buf)) {
+			struct iordt_vc *vc;
+
+			/*
+			 * Find the channel and show its info:
+			 * Domain:Bus:Device.Function.VC<vc#>
+			 * Domain:Bus:Device.Function.VC<vc#>
+			 *  ...
+			 */
+			list_for_each_entry(vc, &channel->list, list) {
+				seq_printf(seq, "%x:%02x:%02x.%01x.VC%01x\n",
+					   channel->segment,
+					   PCI_BUS_NUM(vc->bdf),
+					   PCI_SLOT(vc->bdf),
+					   PCI_FUNC(vc->bdf),
+					   vc->vc_channel);
+			}
+
+			return 0;
+		}
+	}
+
+	return 0;
+}
+
+int rdtgroup_channel_info_files_setup(struct iordt_chan *channel)
+{
+	struct rftype *file;
+
+	file = &channel->file;
+	file->name = kzalloc(IORDT_CHANNEL_NAME_LEN, GFP_KERNEL);
+	if (!file->name)
+		return -ENOMEM;
+
+	sprintf(file->name, "%d", channel->channel);
+	file->mode = 0444;
+	file->kf_ops = &rdtgroup_kf_single_ops;
+	file->seq_show = rdtgroup_channel_show;
+	file->fflags = RF_IORDT_INFO;
+
+	return 0;
+}
+
+static int rdtgroup_add_files_io(struct kernfs_node *kn)
+{
+	struct rftype *rfts_common, *rft_common, *rfts_channel, *rft_channel;
+	struct iordt_chan *channel;
+	int len, ret = 0;
+
+	if (!iordt_enabled())
+		return 0;
+
+	if (iordt_channel_num <= 0)
+		return 0;
+
+	rfts_common = io_common_files;
+	len = ARRAY_SIZE(io_common_files);
+
+	for (rft_common = rfts_common; rft_common < rfts_common + len;
+	     rft_common++) {
+		ret = rdtgroup_add_file(kn, rft_common);
+		if (ret) {
+			pr_warn("Failed to add %s, err=%d\n", rft_common->name,
+				ret);
+			goto error_common;
+		}
+	}
+
+	/* Add files for all channels. */
+	rfts_channel = &iordt_channel[0].file;
+	for_each_iordt_channel(channel) {
+		rft_channel = &channel->file;
+		ret = rdtgroup_add_file(kn, rft_channel);
+		if (ret) {
+			pr_warn("Failed to add %s, err=%d\n", rft_channel->name,
+				ret);
+			goto error_channel;
+		}
+	}
+
+	return 0;
+
+error_channel:
+	while (--rft_channel >= rfts_channel)
+		kernfs_remove_by_name(kn, rft_channel->name);
+
+error_common:
+	while (--rft_common >= rfts_common)
+		kernfs_remove_by_name(kn, rft_common->name);
+
+	return ret;
+}
 
 static int rdtgroup_add_files(struct kernfs_node *kn, unsigned long fflags)
 {
 	struct rftype *rfts, *rft;
 	int ret, len;
 
+	lockdep_assert_held(&rdtgroup_mutex);
+
+	if (fflags == RF_IORDT_INFO)
+		return rdtgroup_add_files_io(kn);
+
 	rfts = res_common_files;
 	len = ARRAY_SIZE(res_common_files);
-
-	lockdep_assert_held(&rdtgroup_mutex);
 
 	for (rft = rfts; rft < rfts + len; rft++) {
 		if (rft->fflags && ((fflags & rft->fflags) == rft->fflags)) {
@@ -1803,6 +2115,14 @@ static int rdtgroup_create_info_dir(struct kernfs_node *parent_kn)
 			goto out_destroy;
 	}
 
+	if (iordt_enabled()) {
+		fflags = RF_IORDT_INFO;
+		sprintf(name, "IO");
+		ret = rdtgroup_mkdir_info_resdir(NULL, name, fflags);
+		if (ret)
+			goto out_destroy;
+	}
+
 	ret = rdtgroup_kn_set_ugid(kn_info);
 	if (ret)
 		goto out_destroy;
@@ -1905,7 +2225,7 @@ static int set_cache_qos_cfg(int level, bool enable)
 }
 
 /* Restore the qos cfg state when a domain comes online */
-void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
+static void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
 {
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
 
@@ -1917,6 +2237,12 @@ void rdt_domain_reconfigure_cdp(struct rdt_resource *r)
 
 	if (r->rid == RDT_RESOURCE_L3)
 		l3_qos_cfg_update(&hw_res->cdp_enabled);
+}
+
+/* Restore the qos cfg states when a domain comes online */
+void rdt_domain_reconfigure(struct rdt_resource *r)
+{
+	rdt_domain_reconfigure_cdp(r);
 }
 
 /*
@@ -3405,6 +3731,7 @@ cleanup_root:
 
 void __exit rdtgroup_exit(void)
 {
+	iordt_free();
 	debugfs_remove_recursive(debugfs_resctrl);
 	unregister_filesystem(&rdt_fs_type);
 	sysfs_remove_mount_point(fs_kobj, "resctrl");

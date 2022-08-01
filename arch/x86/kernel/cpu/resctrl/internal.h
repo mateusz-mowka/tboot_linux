@@ -23,6 +23,9 @@
 
 #define L2_QOS_CDP_ENABLE		0x01ULL
 
+#define MSR_IA32_L3_IO_QOS_CFG		0xc83
+#define L3_IOA_ENABLE			0x1ULL
+#define L3_IOM_ENABLE			0x2ULL
 /*
  * Event IDs are used to program IA32_QM_EVTSEL before reading event
  * counter from IA32_QM_CTR
@@ -250,6 +253,8 @@ struct rdtgroup {
 #define RF_CTRL_INFO			(RFTYPE_INFO | RFTYPE_CTRL)
 #define RF_MON_INFO			(RFTYPE_INFO | RFTYPE_MON)
 #define RF_TOP_INFO			(RFTYPE_INFO | RFTYPE_TOP)
+#define RFTYPE_IORDT			BIT(10)
+#define RF_IORDT_INFO			(RFTYPE_INFO | RFTYPE_IORDT)
 #define RF_CTRL_BASE			(RFTYPE_BASE | RFTYPE_CTRL)
 
 /* List of all resource groups */
@@ -259,6 +264,10 @@ extern int max_name_width, max_data_width;
 
 int __init rdtgroup_init(void);
 void __exit rdtgroup_exit(void);
+
+void __init iordt_init(void);
+void __init iordt_show(void);
+void __exit iordt_free(void);
 
 /**
  * struct rftype - describe each file in the resctrl file system
@@ -398,6 +407,24 @@ struct rdt_hw_resource {
 	bool			cdp_enabled;
 };
 
+bool iordt_enabled(void);
+bool iordt_feature_enabled(u64 flag);
+
+#define IO_CAT_L3_ENABLED	BIT_ULL(0)
+#define IO_CMT_L3_ENABLED	BIT_ULL(1)
+#define IO_MBM_L3_ENABLED	BIT_ULL(2)
+
+void __init iordt_enable(u64 flag);
+void __init iordt_mon_config(void);
+
+#define RESCTRL_DEBUG
+
+#ifdef RESCTRL_DEBUG
+void iordt_misc_show(struct seq_file *s);
+#else
+static inline void iordt_misc_show(struct seq_file *s) { }
+#endif
+
 static inline struct rdt_hw_resource *resctrl_to_arch_res(struct rdt_resource *r)
 {
 	return container_of(r, struct rdt_hw_resource, r_resctrl);
@@ -415,6 +442,43 @@ extern struct rdtgroup rdtgroup_default;
 DECLARE_STATIC_KEY_FALSE(rdt_alloc_enable_key);
 
 extern struct dentry *debugfs_resctrl;
+
+struct iordt_vc {
+	bool			valid;
+	u8			vc_channel;
+	u32			channel;
+	bool			shared;
+	u16			bdf;
+	struct list_head	list;
+};
+
+struct iordt_chan {
+	u32 channel;
+	struct rdtgroup *rdtgrp;
+	struct rftype file;
+	u8 regw;
+	u16 segment;
+	u32 closid;
+	u32 rmid;
+	void __iomem *closid_addr;
+	void __iomem *rmid_addr;
+	struct list_head list;
+};
+
+#define IORDT_CHANNEL_NUM	1024
+#define IORDT_CHANNEL_NAME_LEN	8
+
+extern struct iordt_chan iordt_channel[IORDT_CHANNEL_NUM];
+extern int iordt_channel_num;
+
+void iordt_closid_write(struct iordt_chan *c, u32 val);
+void iordt_rmid_write(struct iordt_chan *c, u32 val);
+struct iordt_chan *iordt_channel_find(u32 channel);
+
+#define for_each_iordt_channel(channel)					\
+	for (channel = iordt_channel;					\
+	     channel < iordt_channel + iordt_channel_num; channel++)
+int rdtgroup_channel_info_files_setup(struct iordt_chan *channel);
 
 enum resctrl_res_level {
 	RDT_RESOURCE_L3,
@@ -529,7 +593,7 @@ int closids_supported(void);
 void closid_free(int closid);
 int alloc_rmid(void);
 void free_rmid(u32 rmid);
-int rdt_get_mon_l3_config(struct rdt_resource *r);
+int __init rdt_get_mon_l3_config(struct rdt_resource *r);
 void mon_event_count(void *info);
 int rdtgroup_mondata_show(struct seq_file *m, void *arg);
 void rmdir_mondata_subdir_allrdtgrp(struct rdt_resource *r,
@@ -551,7 +615,9 @@ void cqm_setup_limbo_handler(struct rdt_domain *dom, unsigned long delay_ms);
 void cqm_handle_limbo(struct work_struct *work);
 bool has_busy_rmid(struct rdt_resource *r, struct rdt_domain *d);
 void __check_limbo(struct rdt_domain *d, bool force_free);
-void rdt_domain_reconfigure_cdp(struct rdt_resource *r);
+void rdt_domain_reconfigure(struct rdt_resource *r);
+void l3_io_qos_cfg_update(void);
 void __init thread_throttle_mode_init(void);
+bool __init rdt_cpu_has(int flag);
 
 #endif /* _ASM_X86_RESCTRL_INTERNAL_H */
