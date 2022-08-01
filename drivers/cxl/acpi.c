@@ -9,9 +9,74 @@
 #include "cxlpci.h"
 #include "cxl.h"
 
-/* Encode defined in CXL 2.0 8.2.5.12.7 HDM Decoder Control Register */
-#define CFMWS_INTERLEAVE_WAYS(x)	(1 << (x)->interleave_ways)
-#define CFMWS_INTERLEAVE_GRANULARITY(x)	((x)->granularity + 8)
+struct cxims_data {
+	int nr_xormaps;
+	u64 xormaps[];
+};
+
+static struct cxl_dport *cxl_hb_xor(struct cxl_root_decoder *cxlrd, int pos)
+{
+	struct cxl_switch_decoder *cxlsd = &cxlrd->cxlsd;
+	struct cxims_data *cxims = cxlrd->platform_data;
+	struct cxl_decoder *cxld = &cxlsd->cxld;
+	int ig = cxld->interleave_granularity;
+	int iw = cxld->interleave_ways;
+	int i, n = 0;
+	u64 hpa;
+
+	if (dev_WARN_ONCE(&cxld->dev, iw != cxlsd->nr_targets,
+			  "misconfigured root decoder\n"))
+		return NULL;
+
+	/* CXL Spec 9.17.1.3  */
+	hpa = cxlrd->res->start + pos * ig;
+	for (i = 0; i < ilog2(iw); i++)
+		n |= (hweight64(hpa & cxims->xormaps[i]) & 1) << i;
+
+	return cxlrd->cxlsd.target[n];
+}
+
+struct cxl_cxims_context {
+	struct device *dev;
+	struct cxl_root_decoder *cxlrd;
+};
+
+static int cxl_parse_cxims(union acpi_subtable_headers *header, void *arg,
+			   const unsigned long end)
+{
+	struct acpi_cedt_cxims *cxims = (struct acpi_cedt_cxims *)header;
+	struct cxl_cxims_context *ctx = arg;
+	struct cxl_root_decoder *cxlrd = ctx->cxlrd;
+	struct cxl_decoder *cxld = &cxlrd->cxlsd.cxld;
+	struct device *dev = ctx->dev;
+	struct cxims_data *cximsd;
+	unsigned int hbig;
+	int rc;
+
+	rc = cxl_to_granularity(cxims->hbig, &hbig);
+	if (rc)
+		return rc;
+
+	if (hbig == cxld->interleave_granularity) {
+		if (!cxims->nr_xormaps) {
+			dev_dbg(dev, "CXIMS xormap expected and not found\n");
+			return -ENXIO;
+		}
+		if (cxims->nr_xormaps < cxld->interleave_ways) {
+			dev_dbg(dev, "CXIMS nr_xormaps[%d] expected[%d]\n",
+				cxims->nr_xormaps, cxld->interleave_ways);
+			return -ENXIO;
+		}
+
+		cximsd = devm_kzalloc(dev, struct_size(cximsd, xormaps,
+				      cxims->nr_xormaps), GFP_KERNEL);
+		cximsd->nr_xormaps = cxims->nr_xormaps;
+		memcpy(cximsd->xormaps, cxims->xormap_list, cximsd->nr_xormaps);
+		cxlrd->platform_data = cximsd;
+		cxlrd->calc_hb = cxl_hb_xor;
+	}
+	return 0;
+}
 
 static unsigned long cfmws_to_decoder_flags(int restrictions)
 {
@@ -34,12 +99,8 @@ static unsigned long cfmws_to_decoder_flags(int restrictions)
 static int cxl_acpi_cfmws_verify(struct device *dev,
 				 struct acpi_cedt_cfmws *cfmws)
 {
-	int expected_len;
-
-	if (cfmws->interleave_arithmetic != ACPI_CEDT_CFMWS_ARITHMETIC_MODULO) {
-		dev_err(dev, "CFMWS Unsupported Interleave Arithmetic\n");
-		return -EINVAL;
-	}
+	int rc, expected_len;
+	unsigned int ways;
 
 	if (!IS_ALIGNED(cfmws->base_hpa, SZ_256M)) {
 		dev_err(dev, "CFMWS Base HPA not 256MB aligned\n");
@@ -51,14 +112,14 @@ static int cxl_acpi_cfmws_verify(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (CFMWS_INTERLEAVE_WAYS(cfmws) > CXL_DECODER_MAX_INTERLEAVE) {
-		dev_err(dev, "CFMWS Interleave Ways (%d) too large\n",
-			CFMWS_INTERLEAVE_WAYS(cfmws));
+	rc = cxl_to_ways(cfmws->interleave_ways, &ways);
+	if (rc) {
+		dev_err(dev, "CFMWS Interleave Ways (%d) invalid\n",
+			cfmws->interleave_ways);
 		return -EINVAL;
 	}
 
-	expected_len = struct_size((cfmws), interleave_targets,
-				   CFMWS_INTERLEAVE_WAYS(cfmws));
+	expected_len = struct_size(cfmws, interleave_targets, ways);
 
 	if (cfmws->header.length < expected_len) {
 		dev_err(dev, "CFMWS length %d less than expected %d\n",
@@ -76,6 +137,8 @@ static int cxl_acpi_cfmws_verify(struct device *dev,
 struct cxl_cfmws_context {
 	struct device *dev;
 	struct cxl_port *root_port;
+	struct resource *cxl_res;
+	int id;
 };
 
 static int cxl_parse_cfmws(union acpi_subtable_headers *header, void *arg,
@@ -84,10 +147,15 @@ static int cxl_parse_cfmws(union acpi_subtable_headers *header, void *arg,
 	int target_map[CXL_DECODER_MAX_INTERLEAVE];
 	struct cxl_cfmws_context *ctx = arg;
 	struct cxl_port *root_port = ctx->root_port;
+	struct resource *cxl_res = ctx->cxl_res;
+	struct cxl_cxims_context cxims_ctx;
+	struct cxl_root_decoder *cxlrd;
 	struct device *dev = ctx->dev;
 	struct acpi_cedt_cfmws *cfmws;
 	struct cxl_decoder *cxld;
-	int rc, i;
+	unsigned int ways, i, ig;
+	struct resource *res;
+	int rc;
 
 	cfmws = (struct acpi_cedt_cfmws *) header;
 
@@ -99,35 +167,85 @@ static int cxl_parse_cfmws(union acpi_subtable_headers *header, void *arg,
 		return 0;
 	}
 
-	for (i = 0; i < CFMWS_INTERLEAVE_WAYS(cfmws); i++)
+	rc = cxl_to_ways(cfmws->interleave_ways, &ways);
+	if (rc)
+		return rc;
+	rc = cxl_to_granularity(cfmws->granularity, &ig);
+	if (rc)
+		return rc;
+	for (i = 0; i < ways; i++)
 		target_map[i] = cfmws->interleave_targets[i];
 
-	cxld = cxl_root_decoder_alloc(root_port, CFMWS_INTERLEAVE_WAYS(cfmws));
-	if (IS_ERR(cxld))
+	res = kzalloc(sizeof(*res), GFP_KERNEL);
+	if (!res)
+		return -ENOMEM;
+
+	res->name = kasprintf(GFP_KERNEL, "CXL Window %d", ctx->id++);
+	if (!res->name)
+		goto err_name;
+
+	res->start = cfmws->base_hpa;
+	res->end = cfmws->base_hpa + cfmws->window_size - 1;
+	res->flags = IORESOURCE_MEM;
+
+	/* add to the local resource tracking to establish a sort order */
+	rc = insert_resource(cxl_res, res);
+	if (rc)
+		goto err_insert;
+
+	cxlrd = cxl_root_decoder_alloc(root_port, ways);
+	if (IS_ERR(cxlrd))
 		return 0;
 
+	cxld = &cxlrd->cxlsd.cxld;
 	cxld->flags = cfmws_to_decoder_flags(cfmws->restrictions);
 	cxld->target_type = CXL_DECODER_EXPANDER;
-	cxld->platform_res = (struct resource)DEFINE_RES_MEM(cfmws->base_hpa,
-							     cfmws->window_size);
-	cxld->interleave_ways = CFMWS_INTERLEAVE_WAYS(cfmws);
-	cxld->interleave_granularity = CFMWS_INTERLEAVE_GRANULARITY(cfmws);
+	cxld->hpa_range = (struct range) {
+		.start = res->start,
+		.end = res->end,
+	};
+	cxld->interleave_ways = ways;
+	cxld->interleave_granularity = ig;
 
+	if (cfmws->interleave_arithmetic == ACPI_CEDT_CFMWS_ARITHMETIC_XOR) {
+		cxims_ctx = (struct cxl_cxims_context) {
+			.dev = dev,
+			.cxlrd = cxlrd,
+		};
+		rc = acpi_table_parse_cedt(ACPI_CEDT_TYPE_CXIMS,
+					   cxl_parse_cxims, &cxims_ctx);
+		if (rc < 0)
+			goto err_xormap;
+
+		if (cxlrd->calc_hb != cxl_hb_xor) {
+			rc = -ENXIO;
+			goto err_xormap;
+		}
+	}
 	rc = cxl_decoder_add(cxld, target_map);
+
+err_xormap:
 	if (rc)
 		put_device(&cxld->dev);
 	else
 		rc = cxl_decoder_autoremove(dev, cxld);
 	if (rc) {
-		dev_err(dev, "Failed to add decoder for %pr\n",
-			&cxld->platform_res);
+		dev_err(dev, "Failed to add decode range [%#llx - %#llx]\n",
+			cxld->hpa_range.start, cxld->hpa_range.end);
 		return 0;
 	}
-	dev_dbg(dev, "add: %s node: %d range %pr\n", dev_name(&cxld->dev),
-		phys_to_target_node(cxld->platform_res.start),
-		&cxld->platform_res);
+	dev_dbg(dev, "add: %s node: %d range [%#llx - %#llx]\n",
+		dev_name(&cxld->dev),
+		phys_to_target_node(cxld->hpa_range.start),
+		cxld->hpa_range.start, cxld->hpa_range.end);
 
 	return 0;
+
+err_insert:
+	kfree(res->name);
+err_name:
+	kfree(res);
+	return -ENOMEM;
 }
 
 __mock struct acpi_device *to_cxl_host_bridge(struct device *host,
@@ -175,8 +293,7 @@ static int add_host_bridge_uport(struct device *match, void *arg)
 	if (rc)
 		return rc;
 
-	port = devm_cxl_add_port(host, match, dport->component_reg_phys,
-				 root_port);
+	port = devm_cxl_add_port(host, match, dport->component_reg_phys, dport);
 	if (IS_ERR(port))
 		return PTR_ERR(port);
 	dev_dbg(host, "%s: add: %s\n", dev_name(match), dev_name(&port->dev));
@@ -282,9 +399,127 @@ static void cxl_acpi_lock_reset_class(void *dev)
 	device_lock_reset_class(dev);
 }
 
+static void del_cxl_resource(struct resource *res)
+{
+	kfree(res->name);
+	kfree(res);
+}
+
+static void cxl_set_public_resource(struct resource *priv, struct resource *pub)
+{
+	priv->desc = (unsigned long) pub;
+}
+
+static struct resource *cxl_get_public_resource(struct resource *priv)
+{
+	return (struct resource *) priv->desc;
+}
+
+static void remove_cxl_resources(void *data)
+{
+	struct resource *res, *next, *cxl = data;
+
+	for (res = cxl->child; res; res = next) {
+		struct resource *victim = cxl_get_public_resource(res);
+
+		next = res->sibling;
+		remove_resource(res);
+
+		if (victim) {
+			remove_resource(victim);
+			kfree(victim);
+		}
+
+		del_cxl_resource(res);
+	}
+}
+
+/**
+ * add_cxl_resources() - reflect CXL fixed memory windows in iomem_resource
+ * @cxl_res: A standalone resource tree where each CXL window is a sibling
+ *
+ * Walk each CXL window in @cxl_res and add it to iomem_resource potentially
+ * expanding its boundaries to ensure that any conflicting resources become
+ * children. If a window is expanded it may then conflict with a another window
+ * entry and require the window to be truncated or trimmed. Consider this
+ * situation:
+ *
+ * |-- "CXL Window 0" --||----- "CXL Window 1" -----|
+ * |--------------- "System RAM" -------------|
+ *
+ * ...where platform firmware has established as System RAM resource across 2
+ * windows, but has left some portion of window 1 for dynamic CXL region
+ * provisioning. In this case "Window 0" will span the entirety of the "System
+ * RAM" span, and "CXL Window 1" is truncated to the remaining tail past the end
+ * of that "System RAM" resource.
+ */
+static int add_cxl_resources(struct resource *cxl_res)
+{
+	struct resource *res, *new, *next;
+
+	for (res = cxl_res->child; res; res = next) {
+		new = kzalloc(sizeof(*new), GFP_KERNEL);
+		if (!new)
+			return -ENOMEM;
+		new->name = res->name;
+		new->start = res->start;
+		new->end = res->end;
+		new->flags = IORESOURCE_MEM;
+		new->desc = IORES_DESC_CXL;
+
+		/*
+		 * Record the public resource in the private cxl_res tree for
+		 * later removal.
+		 */
+		cxl_set_public_resource(res, new);
+
+		insert_resource_expand_to_fit(&iomem_resource, new);
+
+		next = res->sibling;
+		while (next && resource_overlaps(new, next)) {
+			if (resource_contains(new, next)) {
+				struct resource *_next = next->sibling;
+
+				remove_resource(next);
+				del_cxl_resource(next);
+				next = _next;
+			} else
+				next->start = new->end + 1;
+		}
+	}
+	return 0;
+}
+
+static int pair_cxl_resource(struct device *dev, void *data)
+{
+	struct resource *cxl_res = data;
+	struct resource *p;
+
+	if (!is_root_decoder(dev))
+		return 0;
+
+	for (p = cxl_res->child; p; p = p->sibling) {
+		struct cxl_root_decoder *cxlrd = to_cxl_root_decoder(dev);
+		struct cxl_decoder *cxld = &cxlrd->cxlsd.cxld;
+		struct resource res = {
+			.start = cxld->hpa_range.start,
+			.end = cxld->hpa_range.end,
+			.flags = IORESOURCE_MEM,
+		};
+
+		if (resource_contains(p, &res)) {
+			cxlrd->res = cxl_get_public_resource(p);
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int cxl_acpi_probe(struct platform_device *pdev)
 {
 	int rc;
+	struct resource *cxl_res;
 	struct cxl_port *root_port;
 	struct device *host = &pdev->dev;
 	struct acpi_device *adev = ACPI_COMPANION(host);
@@ -296,6 +531,14 @@ static int cxl_acpi_probe(struct platform_device *pdev)
 	if (rc)
 		return rc;
 
+	cxl_res = devm_kzalloc(host, sizeof(*cxl_res), GFP_KERNEL);
+	if (!cxl_res)
+		return -ENOMEM;
+	cxl_res->name = "CXL mem";
+	cxl_res->start = 0;
+	cxl_res->end = -1;
+	cxl_res->flags = IORESOURCE_MEM;
+
 	root_port = devm_cxl_add_port(host, host, CXL_RESOURCE_NONE, NULL);
 	if (IS_ERR(root_port))
 		return PTR_ERR(root_port);
@@ -306,11 +549,28 @@ static int cxl_acpi_probe(struct platform_device *pdev)
 	if (rc < 0)
 		return rc;
 
+	rc = devm_add_action_or_reset(host, remove_cxl_resources, cxl_res);
+	if (rc)
+		return rc;
+
 	ctx = (struct cxl_cfmws_context) {
 		.dev = host,
 		.root_port = root_port,
+		.cxl_res = cxl_res,
 	};
-	acpi_table_parse_cedt(ACPI_CEDT_TYPE_CFMWS, cxl_parse_cfmws, &ctx);
+	rc = acpi_table_parse_cedt(ACPI_CEDT_TYPE_CFMWS, cxl_parse_cfmws, &ctx);
+	if (rc < 0)
+		return -ENXIO;
+
+	rc = add_cxl_resources(cxl_res);
+	if (rc)
+		return rc;
+
+	/*
+	 * Populate the root decoders with their related iomem resource,
+	 * if present
+	 */
+	device_for_each_child(&root_port->dev, cxl_res, pair_cxl_resource);
 
 	/*
 	 * Root level scanned with host-bridge as dports, now scan host-bridges
