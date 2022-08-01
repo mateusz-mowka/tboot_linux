@@ -1098,8 +1098,8 @@ static inline bool page_fault_page_type_conflict(struct kvm_page_fault *fault)
 {
 	enum kvm_page_type page_type;
 
-	if (!fault->slot)
-		return false;
+	if (!fault->slot || kvm_is_mmio_pfn(fault->pfn))
+		return fault->is_private;
 
 	page_type = kvm_get_valid_page_type(fault->gfn, fault->slot);
 	switch(page_type) {
@@ -4823,10 +4823,6 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
 	fault->gfn = gpa_to_gfn(fault->addr) & ~kvm_gfn_shared_mask(vcpu->kvm);
 	fault->slot = kvm_vcpu_gfn_to_memslot(vcpu, fault->gfn);
 
-	if (kvm_gfn_shared_mask(vcpu->kvm) &&
-	    page_fault_page_type_conflict(fault))
-		return RET_PF_RETRY;
-
 	if (page_fault_handle_page_track(vcpu, fault))
 		return RET_PF_EMULATE;
 
@@ -4848,6 +4844,10 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault
 	r = handle_abnormal_pfn(vcpu, fault, ACC_ALL);
 	if (r != RET_PF_CONTINUE)
 		return r;
+
+	if (kvm_gfn_shared_mask(vcpu->kvm) &&
+	    page_fault_page_type_conflict(fault))
+		return RET_PF_RETRY;
 
 	r = RET_PF_RETRY;
 
