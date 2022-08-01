@@ -11,6 +11,7 @@
 #include <linux/fs.h>
 #include <linux/poll.h>
 #include <linux/iommu.h>
+#include <linux/xarray.h>
 #include <uapi/linux/idxd.h>
 #include "registers.h"
 #include "idxd.h"
@@ -36,6 +37,117 @@ struct idxd_user_context {
 	unsigned int pasid;
 	unsigned int flags;
 	struct iommu_sva *sva;
+	struct idxd_dev idxd_dev;
+	u64 counters[COUNTER_MAX];
+	int id;
+	pid_t pid;
+};
+
+static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid);
+static void idxd_xa_pasid_remove(struct idxd_user_context *ctx);
+
+static inline struct idxd_user_context *dev_to_uctx(struct device *dev)
+{
+	struct idxd_dev *idxd_dev = confdev_to_idxd_dev(dev);
+
+	return container_of(idxd_dev, struct idxd_user_context, idxd_dev);
+}
+
+static ssize_t cr_faults_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct idxd_user_context *ctx = dev_to_uctx(dev);
+
+	return sysfs_emit(buf, "%llu\n", ctx->counters[COUNTER_FAULTS]);
+}
+static DEVICE_ATTR_RO(cr_faults);
+
+static ssize_t cr_fault_failures_show(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	struct idxd_user_context *ctx = dev_to_uctx(dev);
+
+	return sysfs_emit(buf, "%llu\n", ctx->counters[COUNTER_FAULT_FAILS]);
+}
+static DEVICE_ATTR_RO(cr_fault_failures);
+
+static ssize_t pid_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct idxd_user_context *ctx = dev_to_uctx(dev);
+
+	return sysfs_emit(buf, "%u\n", ctx->pid);
+}
+static DEVICE_ATTR_RO(pid);
+
+static struct attribute *cdev_file_attributes[] = {
+	&dev_attr_cr_faults.attr,
+	&dev_attr_cr_fault_failures.attr,
+	&dev_attr_pid.attr,
+	NULL
+};
+
+static umode_t cdev_file_attr_visible(struct kobject *kobj, struct attribute *a, int n)
+{
+	struct device *dev = container_of(kobj, typeof(*dev), kobj);
+	struct idxd_user_context *ctx = dev_to_uctx(dev);
+	struct idxd_wq *wq = ctx->wq;
+
+	if (!wq_pasid_enabled(wq))
+		return 0;
+
+	return a->mode;
+}
+
+static const struct attribute_group cdev_file_attribute_group = {
+	.attrs = cdev_file_attributes,
+	.is_visible = cdev_file_attr_visible,
+};
+
+static const struct attribute_group *cdev_file_attribute_groups[] = {
+	&cdev_file_attribute_group,
+	NULL
+};
+
+static void idxd_file_dev_release(struct device *dev)
+{
+	struct idxd_user_context *ctx = dev_to_uctx(dev);
+	struct idxd_wq *wq = ctx->wq;
+	struct idxd_cdev *idxd_cdev = wq->idxd_cdev;
+	struct idxd_device *idxd = wq->idxd;
+	int rc;
+
+	mutex_lock(&idxd_cdev->ida_lock);
+	ida_free(&idxd_cdev->file_ida, ctx->id);
+	mutex_unlock(&idxd_cdev->ida_lock);
+
+	/* Wait for in-flight operations to complete. */
+	if (wq_shared(wq)) {
+		idxd_device_drain_pasid(idxd, ctx->pasid);
+	} else {
+		if (device_user_pasid_enabled(idxd)) {
+			/* The wq disable in the disable pasid function will drain the wq */
+			rc = idxd_wq_disable_pasid(wq);
+			if (rc < 0)
+				dev_err(dev, "wq disable pasid failed.\n");
+		} else {
+			idxd_wq_drain(wq);
+		}
+	}
+
+	if (ctx->sva) {
+		idxd_cdev_evl_drain_pasid(wq, ctx->pasid);
+		iommu_sva_unbind_device(ctx->sva);
+		idxd_xa_pasid_remove(ctx);
+	}
+	kfree(ctx);
+	mutex_lock(&wq->wq_lock);
+	idxd_wq_put(wq);
+	mutex_unlock(&wq->wq_lock);
+}
+
+static struct device_type idxd_cdev_file_type = {
+	.name = "idxd_file",
+	.release = idxd_file_dev_release,
+	.groups = cdev_file_attribute_groups,
 };
 
 static void idxd_cdev_dev_release(struct device *dev)
@@ -68,15 +180,46 @@ static inline struct idxd_wq *inode_wq(struct inode *inode)
 	return idxd_cdev->wq;
 }
 
+void idxd_user_counter_increment(struct idxd_wq *wq, u32 pasid, int index)
+{
+	struct idxd_user_context *ctx;
+
+	if (index >= COUNTER_MAX)
+		return;
+
+	mutex_lock(&wq->uc_lock);
+	ctx = xa_load(&wq->upasid_xa, pasid);
+	if (!ctx) {
+		mutex_unlock(&wq->uc_lock);
+		return;
+	}
+	ctx->counters[index]++;
+	mutex_unlock(&wq->uc_lock);
+}
+
+static void idxd_xa_pasid_remove(struct idxd_user_context *ctx)
+{
+	struct idxd_wq *wq = ctx->wq;
+	void *ptr;
+
+	mutex_lock(&wq->uc_lock);
+	ptr = xa_cmpxchg(&wq->upasid_xa, ctx->pasid, ctx, NULL, GFP_KERNEL);
+	if (ptr != (void *)ctx)
+		dev_warn(&wq->idxd->pdev->dev, "xarray cmpxchg failed for pasid %u\n",
+			 ctx->pasid);
+	mutex_unlock(&wq->uc_lock);
+}
+
 static int idxd_cdev_open(struct inode *inode, struct file *filp)
 {
 	struct idxd_user_context *ctx;
 	struct idxd_device *idxd;
 	struct idxd_wq *wq;
-	struct device *dev;
+	struct device *dev, *fdev;
 	int rc = 0;
 	struct iommu_sva *sva;
 	unsigned int pasid;
+	struct idxd_cdev *idxd_cdev;
 
 	wq = inode_wq(inode);
 	idxd = wq->idxd;
@@ -97,6 +240,7 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 
 	ctx->wq = wq;
 	filp->private_data = ctx;
+	ctx->pid = current->pid;
 
 	if (device_user_pasid_enabled(idxd)) {
 		sva = iommu_sva_bind_device(dev, current->mm);
@@ -108,32 +252,107 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 
 		pasid = iommu_sva_get_pasid(sva);
 		if (pasid == IOMMU_PASID_INVALID) {
-			iommu_sva_unbind_device(sva);
 			rc = -EINVAL;
-			goto failed;
+			goto failed_get_pasid;
 		}
 
 		ctx->sva = sva;
 		ctx->pasid = pasid;
+
+		mutex_lock(&wq->uc_lock);
+		rc = xa_insert(&wq->upasid_xa, pasid, ctx, GFP_KERNEL);
+		mutex_unlock(&wq->uc_lock);
+		if (rc < 0) {
+			dev_err(dev, "PASID entry already exist in xarray.\n");
+			goto failed_xa_insert;
+		}
 
 		if (wq_dedicated(wq)) {
 			rc = idxd_wq_set_pasid(wq, pasid);
 			if (rc < 0) {
 				iommu_sva_unbind_device(sva);
 				dev_err(dev, "wq set pasid failed: %d\n", rc);
-				goto failed;
+				goto failed_set_pasid;
 			}
 		}
+	}
+
+
+	idxd_cdev = wq->idxd_cdev;
+	mutex_lock(&idxd_cdev->ida_lock);
+	ctx->id = ida_alloc(&idxd_cdev->file_ida, GFP_KERNEL);
+	mutex_unlock(&idxd_cdev->ida_lock);
+	if (ctx->id < 0) {
+		dev_warn(dev, "ida alloc failure\n");
+		goto failed_ida;
+	}
+	ctx->idxd_dev.type  = IDXD_DEV_CDEV_FILE;
+	fdev = user_ctx_dev(ctx);
+	device_initialize(fdev);
+	fdev->parent = cdev_dev(idxd_cdev);
+	fdev->bus = &dsa_bus_type;
+	fdev->type = &idxd_cdev_file_type;
+
+	rc = dev_set_name(fdev, "file%d", ctx->id);
+	if (rc < 0) {
+		dev_warn(dev, "set name failure\n");
+		goto failed_dev_name;
+	}
+
+	rc = device_add(fdev);
+	if (rc < 0) {
+		dev_warn(dev, "file device add failure\n");
+		goto failed_dev_add;
 	}
 
 	idxd_wq_get(wq);
 	mutex_unlock(&wq->wq_lock);
 	return 0;
 
+ failed_dev_add:
+ failed_dev_name:
+	put_device(fdev);
+ failed_ida:
+ failed_set_pasid:
+	if (device_user_pasid_enabled(idxd))
+		idxd_xa_pasid_remove(ctx);
+ failed_xa_insert:
+ failed_get_pasid:
+	if (device_user_pasid_enabled(idxd))
+		iommu_sva_unbind_device(sva);
  failed:
 	mutex_unlock(&wq->wq_lock);
 	kfree(ctx);
 	return rc;
+}
+
+static void idxd_cdev_evl_drain_pasid(struct idxd_wq *wq, u32 pasid)
+{
+	struct idxd_device *idxd = wq->idxd;
+	struct idxd_evl *evl = idxd->evl;
+	union evl_status_reg status;
+	u16 h, t, size;
+	int ent_size = EVL_ENT_SIZE(idxd);
+	struct __evl_entry *entry_head;
+
+	if (!evl)
+		return;
+
+	spin_lock(&evl->lock);
+	status.bits = ioread64(idxd->reg_base + IDXD_EVLSTATUS_OFFSET);
+	t = status.tail;
+	h = evl->head;
+	size = evl->size;
+
+	while (h != t) {
+		entry_head = (struct __evl_entry *)(evl->log + (h * ent_size));
+		if (entry_head->pasid == pasid && entry_head->wq_idx == wq->id)
+			set_bit(h, evl->bmap);
+		h = (h + 1) % size;
+	}
+	spin_unlock(&evl->lock);
+
+	drain_workqueue(wq->wq);
 }
 
 static int idxd_cdev_release(struct inode *node, struct file *filep)
@@ -142,31 +361,10 @@ static int idxd_cdev_release(struct inode *node, struct file *filep)
 	struct idxd_wq *wq = ctx->wq;
 	struct idxd_device *idxd = wq->idxd;
 	struct device *dev = &idxd->pdev->dev;
-	int rc;
 
 	dev_dbg(dev, "%s called\n", __func__);
 	filep->private_data = NULL;
-
-	/* Wait for in-flight operations to complete. */
-	if (wq_shared(wq)) {
-		idxd_device_drain_pasid(idxd, ctx->pasid);
-	} else {
-		if (device_user_pasid_enabled(idxd)) {
-			/* The wq disable in the disable pasid function will drain the wq */
-			rc = idxd_wq_disable_pasid(wq);
-			if (rc < 0)
-				dev_err(dev, "wq disable pasid failed.\n");
-		} else {
-			idxd_wq_drain(wq);
-		}
-	}
-
-	if (ctx->sva)
-		iommu_sva_unbind_device(ctx->sva);
-	kfree(ctx);
-	mutex_lock(&wq->wq_lock);
-	idxd_wq_put(wq);
-	mutex_unlock(&wq->wq_lock);
+	device_unregister(user_ctx_dev(ctx));
 	return 0;
 }
 
@@ -265,6 +463,8 @@ int idxd_wq_add_cdev(struct idxd_wq *wq)
 		return minor;
 	}
 	idxd_cdev->minor = minor;
+	ida_init(&idxd_cdev->file_ida);
+	mutex_init(&idxd_cdev->ida_lock);
 
 	device_initialize(dev);
 	dev->parent = wq_confdev(wq);
@@ -297,6 +497,7 @@ void idxd_wq_del_cdev(struct idxd_wq *wq)
 	struct idxd_cdev *idxd_cdev;
 
 	idxd_cdev = wq->idxd_cdev;
+	ida_destroy(&idxd_cdev->file_ida);
 	wq->idxd_cdev = NULL;
 	cdev_device_del(&idxd_cdev->cdev, cdev_dev(idxd_cdev));
 	put_device(cdev_dev(idxd_cdev));
@@ -313,6 +514,13 @@ static int idxd_user_drv_probe(struct idxd_dev *idxd_dev)
 		return -ENXIO;
 
 	mutex_lock(&wq->wq_lock);
+
+	wq->wq = create_workqueue(dev_name(wq_confdev(wq)));
+	if (!wq->wq) {
+		rc = -ENOMEM;
+		goto wq_err;
+	}
+
 	if (!idxd_wq_driver_name_match(wq, dev)) {
 		idxd->cmd_status = IDXD_SCMD_WQ_NO_DRV_NAME;
 		rc = -ENODEV;
@@ -336,9 +544,11 @@ static int idxd_user_drv_probe(struct idxd_dev *idxd_dev)
 
 err_cdev:
 	__drv_disable_wq(wq);
-err:
 err_drv_name:
 	wq->type = IDXD_WQT_NONE;
+err:
+	destroy_workqueue(wq->wq);
+wq_err:
 	mutex_unlock(&wq->wq_lock);
 	return rc;
 }
@@ -351,6 +561,8 @@ static void idxd_user_drv_remove(struct idxd_dev *idxd_dev)
 	idxd_wq_del_cdev(wq);
 	__drv_disable_wq(wq);
 	wq->type = IDXD_WQT_NONE;
+	destroy_workqueue(wq->wq);
+	wq->wq = NULL;
 	mutex_unlock(&wq->wq_lock);
 }
 

@@ -62,7 +62,15 @@ struct ims_array_info {
 struct pci_dev;
 struct irq_domain;
 
+#ifdef CONFIG_IMS_MSI
 struct irq_domain *pci_ims_array_create_msi_irq_domain(struct pci_dev *pdev,
 						       struct ims_array_info *ims_info);
+#else
+static inline struct irq_domain *pci_ims_array_create_msi_irq_domain(struct pci_dev *pdev,
+						       struct ims_array_info *ims_info)
+{
+	return NULL;
+}
+#endif
 
 #endif
