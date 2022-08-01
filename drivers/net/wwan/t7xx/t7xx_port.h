@@ -36,9 +36,17 @@
 /* Channel ID and Message ID definitions.
  * The channel number consists of peer_id(15:12) , channel_id(11:0)
  * peer_id:
- * 0:reserved, 1: to sAP, 2: to MD
+ * 0:reserved, 1: to AP, 2: to MD
  */
 enum port_ch {
+	/* to AP */
+	PORT_CH_AP_CONTROL_RX = 0X1000,
+	PORT_CH_AP_CONTROL_TX = 0X1001,
+	PORT_CH_AP_GNSS_RX = 0x1004,
+	PORT_CH_AP_GNSS_TX = 0x1005,
+	PORT_CH_AP_LOG_RX = 0x1008,
+	PORT_CH_AP_LOG_TX = 0x1009,
+
 	/* to MD */
 	PORT_CH_CONTROL_RX = 0x2000,
 	PORT_CH_CONTROL_TX = 0x2001,
@@ -122,10 +130,15 @@ struct t7xx_port {
 	int				rx_length_th;
 	bool				chan_enable;
 	struct task_struct		*thread;
+#ifdef CONFIG_WWAN_DEBUGFS
+	struct t7xx_trace		*trace;
+	struct dentry			*debugfs_dir;
+#endif
 };
 
 struct sk_buff *t7xx_port_alloc_skb(int payload);
 struct sk_buff *t7xx_ctrl_alloc_skb(int payload);
+int t7xx_port_mtu(struct t7xx_port *port);
 int t7xx_port_enqueue_skb(struct t7xx_port *port, struct sk_buff *skb);
 int t7xx_port_send_skb(struct t7xx_port *port, struct sk_buff *skb, unsigned int pkt_header,
 		       unsigned int ex_msg);
