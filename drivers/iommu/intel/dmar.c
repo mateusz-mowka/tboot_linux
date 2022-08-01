@@ -72,7 +72,7 @@ extern int (*svoskern_svfs_callback_vtd_fault_handler)(u64, void *);
 #endif
 int svos_override_ecap_smts_flag = 0;
 int svos_qi_size = -1;
-int svos_qi_descriptor_count = DEF_QI_LENGTH;
+int svos_qi_descriptor_count = QI_LENGTH;
 
 /*
  * Set smts override flag if disable_smts argument present in kernel
