@@ -847,6 +847,9 @@ static __init void __check_quirks_intel(void)
 	case INTEL_FAM6_BROADWELL_X:
 		intel_rdt_mbm_apply_quirk();
 		break;
+	case INTEL_FAM6_GRANITERAPIDS_X:
+		intel_check_mba4();
+		break;
 	}
 }
 
