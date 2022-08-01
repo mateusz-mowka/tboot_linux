@@ -47,6 +47,17 @@ config PINCTRL_MERRIFIELD
 	  interface that allows configuring of SoC pins and using them as
 	  GPIOs.
 
+config PINCTRL_MOOREFIELD
+	tristate "Intel Moorefield pinctrl driver"
+	depends on X86_INTEL_MID
+	select PINMUX
+	select PINCONF
+	select GENERIC_PINCONF
+	help
+	  Moorefield Family-Level Interface Shim (FLIS) driver provides an
+	  interface that allows configuring of SoC pins and using them as
+	  GPIOs.
+
 config PINCTRL_INTEL
 	tristate
 	select PINMUX
@@ -54,6 +65,14 @@ config PINCTRL_INTEL
 	select GENERIC_PINCONF
 	select GPIOLIB
 	select GPIOLIB_IRQCHIP
+
+config PINCTRL_INTEL_PLATFORM
+	tristate "Intel pinctrl and GPIO platform driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel PCH pins and using them as GPIOs.
 
 config PINCTRL_ALDERLAKE
 	tristate "Intel Alder Lake pinctrl and GPIO driver"
@@ -150,6 +169,23 @@ config PINCTRL_LEWISBURG
 	help
 	  This pinctrl driver provides an interface that allows configuring
 	  of Intel Lewisburg pins and using them as GPIOs.
+
+config PINCTRL_METEORLAKE
+	tristate "Intel Meteor Lake pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel Meteor Lake pins and using them as GPIOs.
+
+config PINCTRL_METEORPOINT
+	tristate "Intel Meteor Point pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  Meteor Point is the PCH of Intel Meteor Lake. This pinctrl driver
+	  provides an interface that allows configuring of PCH pins and
+	  using them as GPIOs.
 
 config PINCTRL_SUNRISEPOINT
 	tristate "Intel Sunrisepoint pinctrl and GPIO driver"

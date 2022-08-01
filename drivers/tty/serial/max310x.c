@@ -1027,7 +1027,7 @@ static void max310x_rs_proc(struct work_struct *ws)
 }
 
 static int max310x_rs485_config(struct uart_port *port,
-				struct serial_rs485 *rs485)
+				struct serial_rs485 *rs485, struct ktermios *termios)
 {
 	struct max310x_one *one = to_max310x_port(port);
 
@@ -1035,8 +1035,6 @@ static int max310x_rs485_config(struct uart_port *port,
 	    (rs485->delay_rts_after_send > 0x0f))
 		return -ERANGE;
 
-	rs485->flags &= SER_RS485_RTS_ON_SEND | SER_RS485_RX_DURING_TX |
-			SER_RS485_ENABLED;
 	port->rs485 = *rs485;
 
 	schedule_work(&one->rs_work);
@@ -1249,6 +1247,12 @@ static int max310x_gpio_set_config(struct gpio_chip *chip, unsigned int offset,
 }
 #endif
 
+static const struct serial_rs485 max310x_rs485_supported = {
+	.flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND | SER_RS485_RX_DURING_TX,
+	.delay_rts_before_send = 1,
+	.delay_rts_after_send = 1,
+};
+
 static int max310x_probe(struct device *dev, const struct max310x_devtype *devtype,
 			 struct regmap *regmap, int irq)
 {
@@ -1357,6 +1361,7 @@ static int max310x_probe(struct device *dev, const struct max310x_devtype *devty
 		s->p[i].port.membase	= (void __iomem *)~0;
 		s->p[i].port.uartclk	= uartclk;
 		s->p[i].port.rs485_config = max310x_rs485_config;
+		s->p[i].port.rs485_supported = &max310x_rs485_supported;
 		s->p[i].port.ops	= &max310x_ops;
 		/* Disable all interrupts */
 		max310x_port_write(&s->p[i].port, MAX310X_IRQEN_REG, 0);

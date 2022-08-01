@@ -24,17 +24,12 @@ struct device;
 
 /**
  * struct intel_pingroup - Description about group of pins
- * @name: Name of the groups
- * @pins: All pins in this group
- * @npins: Number of pins in this groups
- * @mode: Native mode in which the group is muxed out @pins. Used if @modes
- *        is %NULL.
+ * @grp: Generic data of the pin group (name and pins)
+ * @mode: Native mode in which the group is muxed out @pins. Used if @modes is %NULL.
  * @modes: If not %NULL this will hold mode for each pin in @pins
  */
 struct intel_pingroup {
-	const char *name;
-	const unsigned int *pins;
-	size_t npins;
+	struct pingroup grp;
 	unsigned short mode;
 	const unsigned int *modes;
 };
@@ -51,11 +46,13 @@ struct intel_function {
 	size_t ngroups;
 };
 
+#define INTEL_PINCTRL_MAX_GPP_SIZE	32
+
 /**
  * struct intel_padgroup - Hardware pad group information
  * @reg_num: GPI_IS register number
  * @base: Starting pin of this group
- * @size: Size of this group (maximum is 32).
+ * @size: Size of this group (maximum is %INTEL_PINCTRL_MAX_GPP_SIZE).
  * @gpio_base: Starting GPIO base of this group
  * @padown_num: PAD_OWN register number (assigned by the core driver)
  *
@@ -156,15 +153,11 @@ struct intel_community {
  *     a single integer or an array of integers in which case mode is per
  *     pin.
  */
-#define PIN_GROUP(n, p, m)					\
-	{							\
-		.name = (n),					\
-		.pins = (p),					\
-		.npins = ARRAY_SIZE((p)),			\
-		.mode = __builtin_choose_expr(			\
-			__builtin_constant_p((m)), (m), 0),	\
-		.modes = __builtin_choose_expr(			\
-			__builtin_constant_p((m)), NULL, (m)),	\
+#define PIN_GROUP(n, p, m)								\
+	{										\
+		.grp = PINCTRL_PINGROUP((n), (p), ARRAY_SIZE((p))),			\
+		.mode = __builtin_choose_expr(__builtin_constant_p((m)), (m), 0),	\
+		.modes = __builtin_choose_expr(__builtin_constant_p((m)), NULL, (m)),	\
 	}
 
 #define FUNCTION(n, g)				\
@@ -241,6 +234,9 @@ struct intel_pinctrl {
 	struct intel_pinctrl_context context;
 	int irq;
 };
+
+int intel_pinctrl_probe(struct platform_device *pdev,
+			const struct intel_pinctrl_soc_data *soc_data);
 
 int intel_pinctrl_probe_by_hid(struct platform_device *pdev);
 int intel_pinctrl_probe_by_uid(struct platform_device *pdev);

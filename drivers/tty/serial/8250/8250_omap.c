@@ -1115,8 +1115,8 @@ static bool handle_rx_dma(struct uart_8250_port *up, unsigned int iir)
 	return omap_8250_rx_dma(up);
 }
 
-static unsigned char omap_8250_handle_rx_dma(struct uart_8250_port *up,
-					     u8 iir, unsigned char status)
+static unsigned int omap_8250_handle_rx_dma(struct uart_8250_port *up,
+					    u8 iir, unsigned int status)
 {
 	if ((status & (UART_LSR_DR | UART_LSR_BI)) &&
 	    (iir & UART_IIR_RDI)) {
@@ -1130,7 +1130,7 @@ static unsigned char omap_8250_handle_rx_dma(struct uart_8250_port *up,
 }
 
 static void am654_8250_handle_rx_dma(struct uart_8250_port *up, u8 iir,
-				     unsigned char status)
+				     unsigned int status)
 {
 	/*
 	 * Queue a new transfer if FIFO has data.
@@ -1164,7 +1164,7 @@ static int omap_8250_dma_handle_irq(struct uart_port *port)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
 	struct omap8250_priv *priv = up->port.private_data;
-	unsigned char status;
+	unsigned int status;
 	u8 iir;
 
 	serial8250_rpm_get(up);
