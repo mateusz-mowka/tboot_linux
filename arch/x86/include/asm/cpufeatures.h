@@ -13,7 +13,7 @@
 /*
  * Defines x86 CPU feature bits
  */
-#define NCAPINTS			20	   /* N 32-bit words worth of info */
+#define NCAPINTS			21	   /* N 32-bit words worth of info */
 #define NBUGINTS			1	   /* N 32-bit bug flags */
 
 /*
@@ -312,8 +312,10 @@
 #define X86_FEATURE_AVX_VNNI		(12*32+ 4) /* AVX VNNI instructions */
 #define X86_FEATURE_AVX512_BF16		(12*32+ 5) /* AVX512 BFLOAT16 instructions */
 #define X86_FEATURE_LASS		(12*32+ 6) /* Linear address space separation */
+#define X86_FEATURE_CMPCCXADD           (12*32+ 7) /* CMPCCXADD instructions */
 #define X86_FEATURE_ARCH_PERFMON_EXT	(12*32+ 8) /* "" Intel Architectural PerfMon Extension */
 #define X86_FEATURE_AMX_FP16		(12*32+21) /* AMX fp16 Support */
+#define X86_FEATURE_AVX_IFMA            (12*32+23) /* Support for VPMADD52[H,L]UQ */
 
 /* AMD-defined CPU features, CPUID level 0x80000008 (EBX), word 13 */
 #define X86_FEATURE_CLZERO		(13*32+ 0) /* CLZERO instruction */
@@ -428,6 +430,11 @@
 #define X86_FEATURE_SEV_ES		(19*32+ 3) /* AMD Secure Encrypted Virtualization - Encrypted State */
 #define X86_FEATURE_V_TSC_AUX		(19*32+ 9) /* "" Virtual TSC_AUX */
 #define X86_FEATURE_SME_COHERENT	(19*32+10) /* "" AMD hardware-enforced cache coherency */
+
+/* Intel-defined CPU features, CPUID level 0x00000007:1 (EDX), word 20 */
+#define X86_FEATURE_AVX_VNNI_INT8       (20*32+ 4) /* Support for VPDPB[SU,UU,SS]D[,S] */
+#define X86_FEATURE_AVX_NE_CONVERT      (20*32+ 5) /* AVX NE CONVERT Instructions */
+#define X86_FEATURE_PREFETCHIT_0_1      (20*32+14) /* PREFETCHh instructions */
 
 /*
  * BUG word(s)
