@@ -1,0 +1,52 @@
+INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
+------------------------------------------------------------------------
+README.intel.sgx:
+
+* Add support for SGX2, also referred to as Enclave Dynamic Memory Management (EDMM).
+* Platforms affected: ICX, SPR, and more.
+
+README.intel.svos:
+
+================
+SVOS
+================
+
+Intel SVOS kernel extensions.  Extensions to the Intel Next kernel used for
+silicon validation.  Intel Next + SVOS extensions = svos-next.
+
+All of the SVOS extensions are demarcated with CONFIG_SVOS, which is disabled by
+default.  The SVOS extensions are intended to be used only in the kernels
+included in the SVOS distros.
+
+SVOS (System Validation Operating System) is Intel's OS foundation for silicon
+validation test software. SVOS consists of a modified kernel (included here)
+plus (not included) a logical filesystem (svfs), IP validation drivers,
+libraries and test applications that work together to expose registers,
+allocate system resources, program test devices and perform highly concurrent
+system-harassing test cases.
+
+http://goto/svos
+
+Classification: Intel Confidential.  SVOS is for Intel internal use only.
+
+================
+
+README.intel_th:
+
+# Intel Trace Hub
+# Contains support for Granite Rapids, Meteor Lake, Raptor Lake.
+# Classification: IC
+# SDL contact: Kai Svahn <kai.svahn@intel.com>
+# IP owner: Marcus Winston <marcus.winston@intel.com>
+# Maintained by Alexander Shishkin <alexander.shishkin@linux.intel.com>
+# Authorized use contact: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+# Config options: CONFIG_STM*=m CONFIG_INTEL_TH*=m
+# Supplementary tool: https://git-amr-1.devtools.intel.com/gerrit/gitweb?p=linux-npk-npktool.git;tflink=projects.linux-npk/scm.npktool
+# Intel-Next branch: intel_th-for-intel-next
+# Public subset: intel_th-pub
+# Fixes subset: intel_th-fixes
+
+
+
+------------------------------------------------------------------------
+Intel Next Maintainers <intel-next-maintainers@eclists.intel.com>
