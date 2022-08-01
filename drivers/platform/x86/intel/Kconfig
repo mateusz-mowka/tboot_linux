@@ -161,6 +161,8 @@ config INTEL_SDSI
 	tristate "Intel Software Defined Silicon Driver"
 	depends on INTEL_VSEC
 	depends on X86_64
+	select SPDM
+	select SPDM_GENETLINK
 	help
 	  This driver enables access to the Intel Software Defined Silicon
 	  interface used to provision silicon features with an authentication

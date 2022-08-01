@@ -743,3 +743,6 @@ config ASN1_ENCODER
 
 config POLYNOMIAL
        tristate
+
+config SPDM
+       tristate

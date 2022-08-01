@@ -2,13 +2,15 @@
 #ifndef _INTEL_PMT_CLASS_H
 #define _INTEL_PMT_CLASS_H
 
-#include <linux/xarray.h>
-#include <linux/types.h>
 #include <linux/bits.h>
 #include <linux/err.h>
+#include <linux/intel_vsec.h>
 #include <linux/io.h>
+#include <linux/ioport.h>
+#include <linux/types.h>
+#include <linux/xarray.h>
 
-#include "../vsec.h"
+#include "telemetry.h"
 
 /* PMT access types */
 #define ACCESS_BARID		2
@@ -18,15 +20,16 @@
 #define GET_BIR(v)		((v) & GENMASK(2, 0))
 #define GET_ADDRESS(v)		((v) & GENMASK(31, 3))
 
-struct intel_pmt_entry {
-	struct bin_attribute	pmt_bin_attr;
-	struct kobject		*kobj;
-	void __iomem		*disc_table;
+struct pci_dev;
+
+struct telem_endpoint {
+	struct pci_dev		*parent;
+	struct telem_header	header;
+	struct device		*dev;
 	void __iomem		*base;
-	unsigned long		base_addr;
-	size_t			size;
-	u32			guid;
-	int			devid;
+	struct resource		res;
+	bool			present;
+	struct kref		kref;
 };
 
 struct intel_pmt_header {
@@ -34,6 +37,20 @@ struct intel_pmt_header {
 	u32	size;
 	u32	guid;
 	u8	access_type;
+};
+
+struct intel_pmt_entry {
+	struct telem_endpoint	*ep;
+	struct intel_pmt_header	header;
+	struct bin_attribute	pmt_bin_attr;
+	struct kobject		*kobj;
+	struct pci_dev		*pdev;
+	void __iomem		*disc_table;
+	void __iomem		*base;
+	unsigned long		base_addr;
+	size_t			size;
+	u32			guid;
+	int			devid;
 };
 
 struct intel_pmt_namespace {

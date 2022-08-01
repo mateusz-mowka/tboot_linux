@@ -9,36 +9,28 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/intel_vsec.h>
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/pci.h>
+#include <linux/pm_runtime.h>
 
-#include "../vsec.h"
 #include "class.h"
 
-#define PMT_XA_START		0
+#define PMT_XA_START		1
 #define PMT_XA_MAX		INT_MAX
 #define PMT_XA_LIMIT		XA_LIMIT(PMT_XA_START, PMT_XA_MAX)
 
-/*
- * Early implementations of PMT on client platforms have some
- * differences from the server platforms (which use the Out Of Band
- * Management Services Module OOBMSM). This list tracks those
- * platforms as needed to handle those differences. Newer client
- * platforms are expected to be fully compatible with server.
- */
-static const struct pci_device_id pmt_telem_early_client_pci_ids[] = {
-	{ PCI_VDEVICE(INTEL, 0x467d) }, /* ADL */
-	{ PCI_VDEVICE(INTEL, 0x490e) }, /* DG1 */
-	{ PCI_VDEVICE(INTEL, 0x9a0d) }, /* TGL */
-	{ }
-};
-
 bool intel_pmt_is_early_client_hw(struct device *dev)
 {
-	struct pci_dev *parent = to_pci_dev(dev->parent);
+	struct intel_vsec_device *ivdev = dev_to_ivdev(dev);
 
-	return !!pci_match_id(pmt_telem_early_client_pci_ids, parent);
+	/*
+	 * Early implementations of PMT on client platforms have some
+	 * differences from the server platforms (which use the Out Of Band
+	 * Management Services Module OOBMSM).
+	 */
+	return !!(ivdev->info->quirks & VSEC_QUIRK_EARLY_HW);
 }
 EXPORT_SYMBOL_GPL(intel_pmt_is_early_client_hw);
 
@@ -63,7 +55,10 @@ intel_pmt_read(struct file *filp, struct kobject *kobj,
 	if (count > entry->size - off)
 		count = entry->size - off;
 
+	pm_runtime_get_sync(&entry->pdev->dev);
 	memcpy_fromio(buf, entry->base + off, count);
+	pm_runtime_mark_last_busy(&entry->pdev->dev);
+	pm_runtime_put_autosuspend(&entry->pdev->dev);
 
 	return count;
 }
@@ -94,6 +89,9 @@ intel_pmt_mmap(struct file *filp, struct kobject *kobj,
 	if (io_remap_pfn_range(vma, vma->vm_start, pfn,
 		vsize, vma->vm_page_prot))
 		return -EAGAIN;
+
+	pm_runtime_get_sync(&entry->pdev->dev);
+	pm_runtime_forbid(&entry->pdev->dev);
 
 	return 0;
 }
@@ -194,6 +192,7 @@ static int intel_pmt_populate_entry(struct intel_pmt_entry *entry,
 				return -EINVAL;
 		}
 
+		dev_dbg(dev, "LOCAL base address 0x%lx\b", entry->base_addr);
 		break;
 	case ACCESS_BARID:
 		/*
@@ -203,6 +202,8 @@ static int intel_pmt_populate_entry(struct intel_pmt_entry *entry,
 		 */
 		entry->base_addr = pci_resource_start(pci_dev, bir) +
 				   GET_ADDRESS(header->base_offset);
+
+		dev_dbg(dev, "BARID base address 0x%lx\b", entry->base_addr);
 		break;
 	default:
 		dev_err(dev, "Unsupported access type %d\n",
@@ -228,6 +229,8 @@ static int intel_pmt_dev_register(struct intel_pmt_entry *entry,
 	if (ret)
 		return ret;
 
+	dev_dbg(parent, "%s: Create %s%d\n", __func__, ns->name, entry->devid);
+
 	dev = device_create(&intel_pmt_class, parent, MKDEV(0, 0), entry,
 			    "%s%d", ns->name, entry->devid);
 
@@ -239,6 +242,7 @@ static int intel_pmt_dev_register(struct intel_pmt_entry *entry,
 	}
 
 	entry->kobj = &dev->kobj;
+	entry->pdev = to_pci_dev(parent->parent);
 
 	if (ns->attr_grp) {
 		ret = sysfs_create_group(entry->kobj, ns->attr_grp);
@@ -253,6 +257,9 @@ static int intel_pmt_dev_register(struct intel_pmt_entry *entry,
 	res.start = entry->base_addr;
 	res.end = res.start + entry->size - 1;
 	res.flags = IORESOURCE_MEM;
+	res.name = NULL;
+
+	dev_dbg(parent, "%s: Mapping resource %pr\n", __func__, &res);
 
 	entry->base = devm_ioremap_resource(dev, &res);
 	if (IS_ERR(entry->base)) {
@@ -260,6 +267,7 @@ static int intel_pmt_dev_register(struct intel_pmt_entry *entry,
 		goto fail_ioremap;
 	}
 
+	dev_dbg(parent, "%s: Base mapped to %px\n", __func__, entry->base);
 	sysfs_bin_attr_init(&entry->pmt_bin_attr);
 	entry->pmt_bin_attr.attr.name = ns->name;
 	entry->pmt_bin_attr.attr.mode = 0440;
