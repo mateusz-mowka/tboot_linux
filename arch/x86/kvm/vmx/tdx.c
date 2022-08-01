@@ -740,10 +740,7 @@ int tdx_vm_init(struct kvm *kvm)
 	kvm_mmu_set_mmio_spte_mask(kvm, 0, VMX_EPT_RWX_MASK, 0);
 
 	/* TODO: test 1GB support and remove tdp_max_page_level */
-	if (kvm_tdx->attributes & TDX_TD_ATTRIBUTE_MIG)
-		kvm->arch.tdp_max_page_level = PG_LEVEL_4K;
-	else
-		kvm->arch.tdp_max_page_level = PG_LEVEL_2M;
+	kvm->arch.tdp_max_page_level = PG_LEVEL_2M;
 	/* vCPUs can't be created until after KVM_TDX_INIT_VM. */
 	kvm->max_vcpus = 0;
 
@@ -3888,6 +3885,10 @@ static int setup_tdparams(struct kvm *kvm, struct td_params *td_params,
 	MEMCPY_SAME_SIZE(td_params->mrconfigid, init_vm->mrconfigid);
 	MEMCPY_SAME_SIZE(td_params->mrowner, init_vm->mrowner);
 	MEMCPY_SAME_SIZE(td_params->mrownerconfig, init_vm->mrownerconfig);
+
+	/* TD guest with migration support doesn't support large page yet */
+	if (td_params->attributes & TDX_TD_ATTRIBUTE_MIG)
+		kvm->arch.tdp_max_page_level = PG_LEVEL_4K;
 
 	return 0;
 }
