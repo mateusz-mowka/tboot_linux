@@ -803,6 +803,25 @@ static int pci_pm_suspend(struct device *dev)
 		pci_dev_adjust_pme(pci_dev);
 	}
 
+	/*
+	 * PTM must be disabled for all PCI devices and not be limited to PCIe
+	 * root ports only because as per PCIe specification 6.21.3, On
+	 * receiving a PTM Request from a downstream device, if PTM is disabled
+	 * on the root port, such a request would cause an Unsupported Request
+	 * error.
+	 *
+	 * Also, it needs to be done before invoking the suspend() callback for
+	 * the given device, because that callback can put the device into a
+	 * low-power state, which need not be done using the standard PCI power
+	 * management, and the configuration space of the device should not be
+	 * accessed by the generic bus type code after that.
+	 *
+	 * To restore the PTM state, save the state before disabling it for all
+	 * devices.
+	 */
+	pci_save_ptm_state(pci_dev);
+	pci_disable_ptm(pci_dev);
+
 	if (pm->suspend) {
 		pci_power_t prev = pci_dev->current_state;
 		int error;
@@ -867,20 +886,14 @@ static int pci_pm_suspend_noirq(struct device *dev)
 		}
 	}
 
-	if (pci_dev->skip_bus_pm) {
-		/*
-		 * Either the device is a bridge with a child in D0 below it, or
-		 * the function is running for the second time in a row without
-		 * going through full resume, which is possible only during
-		 * suspend-to-idle in a spurious wakeup case.  The device should
-		 * be in D0 at this point, but if it is a bridge, it may be
-		 * necessary to save its state.
-		 */
-		if (!pci_dev->state_saved)
-			pci_save_state(pci_dev);
-	} else if (!pci_dev->state_saved) {
+	if (!pci_dev->state_saved) {
 		pci_save_state(pci_dev);
-		if (pci_power_manageable(pci_dev))
+		/*
+		 * If the device is a bridge with a child in D0 below it, it needs to
+		 * stay in D0, so check skip_bus_pm to avoid putting it into a
+		 * low-power state in that case.
+		 */
+		if (!pci_dev->skip_bus_pm && pci_power_manageable(pci_dev))
 			pci_prepare_to_sleep(pci_dev);
 	}
 

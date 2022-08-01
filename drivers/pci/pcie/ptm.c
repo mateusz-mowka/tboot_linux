@@ -34,6 +34,9 @@ void pci_disable_ptm(struct pci_dev *dev)
 	int ptm;
 	u16 ctrl;
 
+	if (!dev->ptm_enabled)
+		return;
+
 	if (!pci_is_pcie(dev))
 		return;
 
@@ -44,6 +47,7 @@ void pci_disable_ptm(struct pci_dev *dev)
 	pci_read_config_word(dev, ptm + PCI_PTM_CTRL, &ctrl);
 	ctrl &= ~(PCI_PTM_CTRL_ENABLE | PCI_PTM_CTRL_ROOT);
 	pci_write_config_word(dev, ptm + PCI_PTM_CTRL, ctrl);
+	dev->ptm_enabled = 0;
 }
 
 void pci_save_ptm_state(struct pci_dev *dev)
@@ -63,8 +67,16 @@ void pci_save_ptm_state(struct pci_dev *dev)
 	if (!save_state)
 		return;
 
-	cap = (u16 *)&save_state->cap.data[0];
-	pci_read_config_word(dev, ptm + PCI_PTM_CTRL, cap);
+	/*
+	 * PCI PM core disables PTM during suspend and saves PTM state before
+	 * that to be able to restore it later. So here dev->ptm_state_saved
+	 * check is needed to avoid double save.
+	 */
+	if (!dev->ptm_state_saved) {
+		cap = (u16 *)&save_state->cap.data[0];
+		pci_read_config_word(dev, ptm + PCI_PTM_CTRL, cap);
+		dev->ptm_state_saved = 1;
+	}
 }
 
 void pci_restore_ptm_state(struct pci_dev *dev)
@@ -83,6 +95,8 @@ void pci_restore_ptm_state(struct pci_dev *dev)
 
 	cap = (u16 *)&save_state->cap.data[0];
 	pci_write_config_word(dev, ptm + PCI_PTM_CTRL, *cap);
+	dev->ptm_enabled = !!(*cap & PCI_PTM_CTRL_ENABLE);
+	dev->ptm_state_saved = 0;
 }
 
 void pci_ptm_init(struct pci_dev *dev)
