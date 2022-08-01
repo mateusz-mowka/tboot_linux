@@ -638,7 +638,14 @@ static bool is_valid_passthrough_msr(u32 msr)
 	case MSR_LBR_NHM_TO ... MSR_LBR_NHM_TO + 31:
 	case MSR_LBR_CORE_FROM ... MSR_LBR_CORE_FROM + 8:
 	case MSR_LBR_CORE_TO ... MSR_LBR_CORE_TO + 8:
+	case MSR_ARCH_LBR_FROM_0 ... MSR_ARCH_LBR_FROM_0 + 31:
+	case MSR_ARCH_LBR_TO_0 ... MSR_ARCH_LBR_TO_0 + 31:
+	case MSR_ARCH_LBR_INFO_0 ... MSR_ARCH_LBR_INFO_0 + 31:
 		/* LBR MSRs. These are handled in vmx_update_intercept_for_lbr_msrs() */
+		return true;
+	case MSR_IA32_U_CET:
+	case MSR_IA32_PL3_SSP:
+	case MSR_IA32_S_CET:
 		return true;
 	}
 
@@ -1675,6 +1682,20 @@ static void vmx_clear_hlt(struct kvm_vcpu *vcpu)
 		vmcs_write32(GUEST_ACTIVITY_STATE, GUEST_ACTIVITY_ACTIVE);
 }
 
+static void disable_arch_lbr_ctl(struct kvm_vcpu *vcpu)
+{
+	struct lbr_desc *lbr_desc = vcpu_to_lbr_desc(vcpu);
+	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
+
+	if (kvm_cpu_cap_has(X86_FEATURE_ARCH_LBR) &&
+	    test_bit(INTEL_PMC_IDX_FIXED_VLBR, pmu->pmc_in_use) &&
+	    lbr_desc->event) {
+		u64 ctl = vmcs_read64(GUEST_IA32_LBR_CTL);
+
+		vmcs_write64(GUEST_IA32_LBR_CTL, ctl & ~ARCH_LBR_CTL_LBREN);
+	}
+}
+
 void vmx_queue_exception(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
@@ -1710,6 +1731,9 @@ void vmx_queue_exception(struct kvm_vcpu *vcpu)
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, intr_info);
 
 	vmx_clear_hlt(vcpu);
+
+	if (nr == DB_VECTOR)
+		disable_arch_lbr_ctl(vcpu);
 }
 
 static void vmx_setup_uret_msr(struct vcpu_vmx *vmx, unsigned int msr,
@@ -1830,6 +1854,32 @@ int vmx_get_msr_feature(struct kvm_msr_entry *msr)
 	default:
 		return KVM_MSR_RET_INVALID;
 	}
+}
+
+static bool cet_is_msr_accessible(struct kvm_vcpu *vcpu,
+				  struct msr_data *msr)
+{
+	if (!kvm_cet_user_supported() &&
+	    !cet_kernel_ibt_supported())
+		return false;
+
+	if (msr->host_initiated)
+		return true;
+
+	if (!guest_cpuid_has(vcpu, X86_FEATURE_SHSTK) &&
+	    !guest_cpuid_has(vcpu, X86_FEATURE_IBT))
+		return false;
+
+	if (msr->index == MSR_IA32_S_CET &&
+	    guest_cpuid_has(vcpu, X86_FEATURE_IBT))
+		return true;
+
+	if ((msr->index == MSR_IA32_PL3_SSP ||
+	     msr->index == MSR_KVM_GUEST_SSP) &&
+	    !guest_cpuid_has(vcpu, X86_FEATURE_SHSTK))
+		return false;
+
+	return true;
 }
 
 /*
@@ -1971,6 +2021,19 @@ int vmx_get_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		else
 			msr_info->data = vmx->pt_desc.guest.addr_a[index / 2];
 		break;
+	case MSR_IA32_U_CET:
+	case MSR_IA32_PL3_SSP:
+	case MSR_KVM_GUEST_SSP:
+	case MSR_IA32_S_CET:
+		if (!cet_is_msr_accessible(vcpu, msr_info))
+			return 1;
+		if (msr_info->index == MSR_KVM_GUEST_SSP)
+			msr_info->data = vmcs_readl(GUEST_SSP);
+		else if (msr_info->index == MSR_IA32_S_CET)
+			msr_info->data = vmcs_readl(GUEST_S_CET);
+		else
+			kvm_get_xsave_msr(msr_info);
+		break;
 	case MSR_IA32_DEBUGCTLMSR:
 		msr_info->data = vmcs_read64(GUEST_IA32_DEBUGCTL);
 		break;
@@ -2094,6 +2157,13 @@ int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		if (is_guest_mode(vcpu) && get_vmcs12(vcpu)->vm_exit_controls &
 						VM_EXIT_SAVE_DEBUG_CONTROLS)
 			get_vmcs12(vcpu)->guest_ia32_debugctl = data;
+
+		/*
+		 * For Arch LBR, IA32_DEBUGCTL[bit 0] has no meaning.
+		 * It can be written to 0 or 1, but reads will always return 0.
+		 */
+		if (guest_cpuid_has(vcpu, X86_FEATURE_ARCH_LBR))
+			data &= ~DEBUGCTLMSR_LBR;
 
 		vmcs_write64(GUEST_IA32_DEBUGCTL, data);
 		if (intel_pmu_lbr_is_enabled(vcpu) && !to_vmx(vcpu)->lbr_desc.event &&
@@ -2302,6 +2372,30 @@ int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 			vmx->pt_desc.guest.addr_b[index / 2] = data;
 		else
 			vmx->pt_desc.guest.addr_a[index / 2] = data;
+		break;
+	case MSR_IA32_U_CET:
+	case MSR_IA32_S_CET:
+		if (!cet_is_msr_accessible(vcpu, msr_info))
+			return 1;
+		if ((data & GENMASK(9, 6)) ||
+		    is_noncanonical_address(data, vcpu))
+			return 1;
+		if (msr_index == MSR_IA32_S_CET)
+			vmcs_writel(GUEST_S_CET, data);
+		else
+			kvm_set_xsave_msr(msr_info);
+		break;
+	case MSR_IA32_PL3_SSP:
+	case MSR_KVM_GUEST_SSP:
+		if (!cet_is_msr_accessible(vcpu, msr_info))
+			return 1;
+		if ((data & GENMASK(2, 0)) ||
+		    is_noncanonical_address(data, vcpu))
+			return 1;
+		if (msr_index == MSR_KVM_GUEST_SSP)
+			vmcs_writel(GUEST_SSP, data);
+		else
+			kvm_set_xsave_msr(msr_info);
 		break;
 	case MSR_IA32_PERF_CAPABILITIES:
 		if (data && !vcpu_to_pmu(vcpu)->version)
@@ -2664,7 +2758,9 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 	      VM_EXIT_LOAD_IA32_EFER |
 	      VM_EXIT_CLEAR_BNDCFGS |
 	      VM_EXIT_PT_CONCEAL_PIP |
-	      VM_EXIT_CLEAR_IA32_RTIT_CTL;
+	      VM_EXIT_CLEAR_IA32_RTIT_CTL |
+	      VM_EXIT_CLEAR_IA32_LBR_CTL |
+	      VM_EXIT_LOAD_CET_STATE;
 	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_EXIT_CTLS,
 				&_vmexit_control) < 0)
 		return -EIO;
@@ -2688,7 +2784,9 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 	      VM_ENTRY_LOAD_IA32_EFER |
 	      VM_ENTRY_LOAD_BNDCFGS |
 	      VM_ENTRY_PT_CONCEAL_PIP |
-	      VM_ENTRY_LOAD_IA32_RTIT_CTL;
+	      VM_ENTRY_LOAD_IA32_RTIT_CTL |
+	      VM_ENTRY_LOAD_IA32_LBR_CTL |
+	      VM_ENTRY_LOAD_CET_STATE;
 	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_ENTRY_CTLS,
 				&_vmentry_control) < 0)
 		return -EIO;
@@ -2732,7 +2830,6 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 			break;
 		}
 	}
-
 
 	rdmsr(MSR_IA32_VMX_BASIC, vmx_msr_low, vmx_msr_high);
 
@@ -4746,6 +4843,13 @@ void vmx_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)
 	vpid_sync_context(vmx->vpid);
 
 	vmx_update_fb_clear_dis(vcpu, vmx);
+
+	if (!init_event) {
+		if (static_cpu_has(X86_FEATURE_ARCH_LBR))
+			vmcs_write64(GUEST_IA32_LBR_CTL, 0);
+	} else {
+		disable_arch_lbr_ctl(vcpu);
+	}
 }
 
 void vmx_enable_irq_window(struct kvm_vcpu *vcpu)
@@ -4821,6 +4925,9 @@ void vmx_inject_nmi(struct kvm_vcpu *vcpu)
 			INTR_TYPE_NMI_INTR | INTR_INFO_VALID_MASK | NMI_VECTOR);
 
 	vmx_clear_hlt(vcpu);
+
+	if (vcpu->arch.exception.nr == DB_VECTOR)
+		disable_arch_lbr_ctl(vcpu);
 }
 
 bool vmx_get_nmi_mask(struct kvm_vcpu *vcpu)
@@ -6127,6 +6234,10 @@ void dump_vmcs(struct kvm_vcpu *vcpu)
 	    vmentry_ctl & VM_ENTRY_LOAD_IA32_PERF_GLOBAL_CTRL)
 		pr_err("PerfGlobCtl = 0x%016llx\n",
 		       vmcs_read64(GUEST_IA32_PERF_GLOBAL_CTRL));
+	if (kvm_cpu_cap_has(X86_FEATURE_ARCH_LBR) &&
+	    vmentry_ctl & VM_ENTRY_LOAD_IA32_LBR_CTL)
+		pr_err("ArchLBRCtl = 0x%016llx\n",
+		       vmcs_read64(GUEST_IA32_LBR_CTL));
 	if (vmentry_ctl & VM_ENTRY_LOAD_BNDCFGS)
 		pr_err("BndCfgS = 0x%016llx\n", vmcs_read64(GUEST_BNDCFGS));
 	pr_err("Interruptibility = %08x  ActivityState = %08x\n",
@@ -6140,6 +6251,12 @@ void dump_vmcs(struct kvm_vcpu *vcpu)
 	if (vmcs_read32(VM_EXIT_MSR_STORE_COUNT) > 0)
 		vmx_dump_msrs("guest autostore", &vmx->msr_autostore.guest);
 
+	if (vmentry_ctl & VM_ENTRY_LOAD_CET_STATE) {
+		pr_err("S_CET = 0x%016lx\n", vmcs_readl(GUEST_S_CET));
+		pr_err("SSP = 0x%016lx\n", vmcs_readl(GUEST_SSP));
+		pr_err("SSP TABLE = 0x%016lx\n",
+		       vmcs_readl(GUEST_INTR_SSP_TABLE));
+	}
 	pr_err("*** Host State ***\n");
 	pr_err("RIP = 0x%016lx  RSP = 0x%016lx\n",
 	       vmcs_readl(HOST_RIP), vmcs_readl(HOST_RSP));
@@ -6227,6 +6344,12 @@ void dump_vmcs(struct kvm_vcpu *vcpu)
 		       ve_info->exit_qualification,
 		       ve_info->guest_linear_address,
 		       ve_info->guest_physical_address, ve_info->eptp_index);
+	}
+	if (vmexit_ctl & VM_EXIT_LOAD_CET_STATE) {
+		pr_err("S_CET = 0x%016lx\n", vmcs_readl(HOST_S_CET));
+		pr_err("SSP = 0x%016lx\n", vmcs_readl(HOST_SSP));
+		pr_err("SSP TABLE = 0x%016lx\n",
+		       vmcs_readl(HOST_INTR_SSP_TABLE));
 	}
 }
 
@@ -7426,6 +7549,8 @@ static void nested_vmx_cr_fixed1_bits_update(struct kvm_vcpu *vcpu)
 	cr4_fixed1_update(X86_CR4_PKE,        ecx, feature_bit(PKU));
 	cr4_fixed1_update(X86_CR4_UMIP,       ecx, feature_bit(UMIP));
 	cr4_fixed1_update(X86_CR4_LA57,       ecx, feature_bit(LA57));
+	cr4_fixed1_update(X86_CR4_CET,	      ecx, feature_bit(SHSTK));
+	cr4_fixed1_update(X86_CR4_CET,	      edx, feature_bit(IBT));
 
 #undef cr4_fixed1_update
 }
@@ -7516,6 +7641,26 @@ static void update_intel_pt_cfg(struct kvm_vcpu *vcpu)
 		vmx->pt_desc.ctl_bitmask &= ~(0xfULL << (32 + i * 4));
 }
 
+static bool is_cet_state_supported(struct kvm_vcpu *vcpu, u32 xss_state)
+{
+	return (kvm_caps.supported_xss & xss_state) &&
+	       (guest_cpuid_has(vcpu, X86_FEATURE_SHSTK) ||
+		guest_cpuid_has(vcpu, X86_FEATURE_IBT));
+}
+
+static void vmx_update_intercept_for_cet_msr(struct kvm_vcpu *vcpu)
+{
+	bool incpt = !is_cet_state_supported(vcpu, XFEATURE_MASK_CET_USER);
+
+	vmx_set_intercept_for_msr(vcpu, MSR_IA32_U_CET, MSR_TYPE_RW, incpt);
+
+	incpt |= !guest_cpuid_has(vcpu, X86_FEATURE_SHSTK);
+	vmx_set_intercept_for_msr(vcpu, MSR_IA32_PL3_SSP, MSR_TYPE_RW, incpt);
+
+	incpt |= !guest_cpuid_has(vcpu, X86_FEATURE_IBT);
+	vmx_set_intercept_for_msr(vcpu, MSR_IA32_S_CET, MSR_TYPE_RW, incpt);
+}
+
 void vmx_vcpu_after_set_cpuid(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
@@ -7578,6 +7723,9 @@ void vmx_vcpu_after_set_cpuid(struct kvm_vcpu *vcpu)
 
 	/* Refresh #PF interception to account for MAXPHYADDR changes. */
 	vmx_update_exception_bitmap(vcpu);
+
+	if (kvm_cet_user_supported() || cet_kernel_ibt_supported())
+		vmx_update_intercept_for_cet_msr(vcpu);
 }
 
 static __init void vmx_set_cpu_caps(void)
@@ -7603,6 +7751,11 @@ static __init void vmx_set_cpu_caps(void)
 	if (!enable_pmu)
 		kvm_cpu_cap_clear(X86_FEATURE_PDCM);
 
+	if (!cpu_has_vmx_arch_lbr()) {
+		kvm_cpu_cap_clear(X86_FEATURE_ARCH_LBR);
+		kvm_caps.supported_xss &= ~XFEATURE_MASK_LBR;
+	}
+
 	if (!enable_sgx) {
 		kvm_cpu_cap_clear(X86_FEATURE_SGX);
 		kvm_cpu_cap_clear(X86_FEATURE_SGX_LC);
@@ -7614,9 +7767,10 @@ static __init void vmx_set_cpu_caps(void)
 		kvm_cpu_cap_set(X86_FEATURE_UMIP);
 
 	/* CPUID 0xD.1 */
-	kvm_caps.supported_xss = 0;
-	if (!cpu_has_vmx_xsaves())
+	if (!cpu_has_vmx_xsaves()) {
 		kvm_cpu_cap_clear(X86_FEATURE_XSAVES);
+		kvm_caps.supported_xss = 0;
+	}
 
 	/* CPUID 0x80000001 and 0x7 (RDPID) */
 	if (!cpu_has_vmx_rdtscp()) {
@@ -7626,6 +7780,23 @@ static __init void vmx_set_cpu_caps(void)
 
 	if (cpu_has_vmx_waitpkg())
 		kvm_cpu_cap_check_and_set(X86_FEATURE_WAITPKG);
+
+	if (!cpu_has_load_cet_ctrl() || !enable_unrestricted_guest) {
+		kvm_cpu_cap_clear(X86_FEATURE_SHSTK);
+		kvm_cpu_cap_clear(X86_FEATURE_IBT);
+		kvm_caps.supported_xss &= ~XFEATURE_MASK_CET_USER;
+	}
+
+#ifndef CONFIG_X86_SHADOW_STACK
+	if (boot_cpu_has(X86_FEATURE_SHSTK))
+		kvm_cpu_cap_clear(X86_FEATURE_SHSTK);
+#endif
+
+#ifndef CONFIG_X86_KERNEL_IBT
+	if (boot_cpu_has(X86_FEATURE_IBT))
+		kvm_cpu_cap_clear(X86_FEATURE_IBT);
+#endif
+
 }
 
 void vmx_request_immediate_exit(struct kvm_vcpu *vcpu)
@@ -7827,6 +7998,8 @@ int vmx_smi_allowed(struct kvm_vcpu *vcpu, bool for_injection)
 
 int vmx_enter_smm(struct kvm_vcpu *vcpu, char *smstate)
 {
+	struct lbr_desc *lbr_desc = vcpu_to_lbr_desc(vcpu);
+	struct kvm_pmu *pmu = vcpu_to_pmu(vcpu);
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 
 	vmx->nested.smm.guest_mode = is_guest_mode(vcpu);
@@ -7836,11 +8009,22 @@ int vmx_enter_smm(struct kvm_vcpu *vcpu, char *smstate)
 	vmx->nested.smm.vmxon = vmx->nested.vmxon;
 	vmx->nested.vmxon = false;
 	vmx_clear_hlt(vcpu);
+
+	if (kvm_cpu_cap_has(X86_FEATURE_ARCH_LBR) &&
+	    test_bit(INTEL_PMC_IDX_FIXED_VLBR, pmu->pmc_in_use) &&
+	    lbr_desc->event && guest_cpuid_has(vcpu, X86_FEATURE_LM)) {
+		u64 ctl = vmcs_read64(GUEST_IA32_LBR_CTL);
+
+		put_smstate(u64, smstate, 0x7f10, ctl);
+		vmcs_write64(GUEST_IA32_LBR_CTL, ctl & ~ARCH_LBR_CTL_LBREN);
+	}
+
 	return 0;
 }
 
 int vmx_leave_smm(struct kvm_vcpu *vcpu, const char *smstate)
 {
+	struct lbr_desc *lbr_desc = vcpu_to_lbr_desc(vcpu);
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	int ret;
 
@@ -7857,6 +8041,17 @@ int vmx_leave_smm(struct kvm_vcpu *vcpu, const char *smstate)
 		vmx->nested.nested_run_pending = 1;
 		vmx->nested.smm.guest_mode = false;
 	}
+
+	if (kvm_cpu_cap_has(X86_FEATURE_ARCH_LBR) &&
+	    guest_cpuid_has(vcpu, X86_FEATURE_LM)) {
+		u64 ctl = GET_SMSTATE(u64, smstate, 0x7f10);
+
+		vmcs_write64(GUEST_IA32_LBR_CTL, ctl | ARCH_LBR_CTL_LBREN);
+
+		if (intel_pmu_lbr_is_enabled(vcpu) && !lbr_desc->event)
+			intel_pmu_create_guest_lbr_event(vcpu);
+	}
+
 	return 0;
 }
 
