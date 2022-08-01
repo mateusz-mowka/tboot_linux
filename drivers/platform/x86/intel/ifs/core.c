@@ -9,31 +9,53 @@
 
 #include "ifs.h"
 
+enum test_types {
+	IFS_SAF,
+	IFS_ARRAY,
+};
+
 #define X86_MATCH(model)				\
 	X86_MATCH_VENDOR_FAM_MODEL_FEATURE(INTEL, 6,	\
 		INTEL_FAM6_##model, X86_FEATURE_CORE_CAPABILITIES, NULL)
 
 static const struct x86_cpu_id ifs_cpu_ids[] __initconst = {
 	X86_MATCH(SAPPHIRERAPIDS_X),
+	X86_MATCH(GRANITERAPIDS_X),
 	{}
 };
 MODULE_DEVICE_TABLE(x86cpu, ifs_cpu_ids);
 
-static struct ifs_device ifs_device = {
-	.data = {
-		.integrity_cap_bit = MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT,
+static struct ifs_device ifs_devices[] = {
+	[IFS_SAF] = {
+		.data = {
+			.integrity_cap_bit = MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT,
+		},
+		.misc = {
+			.name = "intel_ifs_0",
+			.nodename = "intel_ifs/0",
+			.minor = MISC_DYNAMIC_MINOR,
+		},
 	},
-	.misc = {
-		.name = "intel_ifs_0",
-		.nodename = "intel_ifs/0",
-		.minor = MISC_DYNAMIC_MINOR,
+	[IFS_ARRAY] = {
+		.data = {
+			.integrity_cap_bit = MSR_INTEGRITY_CAPS_ARRAY_BIST_BIT,
+		},
+		.misc = {
+			.name = "intel_ifs_1",
+			.nodename = "intel_ifs/1",
+			.minor = MISC_DYNAMIC_MINOR,
+		},
 	},
 };
+
+#define IFS_NUMTESTS ARRAY_SIZE(ifs_devices)
 
 static int __init ifs_init(void)
 {
 	const struct x86_cpu_id *m;
+	int ndevices = 0;
 	u64 msrval;
+	int i;
 
 	m = x86_match_cpu(ifs_cpu_ids);
 	if (!m)
@@ -48,22 +70,29 @@ static int __init ifs_init(void)
 	if (rdmsrl_safe(MSR_INTEGRITY_CAPS, &msrval))
 		return -ENODEV;
 
-	ifs_device.misc.groups = ifs_get_groups();
+	for (i = 0; i < IFS_NUMTESTS; i++) {
+		if (!(msrval & BIT(ifs_devices[i].data.integrity_cap_bit)))
+			continue;
 
-	if ((msrval & BIT(ifs_device.data.integrity_cap_bit)) &&
-	    !misc_register(&ifs_device.misc)) {
-		down(&ifs_sem);
-		ifs_load_firmware(ifs_device.misc.this_device);
-		up(&ifs_sem);
-		return 0;
+		ifs_devices[i].misc.groups = ifs_get_groups();
+		if (!misc_register(&ifs_devices[i].misc)) {
+			ndevices++;
+			down(&ifs_sem);
+			ifs_load_firmware(ifs_devices[i].misc.this_device);
+			up(&ifs_sem);
+		}
 	}
 
-	return -ENODEV;
+	return ndevices ? 0 : -ENODEV;
 }
 
 static void __exit ifs_exit(void)
 {
-	misc_deregister(&ifs_device.misc);
+	int i;
+
+	for (i = 0; i < IFS_NUMTESTS; i++)
+		if (ifs_devices[i].misc.this_device)
+			misc_deregister(&ifs_devices[i].misc);
 }
 
 module_init(ifs_init);
