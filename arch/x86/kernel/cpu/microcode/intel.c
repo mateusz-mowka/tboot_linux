@@ -110,6 +110,9 @@ static void save_microcode_patch(struct ucode_cpu_info *uci, void *data, unsigne
 	struct ucode_patch *iter, *tmp, *p = NULL;
 	bool prev_found = false;
 	unsigned int sig, pf;
+#ifdef CONFIG_SVOS
+	extern bool late_load;
+#endif
 
 	mc_hdr = (struct microcode_header_intel *)data;
 
@@ -121,6 +124,9 @@ static void save_microcode_patch(struct ucode_cpu_info *uci, void *data, unsigne
 		if (find_matching_signature(data, sig, pf)) {
 			prev_found = true;
 
+#ifdef CONFIG_SVOS
+			if (!late_load)
+#endif
 			if (!ucode_rollback && mc_hdr->rev <= mc_saved_hdr->rev)
 				continue;
 
@@ -650,8 +656,10 @@ static struct microcode_intel *find_patch(struct ucode_cpu_info *uci)
 
 		phdr = (struct microcode_header_intel *)iter->data;
 
+#ifndef CONFIG_SVOS
 		if (!ucode_rollback && phdr->rev <= uci->cpu_sig.rev)
 			continue;
+#endif
 
 		if (!find_matching_signature(phdr,
 					     uci->cpu_sig.sig,
@@ -735,11 +743,13 @@ static enum ucode_state apply_microcode_intel(int cpu)
 	 * already.
 	 */
 	rev = intel_get_microcode_revision();
-	if (!ucode_rollback && rev >= mc->hdr.rev) {
-		ret = UCODE_OK;
-		goto out;
-	} else if (ucode_rollback)
-		ret = UCODE_OK;
+#ifndef CONFIG_SVOS
+        if (!ucode_rollback && rev >= mc->hdr.rev) {
+                ret = UCODE_OK;
+                goto out;
+        } else if (ucode_rollback)
+                ret = UCODE_OK;
+#endif
 
 	/*
 	 * Writeback and invalidate caches before updating microcode to avoid
@@ -773,7 +783,9 @@ static enum ucode_state apply_microcode_intel(int cpu)
 
 	ret = UCODE_UPDATED;
 
+#ifndef CONFIG_SVOS
 out:
+#endif
 	uci->cpu_sig.rev = rev;
 	c->microcode	 = rev;
 
@@ -832,7 +844,12 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter)
 
 		csig = uci->cpu_sig.sig;
 		cpf = uci->cpu_sig.pf;
+#ifdef CONFIG_SVOS
+		// SVOS supports user microcode load without enforcing version rules
+		if (find_matching_signature(mc, csig, cpf)) {
+#else
 		if (has_newer_microcode(mc, csig, cpf, new_rev)) {
+#endif
 			vfree(new_mc);
 			new_rev = mc_header.rev;
 			new_mc  = mc;

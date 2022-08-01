@@ -93,6 +93,9 @@ struct memblock {
 	phys_addr_t current_limit;
 	struct memblock_type memory;
 	struct memblock_type reserved;
+#ifdef CONFIG_SVOS
+	struct memblock_type svos_target;
+#endif
 };
 
 extern struct memblock memblock;
@@ -114,6 +117,9 @@ int memblock_add(phys_addr_t base, phys_addr_t size);
 int memblock_remove(phys_addr_t base, phys_addr_t size);
 int memblock_phys_free(phys_addr_t base, phys_addr_t size);
 int memblock_reserve(phys_addr_t base, phys_addr_t size);
+#ifdef CONFIG_SVOS
+int memblock_svos_target(phys_addr_t base, phys_addr_t size);
+#endif
 #ifdef CONFIG_HAVE_MEMBLOCK_PHYS_MAP
 int memblock_physmem_add(phys_addr_t base, phys_addr_t size);
 #endif
@@ -344,6 +350,12 @@ int __init deferred_page_init_max_threads(const struct cpumask *node_cpumask);
 	__for_each_mem_range(i, &memblock.memory, &memblock.reserved,	\
 			     nid, flags, p_start, p_end, p_nid)
 
+#ifdef CONFIG_SVOS
+#define for_each_free_svos_target_range(i, nid, flags, p_start, p_end, p_nid)	\
+	__for_each_mem_range(i, &memblock.svos_target, &memblock.reserved,	\
+			     nid, flags, p_start, p_end, p_nid)
+#endif
+
 /**
  * for_each_free_mem_range_reverse - rev-iterate through free memblock areas
  * @i: u64 used as loop variable
@@ -487,6 +499,9 @@ bool memblock_is_map_memory(phys_addr_t addr);
 bool memblock_is_region_memory(phys_addr_t base, phys_addr_t size);
 bool memblock_is_reserved(phys_addr_t addr);
 bool memblock_is_region_reserved(phys_addr_t base, phys_addr_t size);
+#ifdef CONFIG_SVOS
+bool memblock_is_region_svos_target(phys_addr_t base, phys_addr_t size);
+#endif
 
 void memblock_dump_all(void);
 

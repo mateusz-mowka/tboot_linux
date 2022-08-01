@@ -1463,6 +1463,15 @@ SYSCALL_DEFINE3(close_range, unsigned int, fd, unsigned int, max_fd,
 	return __close_range(fd, max_fd, flags);
 }
 
+#ifdef CONFIG_SVOS
+int ksys_close_svos(unsigned int fd)
+{
+    int retval = close_fd(fd);
+    return retval;
+}
+EXPORT_SYMBOL(ksys_close_svos);
+#endif
+
 /*
  * This routine simulates a hangup on the tty, to arrange that users
  * are given clean terminals at login time.

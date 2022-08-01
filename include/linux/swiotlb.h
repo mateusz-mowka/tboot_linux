@@ -32,7 +32,12 @@ struct scatterlist;
 #define IO_TLB_SIZE (1 << IO_TLB_SHIFT)
 
 /* default to 64MB */
+#ifndef CONFIG_SVOS
 #define IO_TLB_DEFAULT_SIZE (64UL<<20)
+#else
+/* 64MB is a lot of low memory to give swiotlb on SVOS. Default to 8MB */
+#define IO_TLB_DEFAULT_SIZE (8UL<<20)
+#endif
 
 unsigned long swiotlb_size_or_default(void);
 void __init swiotlb_init_remap(bool addressing_limit, unsigned int flags,

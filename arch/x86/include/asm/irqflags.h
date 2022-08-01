@@ -15,8 +15,20 @@
  * Interrupt control:
  */
 
+/* acpreble: Turned native_save_fl extern to static due to a multiple definition
+ * error with some svkdb code. This started in 5.18. I suspect it has to do with
+ * the switch to C11 and extern inline always causing a new symbol. I couldn't
+ * find a workaround that didn't involve changing at the source. The
+ * native_save_fl function is taken as a pointer so there's some risk doing this
+ * according to https://elinux.org/Extern_Vs_Static_Inline we risk failing
+ * comparisons for that symbol doing this.
+ */
 /* Declaration required for gcc < 4.9 to prevent -Werror=missing-prototypes */
+#ifdef CONFIG_SVOS
+static inline unsigned long native_save_fl(void);
+#else
 extern inline unsigned long native_save_fl(void);
+#endif
 extern __always_inline unsigned long native_save_fl(void)
 {
 	unsigned long flags;

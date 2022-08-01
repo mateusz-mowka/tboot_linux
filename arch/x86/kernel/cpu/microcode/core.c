@@ -44,6 +44,9 @@
 
 static struct microcode_ops	*microcode_ops;
 static bool dis_ucode_ldr = true;
+#ifdef CONFIG_SVOS
+bool late_load = false;
+#endif
 bool ucode_rollback = false;
 int enable_rollback = 0;
 
@@ -547,6 +550,9 @@ static ssize_t reload_store(struct device *dev,
 		return size;
 
 	cpus_read_lock();
+#ifdef CONFIG_SVOS
+	late_load = true;
+#endif
 
 	ret = check_online_cpus();
 	if (ret)

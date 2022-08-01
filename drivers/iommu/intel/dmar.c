@@ -65,6 +65,41 @@ static unsigned long dmar_seq_ids[BITS_TO_LONGS(DMAR_UNITS_SUPPORTED)];
 static int alloc_iommu(struct dmar_drhd_unit *drhd);
 static void free_iommu(struct intel_iommu *iommu);
 
+#ifdef CONFIG_SVOS
+#ifdef CONFIG_X86
+extern int (*svoskern_svfs_callback_vtd_submit_sync)(u64, void *);
+extern int (*svoskern_svfs_callback_vtd_fault_handler)(u64, void *);
+#endif
+int svos_override_ecap_smts_flag = 0;
+int svos_qi_size = -1;
+int svos_qi_descriptor_count = DEF_QI_LENGTH;
+
+/*
+ * Set smts override flag if disable_smts argument present in kernel
+ * command line.
+ */
+static int __init svos_set_override_ecap_smts_flag(char *str)
+{
+	svos_override_ecap_smts_flag = 1;
+	return 1;
+}
+__setup("disable_smts", svos_set_override_ecap_smts_flag);
+
+/*
+ * Set the invalidation queue size.  The size value ranges 0 - 7,
+ * specifying from 2^0 - 2^7 4K pages.
+ */
+static int __init svos_set_qi_size(char *str)
+{
+	if ((str && !*(str+1)) && (*str >= '0') && (*str < '8')) {
+		svos_qi_size = *str - '0';
+		return 1;
+	}
+	return 0;
+}
+__setup("iommu_invque_size=", svos_set_qi_size);
+#endif
+
 static void dmar_register_drhd_unit(struct dmar_drhd_unit *drhd)
 {
 	/*
@@ -991,6 +1026,12 @@ static int map_iommu(struct intel_iommu *iommu, u64 phys_addr)
 	if (ecap_vcs(iommu->ecap))
 		iommu->vccap = dmar_readq(iommu->reg + DMAR_VCCAP_REG);
 
+#ifdef CONFIG_SVOS
+	if (svos_override_ecap_smts_flag && ecap_smts(iommu->ecap)) {
+		iommu->ecap &= ~(1ULL << 43);
+	}
+#endif
+
 	/* the registers might be more than one page */
 	map_size = max_t(int, ecap_max_iotlb_offset(iommu->ecap),
 			 cap_max_fault_reg_offset(iommu->cap));
@@ -1370,6 +1411,11 @@ int qi_submit_sync(struct intel_iommu *iommu, struct qi_desc *desc,
 	if (type == QI_IEC_TYPE &&
 	    dmar_latency_enabled(iommu, DMAR_LATENCY_INV_IEC))
 		iec_start_ktime = ktime_to_ns(ktime_get());
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+	if (svoskern_svfs_callback_vtd_submit_sync)
+		return svoskern_svfs_callback_vtd_submit_sync(iommu->reg_phys,
+							      (void *)desc);
+#endif
 
 restart:
 	rc = 0;
@@ -1684,7 +1730,11 @@ static void __dmar_enable_qi(struct intel_iommu *iommu)
 	 * is present.
 	 */
 	if (ecap_smts(iommu->ecap))
+#ifndef CONFIG_SVOS
 		val |= (1 << 11) | 1;
+#else
+		val |= (1 << 11) | svos_qi_size;
+#endif
 
 	raw_spin_lock_irqsave(&iommu->register_lock, flags);
 
@@ -1731,8 +1781,20 @@ int dmar_enable_qi(struct intel_iommu *iommu)
 	 * Need two pages to accommodate 256 descriptors of 256 bits each
 	 * if the remapping hardware supports scalable mode translation.
 	 */
+#ifndef CONFIG_SVOS
 	desc_page = alloc_pages_node(iommu->node, GFP_ATOMIC | __GFP_ZERO,
 				     !!ecap_smts(iommu->ecap));
+#else
+	if (svos_qi_size == -1) {
+		svos_qi_size = !!ecap_smts(iommu->ecap);
+	} else {
+		svos_qi_descriptor_count = 1 << (8 + svos_qi_size -
+					   !!ecap_smts(iommu->ecap));
+	}
+	desc_page =
+		alloc_pages_node(iommu->node, GFP_ATOMIC | __GFP_ZERO,
+				 svos_qi_size);
+#endif
 	if (!desc_page) {
 		kfree(qi);
 		iommu->qi = NULL;
@@ -1984,6 +2046,11 @@ irqreturn_t dmar_fault(int irq, void *dev_id)
 				      DEFAULT_RATELIMIT_INTERVAL,
 				      DEFAULT_RATELIMIT_BURST);
 
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+	if (svoskern_svfs_callback_vtd_fault_handler)
+		return svoskern_svfs_callback_vtd_fault_handler(
+			iommu->reg_phys, dev_id);
+#endif
 	raw_spin_lock_irqsave(&iommu->register_lock, flag);
 	fault_status = readl(iommu->reg + DMAR_FSTS_REG);
 	if (fault_status && __ratelimit(&rs))

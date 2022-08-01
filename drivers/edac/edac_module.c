@@ -11,6 +11,9 @@
  *
  */
 #include <linux/edac.h>
+#ifdef CONFIG_SVOS
+#include <linux/svos.h>
+#endif
 
 #include "edac_mc.h"
 #include "edac_module.h"
@@ -103,6 +106,11 @@ static int __init edac_init(void)
 {
 	int err = 0;
 
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+	if (!svos_enable_ras_errorcorrect) {
+		return -ENODEV;
+	}
+#endif
 	edac_printk(KERN_INFO, EDAC_MC, EDAC_VERSION "\n");
 
 	err = edac_subsys_init();

@@ -41,6 +41,9 @@
 #include <linux/uuid.h>
 #include <linux/ras.h>
 #include <linux/task_work.h>
+#ifdef CONFIG_SVOS
+#include <linux/svos.h>
+#endif
 
 #include <acpi/actbl1.h>
 #include <acpi/ghes.h>
@@ -1460,6 +1463,14 @@ static struct platform_driver ghes_platform_driver = {
 void __init acpi_ghes_init(void)
 {
 	int rc;
+
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+	if (!svos_enable_ras_errorcorrect) {
+		printk_once(KERN_CRIT
+			"SVOS RAS not enabled - shutting down ghes\n");
+		return;
+	}
+#endif
 
 	sdei_init();
 

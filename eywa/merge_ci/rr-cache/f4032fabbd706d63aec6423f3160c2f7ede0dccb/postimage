@@ -321,7 +321,13 @@ do {									\
 	}								\
 } while (0)
 
+#ifndef CONFIG_SVOS
 #define QI_LENGTH	256	/* queue length */
+#else
+#define DEF_QI_LENGTH	256	/* queue length */
+extern int svos_qi_descriptor_count;
+#define QI_LENGTH svos_qi_descriptor_count
+#endif
 
 enum {
 	QI_FREE,

@@ -57,6 +57,10 @@
 #include <linux/dma-mapping.h>
 #include "xhci.h"
 #include "xhci-trace.h"
+#if defined(CONFIG_SVOS) && defined(CONFIG_KGDB_KDB) && defined(CONFIG_X86)
+extern int kdb_pausekey;
+extern void kgdb_breakpoint(void);
+#endif
 
 static int queue_command(struct xhci_hcd *xhci, struct xhci_command *cmd,
 			 u32 field1, u32 field2,
@@ -3119,6 +3123,18 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 
 out:
 	spin_unlock(&xhci->lock);
+#if defined(CONFIG_SVOS) && defined(CONFIG_KGDB_KDB) && defined(CONFIG_X86)
+	//
+	// check to see if the key sequence to enter kdb
+	// has been used.
+	// the kdb breakpoint needs to be called outside of
+	// the interrupt lock processing.
+	//
+	if (kdb_pausekey == 1) {
+		kdb_pausekey = 0;
+		kgdb_breakpoint();
+	}
+#endif
 
 	return ret;
 }

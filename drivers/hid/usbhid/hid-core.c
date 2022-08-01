@@ -35,6 +35,14 @@
 #include <linux/hidraw.h>
 #include "usbhid.h"
 
+#if defined(CONFIG_SVOS) && defined(CONFIG_KGDB_KDB)
+#include <linux/usb/hcd.h>
+//
+// prototypes for kdb interfaces
+//
+extern void kdb_usb_kbd_disconnect(struct urb *);
+extern int kdb_usb_irq_hook(struct urb *);
+#endif
 /*
  * Version Information
  */
@@ -293,6 +301,10 @@ static void hid_irq_in(struct urb *urb)
 				set_bit(HID_KEYS_PRESSED, &usbhid->iofl);
 			else
 				clear_bit(HID_KEYS_PRESSED, &usbhid->iofl);
+#if defined(CONFIG_SVOS) && defined(CONFIG_KGDB_KDB)
+		if (kdb_usb_irq_hook(urb))      // skip if kdb active or keystroke to enter kdb
+			break;
+#endif
 		}
 		break;
 	case -EPIPE:		/* stall */
@@ -1448,6 +1460,9 @@ static void usbhid_disconnect(struct usb_interface *intf)
 	spin_lock_irq(&usbhid->lock);	/* Sync with error and led handlers */
 	set_bit(HID_DISCONNECTED, &usbhid->iofl);
 	spin_unlock_irq(&usbhid->lock);
+#if defined(CONFIG_SVOS) && defined(CONFIG_KGDB_KDB)
+	kdb_usb_kbd_disconnect(usbhid->urbin);
+#endif
 	hid_destroy_device(hid);
 	kfree(usbhid);
 }
