@@ -595,6 +595,8 @@ static const struct pmc_reg_map tgl_reg_map = {
 	.lpm_sts = tgl_lpm_maps,
 	.lpm_status_offset = TGL_LPM_STATUS_OFFSET,
 	.lpm_live_status_offset = TGL_LPM_LIVE_STATUS_OFFSET,
+	.pson_residency_offset = TGL_PSON_RESIDENCY_OFFSET,
+	.pson_residency_counter_step = TGL_PSON_RES_COUNTER_STEP,
 	.etr3_offset = ETR3_OFFSET,
 };
 
@@ -943,6 +945,8 @@ static const struct pmc_reg_map adl_reg_map = {
 	.lpm_sts = adl_lpm_maps,
 	.lpm_status_offset = ADL_LPM_STATUS_OFFSET,
 	.lpm_live_status_offset = ADL_LPM_LIVE_STATUS_OFFSET,
+	.pson_residency_offset = TGL_PSON_RESIDENCY_OFFSET,
+	.pson_residency_counter_step = TGL_PSON_RES_COUNTER_STEP,
 };
 
 static const struct pmc_reg_map lkf_reg_map = {
@@ -1134,6 +1138,20 @@ static int pmc_core_dev_state_get(void *data, u64 *val)
 }
 
 DEFINE_DEBUGFS_ATTRIBUTE(pmc_core_dev_state, pmc_core_dev_state_get, NULL, "%llu\n");
+
+static int pmc_core_pson_residency_get(void *data, u64 *val)
+{
+	struct pmc_dev *pmcdev = data;
+	const struct pmc_reg_map *map = pmcdev->map;
+	u32 value;
+
+	value = pmc_core_reg_read(pmcdev, map->pson_residency_offset);
+	*val = (u64)value * pmcdev->map->pson_residency_counter_step;
+
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(pmc_core_pson_residency, pmc_core_pson_residency_get, NULL, "%llu\n");
 
 static int pmc_core_check_read_lock_bit(struct pmc_dev *pmcdev)
 {
@@ -1876,6 +1894,30 @@ static void pmc_core_get_low_power_modes(struct platform_device *pdev)
 	}
 }
 
+static bool pmc_core_is_pson_residency_enabled(struct pmc_dev *pmcdev)
+{
+	struct platform_device *pdev = pmcdev->pdev;
+	struct acpi_device *adev = ACPI_COMPANION(&pdev->dev);
+	acpi_status status;
+	u8 val;
+
+	if (!adev)
+		return false;
+
+	acpi_init_properties(adev);
+	status = acpi_evaluate_object(adev->handle, "PSOP", NULL, NULL);
+
+	if (ACPI_FAILURE(status))
+		return false;
+
+	if (fwnode_property_read_u8(acpi_fwnode_handle(adev),
+				    "intel-cec-pson-switching-enabled-in-s0",
+				    &val))
+		return false;
+
+	return val == 1;
+}
+
 static void pmc_core_dbgfs_unregister(struct pmc_dev *pmcdev)
 {
 	debugfs_remove_recursive(pmcdev->dbgfs_dir);
@@ -1943,6 +1985,11 @@ static void pmc_core_dbgfs_register(struct pmc_dev *pmcdev)
 		debugfs_create_file("substate_requirements", 0444,
 				    pmcdev->dbgfs_dir, pmcdev,
 				    &pmc_core_substate_req_regs_fops);
+	}
+
+	if (pmcdev->map->pson_residency_offset && pmc_core_is_pson_residency_enabled(pmcdev)) {
+		debugfs_create_file("pson_residency_usec", 0444,
+				    pmcdev->dbgfs_dir, pmcdev, &pmc_core_pson_residency);
 	}
 }
 
@@ -2040,6 +2087,7 @@ static int pmc_core_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, pmcdev);
+	pmcdev->pdev = pdev;
 
 	cpu_id = x86_match_cpu(intel_pmc_core_ids);
 	if (!cpu_id)
