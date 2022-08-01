@@ -134,6 +134,19 @@ More detailed explanation for tainting
        scsi/snic on something else than x86_64, scsi/ips on non
        x86/x86_64/itanium, have broken firmware settings for the
        irqchip/irq-gic on arm64 ...).
+     - on x86: Late loading microcode is dangerous. When
+       MICROCODE_LATE_LOADING is enabled can taint the kernel. Intel
+       supports a new metadata to specify when a micrcode is suitable for
+       late-loads. Intel CPUs are permitted to load-load without being
+       tainted.
+     - on intel: mixed stepping are risky and not advised. There can be
+       incompatible differences and its not possible to precisely identify
+       them. If the BSP and AP's have different family-model-stepping or
+       differ in platform flags the kernel will be tainted.
+     - on CPUs supporting UNIFORM microcode updates, if authentication
+       failures happen on some parts of the SOC, the hardware will indicate
+       such failures. When such failures are indicated, the kernel will
+       tainted since its unsafe configuration.
 
  3)  ``R`` if a module was force unloaded by ``rmmod -f``, ``' '`` if all
      modules were unloaded normally.

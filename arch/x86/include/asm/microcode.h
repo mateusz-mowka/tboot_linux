@@ -27,8 +27,29 @@ enum ucode_state {
 	UCODE_OK	= 0,
 	UCODE_NEW,
 	UCODE_UPDATED,
+	UCODE_UPDATED_PART_ERR,/* Partial Update, completed in error */
 	UCODE_NFOUND,
 	UCODE_ERROR,
+};
+
+/*
+ * Core Scope:
+ * 	Updating one thread of a core will update its own thread sibling.
+ *	This is the legacy behavior.
+ *
+ * Socket Scope:
+ * 	Updating one thread in a socket will broadcast to all cores of
+ * 	the socket
+ *
+ * Platform Scope:
+ * 	Updating one thread in a platform will broadcast to all cores of
+ * 	the platform.
+ */
+enum ucode_load_scope {
+	CORE_SCOPE,
+	SOCKET_SCOPE,
+	PLATFORM_SCOPE,
+	NO_UPDATE_SCOPE,
 };
 
 struct microcode_ops {
@@ -39,6 +60,7 @@ struct microcode_ops {
 						  bool refresh_fw);
 
 	void (*microcode_fini_cpu) (int cpu);
+	enum ucode_load_scope (*get_ucode_scope) (void);
 
 	/*
 	 * The generic 'microcode_core' part guarantees that

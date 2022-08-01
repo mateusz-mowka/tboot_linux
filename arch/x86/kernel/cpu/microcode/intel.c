@@ -37,6 +37,8 @@
 #include <asm/setup.h>
 #include <asm/msr.h>
 
+#include "../cpu.h"
+
 static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 
 /* Current microcode patch used in early patching on the APs. */
@@ -45,6 +47,27 @@ static struct microcode_intel *intel_ucode_patch;
 /* last level cache size per core */
 static int llc_size_per_core;
 extern bool ucode_rollback;
+
+typedef union ucode_cap {
+	u64     data;
+	struct {
+		u64     present:1;
+		u64     required:1;
+		u64     cfg_done:1;
+		u64     rsvd1:5;
+		u64     scope:8;
+		u64     rsvd2:48;
+	};
+} ucode_cap_t;
+
+typedef union ucode_status {
+	u64     data;
+	struct {
+		u64     partial:1;
+		u64     auth_fail:1;
+		u64     rsvd1:62;
+	};
+} ucode_status_t;
 
 /*
  * Returns 1 if update has been found, 0 otherwise.
@@ -118,10 +141,18 @@ static void save_microcode_patch(struct ucode_cpu_info *uci, void *data, unsigne
 
 	list_for_each_entry_safe(iter, tmp, &microcode_cache, plist) {
 		mc_saved_hdr = (struct microcode_header_intel *)iter->data;
-		sig	     = mc_saved_hdr->sig;
-		pf	     = mc_saved_hdr->pf;
 
-		if (find_matching_signature(data, sig, pf)) {
+		sig = uci->cpu_sig.sig;
+		pf = uci->cpu_sig.pf;
+
+		/*
+		 * Compare the current CPUs signature with the ones in the
+		 * cache to identify the right candidate to replace. At any
+		 * given time, we should have no more than one valid patch
+		 * file for a given CPU fms+pf in the cache list.
+		 */
+
+		if (find_matching_signature(iter->data, sig, pf)) {
 			prev_found = true;
 
 #ifdef CONFIG_SVOS
@@ -177,6 +208,7 @@ static int microcode_sanity_check(void *mc, int print_err)
 	struct extended_sigtable *ext_header = NULL;
 	u32 sum, orig_sum, ext_sigcount = 0, i;
 	struct extended_signature *ext_sig;
+	struct ucode_cpu_info uci;
 
 	total_size = get_totalsize(mc_header);
 	data_size = get_datasize(mc_header);
@@ -245,6 +277,25 @@ static int microcode_sanity_check(void *mc, int print_err)
 		if (print_err)
 			pr_err("Bad microcode data checksum, aborting.\n");
 		return -EINVAL;
+	}
+
+	/*
+	 * Enforce for late-load that min_req_id is specified in the header.
+	 * Otherwise its an old format microcode, reject it.
+	 */
+	if (print_err) {
+		if (!mc_header->min_req_id) {
+			pr_warn("Header MUST specify min version for late-load\n");
+			return -EINVAL;
+		}
+
+		intel_cpu_collect_info(&uci);
+		if (uci.cpu_sig.rev < mc_header->min_req_id) {
+			pr_warn("Current revision 0x%x is too old to update,"
+				"must  be at 0x%x version or higher\n",
+				uci.cpu_sig.rev, mc_header->min_req_id);
+			return -EINVAL;
+		}
 	}
 
 	if (!ext_table_size)
@@ -524,12 +575,6 @@ static int apply_microcode_early(struct ucode_cpu_info *uci, bool early)
 		return UCODE_OK;
 	}
 
-	/*
-	 * Writeback and invalidate caches before updating microcode to avoid
-	 * internal issues depending on what the microcode is updating.
-	 */
-	native_wbinvd();
-
 	/* write microcode via MSR 0x79 */
 	native_wrmsrl(MSR_IA32_UCODE_WRITE, (unsigned long)mc->bits);
 
@@ -643,6 +688,8 @@ reget:
 		/* Mixed-silicon system? Try to refetch the proper patch: */
 		*iup = NULL;
 
+		pr_notice_once("Mixed stepping detected, not advised\n");
+		add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_STILL_OK);
 		goto reget;
 	}
 }
@@ -712,7 +759,63 @@ static int collect_cpu_info(int cpu_num, struct cpu_signature *csig)
 		prev = *csig;
 	}
 
+	if (x86_read_arch_cap_msr() & ARCH_CAP_UNIFORM_MSR) {
+		ucode_cap_t ucode_cap;
+		rdmsrl(MSR_IA32_UCODE_CAP, ucode_cap.data);
+		if (!ucode_cap.present)
+			return 0;
+
+		set_cpu_cap(c, X86_FEATURE_UCODE_UNIFORM);
+	}
+
 	return 0;
+}
+
+static enum ucode_load_scope get_load_scope_intel(void)
+{
+	ucode_cap_t ucode_cap;
+
+	/*
+	 * Check if UNIFORM update MSR's are enumerated
+	 */
+	if (!boot_cpu_has(X86_FEATURE_UCODE_UNIFORM))
+		return CORE_SCOPE;
+
+	rdmsrl(MSR_IA32_UCODE_CAP, ucode_cap.data);
+
+	if (ucode_cap.required && !ucode_cap.cfg_done)
+		return NO_UPDATE_SCOPE;
+	else if (ucode_cap.scope) {
+		switch (ucode_cap.scope) {
+			case 0x02:
+				return CORE_SCOPE;
+			case 0x08:
+				return SOCKET_SCOPE;
+			case 0xC0:
+				return PLATFORM_SCOPE;
+			default:
+				return NO_UPDATE_SCOPE;
+		}
+	}
+
+	return NO_UPDATE_SCOPE;
+}
+
+static enum ucode_state ucode_load_status(void)
+{
+	enum ucode_state ucode_update_status = UCODE_UPDATED;
+	ucode_status_t ucode_status = {.data=0};
+
+	if (boot_cpu_has(X86_FEATURE_UCODE_UNIFORM)) {
+		rdmsrl(MSR_IA32_UCODE_STATUS, ucode_status.data);
+
+		if (ucode_status.data) {
+			if (ucode_status.auth_fail ||
+			    ucode_status.partial)
+				ucode_update_status = UCODE_UPDATED_PART_ERR;
+		}
+	}
+	return ucode_update_status;
 }
 
 static enum ucode_state apply_microcode_intel(int cpu)
@@ -751,12 +854,6 @@ static enum ucode_state apply_microcode_intel(int cpu)
                 ret = UCODE_OK;
 #endif
 
-	/*
-	 * Writeback and invalidate caches before updating microcode to avoid
-	 * internal issues depending on what the microcode is updating.
-	 */
-	native_wbinvd();
-
 	/* write microcode via MSR 0x79 */
 	pr_info("Ucode rollback: Writing %lx to MSR %x\n",
 			(unsigned long)mc->bits,
@@ -781,7 +878,7 @@ static enum ucode_state apply_microcode_intel(int cpu)
 		prev_rev = rev;
 	}
 
-	ret = UCODE_UPDATED;
+	ret = ucode_load_status();
 
 #ifndef CONFIG_SVOS
 out:
@@ -790,8 +887,11 @@ out:
 	c->microcode	 = rev;
 
 	/* Update boot_cpu_data's revision too, if we're on the BSP: */
-	if (bsp)
+	if (bsp) {
 		boot_cpu_data.microcode = rev;
+		if (ret == UCODE_UPDATED_PART_ERR)
+			pr_info("CPU%d update failed, need reset\n", cpu);
+	}
 
 	return ret;
 }
@@ -960,6 +1060,7 @@ static struct microcode_ops microcode_intel_ops = {
 	.request_microcode_fw             = request_microcode_fw,
 	.collect_cpu_info                 = collect_cpu_info,
 	.apply_microcode                  = apply_microcode_intel,
+	.get_ucode_scope		  = get_load_scope_intel,
 };
 
 static int __init calc_llc_size_per_core(struct cpuinfo_x86 *c)
@@ -983,5 +1084,14 @@ struct microcode_ops * __init init_intel_microcode(void)
 
 	llc_size_per_core = calc_llc_size_per_core(c);
 
+	if (x86_read_arch_cap_msr() & ARCH_CAP_UNIFORM_MSR) {
+		ucode_cap_t ucode_cap;
+		rdmsrl(MSR_IA32_UCODE_CAP, ucode_cap.data);
+		if (!ucode_cap.present)
+			goto done;
+
+		set_cpu_cap(c, X86_FEATURE_UCODE_UNIFORM);
+	}
+done:
 	return &microcode_intel_ops;
 }
