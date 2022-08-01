@@ -1144,7 +1144,9 @@ static void *__text_poke(text_poke_f func, void *addr, const void *src, size_t l
 	prev = use_temporary_mm(poking_mm);
 
 	kasan_disable_current();
+	kernel_lass_off();
 	func((u8 *)poking_addr + offset_in_page(addr), src, len);
+	kernel_lass_on();
 	kasan_enable_current();
 
 	/*

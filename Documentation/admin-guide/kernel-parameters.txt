@@ -2636,6 +2636,9 @@
 	lapic_timer_c2_ok	[X86,APIC] trust the local apic timer
 			in C2 power state.
 
+	lass		[x86, Intel] Enable LASS (Linear Address Space Separation)
+			for LASS capable platforms
+
 	libata.dma=	[LIBATA] DMA control
 			libata.dma=0	  Disable all PATA and SATA DMA
 			libata.dma=1	  PATA and SATA Disk DMA only

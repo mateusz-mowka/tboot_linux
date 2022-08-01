@@ -59,6 +59,19 @@ static __always_inline void smap_restore(unsigned long flags)
 		      : : "g" (flags) : "memory", "cc");
 }
 
+/* Deactivate/activate LASS via AC bit in EFLAGS register */
+static __always_inline void kernel_lass_off(void)
+{
+	alternative("", __ASM_STAC, X86_FEATURE_LASS);
+}
+
+static __always_inline void kernel_lass_on(void)
+{
+	alternative("", __ASM_CLAC, X86_FEATURE_LASS);
+}
+
+extern bool is_lass_enabled(void);
+
 /* These macros can be used in asm() statements */
 #define ASM_CLAC \
 	ALTERNATIVE("", __ASM_CLAC, X86_FEATURE_SMAP)

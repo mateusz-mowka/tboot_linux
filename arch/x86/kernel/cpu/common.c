@@ -377,6 +377,21 @@ static __always_inline void setup_smep(struct cpuinfo_x86 *c)
 		cr4_set_bits(X86_CR4_SMEP);
 }
 
+static int lass_enabled __ro_after_init;
+bool is_lass_enabled(void)
+{
+	return lass_enabled;
+}
+
+static int __init setup_enable_lass(char *arg)
+{
+	lass_enabled = cpu_feature_enabled(X86_FEATURE_LASS);
+	return 0;
+}
+
+/* apply lass before kernel maps vsyscall which is done ahead __setup() */
+early_param("lass", setup_enable_lass);
+
 static __always_inline void setup_smap(struct cpuinfo_x86 *c)
 {
 	unsigned long eflags = native_save_fl();
@@ -449,10 +464,25 @@ void hreset_reload(void)
 		wrmsrl(MSR_IA32_HW_HRESET_ENABLE, hardware_history_features);
 }
 
+static __always_inline void setup_lass(struct cpuinfo_x86 *c)
+{
+	if (lass_enabled) {
+		cr4_set_bits(X86_CR4_LASS);
+	} else {
+		/*
+		 * Only clear the cr4 bit when hardware supports LASS
+		 * in case it was enabled in a previous boot (e.g.,
+		 * via kexec)
+		 */
+		if (cpu_has(c, X86_FEATURE_LASS))
+			cr4_clear_bits(X86_CR4_LASS);
+	}
+}
+
 /* These bits should not change their value after CPU init is finished. */
 static const unsigned long cr4_pinned_mask =
 	X86_CR4_SMEP | X86_CR4_SMAP | X86_CR4_UMIP |
-	X86_CR4_FSGSBASE | X86_CR4_CET;
+	X86_CR4_FSGSBASE | X86_CR4_CET | X86_CR4_LASS;
 static DEFINE_STATIC_KEY_FALSE_RO(cr_pinning);
 static unsigned long cr4_pinned_bits __ro_after_init;
 
@@ -1846,6 +1876,7 @@ static void identify_cpu(struct cpuinfo_x86 *c)
 	setup_smap(c);
 	setup_umip(c);
 	setup_hreset(c);
+	setup_lass(c);
 
 	/* Enable FSGSBASE instructions if available. */
 	if (cpu_has(c, X86_FEATURE_FSGSBASE)) {

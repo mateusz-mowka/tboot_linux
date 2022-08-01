@@ -8,6 +8,7 @@
 #ifdef CONFIG_X86_VSYSCALL_EMULATION
 extern void map_vsyscall(void);
 extern void set_vsyscall_pgtable_user_bits(pgd_t *root);
+extern bool is_lass_enabled(void);
 
 /*
  * Called on instruction fetch fault in vsyscall page.
