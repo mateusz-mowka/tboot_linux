@@ -5361,6 +5361,12 @@ unsigned int intel_model_duplicates(unsigned int model)
 	case INTEL_FAM6_LAKEFIELD:
 	case INTEL_FAM6_ALDERLAKE:
 	case INTEL_FAM6_ALDERLAKE_L:
+	case INTEL_FAM6_ALDERLAKE_N:
+	case INTEL_FAM6_RAPTORLAKE:
+	case INTEL_FAM6_RAPTORLAKE_P:
+	case INTEL_FAM6_RAPTORLAKE_S:
+	case INTEL_FAM6_METEORLAKE:
+	case INTEL_FAM6_METEORLAKE_L:
 		return INTEL_FAM6_CANNONLAKE_L;
 
 	case INTEL_FAM6_ATOM_TREMONT_L:
@@ -5368,6 +5374,7 @@ unsigned int intel_model_duplicates(unsigned int model)
 
 	case INTEL_FAM6_ICELAKE_D:
 	case INTEL_FAM6_SAPPHIRERAPIDS_X:
+	case INTEL_FAM6_GRANITERAPIDS_X:
 		return INTEL_FAM6_ICELAKE_X;
 	}
 	return model;
@@ -6131,6 +6138,29 @@ void print_version()
 	fprintf(outf, "turbostat version 2022.04.16 - Len Brown <lenb@kernel.org>\n");
 }
 
+#define COMMAND_LINE_SIZE 2048
+
+void print_bootcmd(void)
+{
+	char bootcmd[COMMAND_LINE_SIZE];
+	FILE *fp;
+	int ret;
+
+	memset(bootcmd, 0, COMMAND_LINE_SIZE);
+	fp = fopen("/proc/cmdline", "r");
+	if (!fp)
+		return;
+
+	ret = fread(bootcmd, sizeof(char), COMMAND_LINE_SIZE - 1, fp);
+	if (ret) {
+		bootcmd[ret] = '\0';
+		/* the last character is already '\n' */
+		fprintf(outf, "Kernel command line: %s", bootcmd);
+	}
+
+	fclose(fp);
+}
+
 int add_counter(unsigned int msr_num, char *path, char *name,
 		unsigned int width, enum counter_scope scope,
 		enum counter_type type, enum counter_format format, int flags)
@@ -6602,8 +6632,10 @@ int main(int argc, char **argv)
 	outf = stderr;
 	cmdline(argc, argv);
 
-	if (!quiet)
+	if (!quiet) {
 		print_version();
+		print_bootcmd();
+	}
 
 	probe_sysfs();
 
