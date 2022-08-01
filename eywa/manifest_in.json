@@ -4788,6 +4788,32 @@
             "status": "intel confidential",
             "stuck_at_ref": "",
             "last_enabled": "v5.19"
+        },
+        {
+            "branch": "thp-for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Fengwei Yin",
+                    "email": "fengwei.yin@intel.com"
+                }
+            ],
+            "description": "Free the THP buffer before splitting the h/w corrupted THP page.",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-3020",
+            "name": "thp_buffer",
+            "repourl": "https://github.com/intel-sandbox/qzhuo-linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v5.19"
         }
     ]
 }
