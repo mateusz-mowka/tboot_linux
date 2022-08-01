@@ -555,8 +555,37 @@ static inline void fpu_inherit_perms(struct fpu *dst_fpu)
 	}
 }
 
+#ifdef CONFIG_X86_SHADOW_STACK
+static void update_fpu_shstk(struct task_struct *dst, unsigned long shstk_addr)
+{
+	struct thread_shstk *shstk = &dst->thread.shstk;
+	struct cet_user_state *xstate;
+
+	/* If shadow stack is not enabled, or ssp update is not needed. */
+	if (!shstk->base || !shstk_addr)
+		return;
+
+	xstate = get_xsave_addr(&dst->thread.fpu.fpstate->regs.xsave,
+				XFEATURE_CET_USER);
+
+	/*
+	 * 'dst' is configured with a shadow stack and the fpu state is
+	 * up to date since it was just copied from the parent in fpu_clone().
+	 * So there must be a valid non-init CET state location in the buffer.
+	 */
+	WARN_ON_ONCE(!xstate);
+
+	xstate->user_ssp = (u64)shstk_addr;
+}
+#else
+static void update_fpu_shstk(struct task_struct *dst, unsigned long shstk_addr)
+{
+}
+#endif
+
 /* Clone current's FPU state on fork */
-int fpu_clone(struct task_struct *dst, unsigned long clone_flags, bool minimal)
+int fpu_clone(struct task_struct *dst, unsigned long clone_flags, bool minimal,
+	      unsigned long shstk_addr)
 {
 	struct fpu *src_fpu = &current->thread.fpu;
 	struct fpu *dst_fpu = &dst->thread.fpu;
@@ -615,6 +644,11 @@ int fpu_clone(struct task_struct *dst, unsigned long clone_flags, bool minimal)
 	 */
 	if (use_xsave())
 		dst_fpu->fpstate->regs.xsave.header.xfeatures &= ~XFEATURE_MASK_PASID;
+
+	/*
+	 * Update shadow stack pointer, in case it changed during clone.
+	 */
+	update_fpu_shstk(dst, shstk_addr);
 
 	trace_x86_fpu_copy_src(src_fpu);
 	trace_x86_fpu_copy_dst(dst_fpu);
@@ -755,6 +789,25 @@ void switch_fpu_return(void)
 	fpregs_restore_userregs();
 }
 EXPORT_SYMBOL_GPL(switch_fpu_return);
+
+void fpu_lock_and_load(void)
+{
+	/*
+	 * fpregs_lock() only disables preemption (mostly). So modifing state
+	 * in an interrupt could screw up some in progress fpregs operation,
+	 * but appear to work. Warn about it.
+	 */
+	WARN_ON_ONCE(!irq_fpu_usable());
+	WARN_ON_ONCE(current->flags & PF_KTHREAD);
+
+	fpregs_lock();
+
+	fpregs_assert_state_consistent();
+
+	if (test_thread_flag(TIF_NEED_FPU_LOAD))
+		fpregs_restore_userregs();
+}
+EXPORT_SYMBOL_GPL(fpu_lock_and_load);
 
 #ifdef CONFIG_X86_DEBUG_FPU
 /*

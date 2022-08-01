@@ -430,6 +430,11 @@
 #define CET_RESERVED			(BIT_ULL(6) | BIT_ULL(7) | BIT_ULL(8) | BIT_ULL(9))
 #define CET_SUPPRESS			BIT_ULL(10)
 #define CET_WAIT_ENDBR			BIT_ULL(11)
+#define CET_EG_LEG_BITMAP_BASE_MASK	GENMASK_ULL(63, 13)
+
+#define CET_U_IBT_MASK			(CET_ENDBR_EN | CET_LEG_IW_EN | CET_NO_TRACK_EN | \
+					 CET_NO_TRACK_EN | CET_SUPPRESS_DISABLE | CET_SUPPRESS | \
+					 CET_WAIT_ENDBR | CET_EG_LEG_BITMAP_BASE_MASK)
 
 #define MSR_IA32_PL0_SSP		0x000006a4 /* ring-0 shadow stack pointer */
 #define MSR_IA32_PL1_SSP		0x000006a5 /* ring-1 shadow stack pointer */

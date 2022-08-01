@@ -20,4 +20,14 @@
 #define ARCH_MAP_VDSO_32		0x2002
 #define ARCH_MAP_VDSO_64		0x2003
 
+/* Don't use 0x3001-0x3004 because of old glibcs */
+
+#define ARCH_CET_ENABLE			0x4001
+#define ARCH_CET_DISABLE		0x4002
+#define ARCH_CET_LOCK			0x4003
+#define ARCH_CET_UNLOCK			0x4004
+
+#define CET_SHSTK			0x1
+#define CET_WRSS			0x2
+
 #endif /* _ASM_X86_PRCTL_H */

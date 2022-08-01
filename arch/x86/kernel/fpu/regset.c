@@ -174,6 +174,101 @@ out:
 	return ret;
 }
 
+int cetregs_active(struct task_struct *target, const struct user_regset *regset)
+{
+#ifdef CONFIG_X86_SHADOW_STACK
+	if (target->thread.shstk.size)
+		return regset->n;
+#endif
+	return 0;
+}
+
+int cetregs_get(struct task_struct *target, const struct user_regset *regset,
+		struct membuf to)
+{
+	struct fpu *fpu = &target->thread.fpu;
+	struct cet_user_state *cetregs;
+
+	if (!boot_cpu_has(X86_FEATURE_SHSTK))
+		return -ENODEV;
+
+	sync_fpstate(fpu);
+	cetregs = get_xsave_addr(&fpu->fpstate->regs.xsave, XFEATURE_CET_USER);
+	if (!cetregs) {
+		/*
+		 * The registers are the in the init state. The init values for
+		 * these regs are zero, so just zero the output buffer.
+		 */
+		membuf_zero(&to, sizeof(struct cet_user_state));
+		return 0;
+	}
+
+	return membuf_write(&to, cetregs, sizeof(struct cet_user_state));
+}
+
+int cetregs_set(struct task_struct *target, const struct user_regset *regset,
+		  unsigned int pos, unsigned int count,
+		  const void *kbuf, const void __user *ubuf)
+{
+	struct fpu *fpu = &target->thread.fpu;
+	struct xregs_state *xsave = &fpu->fpstate->regs.xsave;
+	struct cet_user_state *cetregs, tmp;
+	bool ia32;
+	int r;
+
+	if (!boot_cpu_has(X86_FEATURE_SHSTK) ||
+	    !cetregs_active(target, regset))
+		return -ENODEV;
+
+	ia32 = IS_ENABLED(CONFIG_IA32_EMULATION) &&
+	       target->thread_info.status & TS_COMPAT;
+
+	r = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &tmp, 0, -1);
+	if (r)
+		return r;
+
+	/*
+	 * Some kernel instructions (IRET, etc) can cause exceptions in the case
+	 * of disallowed CET register values. Just prevent invalid values.
+	 */
+	if ((tmp.user_ssp >= TASK_SIZE_MAX) ||
+	    (ia32 && !IS_ALIGNED(tmp.user_ssp, 4)) ||
+	    (!ia32 && !IS_ALIGNED(tmp.user_ssp, 8)))
+		return -EINVAL;
+
+	/*
+	 * Don't allow any IBT bits to be set because it is not supported by
+	 * the kernel yet. Also don't allow reserved bits.
+	 */
+	if ((tmp.user_cet & CET_RESERVED) || (tmp.user_cet & CET_U_IBT_MASK))
+		return -EINVAL;
+
+	fpu_force_restore(fpu);
+
+	/*
+	 * Don't want to init the xfeature until the kernel will definetely
+	 * overwrite it, otherwise if it inits and then fails out, it would
+	 * end up initing it to random data.
+	 */
+	if (!xfeature_saved(xsave, XFEATURE_CET_USER) &&
+	    WARN_ON(init_xfeature(xsave, XFEATURE_CET_USER)))
+		return -ENODEV;
+
+	cetregs = get_xsave_addr(xsave, XFEATURE_CET_USER);
+	if (WARN_ON(!cetregs)) {
+		/*
+		 * This shouldn't ever be NULL because it was successfully
+		 * inited above if needed. The only scenario would be if an
+		 * xfeature was somehow saved in a buffer, but not enabled in
+		 * xsave.
+		 */
+		return -ENODEV;
+	}
+
+	memmove(cetregs, &tmp, sizeof(tmp));
+	return 0;
+}
+
 #if defined CONFIG_X86_32 || defined CONFIG_IA32_EMULATION
 
 /*

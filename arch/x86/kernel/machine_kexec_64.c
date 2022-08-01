@@ -311,7 +311,7 @@ void machine_kexec(struct kimage *image)
 	/* Interrupts aren't acceptable while we reboot */
 	local_irq_disable();
 	hw_breakpoint_disable();
-	cet_disable();
+	ibt_disable();
 
 	if (image->preserve_context) {
 #ifdef CONFIG_X86_IO_APIC

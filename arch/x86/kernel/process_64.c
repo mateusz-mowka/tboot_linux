@@ -515,6 +515,8 @@ start_thread_common(struct pt_regs *regs, unsigned long new_ip,
 		load_gs_index(__USER_DS);
 	}
 
+	reset_thread_shstk();
+
 	loadsegment(fs, 0);
 	loadsegment(es, _ds);
 	loadsegment(ds, _ds);
@@ -832,7 +834,10 @@ long do_arch_prctl_64(struct task_struct *task, int option, unsigned long arg2)
 	case ARCH_MAP_VDSO_64:
 		return prctl_map_vdso(&vdso_image_64, arg2);
 #endif
-
+	case ARCH_CET_ENABLE:
+	case ARCH_CET_DISABLE:
+	case ARCH_CET_LOCK:
+		return cet_prctl(task, option, arg2);
 	default:
 		ret = -EINVAL;
 		break;

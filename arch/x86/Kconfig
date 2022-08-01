@@ -26,6 +26,7 @@ config X86_64
 	depends on 64BIT
 	# Options that are inherently 64-bit kernel only:
 	select ARCH_HAS_GIGANTIC_PAGE
+	select ARCH_HAS_SHADOW_STACK
 	select ARCH_SUPPORTS_INT128 if CC_HAS_INT128
 	select ARCH_USE_CMPXCHG_LOCKREF
 	select HAVE_ARCH_SOFT_DIRTY
@@ -1954,6 +1955,22 @@ config X86_SGX
 	  only be accessed by code running within the enclave. Accesses from
 	  outside the enclave, including other enclaves, are disallowed by
 	  hardware.
+
+	  If unsure, say N.
+
+config ARCH_HAS_SHADOW_STACK
+	def_bool n
+
+config X86_SHADOW_STACK
+	prompt "X86 Shadow Stack"
+	def_bool n
+	depends on ARCH_HAS_SHADOW_STACK
+	help
+	  Shadow Stack protection is a hardware feature that detects function
+	  return address corruption. Today the kernel's support is limited to
+	  virtualizing it in KVM guests.
+
+	  CPUs supporting shadow stacks were first released in 2020.
 
 	  If unsure, say N.
 

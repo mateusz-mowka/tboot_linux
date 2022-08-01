@@ -165,6 +165,8 @@ unsigned long get_mmap_base(int is_legacy)
 
 const char *arch_vma_name(struct vm_area_struct *vma)
 {
+	if (vma->vm_flags & VM_SHADOW_STACK)
+		return "[shadow stack]";
 	return NULL;
 }
 
@@ -247,4 +249,27 @@ bool pfn_modify_allowed(unsigned long pfn, pgprot_t prot)
 	if (pfn >= l1tf_pfn_limit() && !capable(CAP_SYS_ADMIN))
 		return false;
 	return true;
+}
+
+unsigned long stack_guard_start_gap(struct vm_area_struct *vma)
+{
+	if (vma->vm_flags & VM_GROWSDOWN)
+		return stack_guard_gap;
+
+	/*
+	 * Shadow stack pointer is moved by CALL, RET, and INCSSP(Q/D).
+	 * INCSSPQ moves shadow stack pointer up to 255 * 8 = ~2 KB
+	 * (~1KB for INCSSPD) and touches the first and the last element
+	 * in the range, which triggers a page fault if the range is not
+	 * in a shadow stack. Because of this, creating 4-KB guard pages
+	 * around a shadow stack prevents these instructions from going
+	 * beyond.
+	 *
+	 * Creation of VM_SHADOW_STACK is tightly controlled, so a vma
+	 * can't be both VM_GROWSDOWN and VM_SHADOW_STACK
+	 */
+	if (vma->vm_flags & VM_SHADOW_STACK)
+		return PAGE_SIZE;
+
+	return 0;
 }
