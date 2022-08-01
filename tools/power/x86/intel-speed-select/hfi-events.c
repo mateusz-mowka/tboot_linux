@@ -190,7 +190,7 @@ static int handle_event(struct nl_msg *n, void *arg)
 	struct genlmsghdr *genlhdr = genlmsg_hdr(nlh);
 	struct nlattr *attrs[THERMAL_GENL_ATTR_MAX + 1];
 	int ret;
-	struct perf_cap perf_cap = {0};
+	struct perf_cap perf_cap;
 
 	ret = genlmsg_parse(nlh, 0, attrs, THERMAL_GENL_ATTR_MAX, NULL);
 
