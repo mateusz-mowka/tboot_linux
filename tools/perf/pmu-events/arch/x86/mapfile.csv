@@ -48,6 +48,7 @@ GenuineIntel-6-B7,v1,alderlake,core
 GenuineIntel-6-BE,v1,alderlake,core
 GenuineIntel-6-BF,v1,alderlake,core
 GenuineIntel-6-8F,v1,sapphirerapids,core
+GenuineIntel-6-CF,v1,sapphirerapids,core
 GenuineIntel-6-A[ABC],v1,meteorlake,core
 AuthenticAMD-23-([12][0-9A-F]|[0-9A-F]),v2,amdzen1,core
 AuthenticAMD-23-[[:xdigit:]]+,v1,amdzen2,core
