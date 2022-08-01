@@ -32,6 +32,9 @@
 #include <linux/vfio.h>
 #include <linux/wait.h>
 #include <linux/sched/signal.h>
+#include <linux/iommufd.h>
+#include <linux/sched/mm.h>
+#include <linux/msi.h>
 #include "vfio.h"
 
 #define DRIVER_VERSION	"0.3"
@@ -46,6 +49,10 @@ static struct vfio {
 	struct mutex			group_lock; /* locks group_list */
 	struct ida			group_ida;
 	dev_t				group_devt;
+	/* Fields for /dev/vfio/devices/vfioX */
+	struct class			*device_class;
+	struct ida			device_ida;
+	dev_t				device_devt;
 } vfio;
 
 struct vfio_iommu_driver {
@@ -79,6 +86,8 @@ struct vfio_group {
 	struct kvm			*kvm;
 	struct file			*opened_file;
 	struct blocking_notifier_head	notifier;
+	void				*iommufd;
+	u32				hwpt_id;
 };
 
 #ifdef CONFIG_VFIO_NOIOMMU
@@ -90,6 +99,30 @@ MODULE_PARM_DESC(enable_unsafe_noiommu_mode, "Enable UNSAFE, no-IOMMU mode.  Thi
 
 static DEFINE_XARRAY(vfio_device_set_xa);
 static const struct file_operations vfio_group_fops;
+
+void vfio_device_set_pasid(struct vfio_device *device, u32 pasid)
+{
+	dev_set_pasid(&device->device, pasid);
+}
+EXPORT_SYMBOL_GPL(vfio_device_set_pasid);
+
+u32 vfio_device_get_pasid(struct vfio_device *device)
+{
+	return dev_get_pasid(&device->device);
+}
+EXPORT_SYMBOL_GPL(vfio_device_get_pasid);
+
+void vfio_device_set_msi_domain(struct vfio_device *device, struct irq_domain *domain)
+{
+	dev_set_msi_domain(&device->device, domain);
+}
+EXPORT_SYMBOL_GPL(vfio_device_set_msi_domain);
+
+int vfio_device_msi_hwirq(struct vfio_device *device, int index)
+{
+	return dev_msi_hwirq(&device->device, index);
+}
+EXPORT_SYMBOL_GPL(vfio_device_msi_hwirq);
 
 int vfio_assign_device_set(struct vfio_device *device, void *set_id)
 {
@@ -429,7 +462,7 @@ static void vfio_group_put(struct vfio_group *group)
 	 * properly hold the group reference.
 	 */
 	WARN_ON(!list_empty(&group->device_list));
-	WARN_ON(group->container || group->container_users);
+	WARN_ON(group->container || group->iommufd || group->container_users);
 	WARN_ON(group->notifier.head);
 
 	list_del(&group->vfio_next);
@@ -454,10 +487,11 @@ static void vfio_device_put(struct vfio_device *device)
 		complete(&device->comp);
 }
 
-static bool vfio_device_try_get(struct vfio_device *device)
+bool vfio_device_try_get(struct vfio_device *device)
 {
 	return refcount_inc_not_zero(&device->refcount);
 }
+EXPORT_SYMBOL_GPL(vfio_device_try_get);
 
 static struct vfio_device *vfio_group_get_device(struct vfio_group *group,
 						 struct device *dev)
@@ -478,6 +512,79 @@ static struct vfio_device *vfio_group_get_device(struct vfio_group *group,
 /*
  * VFIO driver API
  */
+static void vfio_device_release(struct device *dev)
+{
+	struct vfio_device *device = container_of(dev, struct vfio_device, device);
+
+	vfio_release_device_set(device);
+
+	if (device->ops && device->ops->release)
+		device->ops->release(device);
+
+	ida_free(&vfio.device_ida, MINOR(device->device.devt));
+	kvfree_rcu(device, rcu);
+}
+
+static const struct file_operations vfio_device_fops;
+
+/*
+ * _vfio_alloc_device - allocate a vfio_device struct
+ * @size: size of structure to allocate
+ *
+ * Drivers using vfio_device should use vfio_alloc_device() to allocate
+ * &struct vfio_device. @size is the size of the structure to be allocated,
+ * including any private data used by the driver.
+ * vfio_put_device() must be used to free structures allocated with
+ * vfio_alloc_device().
+ */
+struct vfio_device *_vfio_alloc_device(size_t size, struct device *dev,
+				       const struct vfio_device_ops *ops)
+{
+	struct vfio_device *device;
+	int minor;
+
+	if (WARN_ON(size < sizeof(struct vfio_device)))
+		return NULL;
+
+	device = kvzalloc(size, GFP_KERNEL);
+	if (!device)
+		return NULL;
+
+	init_completion(&device->comp);
+	device->dev = dev;
+	device->ops = ops;
+
+	minor = ida_alloc_max(&vfio.device_ida, MINORMASK, GFP_KERNEL);
+	if (minor < 0) {
+		kfree(device);
+		return NULL;
+	}
+
+	device_initialize(&device->device);
+	device->device.devt = MKDEV(MAJOR(vfio.device_devt), minor);
+	device->device.class = vfio.device_class;
+	device->device.release = vfio_device_release;
+	device->device.parent = device->dev;
+	cdev_init(&device->cdev, &vfio_device_fops);
+	device->cdev.owner = THIS_MODULE;
+
+	return device;
+}
+EXPORT_SYMBOL(_vfio_alloc_device);
+
+/*
+ * vfio_put_device - free a vfio_device struct
+ * @device: structure to free
+ *
+ * Free a structure allocated with vfio_alloc_device().
+ */
+void vfio_put_device(struct vfio_device *device)
+{
+	/* Balances with kref_init in _vfio_alloc_device() */
+	put_device(&device->device);
+}
+EXPORT_SYMBOL(vfio_put_device);
+
 void vfio_init_group_dev(struct vfio_device *device, struct device *dev,
 			 const struct vfio_device_ops *ops)
 {
@@ -568,10 +675,27 @@ static struct vfio_group *vfio_group_find_or_alloc(struct device *dev)
 	return group;
 }
 
+static int __vfio_device_add_cdev(struct vfio_device *device)
+{
+	int ret = 0;
+
+	ret = dev_set_name(&device->device, "vfio%d", MINOR(device->device.devt));
+	if (ret)
+		return ret;
+
+	ret = cdev_device_add(&device->cdev, &device->device);
+	if (ret)
+		return ret;
+
+	dev_info(device->dev, "Creates Device interface successfully!\n");
+	return 0;
+}
+
 static int __vfio_register_dev(struct vfio_device *device,
 		struct vfio_group *group)
 {
 	struct vfio_device *existing_device;
+	int ret;
 
 	if (IS_ERR(group))
 		return PTR_ERR(group);
@@ -588,15 +712,16 @@ static int __vfio_register_dev(struct vfio_device *device,
 		dev_WARN(device->dev, "Device already exists on group %d\n",
 			 iommu_group_id(group->iommu_group));
 		vfio_device_put(existing_device);
-		if (group->type == VFIO_NO_IOMMU ||
-		    group->type == VFIO_EMULATED_IOMMU)
-			iommu_group_remove_device(device->dev);
-		vfio_group_put(group);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto err_out;
 	}
 
 	/* Our reference on group is moved to the device */
 	device->group = group;
+
+	ret = __vfio_device_add_cdev(device);
+	if (ret)
+		goto err_out;
 
 	/* Refcounting can't start until the driver calls register */
 	refcount_set(&device->refcount, 1);
@@ -607,6 +732,12 @@ static int __vfio_register_dev(struct vfio_device *device,
 	mutex_unlock(&group->device_lock);
 
 	return 0;
+err_out:
+	if (group->type == VFIO_NO_IOMMU ||
+	    group->type == VFIO_EMULATED_IOMMU)
+		iommu_group_remove_device(device->dev);
+	vfio_group_put(group);
+	return ret;
 }
 
 int vfio_register_group_dev(struct vfio_device *device)
@@ -693,6 +824,8 @@ void vfio_unregister_group_dev(struct vfio_device *device)
 	list_del(&device->group_next);
 	group->dev_counter--;
 	mutex_unlock(&group->device_lock);
+
+	cdev_device_del(&device->cdev, &device->device);
 
 	if (group->type == VFIO_NO_IOMMU || group->type == VFIO_EMULATED_IOMMU)
 		iommu_group_remove_device(device->dev);
@@ -930,6 +1063,13 @@ static void __vfio_group_unset_container(struct vfio_group *group)
 
 	lockdep_assert_held_write(&group->group_rwsem);
 
+	if (group->iommufd) {
+		vfio_group_unset_iommufd(group->iommufd,
+					 &group->device_list);
+		group->iommufd = NULL;
+		return;
+	}
+
 	down_write(&container->group_lock);
 
 	driver = container->iommu_driver;
@@ -967,7 +1107,7 @@ static int vfio_group_unset_container(struct vfio_group *group)
 {
 	lockdep_assert_held_write(&group->group_rwsem);
 
-	if (!group->container)
+	if (!group->container || !group->iommufd)
 		return -EINVAL;
 	if (group->container_users != 1)
 		return -EBUSY;
@@ -980,15 +1120,25 @@ static int vfio_group_set_container(struct vfio_group *group, int container_fd)
 	struct fd f;
 	struct vfio_container *container;
 	struct vfio_iommu_driver *driver;
+	u32 hwpt_id;
 	int ret = 0;
 
 	lockdep_assert_held_write(&group->group_rwsem);
 
-	if (group->container || WARN_ON(group->container_users))
+	if (group->container || group->iommufd || WARN_ON(group->container_users))
 		return -EINVAL;
 
 	if (group->type == VFIO_NO_IOMMU && !capable(CAP_SYS_RAWIO))
 		return -EPERM;
+
+	group->iommufd = vfio_group_set_iommufd(container_fd,
+						&group->device_list,
+						&hwpt_id);
+	if (group->iommufd) {
+		group->container_users = 1;
+		group->hwpt_id = hwpt_id;
+		return ret;
+	}
 
 	f = fdget(container_fd);
 	if (!f.file)
@@ -1053,13 +1203,19 @@ static bool vfio_assert_device_open(struct vfio_device *device)
 	return !WARN_ON_ONCE(!READ_ONCE(device->open_count));
 }
 
+static bool vfio_device_in_container(struct vfio_device *device)
+{
+	return device->group->container || device->group->iommufd;
+}
+
 static int vfio_device_assign_container(struct vfio_device *device)
 {
 	struct vfio_group *group = device->group;
 
 	lockdep_assert_held_write(&group->group_rwsem);
 
-	if (!group->container || !group->container->iommu_driver ||
+	if ((group->container && !group->container->iommu_driver) ||
+	    (!group->container && !group->iommufd) ||
 	    WARN_ON(!group->container_users))
 		return -EINVAL;
 
@@ -1074,27 +1230,22 @@ static int vfio_device_assign_container(struct vfio_device *device)
 static void vfio_device_unassign_container(struct vfio_device *device)
 {
 	down_write(&device->group->group_rwsem);
+	if (!vfio_device_in_container(device)) {
+		up_write(&device->group->group_rwsem);
+		return;
+	}
 	WARN_ON(device->group->container_users <= 1);
 	device->group->container_users--;
 	fput(device->group->opened_file);
 	up_write(&device->group->group_rwsem);
 }
 
-static struct file *vfio_device_open(struct vfio_device *device)
+static int __vfio_device_open(struct vfio_device *device)
 {
-	struct file *filep;
-	int ret;
+	int ret = 0;
 
-	down_write(&device->group->group_rwsem);
-	ret = vfio_device_assign_container(device);
-	up_write(&device->group->group_rwsem);
-	if (ret)
-		return ERR_PTR(ret);
-
-	if (!try_module_get(device->dev->driver->owner)) {
-		ret = -ENODEV;
-		goto err_unassign_container;
-	}
+	if (!try_module_get(device->dev->driver->owner))
+		return -ENODEV;
 
 	mutex_lock(&device->dev_set->lock);
 	device->open_count++;
@@ -1115,6 +1266,53 @@ static struct file *vfio_device_open(struct vfio_device *device)
 		up_read(&device->group->group_rwsem);
 	}
 	mutex_unlock(&device->dev_set->lock);
+
+	return 0;
+err_undo_count:
+	device->open_count--;
+	if (device->open_count == 0 && device->kvm)
+		device->kvm = NULL;
+	up_read(&device->group->group_rwsem);
+	mutex_unlock(&device->dev_set->lock);
+	module_put(device->dev->driver->owner);
+	return ret;
+}
+
+static void __vfio_device_close(struct vfio_device *device)
+{
+	mutex_lock(&device->dev_set->lock);
+	vfio_assert_device_open(device);
+	if (device->open_count == 1) {
+		if (!vfio_device_in_container(device) &&
+		    device->ops->unbind_iommufd)
+			device->ops->unbind_iommufd(device);
+		down_read(&device->group->group_rwsem);
+		if (device->ops->close_device)
+			device->ops->close_device(device);
+		up_read(&device->group->group_rwsem);
+	}
+	device->open_count--;
+	if (device->open_count == 0)
+		device->kvm = NULL;
+	mutex_unlock(&device->dev_set->lock);
+
+	module_put(device->dev->driver->owner);
+}
+
+static struct file *vfio_device_open(struct vfio_device *device)
+{
+	struct file *filep;
+	int ret;
+
+	down_write(&device->group->group_rwsem);
+	ret = vfio_device_assign_container(device);
+	up_write(&device->group->group_rwsem);
+	if (ret)
+		return ERR_PTR(ret);
+
+	ret = __vfio_device_open(device);
+	if (ret)
+		goto err_unassign_container;
 
 	/*
 	 * We can't use anon_inode_getfd() because we need to modify
@@ -1144,17 +1342,7 @@ static struct file *vfio_device_open(struct vfio_device *device)
 	return filep;
 
 err_close_device:
-	mutex_lock(&device->dev_set->lock);
-	down_read(&device->group->group_rwsem);
-	if (device->open_count == 1 && device->ops->close_device)
-		device->ops->close_device(device);
-err_undo_count:
-	device->open_count--;
-	if (device->open_count == 0 && device->kvm)
-		device->kvm = NULL;
-	up_read(&device->group->group_rwsem);
-	mutex_unlock(&device->dev_set->lock);
-	module_put(device->dev->driver->owner);
+	__vfio_device_close(device);
 err_unassign_container:
 	vfio_device_unassign_container(device);
 	return ERR_PTR(ret);
@@ -1216,7 +1404,7 @@ static long vfio_group_fops_unl_ioctl(struct file *filep,
 		status.flags = 0;
 
 		down_read(&group->group_rwsem);
-		if (group->container)
+		if (group->container || group->iommufd)
 			status.flags |= VFIO_GROUP_FLAGS_CONTAINER_SET |
 					VFIO_GROUP_FLAGS_VIABLE;
 		else if (!iommu_group_dma_owner_claimed(group->iommu_group))
@@ -1316,7 +1504,7 @@ static int vfio_group_fops_release(struct inode *inode, struct file *filep)
 	 * is only called when there are no open devices.
 	 */
 	WARN_ON(group->notifier.head);
-	if (group->container) {
+	if (group->container || group->iommufd) {
 		WARN_ON(group->container_users != 1);
 		__vfio_group_unset_container(group);
 	}
@@ -1339,22 +1527,32 @@ static const struct file_operations vfio_group_fops = {
 /*
  * VFIO Device fd
  */
+static int vfio_device_fops_open(struct inode *inode, struct file *filep)
+{
+	struct vfio_device *device =
+		container_of(inode->i_cdev, struct vfio_device, cdev);
+	int ret;
+
+	if (!vfio_device_try_get(device))
+		return -ENODEV;
+
+	ret = __vfio_device_open(device);
+	if (ret)
+		vfio_device_put(device);
+
+	return ret;
+}
+
 static int vfio_device_fops_release(struct inode *inode, struct file *filep)
 {
-	struct vfio_device *device = filep->private_data;
+	struct vfio_device *device;
 
-	mutex_lock(&device->dev_set->lock);
-	vfio_assert_device_open(device);
-	down_read(&device->group->group_rwsem);
-	if (device->open_count == 1 && device->ops->close_device)
-		device->ops->close_device(device);
-	up_read(&device->group->group_rwsem);
-	device->open_count--;
-	if (device->open_count == 0)
-		device->kvm = NULL;
-	mutex_unlock(&device->dev_set->lock);
+	if (filep->private_data)
+		device = filep->private_data;
+	else
+		device = container_of(inode->i_cdev, struct vfio_device, cdev);
 
-	module_put(device->dev->driver->owner);
+	__vfio_device_close(device);
 
 	vfio_device_unassign_container(device);
 
@@ -1647,12 +1845,230 @@ static int vfio_ioctl_device_feature(struct vfio_device *device,
 	}
 }
 
+static long vfio_device_bind_iommufd(struct file *filep, unsigned long arg)
+{
+	struct vfio_device_bind_iommufd bind;
+	struct vfio_device *device = container_of(filep->f_inode->i_cdev,
+						  struct vfio_device, cdev);
+	unsigned long minsz;
+	int ret;
+
+	minsz = offsetofend(struct vfio_device_bind_iommufd, iommufd);
+
+	if (copy_from_user(&bind, (void __user *)arg, minsz))
+		return -EFAULT;
+
+	if (bind.argsz < minsz || bind.flags ||
+	    bind.iommufd < 0)
+		return -EINVAL;
+
+	if (!device->ops->bind_iommufd || !device->ops->unbind_iommufd)
+		return -ENODEV;
+
+	ret = device->ops->bind_iommufd(device, &bind);
+	if (ret)
+		return ret;
+
+	/* Init private_data to unlock the device access via this fd */
+	smp_store_release(&filep->private_data, device);
+
+	return copy_to_user((void __user *)arg + minsz,
+			    &bind.out_devid,
+			    sizeof(bind.out_devid)) ? -EFAULT : 0;
+}
+
+static long vfio_device_attach_ioas(struct vfio_device *device,
+				    unsigned long arg)
+{
+	struct vfio_device_attach_ioas attach;
+	unsigned long minsz;
+	int ret;
+
+	minsz = offsetofend(struct vfio_device_attach_ioas, ioas_id);
+	if (copy_from_user(&attach, (void __user *)arg, minsz))
+		return -EFAULT;
+
+	if (attach.argsz < minsz || attach.flags ||
+	    attach.iommufd < 0 || attach.ioas_id == IOMMUFD_INVALID_ID)
+		return -EINVAL;
+
+	/* not allowed if the device is opened in legacy interface */
+	if (vfio_device_in_container(device))
+		return -EBUSY;
+
+	if (unlikely(!device->ops->attach_ioas))
+		return -EINVAL;
+
+	ret = device->ops->attach_ioas(device, &attach);
+	if (ret)
+		return ret;
+
+	return copy_to_user((void __user *)arg + minsz,
+			    &attach.out_hwpt_id,
+			    sizeof(attach.out_hwpt_id)) ? -EFAULT : 0;
+}
+
+/* Try to find and get the reference on the input pasid */
+static int vfio_find_pasid(ioasid_t pasid, bool get)
+{
+	struct mm_struct *mm;
+	struct ioasid_set *ioasid_set;
+	int ret;
+
+	mm = get_task_mm(current);
+	ioasid_set = ioasid_find_mm_set(mm);
+	if (!ioasid_set) {
+		ret = -ENODEV;
+		goto out_put_mm;
+	}
+
+	/* Hold reference on the host pasid if caller indicates */
+
+	ret = ioasid_get(ioasid_set, pasid);
+	if (!ret && !get)
+		ioasid_put(ioasid_set, pasid);
+out_put_mm:
+	mmput(mm);
+	return ret;
+}
+
+static void vfio_put_pasid(ioasid_t pasid)
+{
+	struct mm_struct *mm;
+	struct ioasid_set *ioasid_set;
+
+	mm = get_task_mm(current);
+	ioasid_set = ioasid_find_mm_set(mm);
+	if (WARN_ON(unlikely(!ioasid_set)))
+		goto out_put_mm;
+	ioasid_put(ioasid_set, pasid);
+out_put_mm:
+	mmput(mm);
+}
+
+static long vfio_device_attach_hwpt(struct vfio_device *device,
+				    unsigned long arg)
+{
+	struct vfio_device_attach_hwpt attach;
+	unsigned long minsz, cursz;
+	int ret;
+	bool pasid_attach = false;
+
+	minsz = offsetofend(struct vfio_device_attach_hwpt, hwpt_id);
+	cursz = offsetofend(struct vfio_device_attach_hwpt, pasid);
+
+	memset((void *)&attach, 0, sizeof(attach));
+
+	if (copy_from_user(&attach, (void __user *)arg, minsz))
+		return -EFAULT;
+
+	if (attach.argsz < minsz ||
+	    (attach.flags & ~VFIO_DEVICE_ATTACH_FLAG_PASID) ||
+	    attach.iommufd < 0 || attach.hwpt_id == IOMMUFD_INVALID_ID ||
+	    ((attach.flags & VFIO_DEVICE_ATTACH_FLAG_PASID) &&
+	     !pasid_valid(attach.pasid)))
+		return -EINVAL;
+
+	if (attach.argsz < cursz &&
+	    attach.flags & VFIO_DEVICE_ATTACH_FLAG_PASID)
+		return -EINVAL;
+
+	if (attach.argsz >= cursz &&
+	    copy_from_user((void *)&attach + minsz,
+			   (void __user *)arg + minsz, cursz - minsz))
+		return -EFAULT;
+
+	/* not allowed if the device is opened in legacy interface */
+	if (vfio_device_in_container(device))
+		return -EBUSY;
+
+	if (unlikely(!device->ops->attach_hwpt))
+		return -EINVAL;
+
+	pasid_attach = attach.flags & VFIO_DEVICE_ATTACH_FLAG_PASID;
+	if (pasid_attach &&
+	    vfio_find_pasid(attach.pasid, true))
+		return -EINVAL;
+
+	ret = device->ops->attach_hwpt(device, &attach);
+	if (ret && pasid_attach)
+		vfio_put_pasid(attach.pasid);
+
+	return ret;
+
+}
+
+static long vfio_device_detach_hwpt(struct vfio_device *device,
+				    unsigned long arg)
+{
+	struct vfio_device_detach_hwpt detach;
+	unsigned long minsz, cursz;
+	bool pasid_detach = false;
+
+	minsz = offsetofend(struct vfio_device_detach_hwpt, iommufd);
+	cursz = offsetofend(struct vfio_device_detach_hwpt, pasid);
+
+	memset((void *)&detach, 0, sizeof(detach));
+	if (copy_from_user(&detach, (void __user *)arg, minsz))
+		return -EFAULT;
+
+	if (detach.argsz < minsz || detach.iommufd < 0 ||
+	    (detach.flags & ~VFIO_DEVICE_DETACH_FLAG_PASID) ||
+	    ((detach.flags & VFIO_DEVICE_DETACH_FLAG_PASID) &&
+	     !pasid_valid(detach.pasid)))
+		return -EINVAL;
+
+	if (detach.argsz < cursz &&
+	    detach.flags & VFIO_DEVICE_DETACH_FLAG_PASID)
+		return -EINVAL;
+
+	if (detach.argsz >= cursz &&
+	    copy_from_user((void *)&detach + minsz,
+			   (void __user *)arg + minsz, cursz - minsz))
+		return -EFAULT;
+
+	/* not allowed if the device is opened in legacy interface */
+	if (vfio_device_in_container(device))
+		return -EBUSY;
+
+	if (unlikely(!device->ops->detach_hwpt))
+		return -EINVAL;
+
+	pasid_detach = detach.flags & VFIO_DEVICE_DETACH_FLAG_PASID;
+	if (pasid_detach &&
+	    vfio_find_pasid(detach.pasid, false))
+		return -EINVAL;
+
+	device->ops->detach_hwpt(device, &detach);
+
+	if (pasid_detach)
+		vfio_put_pasid(detach.pasid);
+
+	return 0;
+}
+
 static long vfio_device_fops_unl_ioctl(struct file *filep,
 				       unsigned int cmd, unsigned long arg)
 {
-	struct vfio_device *device = filep->private_data;
+	struct vfio_device *device;
+
+	/* Bind is the only allowed operation before a successful bind */
+	if (cmd == VFIO_DEVICE_BIND_IOMMUFD)
+		return vfio_device_bind_iommufd(filep, arg);
+
+	/* Pair with smp_store_release() in vfio_device_bind_iommufd() */
+	device = smp_load_acquire(&filep->private_data);
+
+	if (!device)
+		return -EINVAL;
 
 	switch (cmd) {
+	case VFIO_DEVICE_ATTACH_IOAS:
+		return vfio_device_attach_ioas(device, arg);
+	case VFIO_DEVICE_ATTACH_HWPT:
+		return vfio_device_attach_hwpt(device, arg);
+	case VFIO_DEVICE_DETACH_HWPT:
+		return vfio_device_detach_hwpt(device, arg);
 	case VFIO_DEVICE_FEATURE:
 		return vfio_ioctl_device_feature(device, (void __user *)arg);
 	default:
@@ -1665,9 +2081,10 @@ static long vfio_device_fops_unl_ioctl(struct file *filep,
 static ssize_t vfio_device_fops_read(struct file *filep, char __user *buf,
 				     size_t count, loff_t *ppos)
 {
-	struct vfio_device *device = filep->private_data;
+	/* Pair with smp_store_release() in vfio_device_bind_iommufd() */
+	struct vfio_device *device = smp_load_acquire(&filep->private_data);
 
-	if (unlikely(!device->ops->read))
+	if (!device || unlikely(!device->ops->read))
 		return -EINVAL;
 
 	return device->ops->read(device, buf, count, ppos);
@@ -1677,9 +2094,10 @@ static ssize_t vfio_device_fops_write(struct file *filep,
 				      const char __user *buf,
 				      size_t count, loff_t *ppos)
 {
-	struct vfio_device *device = filep->private_data;
+	/* Pair with smp_store_release() in vfio_device_bind_iommufd() */
+	struct vfio_device *device = smp_load_acquire(&filep->private_data);
 
-	if (unlikely(!device->ops->write))
+	if (!device || unlikely(!device->ops->write))
 		return -EINVAL;
 
 	return device->ops->write(device, buf, count, ppos);
@@ -1687,9 +2105,10 @@ static ssize_t vfio_device_fops_write(struct file *filep,
 
 static int vfio_device_fops_mmap(struct file *filep, struct vm_area_struct *vma)
 {
-	struct vfio_device *device = filep->private_data;
+	/* Pair with smp_store_release() in vfio_device_bind_iommufd() */
+	struct vfio_device *device = smp_load_acquire(&filep->private_data);
 
-	if (unlikely(!device->ops->mmap))
+	if (!device || unlikely(!device->ops->mmap))
 		return -EINVAL;
 
 	return device->ops->mmap(device, vma);
@@ -1697,6 +2116,7 @@ static int vfio_device_fops_mmap(struct file *filep, struct vm_area_struct *vma)
 
 static const struct file_operations vfio_device_fops = {
 	.owner		= THIS_MODULE,
+	.open		= vfio_device_fops_open,
 	.release	= vfio_device_fops_release,
 	.read		= vfio_device_fops_read,
 	.write		= vfio_device_fops_write,
@@ -1742,6 +2162,8 @@ bool vfio_file_enforced_coherent(struct file *file)
 	if (group->container) {
 		ret = vfio_ioctl_check_extension(group->container,
 						 VFIO_DMA_CC_IOMMU);
+	} else if (group->iommufd) {
+		ret = iommufd_vfio_check_extension(VFIO_DMA_CC_IOMMU);
 	} else {
 		/*
 		 * Since the coherency state is determined only once a container
@@ -1941,6 +2363,9 @@ int vfio_pin_pages(struct vfio_device *device, unsigned long *user_pfn,
 	if (group->dev_counter > 1)
 		return -EINVAL;
 
+	/*
+	 * TODO: pin_pages should use the iommufd implementation in compat mode
+	 */
 	/* group->container cannot change while a vfio device is open */
 	container = group->container;
 	driver = container->iommu_driver;
@@ -1977,6 +2402,9 @@ int vfio_unpin_pages(struct vfio_device *device, unsigned long *user_pfn,
 	if (npage > VFIO_PIN_PAGES_MAX_ENTRIES)
 		return -E2BIG;
 
+	/*
+	 * TODO: unpin_pages should use the iommufd implementation in compat mode
+	 */
 	/* group->container cannot change while a vfio device is open */
 	container = device->group->container;
 	driver = container->iommu_driver;
@@ -2017,6 +2445,9 @@ int vfio_dma_rw(struct vfio_device *device, dma_addr_t user_iova, void *data,
 	if (!data || len <= 0 || !vfio_assert_device_open(device))
 		return -EINVAL;
 
+	/*
+	 * TODO: dma_rw should use the iommufd implementation in compat mode
+	 */
 	/* group->container cannot change while a vfio device is open */
 	container = device->group->container;
 	driver = container->iommu_driver;
@@ -2040,6 +2471,9 @@ static int vfio_register_iommu_notifier(struct vfio_group *group,
 
 	lockdep_assert_held_read(&group->group_rwsem);
 
+	/*
+	 * TODO: register_notifier should use the iommufd implementation in compat mode
+	 */
 	container = group->container;
 	driver = container->iommu_driver;
 	if (likely(driver && driver->ops->register_notifier))
@@ -2060,6 +2494,9 @@ static int vfio_unregister_iommu_notifier(struct vfio_group *group,
 
 	lockdep_assert_held_read(&group->group_rwsem);
 
+	/*
+	 * TODO: unregister_notifier should use the iommufd implementation in compat mode
+	 */
 	container = group->container;
 	driver = container->iommu_driver;
 	if (likely(driver && driver->ops->unregister_notifier))
@@ -2122,6 +2559,11 @@ static char *vfio_devnode(struct device *dev, umode_t *mode)
 	return kasprintf(GFP_KERNEL, "vfio/%s", dev_name(dev));
 }
 
+static char *vfio_device_devnode(struct device *dev, umode_t *mode)
+{
+	return kasprintf(GFP_KERNEL, "vfio/devices/%s", dev_name(dev));
+}
+
 static struct miscdevice vfio_dev = {
 	.minor = VFIO_MINOR,
 	.name = "vfio",
@@ -2135,6 +2577,7 @@ static int __init vfio_init(void)
 	int ret;
 
 	ida_init(&vfio.group_ida);
+	ida_init(&vfio.device_ida);
 	mutex_init(&vfio.group_lock);
 	mutex_init(&vfio.iommu_drivers_lock);
 	INIT_LIST_HEAD(&vfio.group_list);
@@ -2150,14 +2593,28 @@ static int __init vfio_init(void)
 	vfio.class = class_create(THIS_MODULE, "vfio");
 	if (IS_ERR(vfio.class)) {
 		ret = PTR_ERR(vfio.class);
-		goto err_class;
+		goto err_group_class;
 	}
 
 	vfio.class->devnode = vfio_devnode;
 
+	/* /dev/vfio/devices/vfioX */
+	vfio.device_class = class_create(THIS_MODULE, "vfio-device");
+	if (IS_ERR(vfio.device_class)) {
+		ret = PTR_ERR(vfio.device_class);
+		goto err_dev_class;
+	}
+
+	vfio.device_class->devnode = vfio_device_devnode;
+
 	ret = alloc_chrdev_region(&vfio.group_devt, 0, MINORMASK + 1, "vfio");
 	if (ret)
-		goto err_alloc_chrdev;
+		goto err_alloc_group_chrdev;
+
+	ret = alloc_chrdev_region(&vfio.device_devt, 0,
+				  MINORMASK + 1, "vfio-device");
+	if (ret)
+		goto err_alloc_dev_chrdev;
 
 	pr_info(DRIVER_DESC " version: " DRIVER_VERSION "\n");
 
@@ -2166,10 +2623,15 @@ static int __init vfio_init(void)
 #endif
 	return 0;
 
-err_alloc_chrdev:
+err_alloc_dev_chrdev:
+	unregister_chrdev_region(vfio.group_devt, MINORMASK + 1);
+err_alloc_group_chrdev:
+	class_destroy(vfio.device_class);
+	vfio.device_class = NULL;
+err_dev_class:
 	class_destroy(vfio.class);
 	vfio.class = NULL;
-err_class:
+err_group_class:
 	misc_deregister(&vfio_dev);
 	return ret;
 }
@@ -2181,8 +2643,12 @@ static void __exit vfio_cleanup(void)
 #ifdef CONFIG_VFIO_NOIOMMU
 	vfio_unregister_iommu_driver(&vfio_noiommu_ops);
 #endif
+	ida_destroy(&vfio.device_ida);
 	ida_destroy(&vfio.group_ida);
+	unregister_chrdev_region(vfio.device_devt, MINORMASK + 1);
 	unregister_chrdev_region(vfio.group_devt, MINORMASK + 1);
+	class_destroy(vfio.device_class);
+	vfio.device_class = NULL;
 	class_destroy(vfio.class);
 	vfio.class = NULL;
 	misc_deregister(&vfio_dev);

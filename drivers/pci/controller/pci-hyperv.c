@@ -614,8 +614,6 @@ static unsigned int hv_msi_get_int_vector(struct irq_data *data)
 static int hv_msi_prepare(struct irq_domain *domain, struct device *dev,
 			  int nvec, msi_alloc_info_t *info)
 {
-	int ret = pci_msi_prepare(domain, dev, nvec, info);
-
 	/*
 	 * By using the interrupt remapper in the hypervisor IOMMU, contiguous
 	 * CPU vectors is not needed for multi-MSI
@@ -623,7 +621,7 @@ static int hv_msi_prepare(struct irq_domain *domain, struct device *dev,
 	if (info->type == X86_IRQ_ALLOC_TYPE_PCI_MSI)
 		info->flags &= ~X86_IRQ_ALLOC_CONTIGUOUS_VECTORS;
 
-	return ret;
+	return x86_msi_prepare(domain, dev, nvec, info);
 }
 
 /**

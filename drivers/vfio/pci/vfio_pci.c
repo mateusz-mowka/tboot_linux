@@ -127,8 +127,14 @@ static int vfio_pci_open_device(struct vfio_device *core_vdev)
 
 static const struct vfio_device_ops vfio_pci_ops = {
 	.name		= "vfio-pci",
+	.release	= vfio_pci_core_release,
+	.bind_iommufd	= vfio_pci_core_bind_iommufd,
+	.unbind_iommufd	= vfio_pci_core_unbind_iommufd,
 	.open_device	= vfio_pci_open_device,
 	.close_device	= vfio_pci_core_close_device,
+	.attach_ioas	= vfio_pci_core_attach_ioas,
+	.attach_hwpt	= vfio_pci_core_attach_hwpt,
+	.detach_hwpt	= vfio_pci_core_detach_hwpt,
 	.ioctl		= vfio_pci_core_ioctl,
 	.device_feature = vfio_pci_core_ioctl_feature,
 	.read		= vfio_pci_core_read,
@@ -146,10 +152,11 @@ static int vfio_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (vfio_pci_is_denylisted(pdev))
 		return -EINVAL;
 
-	vdev = kzalloc(sizeof(*vdev), GFP_KERNEL);
+	vdev = vfio_alloc_device(vfio_pci_core_device, vdev,
+				 &pdev->dev, &vfio_pci_ops);
 	if (!vdev)
 		return -ENOMEM;
-	vfio_pci_core_init_device(vdev, pdev, &vfio_pci_ops);
+	vfio_pci_core_init_device(vdev, pdev);
 
 	dev_set_drvdata(&pdev->dev, vdev);
 	ret = vfio_pci_core_register_device(vdev);
@@ -158,8 +165,7 @@ static int vfio_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 
 out_free:
-	vfio_pci_core_uninit_device(vdev);
-	kfree(vdev);
+	vfio_pci_core_dealloc_device(vdev);
 	return ret;
 }
 
@@ -168,8 +174,7 @@ static void vfio_pci_remove(struct pci_dev *pdev)
 	struct vfio_pci_core_device *vdev = dev_get_drvdata(&pdev->dev);
 
 	vfio_pci_core_unregister_device(vdev);
-	vfio_pci_core_uninit_device(vdev);
-	kfree(vdev);
+	vfio_pci_core_dealloc_device(vdev);
 }
 
 static int vfio_pci_sriov_configure(struct pci_dev *pdev, int nr_virtfn)

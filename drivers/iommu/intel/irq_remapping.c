@@ -1290,6 +1290,21 @@ static void intel_irq_remapping_prepare_irte(struct intel_ir_data *data,
 		set_msi_sid(irte,
 			    pci_real_dma_dev(msi_desc_to_pci_dev(info->desc)));
 		break;
+	case X86_IRQ_ALLOC_TYPE_DEV_MSI: {
+		struct device *dev = info->desc->dev;
+
+		/* Find the PCI parent device */
+		while (dev) {
+			if (dev_is_pci(dev))
+				break;
+			dev = dev->parent;
+		}
+		if (dev)
+			set_msi_sid(irte, to_pci_dev(dev));
+		else
+			pr_warn("No PCI dev for DEV_MSI.\n");
+		break;
+	}
 	default:
 		BUG_ON(1);
 		break;
@@ -1333,7 +1348,8 @@ static int intel_irq_remapping_alloc(struct irq_domain *domain,
 	if (!info || !iommu)
 		return -EINVAL;
 	if (nr_irqs > 1 && info->type != X86_IRQ_ALLOC_TYPE_PCI_MSI &&
-	    info->type != X86_IRQ_ALLOC_TYPE_PCI_MSIX)
+	    info->type != X86_IRQ_ALLOC_TYPE_PCI_MSIX &&
+	    info->type != X86_IRQ_ALLOC_TYPE_DEV_MSI)
 		return -EINVAL;
 
 	/*

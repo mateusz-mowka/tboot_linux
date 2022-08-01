@@ -5,6 +5,7 @@
 #include <linux/mutex.h>
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
+#include <linux/mdev.h>
 #include <asm/chpid.h>
 #include <asm/cio.h>
 #include <asm/fcx.h>
@@ -108,6 +109,9 @@ struct subchannel {
 	 * frees it.  Use driver_set_override() to set or clear it.
 	 */
 	const char *driver_override;
+	struct mdev_parent parent;
+	struct mdev_type mdev_type;
+	struct mdev_type *mdev_types[1];
 } __attribute__ ((aligned(8)));
 
 DECLARE_PER_CPU_ALIGNED(struct irb, cio_irb);

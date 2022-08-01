@@ -2,6 +2,7 @@
 menuconfig VFIO
 	tristate "VFIO Non-Privileged userspace driver framework"
 	select IOMMU_API
+	select IOMMUFD if MMU && (X86 || S390 || ARM || ARM64)
 	select VFIO_IOMMU_TYPE1 if MMU && (X86 || S390 || ARM || ARM64)
 	help
 	  VFIO provides a framework for secure userspace device drivers.
@@ -43,10 +44,22 @@ config VFIO_NOIOMMU
 
 	  If you don't know what to do here, say N.
 
+config VFIO_IMS
+	tristate "VFIO common lib code supporting Interrupt Message Store (IMS)"
+	depends on VFIO && EVENTFD
+	select IMS_MSI_ARRAY
+	select IRQ_BYPASS_MANAGER
+	default n
+	help
+	  Provide common library code to deal with IMS interrupts.
+
+	  If you don't know what to do here, say N.
+
 source "drivers/vfio/pci/Kconfig"
 source "drivers/vfio/platform/Kconfig"
 source "drivers/vfio/mdev/Kconfig"
 source "drivers/vfio/fsl-mc/Kconfig"
+source "drivers/vfio/device/Kconfig"
 endif
 
 source "virt/lib/Kconfig"

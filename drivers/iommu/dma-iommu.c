@@ -371,6 +371,118 @@ void iommu_put_dma_cookie(struct iommu_domain *domain)
 	domain->iova_cookie = NULL;
 }
 
+/* Protect iommu_domain DMA PASID data */
+static DEFINE_MUTEX(dma_pasid_lock);
+/**
+ * iommu_attach_dma_pasid --Attach a PASID for in-kernel DMA. Use the device's
+ * DMA domain.
+ * @dev: Device to be enabled
+ * @pasid: The returned kernel PASID to be used for DMA
+ *
+ * DMA request with PASID will be mapped the same way as the legacy DMA.
+ * If the device is in pass-through, PASID will also pass-through. If the
+ * device is in IOVA, the PASID will point to the same IOVA page table.
+ *
+ * @return err code or 0 on success
+ */
+int iommu_attach_dma_pasid(struct device *dev, ioasid_t *pasid)
+{
+	struct iommu_domain *dom;
+	ioasid_t id, max;
+	int ret = 0;
+
+	dom = iommu_get_domain_for_dev(dev);
+	if (!dom || !dom->ops || !dom->ops->set_dev_pasid)
+		return -ENODEV;
+
+	/* Only support domain types that DMA API can be used */
+	if (dom->type == IOMMU_DOMAIN_UNMANAGED ||
+	    dom->type == IOMMU_DOMAIN_BLOCKED) {
+		dev_warn(dev, "Invalid domain type %d", dom->type);
+		return -EPERM;
+	}
+
+	mutex_lock(&dma_pasid_lock);
+	id = dom->dma_pasid;
+	if (!id) {
+		/*
+		 * First device to use PASID in its DMA domain, allocate
+		 * a single PASID per DMA domain is all we need, it is also
+		 * good for performance when it comes down to IOTLB flush.
+		 */
+		max = dev->iommu->max_pasids;
+		if (!max) {
+			ret = -EINVAL;
+			goto done_unlock;
+		}
+
+		id = ioasid_alloc(NULL, 1, max, dev, 0);
+		if (id == INVALID_IOASID) {
+			ret = -ENOMEM;
+			goto done_unlock;
+		}
+
+		dom->dma_pasid = id;
+		atomic_set(&dom->dma_pasid_users, 1);
+	}
+
+	ret = iommu_attach_device_pasid(dom, dev, id);
+	if (!ret) {
+		*pasid = id;
+		atomic_inc(&dom->dma_pasid_users);
+		goto done_unlock;
+	}
+
+	if (atomic_dec_and_test(&dom->dma_pasid_users)) {
+		ioasid_put(NULL, id);
+		dom->dma_pasid = 0;
+	}
+done_unlock:
+	mutex_unlock(&dma_pasid_lock);
+	return ret;
+}
+EXPORT_SYMBOL(iommu_attach_dma_pasid);
+
+/**
+ * iommu_detach_dma_pasid --Disable in-kernel DMA request with PASID
+ * @dev:	Device's PASID DMA to be disabled
+ *
+ * It is the device driver's responsibility to ensure no more incoming DMA
+ * requests with the kernel PASID before calling this function. IOMMU driver
+ * ensures PASID cache, IOTLBs related to the kernel PASID are cleared and
+ * drained.
+ *
+ */
+void iommu_detach_dma_pasid(struct device *dev)
+{
+	struct iommu_domain *dom;
+	ioasid_t pasid;
+
+	dom = iommu_get_domain_for_dev(dev);
+	if (WARN_ON(!dom || !dom->ops || !dom->ops->block_dev_pasid))
+		return;
+
+	/* Only support DMA API managed domain type */
+	if (WARN_ON(dom->type == IOMMU_DOMAIN_UNMANAGED ||
+		    dom->type == IOMMU_DOMAIN_BLOCKED))
+		return;
+
+	mutex_lock(&dma_pasid_lock);
+	pasid = iommu_get_pasid_from_domain(dev, dom);
+	if (!pasid || pasid == INVALID_IOASID) {
+		dev_err(dev, "No valid DMA PASID attached\n");
+		mutex_unlock(&dma_pasid_lock);
+		return;
+	}
+	iommu_detach_device_pasid(dom, dev, pasid);
+	if (atomic_dec_and_test(&dom->dma_pasid_users)) {
+		ioasid_put(NULL, pasid);
+		dom->dma_pasid = 0;
+	}
+	mutex_unlock(&dma_pasid_lock);
+}
+EXPORT_SYMBOL(iommu_detach_dma_pasid);
+
 /**
  * iommu_dma_get_resv_regions - Reserved region driver helper
  * @dev: Device from iommu_get_resv_regions()

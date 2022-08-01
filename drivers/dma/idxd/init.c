@@ -14,10 +14,12 @@
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/device.h>
 #include <linux/idr.h>
-#include <linux/intel-svm.h>
 #include <linux/iommu.h>
+#include <linux/dma-iommu.h>
 #include <uapi/linux/idxd.h>
 #include <linux/dmaengine.h>
+#include <linux/irqdomain.h>
+#include <linux/irqchip/irq-ims-msi.h>
 #include "../dmaengine.h"
 #include "registers.h"
 #include "idxd.h"
@@ -67,6 +69,20 @@ static struct pci_device_id idxd_pci_tbl[] = {
 	{ 0, }
 };
 MODULE_DEVICE_TABLE(pci, idxd_pci_tbl);
+
+static void idxd_setup_ims(struct idxd_device *idxd)
+{
+	struct ims_array_info ims_info;
+
+	if (idxd->ims_size == 0)
+		return;
+
+	ims_info.max_slots = idxd->ims_size;
+	ims_info.slots = idxd->reg_base + idxd->ims_offset;
+	idxd->ims_domain = pci_ims_array_create_msi_irq_domain(idxd->pdev, &ims_info);
+	if (!idxd->ims_domain)
+		dev_warn(&idxd->pdev->dev, "Failed to acquire IMS domain\n");
+}
 
 static int idxd_setup_interrupts(struct idxd_device *idxd)
 {
@@ -365,6 +381,8 @@ static void idxd_read_table_offsets(struct idxd_device *idxd)
 	dev_dbg(dev, "IDXD Work Queue Config Offset: %#x\n", idxd->wqcfg_offset);
 	idxd->msix_perm_offset = offsets.msix_perm * IDXD_TABLE_MULT;
 	dev_dbg(dev, "IDXD MSIX Permission Offset: %#x\n", idxd->msix_perm_offset);
+	idxd->ims_offset = offsets.ims * IDXD_TABLE_MULT;
+	dev_dbg(dev, "IDXD IMS Offset: %#x\n", idxd->ims_offset);
 	idxd->perfmon_offset = offsets.perfmon * IDXD_TABLE_MULT;
 	dev_dbg(dev, "IDXD Perfmon Offset: %#x\n", idxd->perfmon_offset);
 }
@@ -391,6 +409,8 @@ static void idxd_read_caps(struct idxd_device *idxd)
 	dev_dbg(dev, "max xfer size: %llu bytes\n", idxd->max_xfer_bytes);
 	idxd->max_batch_size = 1U << idxd->hw.gen_cap.max_batch_shift;
 	dev_dbg(dev, "max batch size: %u\n", idxd->max_batch_size);
+	idxd->ims_size = idxd->hw.gen_cap.max_ims_mult * 256ULL;
+	dev_dbg(dev, "IMS size: %u\n", idxd->ims_size);
 	if (idxd->hw.gen_cap.config_en)
 		set_bit(IDXD_FLAG_CONFIGURABLE, &idxd->flags);
 
@@ -460,42 +480,30 @@ static struct idxd_device *idxd_alloc(struct pci_dev *pdev, struct idxd_driver_d
 
 	spin_lock_init(&idxd->dev_lock);
 	spin_lock_init(&idxd->cmd_lock);
+	mutex_init(&idxd->vdev_lock);
+	INIT_LIST_HEAD(&idxd->vdev_list);
 
 	return idxd;
 }
 
 static int idxd_enable_system_pasid(struct idxd_device *idxd)
 {
-	int flags;
-	unsigned int pasid;
-	struct iommu_sva *sva;
+	u32 pasid;
+	int ret;
 
-	flags = SVM_FLAG_SUPERVISOR_MODE;
-
-	sva = iommu_sva_bind_device(&idxd->pdev->dev, NULL, &flags);
-	if (IS_ERR(sva)) {
-		dev_warn(&idxd->pdev->dev,
-			 "iommu sva bind failed: %ld\n", PTR_ERR(sva));
-		return PTR_ERR(sva);
+	ret = iommu_attach_dma_pasid(&idxd->pdev->dev, &pasid);
+	if (ret) {
+		dev_err(&idxd->pdev->dev, "No DMA PASID %d\n", ret);
+		return ret;
 	}
-
-	pasid = iommu_sva_get_pasid(sva);
-	if (pasid == IOMMU_PASID_INVALID) {
-		iommu_sva_unbind_device(sva);
-		return -ENODEV;
-	}
-
-	idxd->sva = sva;
 	idxd->pasid = pasid;
-	dev_dbg(&idxd->pdev->dev, "system pasid: %u\n", pasid);
+
 	return 0;
 }
 
 static void idxd_disable_system_pasid(struct idxd_device *idxd)
 {
-
-	iommu_sva_unbind_device(idxd->sva);
-	idxd->sva = NULL;
+	iommu_detach_dma_pasid(&idxd->pdev->dev);
 }
 
 static int idxd_probe(struct idxd_device *idxd)
@@ -525,7 +533,6 @@ static int idxd_probe(struct idxd_device *idxd)
 	} else if (!sva) {
 		dev_warn(dev, "User forced SVA off via module param.\n");
 	}
-
 	idxd_read_caps(idxd);
 	idxd_read_table_offsets(idxd);
 
@@ -544,6 +551,8 @@ static int idxd_probe(struct idxd_device *idxd)
 	rc = idxd_setup_interrupts(idxd);
 	if (rc)
 		goto err_config;
+
+	idxd_setup_ims(idxd);
 
 	idxd->major = idxd_cdev_get_major(idxd);
 
@@ -687,6 +696,8 @@ static void idxd_remove(struct pci_dev *pdev)
 	if (device_pasid_enabled(idxd))
 		idxd_disable_system_pasid(idxd);
 
+	if (idxd->ims_domain)
+		irq_domain_remove(idxd->ims_domain);
 	irq_entry = idxd_get_ie(idxd, 0);
 	free_irq(irq_entry->vector, irq_entry);
 	pci_free_irq_vectors(pdev);
