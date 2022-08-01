@@ -4326,7 +4326,7 @@
                 }
             ],
             "description": "SVOS TDX Modifications for v5.18",
-            "enabled": true,
+            "enabled": false,
             "ip_owner": [
                 {
                     "name": "Sergio Perez Gonzalez",
