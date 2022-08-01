@@ -36,6 +36,7 @@ struct mce {
 	__u64 ppin;		/* Protected Processor Inventory Number */
 	__u32 microcode;	/* Microcode revision */
 	__u64 kflags;		/* Internal kernel use */
+	__u32 hybrid_info;	/* Type and native model ID in hybrid parts */
 };
 
 #define MCE_GET_RECORD_LEN   _IOR('M', 1, int)

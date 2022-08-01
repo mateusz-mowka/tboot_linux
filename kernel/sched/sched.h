@@ -1011,6 +1011,7 @@ struct rq {
 	int			active_balance;
 	int			push_cpu;
 	struct cpu_stop_work	active_balance_work;
+	struct multi_stop_data  multi_stop_data;
 
 	/* CPU of this runqueue: */
 	int			cpu;
@@ -1107,6 +1108,9 @@ struct rq {
 	unsigned int		core_forceidle_seq;
 	unsigned int		core_forceidle_occupation;
 	u64			core_forceidle_start;
+#endif
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	unsigned int		*nr_running_classes;
 #endif
 };
 
@@ -1662,6 +1666,10 @@ static inline int sched_numa_find_closest(const struct cpumask *cpus, int cpu)
 {
 	return nr_cpu_ids;
 }
+#endif
+
+#if defined(CONFIG_SCHED_TASK_CLASSES) || defined(CONFIG_NUMA_BALANCING)
+void __migrate_swap_task(struct task_struct *p, int cpu);
 #endif
 
 #ifdef CONFIG_NUMA_BALANCING
@@ -2469,6 +2477,118 @@ void arch_scale_freq_tick(void)
 }
 #endif
 
+#ifdef CONFIG_SCHED_TASK_CLASSES
+DECLARE_STATIC_KEY_FALSE(sched_task_classes);
+extern __read_mostly int sched_nr_task_classes;
+
+static inline bool sched_task_classes_enabled(void)
+{
+	return static_branch_unlikely(&sched_task_classes);
+}
+
+#ifndef arch_task_classes_nr
+/**
+ * arch_task_classes_nr() - Get the number of supported task classification
+ * values.
+ * Returns: the number of task classification values that the system supports.
+ */
+static __always_inline
+int arch_task_classes_nr(void)
+{
+	return 1;
+}
+#endif
+
+#ifndef arch_update_task_class
+/**
+ * arch_update_task_class() - Update the classification of the current task
+ * @curr:		The current task
+ * @smt_siblings_idle:	True if all of the SMT siblings of the CPU of @curr
+ *			are idle.
+ *
+ * Request that the classification of @curr is updated. On certain CPUs, the
+ * classification is only reliable if all of the SMT siblings of the CPU of
+ * @curr are idle.
+ *
+ * Returns: none
+ */
+static __always_inline
+void arch_update_task_class(struct task_struct *curr, bool smt_siblings_idle)
+{
+}
+#endif
+
+#ifndef arch_get_task_class_score
+/**
+ * arch_get_task_class_score() - Get the priority of a class
+ * @class:	A classification value
+ * @cpu:	A CPU number
+ *
+ * Returns the performance score of a classs of tasks when running on @CPU.
+ * Error when either @class or @cpu are invalid.
+ */
+static __always_inline
+int arch_get_task_class_score(int class, int cpu)
+{
+	return 1;
+}
+#endif
+
+static inline void add_nr_running_task_class(struct rq *rq, short class)
+{
+	if (!sched_task_classes_enabled())
+		return;
+
+	/* Ignore unclassified tasks. */
+	if (class == TASK_CLASS_UNCLASSIFIED)
+		return;
+
+	rq->nr_running_classes[class]++;
+}
+
+static inline void sub_nr_running_task_class(struct rq *rq, short class)
+{
+	if (!sched_task_classes_enabled())
+		return;
+
+	/* Ignore unclassified tasks. */
+	if (class == TASK_CLASS_UNCLASSIFIED)
+		return;
+
+	rq->nr_running_classes[class]--;
+}
+
+static inline void update_nr_running_task_class(struct rq *rq, short new_class,
+						short old_class)
+{
+	if (new_class == old_class)
+		return;
+
+	add_nr_running_task_class(rq, new_class);
+	sub_nr_running_task_class(rq, old_class);
+}
+
+static inline int class_of(struct task_struct *p)
+{
+	return p->class;
+}
+
+#else /* CONFIG_SCHED_TASK_CLASSES */
+
+#define arch_get_task_class_score(class, cpu) (-EINVAL)
+#define arch_update_task_class(curr, smt_siblings_idle)
+
+static inline bool sched_task_classes_enabled(void) { return false; }
+static inline void add_nr_running_task_class(struct rq *rq, short class) { }
+static inline void sub_nr_running_task_class(struct rq *rq, short class) { }
+static inline void update_nr_running_task_class(struct rq *rq, short new_class,
+						short old_class) { }
+static inline short class_of(struct task_struct *p)
+{
+	return TASK_CLASS_UNCLASSIFIED;
+}
+#endif /* CONFIG_SCHED_TASK_CLASSES */
+
 #ifndef arch_scale_freq_capacity
 /**
  * arch_scale_freq_capacity - get the frequency scale factor of a given CPU.
@@ -3106,6 +3226,23 @@ static inline bool is_per_cpu_kthread(struct task_struct *p)
 	return true;
 }
 #endif
+
+static inline bool is_core_idle(int cpu)
+{
+#ifdef CONFIG_SCHED_SMT
+	int sibling;
+
+	for_each_cpu(sibling, cpu_smt_mask(cpu)) {
+		if (cpu == sibling)
+			continue;
+
+		if (!idle_cpu(sibling))
+			return false;
+	}
+#endif
+
+	return true;
+}
 
 extern void swake_up_all_locked(struct swait_queue_head *q);
 extern void __prepare_to_swait(struct swait_queue_head *q, struct swait_queue *wait);

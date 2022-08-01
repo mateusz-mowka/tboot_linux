@@ -101,6 +101,8 @@ static int sched_domain_debug_one(struct sched_domain *sd, int cpu, int level,
 		if (group->sgc->capacity != SCHED_CAPACITY_SCALE)
 			printk(KERN_CONT " cap=%lu", group->sgc->capacity);
 
+		printk(KERN_CONT " flags=%x", group->flags);
+
 		if (group == sd->groups && sd->child &&
 		    !cpumask_equal(sched_domain_span(sd->child),
 				   sched_group_span(group))) {
@@ -669,6 +671,10 @@ DEFINE_PER_CPU(struct sched_domain __rcu *, sd_numa);
 DEFINE_PER_CPU(struct sched_domain __rcu *, sd_asym_packing);
 DEFINE_PER_CPU(struct sched_domain __rcu *, sd_asym_cpucapacity);
 DEFINE_STATIC_KEY_FALSE(sched_asym_cpucapacity);
+#ifdef CONFIG_SCHED_TASK_CLASSES
+DEFINE_STATIC_KEY_FALSE(sched_task_classes);
+__read_mostly int sched_nr_task_classes;
+#endif
 
 static void update_top_cache_domain(int cpu)
 {
@@ -2240,6 +2246,47 @@ static bool topology_span_sane(struct sched_domain_topology_level *tl,
 	return true;
 }
 
+#ifdef CONFIG_SCHED_TASK_CLASSES
+static bool task_classes_initialized;
+static int init_rq_task_classes_counters(void)
+{
+	int i, j, counters_nr;
+	struct rq *rq;
+
+	counters_nr = arch_task_classes_nr();
+
+	if (task_classes_initialized)
+		return 0;
+
+	for_each_possible_cpu(i) {
+		unsigned int *counters;
+
+		rq = cpu_rq(i);
+		counters = kcalloc_node(counters_nr, sizeof(*counters),
+					GFP_KERNEL, cpu_to_node(i));
+		if (!counters)
+			goto out;
+
+		rq->nr_running_classes = counters;
+	}
+
+	task_classes_initialized = true;
+	return 0;
+
+out:
+	for_each_possible_cpu(j) {
+		if (j == i)
+			break;
+
+		rq = cpu_rq(j);
+		kfree(rq->nr_running_classes);
+		rq->nr_running_classes = NULL;
+	}
+
+	return -ENOMEM;
+}
+#endif
+
 /*
  * Build sched domains for a given set of CPUs and attach the sched domains
  * to the individual CPUs
@@ -2376,6 +2423,15 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 
 	if (has_asym)
 		static_branch_inc_cpuslocked(&sched_asym_cpucapacity);
+
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	if (arch_task_classes_nr() > 1) {
+		if (!init_rq_task_classes_counters()) {
+			sched_nr_task_classes = arch_task_classes_nr();
+			static_branch_enable_cpuslocked(&sched_task_classes);
+		}
+	}
+#endif
 
 	if (rq && sched_debug_verbose) {
 		pr_info("root domain span: %*pbl (max cpu_capacity = %lu)\n",

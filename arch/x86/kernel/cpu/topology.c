@@ -7,6 +7,7 @@
 
 #include <linux/cpu.h>
 #include <asm/apic.h>
+#include <asm/cpu.h>
 #include <asm/memtype.h>
 #include <asm/processor.h>
 
@@ -160,4 +161,22 @@ int detect_extended_topology(struct cpuinfo_x86 *c)
 	__max_die_per_package = (die_level_siblings / core_level_siblings);
 #endif
 	return 0;
+}
+
+u32 arch_get_cpu_type(int cpu)
+{
+	return get_hybrid_cpu_params(cpu);
+}
+
+bool arch_has_cpu_type(void)
+{
+	return boot_cpu_has(X86_FEATURE_HYBRID_CPU);
+}
+
+const char *arch_get_cpu_type_name(u32 cpu_type)
+{
+	if (boot_cpu_data.x86_vendor == X86_VENDOR_INTEL)
+		return intel_get_hybrid_cpu_type_name(cpu_type);
+
+	return NULL;
 }

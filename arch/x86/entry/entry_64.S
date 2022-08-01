@@ -27,6 +27,7 @@
 #include <asm/unistd.h>
 #include <asm/thread_info.h>
 #include <asm/hw_irq.h>
+#include <asm/itd.h>
 #include <asm/page_types.h>
 #include <asm/irqflags.h>
 #include <asm/paravirt.h>
@@ -93,6 +94,8 @@ SYM_CODE_START(entry_SYSCALL_64)
 	movq	%rsp, PER_CPU_VAR(cpu_tss_rw + TSS_sp2)
 	SWITCH_TO_KERNEL_CR3 scratch_reg=%rsp
 	movq	PER_CPU_VAR(cpu_current_top_of_stack), %rsp
+
+	ITD_SAVE_CURR_TASK_CLASS
 
 SYM_INNER_LABEL(entry_SYSCALL_64_safe_stack, SYM_L_GLOBAL)
 	ANNOTATE_NOENDBR
@@ -1059,6 +1062,12 @@ SYM_CODE_START_LOCAL(error_entry)
 	UNTRAIN_RET
 
 	leaq	8(%rsp), %rdi			/* arg0 = pt_regs pointer */
+
+	/*
+	 * We may not get the correct classification if we entered here from
+	 * IRET fault but that is OK as it should be a rare case.
+	 */
+	ITD_SAVE_CURR_TASK_CLASS
 .Lerror_entry_from_usermode_after_swapgs:
 
 	/* Put us onto the real thread stack. */

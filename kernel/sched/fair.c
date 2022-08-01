@@ -1512,23 +1512,6 @@ struct numa_stats {
 	int idle_cpu;
 };
 
-static inline bool is_core_idle(int cpu)
-{
-#ifdef CONFIG_SCHED_SMT
-	int sibling;
-
-	for_each_cpu(sibling, cpu_smt_mask(cpu)) {
-		if (cpu == sibling)
-			continue;
-
-		if (!idle_cpu(sibling))
-			return false;
-	}
-#endif
-
-	return true;
-}
-
 struct task_numa_env {
 	struct task_struct *p;
 
@@ -5724,6 +5707,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 
 	/* At this point se is NULL and we are at root level*/
 	add_nr_running(rq, 1);
+	add_nr_running_task_class(rq, class_of(p));
 
 	/*
 	 * Since new tasks are assigned an initial util_avg equal to
@@ -5830,6 +5814,7 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 
 	/* At this point se is NULL and we are at root level*/
 	sub_nr_running(rq, 1);
+	sub_nr_running_task_class(rq, class_of(p));
 
 	/* balance early to pull high priority tasks */
 	if (unlikely(!was_sched_idle && sched_idle_rq(rq)))
@@ -7590,6 +7575,13 @@ enum group_type {
 	 */
 	group_misfit_task,
 	/*
+	 * The classes of tasks in the group can run with higher performance on
+	 * one of the local CPUs. Since the local group does not have tasks of
+	 * this classes, there is opportunity to swap tasks to increase
+	 * throughput.
+	 */
+	group_misfit_task_class,
+	/*
 	 * SD_ASYM_PACKING only: One local CPU with higher capacity is available,
 	 * and the task should be migrated to it instead of running on the
 	 * current CPU.
@@ -7611,7 +7603,8 @@ enum migration_type {
 	migrate_load = 0,
 	migrate_util,
 	migrate_task,
-	migrate_misfit
+	migrate_misfit,
+	migrate_misfit_task_class
 };
 
 #define LBF_ALL_PINNED	0x01
@@ -7980,6 +7973,10 @@ static int detach_tasks(struct lb_env *env)
 			env->imbalance--;
 			break;
 
+		case migrate_misfit_task_class:
+			env->imbalance = 0;
+			break;
+
 		case migrate_misfit:
 			/* This is not a misfit task */
 			if (task_fits_capacity(p, capacity_of(env->src_cpu)))
@@ -8292,7 +8289,10 @@ struct sg_lb_stats {
 	unsigned int group_weight;
 	enum group_type group_type;
 	unsigned int group_asym_packing; /* Tasks should be moved to preferred CPU */
+	unsigned int group_misfit_task_classes;  /* Classes of tasks should be moved to dst_cpu */
 	unsigned long group_misfit_task_load; /* A CPU has a task too big for its capacity */
+	bool has_unclassified_tasks; /* The group has unclassified tasks */
+	int max_score_on_dst_cpu; /* Highest class of task score in the group if placed on dst_cpu */
 #ifdef CONFIG_NUMA_BALANCING
 	unsigned int nr_numa_running;
 	unsigned int nr_preferred_running;
@@ -8565,6 +8565,9 @@ group_type group_classify(unsigned int imbalance_pct,
 	if (sgs->group_asym_packing)
 		return group_asym_packing;
 
+	if (sgs->group_misfit_task_classes)
+		return group_misfit_task_class;
+
 	if (sgs->group_misfit_task_load)
 		return group_misfit_task;
 
@@ -8573,6 +8576,211 @@ group_type group_classify(unsigned int imbalance_pct,
 
 	return group_has_spare;
 }
+
+#ifdef CONFIG_SCHED_TASK_CLASSES
+struct swap_tasks_arg {
+	struct task_struct *src_task;
+	struct task_struct *dst_task;
+};
+
+static int find_exchangeable_tasks(struct rq *dst_rq, struct rq *src_rq,
+				   struct swap_tasks_arg *arg)
+{
+	int src_cpu = cpu_of(src_rq), dst_cpu = cpu_of(dst_rq);
+	bool found_src_task = false, found_dst_task = false;
+	unsigned long throughput_xchg, throughput_no_xchg;
+	struct task_struct *p_src = NULL, *p_dst = NULL;
+
+	if (arg)
+		memset(arg, 0, sizeof(*arg));
+
+	list_for_each_entry_reverse(p_src,
+				    &src_rq->cfs_tasks, se.group_node) {
+		if (p_src->class == TASK_CLASS_UNCLASSIFIED)
+			continue;
+
+		if (!cpumask_test_cpu(dst_cpu, p_src->cpus_ptr))
+			continue;
+
+		found_src_task = true;
+		break;
+	}
+
+	if (!found_src_task)
+		return 0;
+
+	list_for_each_entry_reverse(p_dst,
+				    &dst_rq->cfs_tasks, se.group_node) {
+		if (p_dst->class == TASK_CLASS_UNCLASSIFIED)
+			continue;
+
+		if (!cpumask_test_cpu(src_cpu, p_dst->cpus_ptr))
+			continue;
+
+		found_dst_task = true;
+		break;
+	}
+
+	if (!found_dst_task)
+		return 0;
+
+	/*
+	 * Now compare the per-class priorities of the candidate tasks to be
+	 * exchanged. Compute the throughput in both the current configuration
+	 * and as if they were exchanged.
+	 */
+	throughput_no_xchg = arch_get_task_class_score(p_src->class, src_cpu) +
+			     arch_get_task_class_score(p_dst->class,dst_cpu);
+	throughput_xchg = arch_get_task_class_score(p_src->class, dst_cpu) +
+			  arch_get_task_class_score(p_dst->class, src_cpu);
+
+	if (throughput_xchg <= throughput_no_xchg)
+		return 0;
+
+	if (arg) {
+		arg->src_task = p_dst;
+		arg->dst_task = p_src;
+	}
+
+	return 1;
+}
+
+/*
+ * This function must run with interrupts disabled. If called
+ * via stop_two_cpus_nowait(), this is the case.
+ */
+static int migrate_swap_stop2(void *data)
+{
+	struct rq *busiest_rq, *target_rq;
+	int busiest_cpu, target_cpu;
+	struct swap_tasks_arg arg;
+	int can_swap;
+
+	busiest_rq = data;
+	target_rq = cpu_rq(busiest_rq->push_cpu);
+
+	busiest_cpu = cpu_of(busiest_rq);
+	target_cpu = busiest_rq->push_cpu;
+
+	double_rq_lock(busiest_rq, target_rq);
+
+	can_swap = find_exchangeable_tasks(busiest_rq, target_rq, &arg);
+	if (can_swap) {
+		double_raw_lock(&arg.src_task->pi_lock,
+				&arg.dst_task->pi_lock);
+
+		__migrate_swap_task(arg.src_task, target_cpu);
+		__migrate_swap_task(arg.dst_task, busiest_cpu);
+
+		raw_spin_unlock(&arg.dst_task->pi_lock);
+		raw_spin_unlock(&arg.src_task->pi_lock);
+	}
+
+	busiest_rq->active_balance = 0;
+	target_rq->active_balance = 0;
+
+	double_rq_unlock(busiest_rq, target_rq);
+
+	return 0;
+}
+
+static void update_sg_lb_task_class_stats(struct lb_env *env,
+					  struct sg_lb_stats *sgs,
+					  struct rq *rq,
+					  int local_group)
+{
+	int score_on_dst_cpu, score_on_rq, c;
+
+	if (!sched_task_classes_enabled())
+		return;
+
+	/* No tasks to check. */
+	if (!rq->nr_running)
+		return;
+
+	for (c = 0; c < sched_nr_task_classes; c++) {
+		/* @rq does not have any running tasks of this class. Skip it. */
+		if (!rq->nr_running_classes[c])
+			continue;
+
+		/* Score of this class of tasks if placed on dst_cpu */
+		score_on_dst_cpu = arch_get_task_class_score(c, env->dst_cpu);
+		/* Score of this class of taskss if left its current CPU */
+		score_on_rq = arch_get_task_class_score(c, cpu_of(rq));
+
+		/*
+		 * Only register classes of tasks with higher scores on dst_cpu
+		 * or if we are inspecting the local group. We will need the
+		 * stats of the  local group to compare them with other groups'
+		 * and decide if there is opportunity to rebalance tasks.
+		 */
+		if (score_on_dst_cpu <= score_on_rq && !local_group)
+			continue;
+
+		/*
+		 * Scores may be negative if errors occured. Since we only keep
+		 * the maximum values and @sgs::max_score_on_dst_cpu is
+		 * initialized to 0, this is not a problem.
+		 */
+		sgs->max_score_on_dst_cpu = max(sgs->max_score_on_dst_cpu,
+					       score_on_dst_cpu);
+	}
+
+	/*
+	 * If we are checking the local group and it has running tasks but we
+	 * could not compute any class score then, all tasks in the group are
+	 * unclassified and we should not touch this group. Tasks will
+	 * eventually be classified.
+	 */
+	if (local_group && !sgs->max_score_on_dst_cpu)
+		sgs->has_unclassified_tasks = true;
+}
+
+/**
+ * determine if @sgs has misfit tasks wrt @local_stats. That is, tasks that can
+ * run with higher priority on @local_stat
+ */
+static bool sched_group_has_misfit_task_classes(struct lb_env *env,
+						struct sg_lb_stats *sgs,
+						struct sg_lb_stats *local_stats)
+{
+	if (!sgs->sum_h_nr_running)
+		return false;
+
+	/*
+	 * We are here because @env::dst_cpu is not idle. Thus, if a busiest
+	 * group is identified, the resulting load balance will exchange tasks
+	 * between the busiest and the destination runqueue.
+	 *
+	 * If the destination runqueue has unclassified tasks, it is possible
+	 * that their class score is higher than those in busiest. Do not
+	 * balance load based on classes of tasks.
+	 */
+	if (local_stats->has_unclassified_tasks)
+		return false;
+
+	/* If true, implies that @sgs has classified tasks. */
+	return sgs->max_score_on_dst_cpu > local_stats->max_score_on_dst_cpu;
+}
+#else /* CONFIG_SCHED_TASK_CLASSES */
+static void update_sg_lb_task_class_stats(struct lb_env *env,
+					  struct sg_lb_stats *sgs,
+					  struct rq *rq,
+					  int local_group)
+{}
+
+static bool sched_group_has_misfit_task_classes(struct lb_env *env,
+						struct sg_lb_stats *sgs,
+						struct sg_lb_stats *local)
+{
+	return false;
+}
+
+static int migrate_swap_stop2(void *data)
+{
+	return 0;
+}
+#endif /* CONFIG_SCHED_TASK_CLASSES */
 
 /**
  * asym_smt_can_pull_tasks - Check whether the load balancing CPU can pull tasks
@@ -8706,6 +8914,8 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 		if (cpu_overutilized(i))
 			*sg_status |= SG_OVERUTILIZED;
 
+		update_sg_lb_task_class_stats(env, sgs, rq, local_group);
+
 #ifdef CONFIG_NUMA_BALANCING
 		sgs->nr_numa_running += rq->nr_numa_running;
 		sgs->nr_preferred_running += rq->nr_preferred_running;
@@ -8740,6 +8950,17 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 	    sched_asym(env, sds, sgs, group)) {
 		sgs->group_asym_packing = 1;
 	}
+
+	/*
+	 * If dst CPU is busy and it has classes of tasks that are
+	 * different from @sg, there may be opportunity to increase
+	 * throughput if they have higher priority than those on
+	 * already on the dst CPU.
+	 */
+	if (sched_task_classes_enabled() && !local_group &&
+	    env->idle == CPU_NOT_IDLE &&
+	    sched_group_has_misfit_task_classes(env, sgs, &sds->local_stat))
+		sgs->group_misfit_task_classes = 1;
 
 	sgs->group_type = group_classify(env->sd->imbalance_pct, group, sgs);
 
@@ -8821,6 +9042,15 @@ static bool update_sd_pick_busiest(struct lb_env *env,
 		 * misfit.
 		 */
 		if (sgs->group_misfit_task_load < busiest->group_misfit_task_load)
+			return false;
+		break;
+
+	case group_misfit_task_class:
+		/*
+		 * Keep the group with classes of tasks that have higher
+		 * score if they were placed on the destination CPU.
+		 */
+		if (sgs->max_score_on_dst_cpu <= busiest->max_score_on_dst_cpu)
 			return false;
 		break;
 
@@ -9032,6 +9262,7 @@ static bool update_pick_idlest(struct sched_group *idlest,
 
 	case group_imbalanced:
 	case group_asym_packing:
+	case group_misfit_task_class:
 		/* Those types are not used in the slow wakeup path */
 		return false;
 
@@ -9173,6 +9404,7 @@ find_idlest_group(struct sched_domain *sd, struct task_struct *p, int this_cpu)
 
 	case group_imbalanced:
 	case group_asym_packing:
+	case group_misfit_task_class:
 		/* Those type are not used in the slow wakeup path */
 		return NULL;
 
@@ -9327,6 +9559,13 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
 	if (busiest->group_type == group_misfit_task) {
 		/* Set imbalance to allow misfit tasks to be balanced. */
 		env->migration_type = migrate_misfit;
+		env->imbalance = 1;
+		return;
+	}
+
+	if (busiest->group_type == group_misfit_task_class) {
+		/* Set imbalance to trigger a task swap of misfit classes */
+		env->migration_type = migrate_misfit_task_class;
 		env->imbalance = 1;
 		return;
 	}
@@ -9520,6 +9759,17 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	if (busiest->group_type == group_misfit_task)
 		goto force_balance;
 
+	if (busiest->group_type == group_misfit_task_class) {
+		/*
+		 * busiest has tasks of such classes that have higer score than
+		 * the class of the tasks in local.
+		 */
+		if (local->max_score_on_dst_cpu < busiest->max_score_on_dst_cpu)
+			goto force_balance;
+		else
+			goto out_balanced;
+	}
+
 	/* ASYM feature bypasses nice load balance check */
 	if (busiest->group_type == group_asym_packing)
 		goto force_balance;
@@ -9627,6 +9877,9 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 	int i;
 
 	for_each_cpu_and(i, sched_group_span(group), env->cpus) {
+#ifdef CONFIG_SCHED_TASK_CLASSES
+		int busiest_score_on_dst_cpu = 0, c;
+#endif
 		unsigned long capacity, load, util;
 		unsigned int nr_running;
 		enum fbq_type rt;
@@ -9728,6 +9981,38 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 			}
 			break;
 
+		case migrate_misfit_task_class:
+#ifdef CONFIG_SCHED_TASK_CLASSES
+			for (c = 0; c < sched_nr_task_classes; c++) {
+				int score_on_dst_cpu, score_on_src_cpu;
+
+				/*
+				 * If there are not tasks of this class in rq,
+				 * skip it.
+				 */
+				if (!rq->nr_running_classes[c])
+					continue;
+
+				score_on_dst_cpu = arch_get_task_class_score(c, env->dst_cpu);
+
+				/*
+				 * The busiest group may have classes of tasks with
+				 * both higher and lower score if placed on the
+				 * destination CPU. Only select the runqueue with
+				 * classes of tasks that would have higher score.
+				 */
+				score_on_src_cpu = arch_get_task_class_score(c, i);
+				if (score_on_dst_cpu < score_on_src_cpu)
+					continue;
+
+				if (busiest_score_on_dst_cpu < score_on_dst_cpu) {
+					busiest_score_on_dst_cpu = score_on_dst_cpu;
+					busiest = rq;
+				}
+			}
+#endif
+			break;
+
 		case migrate_task:
 			if (busiest_nr < nr_running) {
 				busiest_nr = nr_running;
@@ -9814,6 +10099,9 @@ static int need_active_balance(struct lb_env *env)
 	if (env->migration_type == migrate_misfit)
 		return 1;
 
+	if (env->migration_type == migrate_misfit_task_class)
+		return 1;
+
 	return 0;
 }
 
@@ -9830,6 +10118,14 @@ static int should_we_balance(struct lb_env *env)
 	 */
 	if (!cpumask_test_cpu(env->dst_cpu, env->cpus))
 		return 0;
+
+	/*
+	 * If classes of tasks are supported, a busy CPU may decide to pull a
+	 * task from the busiest queue if doing so increaes throughput due to
+	 * differences in instructions-per-cycle among CPUs.
+	 */
+	if (sched_task_classes_enabled() && env->idle == CPU_NOT_IDLE)
+		return 1;
 
 	/*
 	 * In the newly idle case, we will allow all the CPUs
@@ -9849,6 +10145,88 @@ static int should_we_balance(struct lb_env *env)
 
 	/* Are we the first CPU of this group ? */
 	return group_balance_cpu(sg) == env->dst_cpu;
+}
+
+static int
+trigger_active_balance(int this_cpu, struct rq *busiest, struct lb_env *env)
+{
+	bool task_exchange_balance = false;
+	int active_balance = 0;
+	unsigned long flags;
+
+	if (env->idle == CPU_NOT_IDLE &&
+	    env->migration_type == migrate_misfit_task_class)
+		task_exchange_balance = true;
+
+	if (task_exchange_balance) {
+		local_irq_save(flags);
+		double_rq_lock(busiest, cpu_rq(this_cpu));
+	} else {
+		raw_spin_rq_lock_irqsave(busiest, flags);
+	}
+
+	/*
+	 * Don't kick the active_load_balance_cpu_stop, if the curr task on
+	 * busiest CPU can't be moved to this_cpu:
+	 */
+	if (!cpumask_test_cpu(this_cpu, busiest->curr->cpus_ptr)) {
+		active_balance = -EPERM;
+		goto unlock;
+	}
+
+	/* If attempting to swap tasks, also check if the curr task of
+	 * @this_cpu can be moved to busiest.
+	 */
+	if (task_exchange_balance &&
+	    !cpumask_test_cpu(cpu_of(busiest), cpu_rq(this_cpu)->curr->cpus_ptr)) {
+		active_balance = -EPERM;
+		goto unlock;
+	}
+
+	/* Record that we found at least one task that could run on this_cpu */
+	env->flags &= ~LBF_ALL_PINNED;
+
+	/*
+	 * ->active_balance synchronizes accesses to ->active_balance_work.
+	 * Once set, it's cleared only after active load balance is finished.
+	 */
+	if (!busiest->active_balance &&
+	    /*
+	     * If attempting to swap tasks, ensure that ->active_balance_work
+	     * of this_rq is available.
+	     */
+	    (!task_exchange_balance || !cpu_rq(this_cpu)->active_balance)) {
+		busiest->active_balance = 1;
+		busiest->push_cpu = this_cpu;
+		active_balance = 1;
+
+		if (task_exchange_balance)
+			cpu_rq(this_cpu)->active_balance = 1;
+	}
+
+unlock:
+	if (task_exchange_balance) {
+		double_rq_unlock(busiest, cpu_rq(this_cpu));
+		local_irq_restore(flags);
+	} else {
+		raw_spin_rq_unlock_irqrestore(busiest, flags);
+	}
+
+	if (active_balance < 1)
+		return active_balance;
+
+	if (task_exchange_balance)
+		stop_two_cpus_nowait(cpu_of(busiest), this_cpu,
+				     migrate_swap_stop2,
+				     &busiest->active_balance_work,
+				     &cpu_rq(this_cpu)->active_balance_work,
+				     &busiest->multi_stop_data, busiest);
+	else
+		stop_one_cpu_nowait(cpu_of(busiest),
+				    active_load_balance_cpu_stop, busiest,
+				    &busiest->active_balance_work);
+
+	return 1;
 }
 
 /*
@@ -10030,40 +10408,11 @@ more_balance:
 			sd->nr_balance_failed++;
 
 		if (need_active_balance(&env)) {
-			unsigned long flags;
+			active_balance = trigger_active_balance(this_cpu,
+								busiest, &env);
 
-			raw_spin_rq_lock_irqsave(busiest, flags);
-
-			/*
-			 * Don't kick the active_load_balance_cpu_stop,
-			 * if the curr task on busiest CPU can't be
-			 * moved to this_cpu:
-			 */
-			if (!cpumask_test_cpu(this_cpu, busiest->curr->cpus_ptr)) {
-				raw_spin_rq_unlock_irqrestore(busiest, flags);
+			if (active_balance < 0)
 				goto out_one_pinned;
-			}
-
-			/* Record that we found at least one task that could run on this_cpu */
-			env.flags &= ~LBF_ALL_PINNED;
-
-			/*
-			 * ->active_balance synchronizes accesses to
-			 * ->active_balance_work.  Once set, it's cleared
-			 * only after active load balance is finished.
-			 */
-			if (!busiest->active_balance) {
-				busiest->active_balance = 1;
-				busiest->push_cpu = this_cpu;
-				active_balance = 1;
-			}
-			raw_spin_rq_unlock_irqrestore(busiest, flags);
-
-			if (active_balance) {
-				stop_one_cpu_nowait(cpu_of(busiest),
-					active_load_balance_cpu_stop, busiest,
-					&busiest->active_balance_work);
-			}
 		}
 	} else {
 		sd->nr_balance_failed = 0;
@@ -10125,7 +10474,12 @@ get_sd_balance_interval(struct sched_domain *sd, int cpu_busy)
 {
 	unsigned long interval = sd->balance_interval;
 
-	if (cpu_busy)
+	/*
+	 * If classes of tasks are supported, do not wait too long to let a
+	 * busy CPU do load balancing. It may want to swap tasks with other
+	 * CPUs that have classes of tasks of higher priority.
+	 */
+	if (!sched_task_classes_enabled() && cpu_busy)
 		interval *= sd->busy_factor;
 
 	/* scale ms to jiffies */

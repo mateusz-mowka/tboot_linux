@@ -113,3 +113,14 @@ config INTEL_HFI_THERMAL
 	  These capabilities may change as a result of changes in the operating
 	  conditions of the system such power and thermal limits. If selected,
 	  the kernel relays updates in CPUs' capabilities to userspace.
+
+config INTEL_THREAD_DIRECTOR
+	bool "Intel Thread Director"
+	depends on INTEL_HFI_THERMAL
+	select SCHED_TASK_CLASSES
+	help
+	  Select this option to enable the Intel Thread Director. If selected,
+	  hardware labels tasks with class IDs based on the type of instructions
+	  that the task executes. On hybrid processors, the scheduler takes
+	  advantage of class-ID-specific instructions-per-cycle ratios among
+	  types of CPUs to improve task placement.

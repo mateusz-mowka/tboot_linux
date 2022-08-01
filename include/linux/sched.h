@@ -117,6 +117,8 @@ struct task_group;
 					 __TASK_TRACED | EXIT_DEAD | EXIT_ZOMBIE | \
 					 TASK_PARKED)
 
+#define TASK_CLASS_UNCLASSIFIED		-1
+
 #define task_is_running(task)		(READ_ONCE((task)->__state) == TASK_RUNNING)
 
 #define task_is_traced(task)		((READ_ONCE(task->jobctl) & JOBCTL_TRACED) != 0)
@@ -281,7 +283,7 @@ enum {
 	TASK_COMM_LEN = 16,
 };
 
-extern void scheduler_tick(void);
+extern void scheduler_tick(bool user_tick);
 
 #define	MAX_SCHEDULE_TIMEOUT		LONG_MAX
 
@@ -1500,6 +1502,26 @@ struct task_struct {
 	 * cores
 	 */
 	struct callback_head		l1d_flush_kill;
+#endif
+
+#ifdef CONFIG_SCHED_TASK_CLASSES
+	/* Class of task that the scheduler uses for task placement decisions */
+	short				class;
+	/*
+	 * A candidate classification that arch-specific implementations must
+	 * qualify for correctness.
+	 */
+	short				class_candidate;
+	/*
+	 * Counter to filter out transient the candidate classification
+	 * of a task
+	 */
+	char				class_debounce_counter;
+	/*
+	 * Type of task as read when entering kernel mode. classid is
+	 * only updated in user ticks.
+	 */
+	char				class_raw;
 #endif
 
 	/*

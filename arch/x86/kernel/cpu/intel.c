@@ -1366,6 +1366,16 @@ void __init sld_setup(struct cpuinfo_x86 *c)
 	sld_state_show();
 }
 
+static void __do_get_hybrid_params(void *data)
+{
+	u32 *params = data;
+
+	if (!cpu_feature_enabled(X86_FEATURE_HYBRID_CPU))
+		*params = 0;
+
+	*params = cpuid_eax(0x0000001a);
+}
+
 #define X86_HYBRID_CPU_TYPE_ID_SHIFT	24
 
 /**
@@ -1376,8 +1386,84 @@ void __init sld_setup(struct cpuinfo_x86 *c)
  */
 u8 get_this_hybrid_cpu_type(void)
 {
+	u32 params;
+
+	__do_get_hybrid_params(&params);
+	return params >> X86_HYBRID_CPU_TYPE_ID_SHIFT;
+}
+
+static void __do_get_get_hybrid_cpu_type(void *data)
+{
+	u8 *type = data;
+
+	*type = get_this_hybrid_cpu_type();
+}
+
+u8 get_hybrid_cpu_type(int cpu)
+{
+	u8 type;
+
 	if (!cpu_feature_enabled(X86_FEATURE_HYBRID_CPU))
 		return 0;
 
-	return cpuid_eax(0x0000001a) >> X86_HYBRID_CPU_TYPE_ID_SHIFT;
+	if (cpu < 0 || cpu >= nr_cpu_ids)
+		return 0;
+
+	if (cpu == smp_processor_id())
+		return get_this_hybrid_cpu_type();
+
+	smp_call_function_single(cpu, __do_get_get_hybrid_cpu_type, &type, true);
+	return type;
+}
+
+/**
+ * get_hybrid_cpu_params() - Get the parameters of a hybrid CPU
+ * @cpu:	The CPU in question
+ *
+ * Returns in a single value both the native model ID ([23:0}) and the CPU
+ * type of @cpu ([31:24]). If the processor is not hybrid, returns 0.
+ */
+u32 get_hybrid_cpu_params(int cpu)
+{
+	u32 params;
+
+	if (!cpu_feature_enabled(X86_FEATURE_HYBRID_CPU))
+		return 0;
+
+	if (cpu < 0 || cpu >= nr_cpu_ids)
+		return 0;
+
+	if (cpu == smp_processor_id()) {
+		__do_get_hybrid_params(&params);
+		return params;
+	}
+
+	smp_call_function_single(cpu, __do_get_hybrid_params, &params, true);
+	return params;
+}
+
+static char hybrid_name[64];
+#define X86_HYBRID_CPU_NATIVE_MODEL_ID_MASK	0xffffff
+#define INTEL_HYBRID_TYPE_ATOM			0x20
+#define INTEL_HYBRID_TYPE_CORE			0x40
+
+const char *intel_get_hybrid_cpu_type_name(u32 cpu_type)
+{
+	u32 native_model_id = cpu_type & X86_HYBRID_CPU_NATIVE_MODEL_ID_MASK;
+	u8 type = cpu_type >> X86_HYBRID_CPU_TYPE_ID_SHIFT;
+
+	switch (type) {
+	case INTEL_HYBRID_TYPE_ATOM:
+		snprintf(hybrid_name, sizeof(hybrid_name), "intel_atom_%u",
+			 native_model_id);
+		break;
+	case INTEL_HYBRID_TYPE_CORE:
+		snprintf(hybrid_name, sizeof(hybrid_name), "intel_core_%u",
+			 native_model_id);
+		break;
+	default:
+		return NULL;
+	}
+
+	return hybrid_name;
 }
