@@ -139,6 +139,7 @@ struct vmcb_ctrl_area_cached {
 	u64 nested_ctl;
 	u32 event_inj;
 	u32 event_inj_err;
+	u64 next_rip;
 	u64 nested_cr3;
 	u64 virt_ext;
 	u32 clean;
@@ -228,9 +229,12 @@ struct vcpu_svm {
 
 	bool nmi_singlestep;
 	u64 nmi_singlestep_guest_rflags;
+	bool nmi_l1_to_l2;
 
-	unsigned int3_injected;
-	unsigned long int3_rip;
+	unsigned long soft_int_csbase;
+	unsigned long soft_int_old_rip;
+	unsigned long soft_int_next_rip;
+	bool soft_int_injected;
 
 	/* optional nested SVM features that are enabled for this guest  */
 	bool nrips_enabled                : 1;
@@ -615,7 +619,8 @@ void avic_vcpu_put(struct kvm_vcpu *vcpu);
 void avic_apicv_post_state_restore(struct kvm_vcpu *vcpu);
 void avic_set_virtual_apic_mode(struct kvm_vcpu *vcpu);
 void avic_refresh_apicv_exec_ctrl(struct kvm_vcpu *vcpu);
-bool avic_check_apicv_inhibit_reasons(enum kvm_apicv_inhibit reason);
+bool avic_check_apicv_inhibit_reasons(struct kvm *kvm,
+				      enum kvm_apicv_inhibit reason);
 void avic_hwapic_irr_update(struct kvm_vcpu *vcpu, int max_irr);
 void avic_hwapic_isr_update(struct kvm_vcpu *vcpu, int max_isr);
 bool avic_dy_apicv_has_pending_interrupt(struct kvm_vcpu *vcpu);

@@ -5,8 +5,6 @@
 
 #include "mmu_internal.h"
 
-extern bool __read_mostly enable_mmio_caching;
-
 /*
  * A MMU present SPTE is backed by actual memory and may or may not be present
  * in hardware.  E.g. MMIO SPTEs are not considered present.  Use bit 11, as it
@@ -15,6 +13,9 @@ extern bool __read_mostly enable_mmio_caching;
  * enough that the improved code generation is noticeable in KVM's footprint.
  */
 #define SPTE_MMU_PRESENT_MASK		BIT_ULL(11)
+
+/* Masks that used to track metadata for not-present SPTEs. */
+#define SPTE_PRIVATE_ZAPPED	BIT_ULL(62)
 
 /*
  * TDP SPTES (more specifically, EPT SPTEs) may not have A/D bits, and may also
@@ -102,11 +103,11 @@ static_assert(!(EPT_SPTE_MMU_WRITABLE & SHADOW_ACC_TRACK_SAVED_MASK));
 #undef SHADOW_ACC_TRACK_SAVED_MASK
 
 /*
- * Due to limited space in PTEs, the MMIO generation is a 19 bit subset of
+ * Due to limited space in PTEs, the MMIO generation is a 18 bit subset of
  * the memslots generation and is derived as follows:
  *
  * Bits 0-7 of the MMIO generation are propagated to spte bits 3-10
- * Bits 8-18 of the MMIO generation are propagated to spte bits 52-62
+ * Bits 8-18 of the MMIO generation are propagated to spte bits 52-61
  *
  * The KVM_MEMSLOT_GEN_UPDATE_IN_PROGRESS flag is intentionally not included in
  * the MMIO generation number, as doing so would require stealing a bit from
@@ -120,7 +121,7 @@ static_assert(!(EPT_SPTE_MMU_WRITABLE & SHADOW_ACC_TRACK_SAVED_MASK));
 #define MMIO_SPTE_GEN_LOW_END		10
 
 #define MMIO_SPTE_GEN_HIGH_START	52
-#define MMIO_SPTE_GEN_HIGH_END		62
+#define MMIO_SPTE_GEN_HIGH_END		61
 
 #define MMIO_SPTE_GEN_LOW_MASK		GENMASK_ULL(MMIO_SPTE_GEN_LOW_END, \
 						    MMIO_SPTE_GEN_LOW_START)
@@ -133,12 +134,25 @@ static_assert(!(SPTE_MMU_PRESENT_MASK &
 #define MMIO_SPTE_GEN_HIGH_BITS		(MMIO_SPTE_GEN_HIGH_END - MMIO_SPTE_GEN_HIGH_START + 1)
 
 /* remember to adjust the comment above as well if you change these */
-static_assert(MMIO_SPTE_GEN_LOW_BITS == 8 && MMIO_SPTE_GEN_HIGH_BITS == 11);
+static_assert(MMIO_SPTE_GEN_LOW_BITS == 8 && MMIO_SPTE_GEN_HIGH_BITS == 10);
 
 #define MMIO_SPTE_GEN_LOW_SHIFT		(MMIO_SPTE_GEN_LOW_START - 0)
 #define MMIO_SPTE_GEN_HIGH_SHIFT	(MMIO_SPTE_GEN_HIGH_START - MMIO_SPTE_GEN_LOW_BITS)
 
 #define MMIO_SPTE_GEN_MASK		GENMASK_ULL(MMIO_SPTE_GEN_LOW_BITS + MMIO_SPTE_GEN_HIGH_BITS - 1, 0)
+
+/*
+ * non-present SPTE value for both VMX and SVM for TDP MMU.
+ * For SVM NPT, for non-present spte (bit 0 = 0), other bits are ignored.
+ * For VMX EPT, bit 63 is ignored if #VE is disabled.
+ *              bit 63 is #VE suppress if #VE is enabled.
+ */
+#ifdef CONFIG_X86_64
+#define SHADOW_NONPRESENT_VALUE	BIT_ULL(63)
+static_assert(!(SHADOW_NONPRESENT_VALUE & SPTE_MMU_PRESENT_MASK));
+#else
+#define SHADOW_NONPRESENT_VALUE	0ULL
+#endif
 
 extern u64 __read_mostly shadow_host_writable_mask;
 extern u64 __read_mostly shadow_mmu_writable_mask;
@@ -147,12 +161,17 @@ extern u64 __read_mostly shadow_x_mask; /* mutual exclusive with nx_mask */
 extern u64 __read_mostly shadow_user_mask;
 extern u64 __read_mostly shadow_accessed_mask;
 extern u64 __read_mostly shadow_dirty_mask;
-extern u64 __read_mostly shadow_mmio_value;
-extern u64 __read_mostly shadow_mmio_mask;
+extern u64 __read_mostly shadow_default_mmio_mask;
 extern u64 __read_mostly shadow_mmio_access_mask;
 extern u64 __read_mostly shadow_present_mask;
 extern u64 __read_mostly shadow_me_value;
 extern u64 __read_mostly shadow_me_mask;
+
+#ifdef CONFIG_X86_64
+extern u64 __read_mostly shadow_nonpresent_value;
+#else
+#define shadow_nonpresent_value	0ULL
+#endif
 
 /*
  * SPTEs in MMUs without A/D bits are marked with SPTE_TDP_AD_DISABLED_MASK;
@@ -174,9 +193,12 @@ extern u64 __read_mostly shadow_nonpresent_or_rsvd_mask;
 
 /*
  * If a thread running without exclusive control of the MMU lock must perform a
- * multi-part operation on an SPTE, it can set the SPTE to REMOVED_SPTE as a
+ * multi-part operation on an SPTE, it can set the SPTE to __REMOVED_SPTE as a
  * non-present intermediate value. Other threads which encounter this value
- * should not modify the SPTE.
+ * should not modify the SPTE.  For the case that TDX is enabled,
+ * SHADOW_NONPRESENT_VALUE, which is "suppress #VE" bit set because TDX module
+ * always enables "EPT violation #VE".  The bit is ignored by non-TDX case as
+ * present bit (bit 0) is cleared.
  *
  * Use a semi-arbitrary value that doesn't set RWX bits, i.e. is not-present on
  * bot AMD and Intel CPUs, and doesn't set PFN bits, i.e. doesn't create a L1TF
@@ -184,10 +206,21 @@ extern u64 __read_mostly shadow_nonpresent_or_rsvd_mask;
  *
  * Only used by the TDP MMU.
  */
-#define REMOVED_SPTE	0x5a0ULL
+#define __REMOVED_SPTE	0x5a0ULL
 
-/* Removed SPTEs must not be misconstrued as shadow present PTEs. */
-static_assert(!(REMOVED_SPTE & SPTE_MMU_PRESENT_MASK));
+/*
+ * Removed SPTEs must not be misconstrued as shadow present PTEs, and
+ * temporarily blocked private PTEs.
+ */
+static_assert(!(__REMOVED_SPTE & SPTE_MMU_PRESENT_MASK));
+static_assert(!(__REMOVED_SPTE & SHADOW_NONPRESENT_VALUE));
+static_assert(!(__REMOVED_SPTE & SPTE_PRIVATE_ZAPPED));
+
+/*
+ * See above comment around __REMOVED_SPTE.  REMOVED_SPTE is the actual
+ * intermediate value set to the removed SPET.  it sets the "suppress #VE" bit.
+ */
+#define REMOVED_SPTE	(SHADOW_NONPRESENT_VALUE | __REMOVED_SPTE)
 
 static inline bool is_removed_spte(u64 spte)
 {
@@ -204,10 +237,10 @@ static inline bool is_removed_spte(u64 spte)
  */
 extern u64 __read_mostly shadow_nonpresent_or_rsvd_lower_gfn_mask;
 
-static inline bool is_mmio_spte(u64 spte)
+static inline bool is_mmio_spte(struct kvm *kvm, u64 spte)
 {
-	return (spte & shadow_mmio_mask) == shadow_mmio_value &&
-	       likely(enable_mmio_caching);
+	return (spte & kvm->arch.shadow_mmio_mask) == kvm->arch.shadow_mmio_value &&
+		likely(kvm->arch.enable_mmio_caching || kvm_gfn_shared_mask(kvm));
 }
 
 static inline bool is_shadow_present_pte(u64 pte)
@@ -263,6 +296,11 @@ static inline u64 spte_shadow_dirty_mask(u64 spte)
 static inline bool is_access_track_spte(u64 spte)
 {
 	return !spte_ad_enabled(spte) && (spte & shadow_acc_track_mask) == 0;
+}
+
+static inline bool is_private_zapped_spte(u64 spte)
+{
+	return !!(spte & SPTE_PRIVATE_ZAPPED);
 }
 
 static inline bool is_large_pte(u64 pte)

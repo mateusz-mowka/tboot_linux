@@ -6,6 +6,8 @@
 #include <linux/kvm_host.h>
 #include <asm/kvm_host.h>
 
+#include "mmu.h"
+
 #undef MMU_DEBUG
 
 #ifdef MMU_DEBUG
@@ -55,6 +57,10 @@ struct kvm_mmu_page {
 	u64 *spt;
 	/* hold the gfn of each spte inside spt */
 	gfn_t *gfns;
+#ifdef CONFIG_KVM_MMU_PRIVATE
+	/* associated private shadow page, e.g. SEPT page. */
+	void *private_sp;
+#endif
 	/* Currently serving as active root */
 	union {
 		int root_count;
@@ -115,6 +121,133 @@ static inline int kvm_mmu_page_as_id(struct kvm_mmu_page *sp)
 	return kvm_mmu_role_as_id(sp->role);
 }
 
+/*
+ * TDX vcpu allocates page for root Secure EPT page and assigns to CPU secure
+ * EPT pointer.  KVM doesn't need to allocate and link to the secure EPT.
+ * Dummy value to make is_pivate_sp() return true.
+ */
+#define KVM_MMU_PRIVATE_SP_ROOT	((void *)1)
+
+#ifdef CONFIG_KVM_MMU_PRIVATE
+static inline bool is_private_sp(struct kvm_mmu_page *sp)
+{
+	return !!sp->private_sp;
+}
+
+static inline bool is_private_sptep(u64 *sptep)
+{
+	WARN_ON(!sptep);
+	return is_private_sp(sptep_to_sp(sptep));
+}
+
+static inline void *kvm_mmu_private_sp(struct kvm_mmu_page *sp)
+{
+	return sp->private_sp;
+}
+
+static inline void kvm_mmu_init_private_sp(struct kvm_mmu_page *sp, void *private_sp)
+{
+	sp->private_sp = private_sp;
+}
+
+/* Valid sp->role.level is required. */
+static inline void kvm_mmu_alloc_private_sp(
+	struct kvm_vcpu *vcpu, struct kvm_mmu_page *sp, bool is_root)
+{
+	if (is_root)
+		sp->private_sp = KVM_MMU_PRIVATE_SP_ROOT;
+	else
+		sp->private_sp = kvm_mmu_memory_cache_alloc(
+			&vcpu->arch.mmu_private_sp_cache);
+	/*
+	 * Because mmu_private_sp_cache is topped up before staring kvm page
+	 * fault resolving, the allocation above shouldn't fail.
+	 */
+	WARN_ON_ONCE(!sp->private_sp);
+}
+
+static inline int kvm_alloc_private_sp_for_split(
+	struct kvm_mmu_page *sp, gfp_t gfp)
+{
+	gfp &= ~__GFP_ZERO;
+	sp->private_sp = (void*)__get_free_page(gfp);
+	if (!sp->private_sp)
+		return -ENOMEM;
+	return 0;
+}
+
+static inline void kvm_mmu_free_private_sp(struct kvm_mmu_page *sp)
+{
+	if (sp->private_sp != KVM_MMU_PRIVATE_SP_ROOT)
+		free_page((unsigned long)sp->private_sp);
+}
+
+static inline gfn_t kvm_gfn_for_root(struct kvm *kvm, struct kvm_mmu_page *root,
+				     gfn_t gfn)
+{
+	if (is_private_sp(root))
+		return kvm_gfn_private(kvm, gfn);
+	else
+		return kvm_gfn_shared(kvm, gfn);
+}
+
+static inline int kvm_mmu_link_private_sp(struct kvm *kvm,
+					struct kvm_mmu_page *sp)
+{
+	/* Link this sp to its parent spte.  + 1 for parent spte. */
+	return static_call(kvm_x86_link_private_sp)(
+		kvm, sp->gfn, sp->role.level + 1, sp->private_sp);
+}
+#else
+static inline bool is_private_sp(struct kvm_mmu_page *sp)
+{
+	return false;
+}
+
+static inline bool is_private_sptep(u64 *sptep)
+{
+	return false;
+}
+
+static inline void *kvm_mmu_private_sp(struct kvm_mmu_page *sp)
+{
+	return NULL;
+}
+
+static inline void kvm_mmu_init_private_sp(struct kvm_mmu_page *sp, void *private_sp)
+{
+}
+
+static inline void kvm_mmu_alloc_private_sp(
+	struct kvm_vcpu *vcpu, struct kvm_mmu_page *sp, bool is_root)
+{
+}
+
+static inline int kvm_alloc_private_sp_for_split(
+	struct kvm_mmu_page *sp, gfp_t gfp)
+{
+	return -ENOMEM;
+}
+
+static inline void kvm_mmu_free_private_sp(struct kvm_mmu_page *sp)
+{
+}
+
+static inline gfn_t kvm_gfn_for_root(struct kvm *kvm, struct kvm_mmu_page *root,
+				     gfn_t gfn)
+{
+	return gfn;
+}
+
+static inline int kvm_mmu_link_private_sp(struct kvm *kvm,
+					struct kvm_mmu_page *sp)
+{
+	return 0;
+}
+#endif
+
+void kvm_mmu_release_fault(struct kvm *kvm, struct kvm_page_fault *fault, int r);
+
 static inline bool kvm_mmu_page_ad_need_write_protect(struct kvm_mmu_page *sp)
 {
 	/*
@@ -131,6 +264,10 @@ static inline bool kvm_mmu_page_ad_need_write_protect(struct kvm_mmu_page *sp)
 int mmu_try_to_unsync_pages(struct kvm *kvm, const struct kvm_memory_slot *slot,
 			    gfn_t gfn, bool can_unsync, bool prefetch);
 
+void __kvm_mmu_gfn_disallow_lpage(const struct kvm_memory_slot *slot, gfn_t gfn,
+				  int level);
+void __kvm_mmu_gfn_allow_lpage(const struct kvm_memory_slot *slot, gfn_t gfn,
+			       int level);
 void kvm_mmu_gfn_disallow_lpage(const struct kvm_memory_slot *slot, gfn_t gfn);
 void kvm_mmu_gfn_allow_lpage(const struct kvm_memory_slot *slot, gfn_t gfn);
 bool kvm_mmu_slot_gfn_write_protect(struct kvm *kvm,
@@ -162,6 +299,7 @@ struct kvm_page_fault {
 	/* Derived from mmu and global state.  */
 	const bool is_tdp;
 	const bool nx_huge_page_workaround_enabled;
+	const bool is_private;
 
 	/*
 	 * Whether a >4KB mapping can be created or is forbidden due to NX
@@ -197,6 +335,7 @@ struct kvm_page_fault {
 	kvm_pfn_t pfn;
 	hva_t hva;
 	bool map_writable;
+	enum pg_level host_level; /* valid only for private memslot */
 };
 
 int kvm_tdp_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault);
@@ -209,6 +348,7 @@ int kvm_tdp_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault);
  * RET_PF_RETRY: let CPU fault again on the address.
  * RET_PF_EMULATE: mmio page fault, emulate the instruction directly.
  * RET_PF_INVALID: the spte is invalid, let the real page fault path update it.
+ * RET_PF_USER: need to exit to userspace to handle this fault.
  * RET_PF_FIXED: The faulting entry has been fixed.
  * RET_PF_SPURIOUS: The faulting entry was already fixed, e.g. by another vCPU.
  *
@@ -225,6 +365,7 @@ enum {
 	RET_PF_RETRY,
 	RET_PF_EMULATE,
 	RET_PF_INVALID,
+	RET_PF_USER,
 	RET_PF_FIXED,
 	RET_PF_SPURIOUS,
 };
@@ -243,8 +384,9 @@ static inline int kvm_mmu_do_page_fault(struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
 		.prefetch = prefetch,
 		.is_tdp = likely(vcpu->arch.mmu->page_fault == kvm_tdp_page_fault),
 		.nx_huge_page_workaround_enabled = is_nx_huge_page_enabled(),
+		.is_private = kvm_is_private_gpa(vcpu->kvm, cr2_or_gpa),
 
-		.max_level = KVM_MAX_HUGEPAGE_LEVEL,
+		.max_level = vcpu->kvm->arch.tdp_max_page_level,
 		.req_level = PG_LEVEL_4K,
 		.goal_level = PG_LEVEL_4K,
 	};
@@ -289,5 +431,23 @@ void *mmu_memory_cache_alloc(struct kvm_mmu_memory_cache *mc);
 
 void account_huge_nx_page(struct kvm *kvm, struct kvm_mmu_page *sp);
 void unaccount_huge_nx_page(struct kvm *kvm, struct kvm_mmu_page *sp);
+
+#ifndef CONFIG_HAVE_KVM_PRIVATE_MEM
+static inline int kvm_private_mem_get_pfn(struct kvm_memory_slot *slot,
+					  gfn_t gfn, kvm_pfn_t *pfn, int *order)
+{
+	WARN_ON_ONCE(1);
+	return -EOPNOTSUPP;
+}
+
+static inline void kvm_private_mem_put_pfn(struct kvm_memory_slot *slot,
+					   kvm_pfn_t pfn)
+{
+	WARN_ON_ONCE(1);
+}
+#endif /* CONFIG_HAVE_KVM_PRIVATE_MEM */
+
+bool kvm_page_type_valid_on_level(gfn_t gfn, struct kvm_memory_slot *slot,
+				  enum pg_level level);
 
 #endif /* __KVM_X86_MMU_INTERNAL_H */

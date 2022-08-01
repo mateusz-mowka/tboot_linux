@@ -757,6 +757,7 @@ config SCHED_OMIT_FRAME_POINTER
 
 menuconfig HYPERVISOR_GUEST
 	bool "Linux guest support"
+	select ARCH_HAS_CC_PLATFORM
 	help
 	  Say Y here to enable options for running Linux under various hyper-
 	  visors. This option enables basic hypervisor detection and platform
@@ -1973,6 +1974,47 @@ config X86_SHADOW_STACK
 	  CPUs supporting shadow stacks were first released in 2020.
 
 	  If unsure, say N.
+
+config INTEL_TDX_HOST
+	bool "Intel Trust Domain Extensions (TDX) host support"
+	default n
+	depends on CPU_SUP_INTEL
+	depends on X86_64
+	depends on KVM_INTEL || SVOS
+	depends on CONTIG_ALLOC
+	select ARCH_KEEP_MEMBLOCK
+	help
+	  Intel Trust Domain Extensions (TDX) protects guest VMs from malicious
+	  host and certain physical attacks.  This option enables necessary TDX
+	  support in host kernel to run protected VMs.
+
+	  If unsure, say N.
+
+config INTEL_TDX_HOST_OLD
+	bool "Intel Trust Domain Externsions (TDX) host support (old)"
+	default n
+	depends on INTEL_TDX_HOST
+	help
+	  Initialize TDX module at boot time.
+
+config INTEL_TDX_HOST_DEBUG
+	tristate "TDX host debugfs"
+	default n
+	depends on INTEL_TDX_HOST
+	depends on DEBUG_FS
+	depends on KVM
+	help
+	  TDX module debug support via debug fs.  The debug version of TDX
+	  module is required.
+
+config INTEL_TDX_MODULE_LOADER_OLD
+	bool "TDX module boot-time loader"
+	default n
+	depends on INTEL_TDX_HOST
+	depends on SYSFS
+	select FW_LOADER
+	help
+	  This enables kernel to load P-SEAMLDR and TDX module at boot time.
 
 config EFI
 	bool "EFI runtime service support"

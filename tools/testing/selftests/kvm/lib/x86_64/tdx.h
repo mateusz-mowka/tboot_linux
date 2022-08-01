@@ -1,0 +1,221 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+#ifndef KVM_LIB_TDX_H_
+#define KVM_LIB_TDX_H_
+
+#include <kvm_util.h>
+#include "../kvm_util_internal.h"
+
+/*
+ * Max page size for the guest image.
+ */
+#define TDX_GUEST_MAX_NR_PAGES 10000
+#define PAGE_SIZE 4096
+
+/*
+ * Page Table Address used when paging is enabled.
+ */
+#define TDX_GUEST_PT_FIXED_ADDR (0xFFFFFFFF -\
+				 (TDX_GUEST_MAX_NR_PAGES * PAGE_SIZE) + 1)
+
+/*
+ * Max Page Table Size
+ * To map 4GB memory region with 2MB pages, there needs to be 1 page for PML4,
+ * 1 Page for PDPT, 4 pages for PD. Reserving 6 pages for PT.
+ */
+#define TDX_GUEST_NR_PT_PAGES (1 + 1 + 4)
+
+/*
+ * Predefined GDTR values.
+ */
+#define TDX_GUEST_GDTR_ADDR (TDX_GUEST_PT_FIXED_ADDR + (TDX_GUEST_NR_PT_PAGES *\
+							PAGE_SIZE))
+#define TDX_GUEST_GDTR_BASE (TDX_GUEST_GDTR_ADDR + PAGE_SIZE)
+#define TDX_GUEST_LINEAR_CODE64_SEL 0x38
+
+#define TDX_GUEST_STACK_NR_PAGES (3)
+#define TDX_GUEST_STACK_BASE (TDX_GUEST_GDTR_BASE + (TDX_GUEST_STACK_NR_PAGES *\
+						     PAGE_SIZE) - 1)
+/*
+ * Reserving some pages to copy the test code. This is an arbitrary number for
+ * now to simplify to guest image layout calculation.
+ * TODO: calculate the guest code dynamcially.
+ */
+#define TDX_GUEST_CODE_ENTRY (TDX_GUEST_GDTR_BASE + (TDX_GUEST_STACK_NR_PAGES *\
+						     PAGE_SIZE))
+
+#define KVM_MAX_CPUID_ENTRIES 256
+
+/*
+ * TODO: Move page attributes to processor.h file.
+ */
+#define _PAGE_PRESENT       (1UL<<0)       /* is present */
+#define _PAGE_RW            (1UL<<1)       /* writeable */
+#define _PAGE_PS            (1UL<<7)       /* page size bit*/
+
+#define TDX_TEST_PORT 0x33
+
+#define GDT_ENTRY(flags, base, limit)				\
+		((((base)  & 0xff000000ULL) << (56-24)) |	\
+		 (((flags) & 0x0000f0ffULL) << 40) |		\
+		 (((limit) & 0x000f0000ULL) << (48-16)) |	\
+		 (((base)  & 0x00ffffffULL) << 16) |		\
+		 (((limit) & 0x0000ffffULL)))
+
+struct tdx_cpuid_data {
+	struct kvm_cpuid2 cpuid;
+	struct kvm_cpuid_entry2 entries[KVM_MAX_CPUID_ENTRIES];
+};
+
+struct __packed tdx_gdtr {
+	uint16_t limit;
+	uint32_t base;
+};
+
+struct page_table {
+	uint64_t  pml4[512];
+	uint64_t  pdpt[512];
+	uint64_t  pd[4][512];
+};
+
+void add_td_memory(struct kvm_vm *vm, void *source_page,
+		   uint64_t gpa, int size);
+void finalize_td_memory(struct kvm_vm *vm);
+void get_tdx_capabilities(struct kvm_vm *vm);
+void initialize_td(struct kvm_vm *vm);
+void initialize_td_vcpu(struct kvm_vm *vm, uint32_t vcpuid);
+void prepare_source_image(struct kvm_vm *vm, void *guest_code,
+			  size_t guest_code_size,
+			  uint64_t guest_code_signature);
+
+/*
+ * Generic TDCALL function that can be used to communicate with TDX module or
+ * VMM.
+ * Input operands: rax, rbx, rcx, rdx, r8-r15, rbp, rsi, rdi
+ * Output operands: rax, r8-r15, rbx, rdx, rdi, rsi
+ * rcx is actually a bitmap to tell TDX module which register values will be
+ * exposed to the VMM.
+ * XMM0-XMM15 registers can be used as input operands but the current
+ * implementation does not support it yet.
+ */
+static inline void tdcall(struct kvm_regs *regs)
+{
+	asm volatile (
+			"mov %13, %%rax;\n\t"
+			"mov %14, %%rbx;\n\t"
+			"mov %15, %%rcx;\n\t"
+			"mov %16, %%rdx;\n\t"
+			"mov %17, %%r8;\n\t"
+			"mov %18, %%r9;\n\t"
+			"mov %19, %%r10;\n\t"
+			"mov %20, %%r11;\n\t"
+			"mov %21, %%r12;\n\t"
+			"mov %22, %%r13;\n\t"
+			"mov %23, %%r14;\n\t"
+			"mov %24, %%r15;\n\t"
+			"mov %25, %%rbp;\n\t"
+			"mov %26, %%rsi;\n\t"
+			"mov %27, %%rdi;\n\t"
+			".byte 0x66, 0x0F, 0x01, 0xCC;\n\t"
+			"mov %%rax, %0;\n\t"
+			"mov %%rbx, %1;\n\t"
+			"mov %%rdx, %2;\n\t"
+			"mov %%r8, %3;\n\t"
+			"mov %%r9, %4;\n\t"
+			"mov %%r10, %5;\n\t"
+			"mov %%r11, %6;\n\t"
+			"mov %%r12, %7;\n\t"
+			"mov %%r13, %8;\n\t"
+			"mov %%r14, %9;\n\t"
+			"mov %%r15, %10;\n\t"
+			"mov %%rsi, %11;\n\t"
+			"mov %%rdi, %12;\n\t"
+			: "=m" (regs->rax), "=m" (regs->rbx), "=m" (regs->rdx),
+			"=m" (regs->r8), "=m" (regs->r9), "=m" (regs->r10),
+			"=m" (regs->r11), "=m" (regs->r12), "=m" (regs->r13),
+			"=m" (regs->r14), "=m" (regs->r15), "=m" (regs->rsi),
+			"=m" (regs->rdi)
+			: "m" (regs->rax), "m" (regs->rbx), "m" (regs->rcx),
+			"m" (regs->rdx), "m" (regs->r8), "m" (regs->r9),
+			"m" (regs->r10), "m" (regs->r11), "m" (regs->r12),
+			"m" (regs->r13), "m" (regs->r14), "m" (regs->r15),
+			"m" (regs->rbp), "m" (regs->rsi), "m" (regs->rdi)
+			: "rax", "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11",
+			"r12", "r13", "r14", "r15", "rbp", "rsi", "rdi");
+}
+
+
+/*
+ * Do a TDVMCALL IO request
+ *
+ * Input Args:
+ *  port - IO port to do read/write
+ *  size - Number of bytes to read/write. 1=1byte, 2=2bytes, 4=4bytes.
+ *  write - 1=IO write 0=IO read
+ *  data - pointer for the data to write
+ *
+ * Output Args:
+ *  data - pointer for data to be read
+ *
+ * Return:
+ *   On success, return 0. For Invalid-IO-Port error, returns -1.
+ *
+ * Does an IO operation using the following tdvmcall interface.
+ *
+ * TDG.VP.VMCALL<Instruction.IO>-Input Operands
+ * R11 30 for IO
+ *
+ * R12 Size of access. 1=1byte, 2=2bytes, 4=4bytes.
+ * R13 Direction. 0=Read, 1=Write.
+ * R14 Port number
+ * R15 Data to write, if R13 is 1.
+ *
+ * TDG.VP.VMCALL<Instruction.IO>-Output Operands
+ * R10 TDG.VP.VMCALL-return code.
+ * R11 Data to read, if R13 is 0.
+ *
+ * TDG.VP.VMCALL<Instruction.IO>-Status Codes
+ * Error Code Value Description
+ * TDG.VP.VMCALL_SUCCESS 0x0 TDG.VP.VMCALL is successful
+ * TDG.VP.VMCALL_INVALID_OPERAND 0x80000000 00000000 Invalid-IO-Port access
+ */
+static inline int tdvmcall_io(uint64_t port, uint64_t size,
+			      uint64_t write, uint64_t *data)
+{
+	struct kvm_regs regs;
+
+	memset(&regs, 0, sizeof(regs));
+	regs.r11 = 30;
+	regs.r12 = size;
+	regs.r13 = write;
+	regs.r14 = port;
+	if (write)
+		regs.r15 = *data;
+	/* TODO: update the bitmap register with only the relavent registers */
+	regs.rcx = 0xFC00;
+	tdcall(&regs);
+	if (!write)
+		*data = regs.r11;
+	return regs.r10;
+}
+
+
+#define TDX_FUNCTION_SIZE(name) ((uint64_t)&__stop_sec_ ## name -\
+			   (uint64_t)&__start_sec_ ## name) \
+
+#define TDX_GUEST_FUNCTION__(name, section_name) \
+extern char *__start_sec_ ## name ; \
+extern char *__stop_sec_ ## name ; \
+static void \
+__attribute__((__flatten__, section(section_name))) name(void *arg)
+
+
+#define STRINGIFY2(x) #x
+#define STRINGIFY(x) STRINGIFY2(x)
+#define CONCAT2(a, b) a##b
+#define CONCAT(a, b) CONCAT2(a, b)
+
+
+#define TDX_GUEST_FUNCTION(name) \
+TDX_GUEST_FUNCTION__(name, STRINGIFY(CONCAT(sec_, name)))
+
+#endif  // KVM_LIB_TDX_H_

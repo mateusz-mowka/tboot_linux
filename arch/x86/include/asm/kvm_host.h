@@ -53,7 +53,7 @@
 #define KVM_MAX_VCPU_IDS (KVM_MAX_VCPUS * KVM_VCPU_ID_RATIO)
 
 /* memory slots that are not exposed to userspace */
-#define KVM_PRIVATE_MEM_SLOTS 3
+#define KVM_INTERNAL_MEM_SLOTS 3
 
 #define KVM_HALT_POLL_NS_DEFAULT 200000
 
@@ -64,6 +64,9 @@
 
 #define KVM_BUS_LOCK_DETECTION_VALID_MODE	(KVM_BUS_LOCK_DETECTION_OFF | \
 						 KVM_BUS_LOCK_DETECTION_EXIT)
+
+#define KVM_X86_NOTIFY_VMEXIT_VALID_BITS	(KVM_X86_NOTIFY_VMEXIT_ENABLED | \
+						 KVM_X86_NOTIFY_VMEXIT_USER)
 
 /* x86-specific vcpu->requests bit members */
 #define KVM_REQ_MIGRATE_TIMER		KVM_ARCH_REQ(0)
@@ -136,6 +139,7 @@
 #define KVM_HPAGE_SHIFT(x)	(PAGE_SHIFT + KVM_HPAGE_GFN_SHIFT(x))
 #define KVM_HPAGE_SIZE(x)	(1UL << KVM_HPAGE_SHIFT(x))
 #define KVM_HPAGE_MASK(x)	(~(KVM_HPAGE_SIZE(x) - 1))
+#define KVM_HPAGE_GFN_MASK(x)	(KVM_HPAGE_MASK(x) >> PAGE_SHIFT)
 #define KVM_PAGES_PER_HPAGE(x)	(KVM_HPAGE_SIZE(x) / PAGE_SIZE)
 
 #define KVM_MEMSLOT_PAGES_TO_MMU_PAGES_RATIO 50
@@ -247,6 +251,8 @@ enum x86_intercept_stage;
 #define PFERR_FETCH_BIT 4
 #define PFERR_PK_BIT 5
 #define PFERR_SGX_BIT 15
+#define PFERR_LEVEL_START_BIT 29
+#define PFERR_LEVEL_END_BIT 31
 #define PFERR_GUEST_FINAL_BIT 32
 #define PFERR_GUEST_PAGE_BIT 33
 #define PFERR_IMPLICIT_ACCESS_BIT 48
@@ -258,6 +264,7 @@ enum x86_intercept_stage;
 #define PFERR_FETCH_MASK (1U << PFERR_FETCH_BIT)
 #define PFERR_PK_MASK (1U << PFERR_PK_BIT)
 #define PFERR_SGX_MASK (1U << PFERR_SGX_BIT)
+#define PFERR_LEVEL_MASK GENMASK_ULL(PFERR_LEVEL_END_BIT, PFERR_LEVEL_START_BIT)
 #define PFERR_GUEST_FINAL_MASK (1ULL << PFERR_GUEST_FINAL_BIT)
 #define PFERR_GUEST_PAGE_MASK (1ULL << PFERR_GUEST_PAGE_BIT)
 #define PFERR_IMPLICIT_ACCESS (1ULL << PFERR_IMPLICIT_ACCESS_BIT)
@@ -265,6 +272,8 @@ enum x86_intercept_stage;
 #define PFERR_NESTED_GUEST_PAGE (PFERR_GUEST_PAGE_MASK |	\
 				 PFERR_WRITE_MASK |		\
 				 PFERR_PRESENT_MASK)
+
+#define PFERR_LEVEL(err_code)	(((err_code) & PFERR_LEVEL_MASK) >> PFERR_LEVEL_START_BIT)
 
 /* apic attention bits */
 #define KVM_APIC_CHECK_VAPIC	0
@@ -437,6 +446,7 @@ struct kvm_mmu {
 			 struct kvm_mmu_page *sp);
 	void (*invlpg)(struct kvm_vcpu *vcpu, gva_t gva, hpa_t root_hpa);
 	struct kvm_mmu_root_info root;
+	hpa_t private_root_hpa;
 	union kvm_cpu_role cpu_role;
 	union kvm_mmu_page_role root_role;
 
@@ -469,6 +479,8 @@ struct kvm_mmu {
 	struct rsvd_bits_validate shadow_zero_check;
 
 	struct rsvd_bits_validate guest_rsvd_check;
+
+	bool no_prefetch;
 
 	u64 pdptrs[4]; /* pae */
 };
@@ -505,6 +517,7 @@ struct kvm_pmu {
 	unsigned nr_arch_fixed_counters;
 	unsigned available_event_types;
 	u64 fixed_ctr_ctrl;
+	u64 fixed_ctr_ctrl_mask;
 	u64 global_ctrl;
 	u64 global_status;
 	u64 counter_bitmask[2];
@@ -519,6 +532,21 @@ struct kvm_pmu {
 	DECLARE_BITMAP(reprogram_pmi, X86_PMC_IDX_MAX);
 	DECLARE_BITMAP(all_valid_pmc_idx, X86_PMC_IDX_MAX);
 	DECLARE_BITMAP(pmc_in_use, X86_PMC_IDX_MAX);
+
+	u64 ds_area;
+	u64 pebs_enable;
+	u64 pebs_enable_mask;
+	u64 pebs_data_cfg;
+	u64 pebs_data_cfg_mask;
+
+	/*
+	 * If a guest counter is cross-mapped to host counter with different
+	 * index, its PEBS capability will be temporarily disabled.
+	 *
+	 * The user should make sure that this mask is updated
+	 * after disabling interrupts and before perf_guest_get_msrs();
+	 */
+	u64 host_cross_mapped_mask;
 
 	/*
 	 * The gate to release perf_events not marked in
@@ -536,8 +564,13 @@ struct kvm_pmu {
 struct kvm_pmu_ops;
 
 enum {
-	KVM_DEBUGREG_BP_ENABLED = 1,
-	KVM_DEBUGREG_WONT_EXIT = 2,
+	KVM_DEBUGREG_BP_ENABLED		= BIT(0),
+	KVM_DEBUGREG_WONT_EXIT		= BIT(1),
+	/*
+	 * Guest debug registers are saved/restored by hardware on exit from
+	 * or enter guest. KVM needn't switch them.
+	 */
+	KVM_DEBUGREG_AUTO_SWITCH	= BIT(2),
 };
 
 struct kvm_mtrr_range {
@@ -697,6 +730,7 @@ struct kvm_vcpu_arch {
 	struct kvm_mmu_memory_cache mmu_shadow_page_cache;
 	struct kvm_mmu_memory_cache mmu_gfn_array_cache;
 	struct kvm_mmu_memory_cache mmu_page_header_cache;
+	struct kvm_mmu_memory_cache mmu_private_sp_cache;
 
 	/*
 	 * QEMU userspace and the guest each have their own FPU state.
@@ -930,8 +964,20 @@ struct kvm_lpage_info {
 	int disallow_lpage;
 };
 
+enum kvm_page_type {
+	KVM_PAGE_TYPE_INVALID,
+	KVM_PAGE_TYPE_SHARED,
+	KVM_PAGE_TYPE_PRIVATE,
+	KVM_PAGE_TYPE_MIXED,
+};
+
+struct kvm_page_attr {
+	enum kvm_page_type type;
+};
+
 struct kvm_arch_memory_slot {
 	struct kvm_rmap_head *rmap[KVM_NR_PAGE_SIZES];
+	struct kvm_page_attr *page_attr[KVM_NR_PAGE_SIZES];
 	struct kvm_lpage_info *lpage_info[KVM_NR_PAGE_SIZES - 1];
 	unsigned short *gfn_track[KVM_PAGE_TRACK_MAX];
 };
@@ -1122,13 +1168,16 @@ enum kvm_apicv_inhibit {
 };
 
 struct kvm_arch {
+	unsigned long vm_type;
 	unsigned long n_used_mmu_pages;
 	unsigned long n_requested_mmu_pages;
 	unsigned long n_max_mmu_pages;
 	unsigned int indirect_shadow_pages;
+	int tdp_max_page_level;
 	u8 mmu_valid_gen;
 	struct hlist_head mmu_page_hash[KVM_NUM_MMU_PAGES];
 	struct list_head active_mmu_pages;
+	struct list_head private_mmu_pages;
 	struct list_head zapped_obsolete_pages;
 	struct list_head lpage_disallowed_mmu_pages;
 	struct kvm_page_track_notifier_node mmu_sp_tracker;
@@ -1140,6 +1189,10 @@ struct kvm_arch {
 	 * whether mmu_lock is held for read or write.
 	 */
 	spinlock_t mmu_unsync_pages_lock;
+
+	bool enable_mmio_caching;
+	u64 shadow_mmio_value;
+	u64 shadow_mmio_mask;
 
 	struct list_head assigned_dev_head;
 	struct iommu_domain *iommu_domain;
@@ -1222,8 +1275,13 @@ struct kvm_arch {
 	bool guest_can_read_msr_platform_info;
 	bool exception_payload_enabled;
 
+	bool triple_fault_event;
+
 	bool bus_lock_detection_enabled;
 	bool enable_pmu;
+
+	u32 notify_window;
+	u32 notify_vmexit_flags;
 	/*
 	 * If exit_on_emulation_error is set, and the in-kernel instruction
 	 * emulator fails to emulate an instruction, allow userspace
@@ -1313,6 +1371,10 @@ struct kvm_arch {
 	 * the global KVM_MAX_VCPU_IDS may lead to significant memory waste.
 	 */
 	u32 max_vcpu_ids;
+
+#ifdef CONFIG_KVM_MMU_PRIVATE
+	gfn_t gfn_shared_mask;
+#endif
 };
 
 struct kvm_vm_stat {
@@ -1373,6 +1435,7 @@ struct kvm_vcpu_stat {
 	u64 preemption_reported;
 	u64 preemption_other;
 	u64 guest_mode;
+	u64 notify_window_exits;
 };
 
 struct x86_instruction_info;
@@ -1399,18 +1462,37 @@ static inline u16 kvm_lapic_irq_dest_mode(bool dest_mode_logical)
 	return dest_mode_logical ? APIC_DEST_LOGICAL : APIC_DEST_PHYSICAL;
 }
 
+struct kvm_spte {
+	kvm_pfn_t pfn;
+	bool is_present;
+	bool is_last;
+	bool is_private_zapped;
+};
+
+struct kvm_spte_change {
+	gfn_t gfn;
+	enum pg_level level;
+	struct kvm_spte old;
+	struct kvm_spte new;
+	void *sept_page;
+};
+
 struct kvm_x86_ops {
 	const char *name;
 
+	int (*check_processor_compatibility)(void);
 	int (*hardware_enable)(void);
 	void (*hardware_disable)(void);
 	void (*hardware_unsetup)(void);
 	bool (*has_emulated_msr)(struct kvm *kvm, u32 index);
 	void (*vcpu_after_set_cpuid)(struct kvm_vcpu *vcpu);
 
+	bool (*is_vm_type_supported)(unsigned long vm_type);
 	unsigned int vm_size;
 	int (*vm_init)(struct kvm *kvm);
+	void (*flush_shadow_all_private)(struct kvm *kvm);
 	void (*vm_destroy)(struct kvm *kvm);
+	void (*vm_free)(struct kvm *kvm);
 
 	/* Create, but do not attach this VCPU */
 	int (*vcpu_precreate)(struct kvm *kvm);
@@ -1442,11 +1524,14 @@ struct kvm_x86_ops {
 	void (*get_gdt)(struct kvm_vcpu *vcpu, struct desc_ptr *dt);
 	void (*set_gdt)(struct kvm_vcpu *vcpu, struct desc_ptr *dt);
 	void (*sync_dirty_debug_regs)(struct kvm_vcpu *vcpu);
+	void (*load_guest_debug_regs)(struct kvm_vcpu *vcpu);
 	void (*set_dr7)(struct kvm_vcpu *vcpu, unsigned long value);
 	void (*cache_reg)(struct kvm_vcpu *vcpu, enum kvm_reg reg);
 	unsigned long (*get_rflags)(struct kvm_vcpu *vcpu);
 	void (*set_rflags)(struct kvm_vcpu *vcpu, unsigned long rflags);
 	bool (*get_if_flag)(struct kvm_vcpu *vcpu);
+	unsigned long (*get_cr2)(struct kvm_vcpu *vcpu);
+	unsigned long (*get_xcr)(struct kvm_vcpu *vcpu, int index);
 
 	void (*flush_tlb_all)(struct kvm_vcpu *vcpu);
 	void (*flush_tlb_current)(struct kvm_vcpu *vcpu);
@@ -1478,7 +1563,7 @@ struct kvm_x86_ops {
 	u32 (*get_interrupt_shadow)(struct kvm_vcpu *vcpu);
 	void (*patch_hypercall)(struct kvm_vcpu *vcpu,
 				unsigned char *hypercall_addr);
-	void (*inject_irq)(struct kvm_vcpu *vcpu);
+	void (*inject_irq)(struct kvm_vcpu *vcpu, bool reinjected);
 	void (*inject_nmi)(struct kvm_vcpu *vcpu);
 	void (*queue_exception)(struct kvm_vcpu *vcpu);
 	void (*cancel_injection)(struct kvm_vcpu *vcpu);
@@ -1489,7 +1574,8 @@ struct kvm_x86_ops {
 	void (*enable_nmi_window)(struct kvm_vcpu *vcpu);
 	void (*enable_irq_window)(struct kvm_vcpu *vcpu);
 	void (*update_cr8_intercept)(struct kvm_vcpu *vcpu, int tpr, int irr);
-	bool (*check_apicv_inhibit_reasons)(enum kvm_apicv_inhibit reason);
+	bool (*check_apicv_inhibit_reasons)(struct kvm *kvm,
+					    enum kvm_apicv_inhibit reason);
 	void (*refresh_apicv_exec_ctrl)(struct kvm_vcpu *vcpu);
 	void (*hwapic_irr_update)(struct kvm_vcpu *vcpu, int max_irr);
 	void (*hwapic_isr_update)(struct kvm_vcpu *vcpu, int isr);
@@ -1506,6 +1592,28 @@ struct kvm_x86_ops {
 
 	void (*load_mmu_pgd)(struct kvm_vcpu *vcpu, hpa_t root_hpa,
 			     int root_level);
+
+	int (*free_private_sp)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
+			       void *private_sp);
+	void (*handle_private_zapped_spte)(
+		struct kvm *kvm, const struct kvm_spte_change *change);
+	void (*handle_changed_private_spte)(
+		struct kvm *kvm, const struct kvm_spte_change *change);
+
+	/*
+	 * The following five operations are only for legacy MMU.
+	 * They aren't used for TDP MMU.
+	 */
+	void (*set_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
+				 kvm_pfn_t pfn);
+	void (*drop_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
+				  kvm_pfn_t pfn);
+	void (*zap_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level);
+	void (*unzap_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level);
+	int (*link_private_sp)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
+			       void *private_sp);
+	int (*split_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
+				  void *private_sp);
 
 	bool (*has_wbinvd_exit)(void);
 
@@ -1549,6 +1657,7 @@ struct kvm_x86_ops {
 	void (*pi_start_assignment)(struct kvm *kvm);
 	void (*apicv_post_state_restore)(struct kvm_vcpu *vcpu);
 	bool (*dy_apicv_has_pending_interrupt)(struct kvm_vcpu *vcpu);
+	bool (*protected_apic_has_interrupt)(struct kvm_vcpu *vcpu);
 
 	int (*set_hv_timer)(struct kvm_vcpu *vcpu, u64 guest_deadline_tsc,
 			    bool *expired);
@@ -1561,11 +1670,15 @@ struct kvm_x86_ops {
 	int (*leave_smm)(struct kvm_vcpu *vcpu, const char *smstate);
 	void (*enable_smi_window)(struct kvm_vcpu *vcpu);
 
+	int (*dev_mem_enc_ioctl)(void __user *argp);
 	int (*mem_enc_ioctl)(struct kvm *kvm, void __user *argp);
+	int (*vcpu_mem_enc_ioctl)(struct kvm_vcpu *vcpu, void __user *argp);
 	int (*mem_enc_register_region)(struct kvm *kvm, struct kvm_enc_region *argp);
 	int (*mem_enc_unregister_region)(struct kvm *kvm, struct kvm_enc_region *argp);
 	int (*vm_copy_enc_context_from)(struct kvm *kvm, unsigned int source_fd);
 	int (*vm_move_enc_context_from)(struct kvm *kvm, unsigned int source_fd);
+	int (*mem_enc_read_memory)(struct kvm *kvm, struct kvm_rw_memory *argp);
+	int (*mem_enc_write_memory)(struct kvm *kvm, struct kvm_rw_memory *argp);
 	void (*guest_memory_reclaimed)(struct kvm *kvm);
 
 	int (*get_msr_feature)(struct kvm_msr_entry *entry);
@@ -1581,6 +1694,7 @@ struct kvm_x86_ops {
 	int (*complete_emulated_msr)(struct kvm_vcpu *vcpu, int err);
 
 	void (*vcpu_deliver_sipi_vector)(struct kvm_vcpu *vcpu, u8 vector);
+	void (*vcpu_deliver_init)(struct kvm_vcpu *vcpu);
 
 	/*
 	 * Returns vCPU specific APICv inhibit reasons
@@ -1612,8 +1726,8 @@ struct kvm_x86_nested_ops {
 struct kvm_x86_init_ops {
 	int (*cpu_has_kvm_support)(void);
 	int (*disabled_by_bios)(void);
-	int (*check_processor_compatibility)(void);
 	int (*hardware_setup)(void);
+	int (*post_hardware_enable_setup)(void);
 	unsigned int (*handle_intel_pt_intr)(void);
 
 	struct kvm_x86_ops *runtime_ops;
@@ -1658,8 +1772,17 @@ static inline int kvm_arch_flush_remote_tlb(struct kvm *kvm)
 		return -ENOTSUPP;
 }
 
-#define kvm_arch_pmi_in_guest(vcpu) \
-	((vcpu) && (vcpu)->arch.handling_intr_from_guest)
+/*
+ * Because guest state is protected, guest IP can't be retrieved to
+ * record.  Fake it so that it's not in guest.
+ *
+ * Because struct kvm_vcpu isn't defined here, static inline function can't be
+ * used.  Resort to use macro.
+ */
+#define kvm_arch_pmi_in_guest(vcpu)					\
+	({ ((vcpu) && (vcpu)->arch.guest_state_protected) ?		\
+			false :						\
+			((vcpu) && (vcpu)->arch.handling_intr_from_guest); })
 
 void kvm_mmu_x86_module_init(void);
 int kvm_mmu_vendor_module_init(void);
@@ -1690,6 +1813,11 @@ void kvm_mmu_zap_all(struct kvm *kvm);
 void kvm_mmu_invalidate_mmio_sptes(struct kvm *kvm, u64 gen);
 void kvm_mmu_change_mmu_pages(struct kvm *kvm, unsigned long kvm_nr_mmu_pages);
 
+#ifdef CONFIG_INTEL_TDX_HOST
+int kvm_mmu_is_page_private(struct kvm *kvm, struct kvm_memory_slot *memslot,
+			    gfn_t gfn, bool *is_private, kvm_pfn_t *pfn);
+#endif
+
 int load_pdptrs(struct kvm_vcpu *vcpu, unsigned long cr3);
 
 int emulator_write_phys(struct kvm_vcpu *vcpu, gpa_t gpa,
@@ -1711,21 +1839,6 @@ void kvm_fire_mask_notifiers(struct kvm *kvm, unsigned irqchip, unsigned pin,
 extern bool tdp_enabled;
 
 u64 vcpu_tsc_khz(struct kvm_vcpu *vcpu);
-
-/* control of guest tsc rate supported? */
-extern bool kvm_has_tsc_control;
-/* maximum supported tsc_khz for guests */
-extern u32  kvm_max_guest_tsc_khz;
-/* number of bits of the fractional part of the TSC scaling ratio */
-extern u8   kvm_tsc_scaling_ratio_frac_bits;
-/* maximum allowed value of TSC scaling ratio */
-extern u64  kvm_max_tsc_scaling_ratio;
-/* 1ull << kvm_tsc_scaling_ratio_frac_bits */
-extern u64  kvm_default_tsc_scaling_ratio;
-/* bus lock detection supported? */
-extern bool kvm_has_bus_lock_exit;
-
-extern u64 kvm_mce_cap_supported;
 
 /*
  * EMULTYPE_NO_DECODE - Set when re-emulating an instruction (after completing
@@ -1805,6 +1918,7 @@ int kvm_emulate_wbinvd(struct kvm_vcpu *vcpu);
 void kvm_get_segment(struct kvm_vcpu *vcpu, struct kvm_segment *var, int seg);
 int kvm_load_segment_descriptor(struct kvm_vcpu *vcpu, u16 selector, int seg);
 void kvm_vcpu_deliver_sipi_vector(struct kvm_vcpu *vcpu, u8 vector);
+void kvm_vcpu_deliver_init(struct kvm_vcpu *vcpu);
 
 int kvm_task_switch(struct kvm_vcpu *vcpu, u16 tss_selector, int idt_index,
 		    int reason, bool has_error_code, u32 error_code);
@@ -1818,6 +1932,9 @@ int kvm_set_cr8(struct kvm_vcpu *vcpu, unsigned long cr8);
 int kvm_set_dr(struct kvm_vcpu *vcpu, int dr, unsigned long val);
 void kvm_get_dr(struct kvm_vcpu *vcpu, int dr, unsigned long *val);
 unsigned long kvm_get_cr8(struct kvm_vcpu *vcpu);
+unsigned long kvm_get_cr2(struct kvm_vcpu *vcpu);
+unsigned long kvm_get_xcr(struct kvm_vcpu *vcpu, int index);
+
 void kvm_lmsw(struct kvm_vcpu *vcpu, unsigned long msw);
 int kvm_emulate_xsetbv(struct kvm_vcpu *vcpu);
 
@@ -1853,7 +1970,9 @@ static inline int __kvm_irq_line_state(unsigned long *irq_state,
 
 #define KVM_MMU_ROOT_CURRENT		BIT(0)
 #define KVM_MMU_ROOT_PREVIOUS(i)	BIT(1+i)
-#define KVM_MMU_ROOTS_ALL		(~0UL)
+#define KVM_MMU_ROOT_PRIVATE		BIT(1+KVM_MMU_NUM_PREV_ROOTS)
+#define KVM_MMU_ROOTS_ALL		((u32)(~KVM_MMU_ROOT_PRIVATE))
+#define KVM_MMU_ROOTS_ALL_INC_PRIVATE	(KVM_MMU_ROOTS_ALL | KVM_MMU_ROOT_PRIVATE)
 
 int kvm_pic_set_irq(struct kvm_pic *pic, int irq, int irq_source_id, int level);
 void kvm_pic_clear_all(struct kvm_pic *pic, int irq_source_id);
@@ -1895,6 +2014,10 @@ static inline void kvm_clear_apicv_inhibit(struct kvm *kvm,
 	kvm_set_or_clear_apicv_inhibit(kvm, reason, false);
 }
 
+unsigned long __kvm_emulate_hypercall(struct kvm_vcpu *vcpu, unsigned long nr,
+				      unsigned long a0, unsigned long a1,
+				      unsigned long a2, unsigned long a3,
+				      int op_64_bit);
 int kvm_emulate_hypercall(struct kvm_vcpu *vcpu);
 
 int kvm_mmu_page_fault(struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa, u64 error_code,
@@ -1978,6 +2101,7 @@ int kvm_pv_send_ipi(struct kvm *kvm, unsigned long ipi_bitmap_low,
 int kvm_add_user_return_msr(u32 msr);
 int kvm_find_user_return_msr(u32 msr);
 int kvm_set_user_return_msr(unsigned index, u64 val, u64 mask);
+void kvm_user_return_update_cache(unsigned int index, u64 val);
 
 static inline bool kvm_is_supported_user_return_msr(u32 msr)
 {
@@ -2068,5 +2192,8 @@ int memslot_rmap_alloc(struct kvm_memory_slot *slot, unsigned long npages);
 	 KVM_X86_QUIRK_OUT_7E_INC_RIP |		\
 	 KVM_X86_QUIRK_MISC_ENABLE_NO_MWAIT |	\
 	 KVM_X86_QUIRK_FIX_HYPERCALL_INSN)
+
+/* The common function for normal x86 guest */
+void load_guest_debug_regs(struct kvm_vcpu *vcpu);
 
 #endif /* _ASM_X86_KVM_HOST_H */

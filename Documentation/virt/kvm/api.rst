@@ -147,9 +147,30 @@ described as 'basic' will be available.
 The new VM has no virtual cpus and no memory.
 You probably want to use 0 as machine type.
 
+X86:
+^^^^
+
+Supported vm type can be queried from KVM_CAP_VM_TYPES, which returns the
+bitmap of supported vm types. The 1-setting of bit @n means vm type with
+value @n is supported.
+
+S390:
+^^^^^
+
 In order to create user controlled virtual machines on S390, check
 KVM_CAP_S390_UCONTROL and use the flag KVM_VM_S390_UCONTROL as
 privileged user (CAP_SYS_ADMIN).
+
+MIPS:
+^^^^^
+
+To use hardware assisted virtualization on MIPS (VZ ASE) rather than
+the default trap & emulate implementation (which changes the virtual
+memory layout to fit in user mode), check KVM_CAP_MIPS_VZ and use the
+flag KVM_VM_MIPS_VZ.
+
+ARM64:
+^^^^^^
 
 On arm64, the physical address size for a VM (IPA Size limit) is limited
 to 40bits by default. The limit can be configured if the host supports the
@@ -1150,6 +1171,10 @@ The following bits are defined in the flags field:
   fields contain a valid state. This bit will be set whenever
   KVM_CAP_EXCEPTION_PAYLOAD is enabled.
 
+- KVM_VCPUEVENT_VALID_TRIPLE_FAULT may be set to signal that the
+  triple_fault_pending field contains a valid state. This bit will
+  be set whenever KVM_CAP_TRIPLE_FAULT_EVENT is enabled.
+
 ARM64:
 ^^^^^^
 
@@ -1245,6 +1270,10 @@ can be set in the flags field to signal that the
 exception_has_payload, exception_payload, and exception.pending fields
 contain a valid state and shall be written into the VCPU.
 
+If KVM_CAP_TRIPLE_FAULT_EVENT is enabled, KVM_VCPUEVENT_VALID_TRIPLE_FAULT
+can be set in flags field to signal that the triple_fault field contains
+a valid state and shall be written into the VCPU.
+
 ARM64:
 ^^^^^^
 
@@ -1311,7 +1340,7 @@ yet and must be cleared on entry.
 :Capability: KVM_CAP_USER_MEMORY
 :Architectures: all
 :Type: vm ioctl
-:Parameters: struct kvm_userspace_memory_region (in)
+:Parameters: struct kvm_userspace_memory_region(_ext) (in)
 :Returns: 0 on success, -1 on error
 
 ::
@@ -1324,9 +1353,18 @@ yet and must be cleared on entry.
 	__u64 userspace_addr; /* start of the userspace allocated memory */
   };
 
+  struct kvm_userspace_memory_region_ext {
+	struct kvm_userspace_memory_region region;
+	__u64 private_offset;
+	__u32 private_fd;
+	__u32 pad1;
+	__u64 pad2[14];
+};
+
   /* for kvm_memory_region::flags */
   #define KVM_MEM_LOG_DIRTY_PAGES	(1UL << 0)
   #define KVM_MEM_READONLY	(1UL << 1)
+  #define KVM_MEM_PRIVATE		(1UL << 2)
 
 This ioctl allows the user to create, modify or delete a guest physical
 memory slot.  Bits 0-15 of "slot" specify the slot id and this value
@@ -1357,12 +1395,27 @@ It is recommended that the lower 21 bits of guest_phys_addr and userspace_addr
 be identical.  This allows large pages in the guest to be backed by large
 pages in the host.
 
-The flags field supports two flags: KVM_MEM_LOG_DIRTY_PAGES and
-KVM_MEM_READONLY.  The former can be set to instruct KVM to keep track of
-writes to memory within the slot.  See KVM_GET_DIRTY_LOG ioctl to know how to
-use it.  The latter can be set, if KVM_CAP_READONLY_MEM capability allows it,
-to make a new slot read-only.  In this case, writes to this memory will be
-posted to userspace as KVM_EXIT_MMIO exits.
+kvm_userspace_memory_region_ext includes all the kvm_userspace_memory_region
+fields. It also includes additional fields for some specific features. See
+below description of flags field for more information. It's recommended to use
+kvm_userspace_memory_region_ext in new userspace code.
+
+The flags field supports below flags:
+
+- KVM_MEM_LOG_DIRTY_PAGES can be set to instruct KVM to keep track of writes to
+  memory within the slot.  See KVM_GET_DIRTY_LOG ioctl to know how to use it.
+
+- KVM_MEM_READONLY can be set, if KVM_CAP_READONLY_MEM capability allows it, to
+  make a new slot read-only.  In this case, writes to this memory will be posted
+  to userspace as KVM_EXIT_MMIO exits.
+
+- KVM_MEM_PRIVATE can be set to indicate a new slot has private memory backed by
+  a file descirptor(fd) and the content of the private memory is invisible to
+  userspace. In this case, userspace should use private_fd/private_offset in
+  kvm_userspace_memory_region_ext to instruct KVM to provide private memory to
+  guest. Userspace should guarantee not to map the same pfn indicated by
+  private_fd/private_offset to different gfns with multiple memslots. Failed to
+  do this may result undefined behavior.
 
 When the KVM_CAP_SYNC_MMU capability is available, changes in the backing of
 the memory region are automatically reflected into the guest.  For example, an
@@ -1372,6 +1425,9 @@ example is madvise(MADV_DROP).
 It is recommended to use this API instead of the KVM_SET_MEMORY_REGION ioctl.
 The KVM_SET_MEMORY_REGION does not allow fine grained control over memory
 allocation and is deprecated.
+
+For TDX guest, deleting/moving memory region loses guest memory contents.
+Read only region isn't supported.  Only as-id 0 is supported.
 
 
 4.36 KVM_SET_TSS_ADDR
@@ -2998,7 +3054,9 @@ KVM_CREATE_PIT2. The state is returned in the following structure::
 Valid flags are::
 
   /* disable PIT in HPET legacy mode */
-  #define KVM_PIT_FLAGS_HPET_LEGACY  0x00000001
+  #define KVM_PIT_FLAGS_HPET_LEGACY     0x00000001
+  /* speaker port data bit enabled */
+  #define KVM_PIT_FLAGS_SPEAKER_DATA_ON 0x00000002
 
 This IOCTL replaces the obsolete KVM_GET_PIT.
 
@@ -4657,7 +4715,7 @@ H_GET_CPU_CHARACTERISTICS hypercall.
 
 :Capability: basic
 :Architectures: x86
-:Type: vm
+:Type: vm ioctl, vcpu ioctl
 :Parameters: an opaque platform specific structure (in/out)
 :Returns: 0 on success; -1 on error
 
@@ -4668,6 +4726,10 @@ encrypted VMs.
 Currently, this ioctl is used for issuing Secure Encrypted Virtualization
 (SEV) commands on AMD Processors. The SEV commands are defined in
 Documentation/virt/kvm/amd-memory-encryption.rst.
+
+Currently, this ioctl is used for issuing Trusted Domain Extensions
+(TDX) commands on Intel Processors. The TDX commands are defined in
+Documentation/virt/kvm/intel-tdx.rst.
 
 4.111 KVM_MEMORY_ENCRYPT_REG_REGION
 -----------------------------------
@@ -5127,7 +5189,15 @@ into ESA mode. This reset is a superset of the initial reset.
 	__u32 reserved[3];
   };
 
-cmd values:
+**Ultravisor return codes**
+The Ultravisor return (reason) codes are provided by the kernel if a
+Ultravisor call has been executed to achieve the results expected by
+the command. Therefore they are independent of the IOCTL return
+code. If KVM changes `rc`, its value will always be greater than 0
+hence setting it to 0 before issuing a PV command is advised to be
+able to detect a change of `rc`.
+
+**cmd values:**
 
 KVM_PV_ENABLE
   Allocate memory and register the VM with the Ultravisor, thereby
@@ -5143,7 +5213,6 @@ KVM_PV_ENABLE
   =====      =============================
 
 KVM_PV_DISABLE
-
   Deregister the VM from the Ultravisor and reclaim the memory that
   had been donated to the Ultravisor, making it usable by the kernel
   again.  All registered VCPUs are converted back to non-protected
@@ -5159,6 +5228,117 @@ KVM_PV_VM_UNPACK
 KVM_PV_VM_VERIFY
   Verify the integrity of the unpacked image. Only if this succeeds,
   KVM is allowed to start protected VCPUs.
+
+KVM_PV_INFO
+  :Capability: KVM_CAP_S390_PROTECTED_DUMP
+
+  Presents an API that provides Ultravisor related data to userspace
+  via subcommands. len_max is the size of the user space buffer,
+  len_written is KVM's indication of how much bytes of that buffer
+  were actually written to. len_written can be used to determine the
+  valid fields if more response fields are added in the future.
+
+  ::
+
+     enum pv_cmd_info_id {
+	KVM_PV_INFO_VM,
+	KVM_PV_INFO_DUMP,
+     };
+
+     struct kvm_s390_pv_info_header {
+	__u32 id;
+	__u32 len_max;
+	__u32 len_written;
+	__u32 reserved;
+     };
+
+     struct kvm_s390_pv_info {
+	struct kvm_s390_pv_info_header header;
+	struct kvm_s390_pv_info_dump dump;
+	struct kvm_s390_pv_info_vm vm;
+     };
+
+**subcommands:**
+
+  KVM_PV_INFO_VM
+    This subcommand provides basic Ultravisor information for PV
+    hosts. These values are likely also exported as files in the sysfs
+    firmware UV query interface but they are more easily available to
+    programs in this API.
+
+    The installed calls and feature_indication members provide the
+    installed UV calls and the UV's other feature indications.
+
+    The max_* members provide information about the maximum number of PV
+    vcpus, PV guests and PV guest memory size.
+
+    ::
+
+      struct kvm_s390_pv_info_vm {
+	__u64 inst_calls_list[4];
+	__u64 max_cpus;
+	__u64 max_guests;
+	__u64 max_guest_addr;
+	__u64 feature_indication;
+      };
+
+
+  KVM_PV_INFO_DUMP
+    This subcommand provides information related to dumping PV guests.
+
+    ::
+
+      struct kvm_s390_pv_info_dump {
+	__u64 dump_cpu_buffer_len;
+	__u64 dump_config_mem_buffer_per_1m;
+	__u64 dump_config_finalize_len;
+      };
+
+KVM_PV_DUMP
+  :Capability: KVM_CAP_S390_PROTECTED_DUMP
+
+  Presents an API that provides calls which facilitate dumping a
+  protected VM.
+
+  ::
+
+    struct kvm_s390_pv_dmp {
+      __u64 subcmd;
+      __u64 buff_addr;
+      __u64 buff_len;
+      __u64 gaddr;		/* For dump storage state */
+    };
+
+  **subcommands:**
+
+  KVM_PV_DUMP_INIT
+    Initializes the dump process of a protected VM. If this call does
+    not succeed all other subcommands will fail with -EINVAL. This
+    subcommand will return -EINVAL if a dump process has not yet been
+    completed.
+
+    Not all PV vms can be dumped, the owner needs to set `dump
+    allowed` PCF bit 34 in the SE header to allow dumping.
+
+  KVM_PV_DUMP_CONFIG_STOR_STATE
+     Stores `buff_len` bytes of tweak component values starting with
+     the 1MB block specified by the absolute guest address
+     (`gaddr`). `buff_len` needs to be `conf_dump_storage_state_len`
+     aligned and at least >= the `conf_dump_storage_state_len` value
+     provided by the dump uv_info data. buff_user might be written to
+     even if an error rc is returned. For instance if we encounter a
+     fault after writing the first page of data.
+
+  KVM_PV_DUMP_COMPLETE
+    If the subcommand succeeds it completes the dump process and lets
+    KVM_PV_DUMP_INIT be called again.
+
+    On success `conf_dump_finalize_len` bytes of completion data will be
+    stored to the `buff_addr`. The completion data contains a key
+    derivation seed, IV, tweak nonce and encryption keys as well as an
+    authentication tag all of which are needed to decrypt the dump at a
+    later time.
+
 
 4.126 KVM_X86_SET_MSR_FILTER
 ----------------------------
@@ -5773,6 +5953,44 @@ as the descriptors in Descriptors block.
 :Parameters: struct kvm_xsave (out)
 :Returns: 0 on success, -1 on error
 
+4.135 KVM_MEMORY_ENCRYPT_READ_MEMORY / KVM_MEMORY_ENCRYPT_WRITE_MEMORY
+------------------------------------
+:Capability: KVM_CAP_ENCRYPT_MEMORY_DEBUG
+:Architectures: x86
+:Type: vm ioctl
+:Parameters: struct kvm_rw_memory
+:Returns: 0 on success, < 0 on error
+
+::
+  struct kvm_rw_memory
+  {
+	__u64 addr;
+The guest address which userspace want to read from/write to, it can
+be GPA or HVA, depends on the implementation in KVM.
+
+::
+	__u64 len;
+The length in byte userspace want to read from/write to, it will be
+updated to operation completed byte size when the ioctl return
+
+::
+	__u64 ubuf;
+The userspace buffer to receive the data for reading/send the data for
+writing.
+
+  };
+
+::
+Example:
+  struct kvm_rw_memory rw_memory;
+
+  rw_memory.addr = gpa_addr_for_read_OR_write
+  rw_memory.len = size;
+  rw_memory.buf = buf_for_save_read_data_OR_provide_data_to_write
+
+  r = ioctl(kvm_vm_fd,
+            KVM_MEMORY_ENCRYPT_{READ,WRITE}_MEMORY,
+            &rw_memory);
 
 ::
 
@@ -5810,6 +6028,32 @@ of CPUID leaf 0xD on the host.
    };
 
 This ioctl injects an event channel interrupt directly to the guest vCPU.
+
+4.136 KVM_S390_PV_CPU_COMMAND
+-----------------------------
+
+:Capability: KVM_CAP_S390_PROTECTED_DUMP
+:Architectures: s390
+:Type: vcpu ioctl
+:Parameters: none
+:Returns: 0 on success, < 0 on error
+
+This ioctl closely mirrors `KVM_S390_PV_COMMAND` but handles requests
+for vcpus. It re-uses the kvm_s390_pv_dmp struct and hence also shares
+the command ids.
+
+**command:**
+
+KVM_PV_DUMP
+  Presents an API that provides calls which facilitate dumping a vcpu
+  of a protected VM.
+
+**subcommand:**
+
+KVM_PV_DUMP_CPU
+  Provides encrypted dump data like register values.
+  The length of the returned data is provided by uv_info.guest_cpu_stor_len.
+
 
 5. The kvm_run structure
 ========================
@@ -6416,6 +6660,26 @@ spec refer, https://github.com/riscv/riscv-sbi-doc.
 
 ::
 
+    /* KVM_EXIT_NOTIFY */
+    struct {
+  #define KVM_NOTIFY_CONTEXT_INVALID	(1 << 0)
+      __u32 flags;
+    } notify;
+
+Used on x86 systems. When the VM capability KVM_CAP_X86_NOTIFY_VMEXIT is
+enabled, a VM exit generated if no event window occurs in VM non-root mode
+for a specified amount of time. Once KVM_X86_NOTIFY_VMEXIT_USER is set when
+enabling the cap, it would exit to userspace with the exit reason
+KVM_EXIT_NOTIFY for further handling. The "flags" field contains more
+detailed info.
+
+The valid value for 'flags' is:
+
+  - KVM_NOTIFY_CONTEXT_INVALID -- the VM context is corrupted and not valid
+    in VMCS. It would run into unknown result if resume the target VM.
+
+::
+
 		/* Fix the size of the union. */
 		char padding[256];
 	};
@@ -6450,7 +6714,26 @@ values in kvm_run even if the corresponding bit in kvm_dirty_regs is not set.
 
   };
 
+::
+		/* KVM_EXIT_MEMORY_FAULT */
+		struct {
+  #define KVM_MEMORY_EXIT_FLAG_PRIVATE	(1 << 0)
+			__u32 flags;
+			__u32 padding;
+			__u64 gpa;
+			__u64 size;
+		} memory;
+If exit reason is KVM_EXIT_MEMORY_FAULT then it indicates that the VCPU has
+encountered a memory error which is not handled by KVM kernel module and
+userspace may choose to handle it. The 'flags' field indicates the memory
+properties of the exit.
 
+ - KVM_MEMORY_EXIT_FLAG_PRIVATE - indicates the memory error is caused by
+   private memory access when the bit is set otherwise the memory error is
+   caused by shared memory access when the bit is clear.
+
+'gpa' and 'size' indicate the memory range the error occurs at. The userspace
+may handle the error and return to KVM to retry the previous memory access.
 
 6. Capabilities that can be enabled on vCPUs
 ============================================
@@ -7380,6 +7663,35 @@ if the value was set to zero or KVM_ENABLE_CAP was not invoked, KVM
 uses the return value of KVM_CHECK_EXTENSION(KVM_CAP_MAX_VCPU_ID) as
 the maximum APIC ID.
 
+7.33 KVM_CAP_X86_NOTIFY_VMEXIT
+------------------------------
+
+:Architectures: x86
+:Target: VM
+:Parameters: args[0] is the value of notify window as well as some flags
+:Returns: 0 on success, -EINVAL if args[0] contains invalid flags or notify
+          VM exit is unsupported.
+
+Bits 63:32 of args[0] are used for notify window.
+Bits 31:0 of args[0] are for some flags. Valid bits are::
+
+  #define KVM_X86_NOTIFY_VMEXIT_ENABLED    (1 << 0)
+  #define KVM_X86_NOTIFY_VMEXIT_USER       (1 << 1)
+
+This capability allows userspace to configure the notify VM exit on/off
+in per-VM scope during VM creation. Notify VM exit is disabled by default.
+When userspace sets KVM_X86_NOTIFY_VMEXIT_ENABLED bit in args[0], VMM will
+enable this feature with the notify window provided, which will generate
+a VM exit if no event window occurs in VM non-root mode for a specified of
+time (notify window).
+
+If KVM_X86_NOTIFY_VMEXIT_USER is set in args[0], upon notify VM exits happen,
+KVM would exit to userspace for handling.
+
+This capability is aimed to mitigate the threat that malicious VMs can
+cause CPU stuck (due to event windows don't open up) and make the CPU
+unavailable to host or other VMs.
+
 8. Other capabilities.
 ======================
 
@@ -7986,6 +8298,20 @@ should adjust CPUID leaf 0xA to reflect that the PMU is disabled.
 When enabled, KVM will exit to userspace with KVM_EXIT_SYSTEM_EVENT of
 type KVM_SYSTEM_EVENT_SUSPEND to process the guest suspend request.
 
+8.37 KVM_CAP_S390_PROTECTED_DUMP
+--------------------------------
+
+:Capability: KVM_CAP_S390_PROTECTED_DUMP
+:Architectures: s390
+:Type: vm
+
+This capability indicates that KVM and the Ultravisor support dumping
+PV guests. The `KVM_PV_DUMP` command is available for the
+`KVM_S390_PV_COMMAND` ioctl and the `KVM_PV_INFO` command provides
+dump related UV data. Also the vcpu ioctl `KVM_S390_PV_CPU_COMMAND` is
+available and supports the `KVM_PV_DUMP_CPU` subcommand.
+
+
 9. Known KVM API problems
 =========================
 
@@ -8031,3 +8357,17 @@ Ordering of KVM_GET_*/KVM_SET_* ioctls
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 TBD
+
+8.35 KVM_CAP_VM_TYPES
+---------------------
+:Capability: KVM_CAP_EXIT_HYPERCALL
+:Architectures: x86
+:Type: system
+
+This capability will return supported VM types in bitmap.
+#define KVM_X86_DEFAULT_VM      0
+#define KVM_X86_TDX_VM          1
+If only default VM type is supported, 1 = (1ULL << KVM_X86_DEFAULT_VM) is
+returned.
+If TDX VM type is supported,
+3 = (1ULL << KVM_X86_DEFAULT_VM) | (1ULL << KVM_X86_TDX_VM) is returned.

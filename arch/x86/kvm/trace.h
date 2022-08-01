@@ -8,6 +8,8 @@
 #include <asm/clocksource.h>
 #include <asm/pvclock-abi.h>
 
+#include "vmx/tdx_arch.h"
+
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM kvm
 
@@ -143,7 +145,110 @@ TRACE_EVENT(kvm_xen_hypercall,
 		  __entry->a3, __entry->a4, __entry->a5)
 );
 
+#define TDG_VP_VMCALL(x) {x, #x}
 
+#define kvm_trace_symbol_tdvmcall				\
+	TDG_VP_VMCALL(EXIT_REASON_CPUID),			\
+	TDG_VP_VMCALL(EXIT_REASON_HLT),				\
+	TDG_VP_VMCALL(EXIT_REASON_IO_INSTRUCTION),		\
+	TDG_VP_VMCALL(EXIT_REASON_EPT_VIOLATION),		\
+	TDG_VP_VMCALL(EXIT_REASON_MSR_READ),			\
+	TDG_VP_VMCALL(EXIT_REASON_MSR_WRITE),			\
+	TDG_VP_VMCALL(TDG_VP_VMCALL_GET_TD_VM_CALL_INFO),	\
+	TDG_VP_VMCALL(TDG_VP_VMCALL_MAP_GPA),			\
+	TDG_VP_VMCALL(TDG_VP_VMCALL_GET_QUOTE),			\
+	TDG_VP_VMCALL(TDG_VP_VMCALL_REPORT_FATAL_ERROR),	\
+	TDG_VP_VMCALL(TDG_VP_VMCALL_SETUP_EVENT_NOTIFY_INTERRUPT)
+
+TRACE_EVENT(kvm_tdx_hypercall,
+	TP_PROTO(__u64 subfunction, __u64 reg_mask, __u64 r12, __u64 r13,
+		 __u64 r14, __u64 rbx, __u64 rdi, __u64 rsi, __u64 r8, __u64 r9,
+		 __u64 rdx),
+
+	TP_ARGS(subfunction, reg_mask, r12, r13, r14, rbx, rdi, rsi, r8, r9, rdx),
+
+	TP_STRUCT__entry(
+		__field(	__u64,		subfunction	)
+		__field(	__u64,		reg_mask	)
+		__field(	__u64,		r12		)
+		__field(	__u64,		r13		)
+		__field(	__u64,		r14		)
+		__field(	__u64,		rbx		)
+		__field(	__u64,		rdi		)
+		__field(	__u64,		rsi		)
+		__field(	__u64,		r8		)
+		__field(	__u64,		r9		)
+		__field(	__u64,		rdx		)
+	),
+
+	TP_fast_assign(
+		__entry->subfunction	= subfunction;
+		__entry->reg_mask	= reg_mask;
+		__entry->r12		= r12;
+		__entry->r13		= r13;
+		__entry->r14		= r14;
+		__entry->rbx		= rbx;
+		__entry->rdi		= rdi;
+		__entry->rsi		= rsi;
+		__entry->r8		= r8;
+		__entry->r9		= r9;
+		__entry->rdx		= rdx;
+	),
+
+	TP_printk("%s reg_mask 0x%llx r12 0x%llx r13 0x%llx r14 0x%llx "
+		  "rbx 0x%llx rdi 0x%llx rsi 0x%llx r8 0x%llx r9 0x%llx "
+		  "rdx 0x%llx",
+		  __print_symbolic(__entry->subfunction,
+				   kvm_trace_symbol_tdvmcall),
+		  __entry->reg_mask, __entry->r12, __entry->r13, __entry->r14,
+		  __entry->rbx, __entry->rdi, __entry->rsi, __entry->r8,
+		  __entry->r9, __entry->rdx)
+);
+
+TRACE_EVENT(kvm_tdx_hypercall_done,
+	TP_PROTO(__u64 subfunction, __u64 status_code, __u64 r12, __u64 r13,
+		 __u64 r14, __u64 rbx, __u64 rdi, __u64 rsi, __u64 r8, __u64 r9,
+		__u64 rdx),
+	TP_ARGS(subfunction, status_code, r12, r13, r14, rbx, rdi, rsi, r8, r9, rdx),
+
+	TP_STRUCT__entry(
+		__field(	__u64,		subfunction	)
+		__field(	__u64,		status_code	)
+		__field(	__u64,		r12		)
+		__field(	__u64,		r13		)
+		__field(	__u64,		r14		)
+		__field(	__u64,		rbx		)
+		__field(	__u64,		rdi		)
+		__field(	__u64,		rsi		)
+		__field(	__u64,		r8		)
+		__field(	__u64,		r9		)
+		__field(	__u64,		rdx		)
+	),
+
+	TP_fast_assign(
+		__entry->subfunction	= subfunction;
+		__entry->status_code	= status_code;
+		__entry->r12		= r12;
+		__entry->r13		= r13;
+		__entry->r14		= r14;
+		__entry->rbx		= rbx;
+		__entry->rdi		= rdi;
+		__entry->rsi		= rsi;
+		__entry->r8		= r8;
+		__entry->r9		= r9;
+		__entry->rdx		= rdx;
+	),
+
+	TP_printk("%s status_code 0x%llx 12 0x%llx r13 0x%llx r14 0x%llx "
+		  "rbx 0x%llx rdi 0x%llx rsi 0x%llx r8 0x%llx r9 0x%llx "
+		  "rdx 0x%llx",
+		  __print_symbolic(__entry->subfunction,
+				   kvm_trace_symbol_tdvmcall),
+		  __entry->status_code,
+		  __entry->r12, __entry->r13, __entry->r14, __entry->rbx,
+		  __entry->rdi, __entry->rsi, __entry->r8, __entry->r9,
+		  __entry->rdx)
+);
 
 /*
  * Tracepoint for PIO.
@@ -154,7 +259,7 @@ TRACE_EVENT(kvm_xen_hypercall,
 
 TRACE_EVENT(kvm_pio,
 	TP_PROTO(unsigned int rw, unsigned int port, unsigned int size,
-		 unsigned int count, void *data),
+		 unsigned int count, const void *data),
 	TP_ARGS(rw, port, size, count, data),
 
 	TP_STRUCT__entry(
@@ -333,18 +438,24 @@ TRACE_EVENT_KVM_EXIT(kvm_exit);
  * Tracepoint for kvm interrupt injection:
  */
 TRACE_EVENT(kvm_inj_virq,
-	TP_PROTO(unsigned int irq),
-	TP_ARGS(irq),
+	TP_PROTO(unsigned int vector, bool soft, bool reinjected),
+	TP_ARGS(vector, soft, reinjected),
 
 	TP_STRUCT__entry(
-		__field(	unsigned int,	irq		)
+		__field(	unsigned int,	vector		)
+		__field(	bool,		soft		)
+		__field(	bool,		reinjected	)
 	),
 
 	TP_fast_assign(
-		__entry->irq		= irq;
+		__entry->vector		= vector;
+		__entry->soft		= soft;
+		__entry->reinjected	= reinjected;
 	),
 
-	TP_printk("irq %u", __entry->irq)
+	TP_printk("%s 0x%x%s",
+		  __entry->soft ? "Soft/INTn" : "IRQ", __entry->vector,
+		  __entry->reinjected ? " [reinjected]" : "")
 );
 
 #define EXS(x) { x##_VECTOR, "#" #x }
@@ -358,25 +469,30 @@ TRACE_EVENT(kvm_inj_virq,
  * Tracepoint for kvm interrupt injection:
  */
 TRACE_EVENT(kvm_inj_exception,
-	TP_PROTO(unsigned exception, bool has_error, unsigned error_code),
-	TP_ARGS(exception, has_error, error_code),
+	TP_PROTO(unsigned exception, bool has_error, unsigned error_code,
+		 bool reinjected),
+	TP_ARGS(exception, has_error, error_code, reinjected),
 
 	TP_STRUCT__entry(
 		__field(	u8,	exception	)
 		__field(	u8,	has_error	)
 		__field(	u32,	error_code	)
+		__field(	bool,	reinjected	)
 	),
 
 	TP_fast_assign(
 		__entry->exception	= exception;
 		__entry->has_error	= has_error;
 		__entry->error_code	= error_code;
+		__entry->reinjected	= reinjected;
 	),
 
-	TP_printk("%s (0x%x)",
+	TP_printk("%s%s%s%s%s",
 		  __print_symbolic(__entry->exception, kvm_trace_sym_exc),
-		  /* FIXME: don't print error_code if not present */
-		  __entry->has_error ? __entry->error_code : 0)
+		  !__entry->has_error ? "" : " (",
+		  !__entry->has_error ? "" : __print_symbolic(__entry->error_code, { }),
+		  !__entry->has_error ? "" : ")",
+		  __entry->reinjected ? " [reinjected]" : "")
 );
 
 /*

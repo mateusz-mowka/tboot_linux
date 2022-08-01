@@ -48,6 +48,8 @@ config KVM
 	select SRCU
 	select INTERVAL_TREE
 	select HAVE_KVM_PM_NOTIFIER if PM
+	select HAVE_KVM_PRIVATE_MEM if X86_64
+	select MEMFILE_NOTIFIER if HAVE_KVM_PRIVATE_MEM
 	help
 	  Support hosting fully virtualized guest machines using hardware
 	  virtualization extensions.  You will need a fairly recent
@@ -128,5 +130,9 @@ config KVM_XEN
 
 config KVM_EXTERNAL_WRITE_TRACKING
 	bool
+
+config KVM_MMU_PRIVATE
+	def_bool y
+	depends on INTEL_TDX_HOST && KVM_INTEL
 
 endif # VIRTUALIZATION

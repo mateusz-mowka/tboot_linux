@@ -17,6 +17,8 @@
 
 #include "../kvm_util.h"
 
+#define NMI_VECTOR		0x02
+
 #define X86_EFLAGS_FIXED	 (1u << 1)
 
 #define X86_CR4_VME		(1ul << 0)
@@ -385,6 +387,21 @@ static inline void cpu_relax(void)
 	asm volatile("rep; nop" ::: "memory");
 }
 
+#define vmmcall()		\
+	__asm__ __volatile__(	\
+		"vmmcall\n"	\
+		)
+
+#define ud2()			\
+	__asm__ __volatile__(	\
+		"ud2\n"	\
+		)
+
+#define hlt()			\
+	__asm__ __volatile__(	\
+		"hlt\n"	\
+		)
+
 bool is_intel_cpu(void);
 bool is_amd_cpu(void);
 
@@ -459,6 +476,11 @@ void vm_install_exception_handler(struct kvm_vm *vm, int vector,
 uint64_t vm_get_page_table_entry(struct kvm_vm *vm, int vcpuid, uint64_t vaddr);
 void vm_set_page_table_entry(struct kvm_vm *vm, int vcpuid, uint64_t vaddr,
 			     uint64_t pte);
+
+void vm_vcpu_add_tdx(struct kvm_vm *vm, uint32_t vcpuid);
+
+#define __stringify_1(x) #x
+#define __stringify(x)  __stringify_1(x)
 
 /*
  * get_cpuid() - find matching CPUID entry and return pointer to it.
