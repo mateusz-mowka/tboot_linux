@@ -6961,6 +6961,9 @@ void kvm_mmu_zap_collapsible_sptes(struct kvm *kvm,
 	 * internally gives a WARN() when it hits.
 	 */
 	if (is_tdp_mmu_enabled(kvm)) {
+		if (kvm->arch.tdp_max_page_level == PG_LEVEL_4K)
+			return;
+
 		read_lock(&kvm->mmu_lock);
 		kvm_tdp_mmu_zap_collapsible_sptes(kvm, slot);
 		read_unlock(&kvm->mmu_lock);
