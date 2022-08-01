@@ -728,6 +728,9 @@ static void __init early_reserve_memory(void)
 
 	early_reserve_initrd();
 
+#ifdef CONFIG_X86_SLE_SUPPORT
+	memblock_reserve(0xc800000, 10*1024*1024);
+#endif
 	memblock_x86_reserve_range_setup_data();
 
 	reserve_ibft_region();
