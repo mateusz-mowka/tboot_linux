@@ -59,6 +59,7 @@
 #include <linux/page-isolation.h>
 #include <linux/pagewalk.h>
 #include <linux/shmem_fs.h>
+#include <linux/buffer_head.h>
 #include "swap.h"
 #include "internal.h"
 #include "ras/ras_event.h"
@@ -1856,6 +1857,16 @@ try_again:
 	}
 
 	if (PageTransHuge(hpage)) {
+		lock_page(hpage);
+		/* If page has private date which could raise page refcount.
+		 * And the raised page refcount could make thp page split
+		 * failed.
+		 * Try to release page private date before split it.
+		 */
+		if (page_has_private(hpage))
+			try_to_release_page(hpage, GFP_KERNEL);
+		unlock_page(hpage);
+
 		/*
 		 * The flag must be set after the refcount is bumped
 		 * otherwise it may race with THP split.
