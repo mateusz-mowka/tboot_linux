@@ -25,7 +25,6 @@
 #include "pasid.h"
 #include "perf.h"
 #include "../iommu-sva.h"
-#include "../iommu-sva-lib.h"
 #include "trace.h"
 
 static irqreturn_t prq_event_thread(int irq, void *d);
