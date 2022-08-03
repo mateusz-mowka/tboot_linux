@@ -162,7 +162,8 @@ static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
          * Input: RDX: register id
          * Input: R8:  register value
          */
-	ret = __seamcall(TDH_IOMMU_SETREG, iommu_id, reg, val, 0, NULL);
+	ret = __seamcall_io(TDH_IOMMU_SETREG, iommu_id, reg, val,
+			    0, 0, 0, 0, 0, 0, 0, NULL);
 
 	pr_info("%s: iommu_id 0x%llx reg 0x%llx val 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, reg, val, ret);
@@ -180,7 +181,8 @@ static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val)
          * Input: RDX: register id
          * Output: R8: register value
 	 */
-	ret = __seamcall(TDH_IOMMU_GETREG, iommu_id, reg, 0, 0, &out);
+	ret = __seamcall_io(TDH_IOMMU_GETREG, iommu_id, reg,
+			    0, 0, 0, 0, 0, 0, 0, 0, &out);
 
 	pr_info("%s: iommu_id 0x%llx reg 0x%llx val 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, reg, out.r8, ret);
