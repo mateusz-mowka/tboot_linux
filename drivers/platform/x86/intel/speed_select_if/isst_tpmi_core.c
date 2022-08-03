@@ -1149,10 +1149,10 @@ static int isst_if_get_perf_level_mask(void __user *argp)
 #define SST_BF_P1_LOW_START	21
 #define SST_BF_P1_LOW_WIDTH	8
 
-#define SST_BF_T_PROHOT_START	35
+#define SST_BF_T_PROHOT_START	38
 #define SST_BF_T_PROHOT_WIDTH	8
 
-#define SST_BF_TDP_START	43
+#define SST_BF_TDP_START	46
 #define SST_BF_TDP_WIDTH	15
 
 static int isst_if_get_base_freq_info(void __user *argp)
