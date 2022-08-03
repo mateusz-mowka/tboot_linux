@@ -146,6 +146,9 @@ bool tdx_io_support(void);
 
 u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9,
 	       struct tdx_module_output *out);
+u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
+		  u64 r12, u64 r13, u64 r14, u64 r15,
+		  struct tdx_module_output *out);
 
 #define TDH_IOMMU_SETREG	128
 #define TDH_IOMMU_GETREG	129

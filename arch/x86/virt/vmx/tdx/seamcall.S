@@ -52,3 +52,12 @@ SYM_FUNC_START(__seamcall)
 	RET
 SYM_FUNC_END(__seamcall)
 EXPORT_SYMBOL_GPL(__seamcall)
+
+/* temp solution, like __seamcall, but more params */
+SYM_FUNC_START(__seamcall_io)
+	FRAME_BEGIN
+	TDX_MODULE_CALL_IO host=1
+	FRAME_END
+	RET
+SYM_FUNC_END(__seamcall_io)
+EXPORT_SYMBOL_GPL(__seamcall_io)
