@@ -1212,11 +1212,12 @@ static void tdx_mig_state_cleanup(struct kvm_tdx *kvm_tdx)
 {
 	int i;
 	struct tdx_mig_state *mig_state = kvm_tdx->mig_state;
-	struct tdx_mig_stream *stream = &mig_state->backward_stream;
+	struct tdx_mig_stream *stream;
 
 	if (!mig_state)
 		return;
 
+	printk("%s:..\n", __func__);
 	/* Sanity check: all the streams should have been released */
 	if (atomic_read(&mig_state->mig_stream_next_idx)) {
 		pr_err("%s: not all streams released: %d\n",
@@ -1224,6 +1225,7 @@ static void tdx_mig_state_cleanup(struct kvm_tdx *kvm_tdx)
 		return;
 	}
 
+	stream = &mig_state->backward_stream;
 	tdx_reclaim_td_page(&stream->migsc);
 	for (i = 0; i < TDX_MIG_STREAM_MAX; i++) {
 		stream = &mig_state->streams[i];
@@ -1329,7 +1331,8 @@ static void tdx_mig_stream_release(struct kvm_device *dev)
 	tdx_mig_stream_buf_list_cleanup(&stream->mig_buf_list,
 					stream->mig_buf_list_npages);
 	free_page((unsigned long)stream->page_list.entries);
-	atomic_dec(&mig_state->mig_stream_next_idx);
+	if (!atomic_dec_return(&mig_state->mig_stream_next_idx))
+		tdx_mig_state_cleanup(kvm_tdx);
 }
 
 static int tdx_mig_stream_get_mig_info(struct tdx_mig_stream *stream,
