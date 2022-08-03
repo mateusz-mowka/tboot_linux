@@ -80,6 +80,14 @@ SYM_FUNC_START(__tdx_module_call_asm)
 	RET
 SYM_FUNC_END(__tdx_module_call_asm)
 
+/* temp solution, like __tdx_module_call, but more params */
+SYM_FUNC_START(__tdx_module_call_io_asm)
+	FRAME_BEGIN
+	TDX_MODULE_CALL_IO host=0
+	FRAME_END
+	RET
+SYM_FUNC_END(__tdx_module_call_io_asm)
+
 /*
  * __tdx_hypercall() - Make hypercalls to a TDX VMM using TDVMCALL leaf
  * of TDCALL instruction
