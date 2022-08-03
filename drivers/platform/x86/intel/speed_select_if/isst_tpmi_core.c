@@ -791,12 +791,13 @@ static int isst_if_get_perf_level(void __user *argp)
 
 #define SST_PP_CONTROL_OFFSET		24
 #define SST_PP_LEVEL_CHANGE_TIME_MS	5
+#define SST_PP_LEVEL_CHANGE_RETRY_COUNT	10
 
 static int isst_if_set_perf_level(void __user *argp)
 {
 	struct isst_perf_level_control perf_level;
 	struct tpmi_per_power_domain_info *power_domain_info;
-	int ret, level;
+	int ret, level, retry = 0;
 
 	if (copy_from_user(&perf_level, argp, sizeof(perf_level)))
 		return -EFAULT;
@@ -822,13 +823,19 @@ static int isst_if_set_perf_level(void __user *argp)
 	_write_pp_info("perf_level", perf_level.level, SST_PP_CONTROL_OFFSET,
 		       SST_PP_LEVEL_START, SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
 
-	/* Give time to FW to process */
-	msleep(SST_PP_LEVEL_CHANGE_TIME_MS);
+	do {
+		/* Give time to FW to process */
+		msleep(SST_PP_LEVEL_CHANGE_TIME_MS);
 
-	_read_pp_info("current_level", level, SST_PP_STATUS_OFFSET,
-		      SST_PP_LEVEL_START, SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
+		_read_pp_info("current_level", level, SST_PP_STATUS_OFFSET,
+			      SST_PP_LEVEL_START, SST_PP_LEVEL_WIDTH, SST_MUL_FACTOR_NONE)
 
-	/* Check if the new level is active */
+		/* Check if the new level is active */
+		if (perf_level.level == level)
+			break;
+
+	} while (retry++ < SST_PP_LEVEL_CHANGE_RETRY_COUNT);
+
 	if (perf_level.level != level)
 		return -EFAULT;
 
