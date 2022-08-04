@@ -633,25 +633,41 @@ static void tdx_binding_slots_cleanup(struct kvm_tdx *kvm_tdx)
 	uint16_t req_id;
 	int i;
 
+	/* Being a user TD, disconnect from the related servtds */
 	for (i = 0; i < KVM_TDX_SERVTD_TYPE_MAX; i++) {
 		slot = &kvm_tdx->binding_slots[i];
 		servtd_tdx = slot->servtd_tdx;
-		if (servtd_tdx) {
-			req_id = slot->req_id;
-			spin_lock(&servtd_tdx->seamcall_lock);
-			/*
-			 * Sanity check: servtd should have the slot pointer
-			 * to this slot.
-			 */
-			if (servtd_tdx->target_binding_slots[req_id] != slot) {
-				pr_err("%s: unexpected slot %d pointer\n",
-					__func__, i);
+		if (!servtd_tdx)
+			continue;
+		spin_lock(&servtd_tdx->binding_slot_lock);
+		req_id = slot->req_id;
+		/*
+		 * Sanity check: servtd should have the slot pointer
+		 * to this slot.
+		 */
+		if (servtd_tdx->usertd_binding_slots[req_id] != slot) {
+			pr_err("%s: unexpected slot %d pointer\n",
+				__func__, i);
 				continue;
-			}
-			servtd_tdx->target_binding_slots[req_id] = NULL;
-			spin_unlock(&servtd_tdx->seamcall_lock);
 		}
+		servtd_tdx->usertd_binding_slots[req_id] = NULL;
+		spin_unlock(&servtd_tdx->binding_slot_lock);
 	}
+
+	/* Being a service TD, disconnect from the related user TDs */
+	spin_lock(&kvm_tdx->binding_slot_lock);
+	for (i = 0; i < SERVTD_SLOTS_MAX; i++) {
+		slot = kvm_tdx->usertd_binding_slots[i];
+		if (!slot)
+			continue;
+
+		/*
+		 * Reset everything, and the slot (of the user TD) is availale
+		 * for a new usage.
+		 */
+		memset(slot, 0, sizeof(struct tdx_binding_slot));
+	}
+	spin_unlock(&kvm_tdx->binding_slot_lock);
 }
 
 void tdx_vm_free(struct kvm *kvm)
@@ -2069,7 +2085,7 @@ static int migtd_basic_info_setup(struct migtd_basic_info *basic,
 	basic->policy_id = 0; // unused by MigTD currently
 	basic->comm_id = 0;
 	basic->cpu_version = cpuid_eax(0x1);
-	memcpy(basic->target_uuid, (uint8_t *)slot->uuid, 32);
+	memcpy(basic->usertd_uuid, (uint8_t *)slot->uuid, 32);
 
 	return hdr->generic_hdr.length;
 }
@@ -2149,7 +2165,7 @@ static int migtd_wait_for_request(struct kvm_tdx *tdx,
 	int i, len = sizeof(struct tdvmcall_service_migtd);
 
 	for (i = 0; i < SERVTD_SLOTS_MAX; i++) {
-		slot = tdx->target_binding_slots[i];
+		slot = tdx->usertd_binding_slots[i];
 		if (slot && tdx_binding_slot_premig_wait(slot))
 			break;
 	}
@@ -2168,7 +2184,7 @@ static int migtd_report_status(struct kvm_tdx *tdx,
 			       struct tdvmcall_service_migtd *status_migtd)
 {
 	uint64_t req_id = *(uint64_t *)cmd_migtd->data;
-	struct tdx_binding_slot *slot = tdx->target_binding_slots[req_id];
+	struct tdx_binding_slot *slot = tdx->usertd_binding_slots[req_id];
 	int len = sizeof(struct tdvmcall_service_migtd);
 	enum tdx_binding_slot_status status;
 
@@ -2214,6 +2230,8 @@ static void tdx_handle_service_migtd(struct kvm_tdx *tdx,
 	uint32_t status, len = 0;
 
 	status_migtd->cmd = cmd_migtd->cmd;
+
+	spin_lock(&tdx->binding_slot_lock);
 	switch (cmd_migtd->cmd) {
 		case TDVMCALL_SERVICE_MIGTD_CMD_SHUTDOWN:
 			/*TODO: end the migtd */
@@ -2252,6 +2270,7 @@ static void tdx_handle_service_migtd(struct kvm_tdx *tdx,
 				__func__, cmd_migtd->cmd);
 			status = TDVMCALL_SERVICE_S_UNSUPP;
 	}
+	spin_unlock(&tdx->binding_slot_lock);
 
 	status_hdr->length += len;
 	status_hdr->status = status;
@@ -4145,7 +4164,7 @@ static void tdx_binding_slot_bound_set_info(struct tdx_binding_slot *slot,
 	memcpy(&slot->uuid[24], &uuid3, sizeof(uint64_t));
 }
 
-static int tdx_servtd_do_bind(struct kvm_tdx *target_tdx,
+static int tdx_servtd_do_bind(struct kvm_tdx *usertd_tdx,
 			      struct kvm_tdx *servtd_tdx,
 			      struct kvm_tdx_servtd *servtd,
 			      struct tdx_binding_slot *slot)
@@ -4156,12 +4175,12 @@ static int tdx_servtd_do_bind(struct kvm_tdx *target_tdx,
 
 	/*TODO: check max binding_slots_id from rdall */
 	err = tdh_servtd_bind(servtd_tdx->tdr.pa,
-				target_tdx->tdr.pa,
+				usertd_tdx->tdr.pa,
 				slot_id,
 				servtd->attr,
 				servtd->type,
 				&out);
-	if (KVM_BUG_ON(err, &target_tdx->kvm)) {
+	if (KVM_BUG_ON(err, &usertd_tdx->kvm)) {
 		pr_tdx_error(TDH_SERVTD_BIND, err, &out);
 		return -EIO;
 	}
@@ -4178,14 +4197,9 @@ static int tdx_servtd_add_binding_slot(struct kvm_tdx *servtd_tdx,
 {
 	int i, ret = 0;
 
-	/*
-	 * Multiple target TDs could be bound to the same servtd.
-	 * Add the binding slot to the servtd's arrary. Simply reuse
-	 * the seamcall_lock, as the operations are rare and done quickly.
-	 */
-	spin_lock(&servtd_tdx->seamcall_lock);
+	spin_lock(&servtd_tdx->binding_slot_lock);
 	for (i = 0; i < SERVTD_SLOTS_MAX; i++) {
-		if (!servtd_tdx->target_binding_slots[i])
+		if (!servtd_tdx->usertd_binding_slots[i])
 			break;
 	}
 
@@ -4199,17 +4213,17 @@ static int tdx_servtd_add_binding_slot(struct kvm_tdx *servtd_tdx,
 		goto out_unlock;
 	}
 
-	servtd_tdx->target_binding_slots[i] = slot;
+	servtd_tdx->usertd_binding_slots[i] = slot;
 	slot->servtd_tdx = servtd_tdx;
 	slot->req_id = i;
 out_unlock:
-	spin_unlock(&servtd_tdx->seamcall_lock);
+	spin_unlock(&servtd_tdx->binding_slot_lock);
 	return ret;
 }
 
-static int tdx_servtd_prebind(struct kvm *target_kvm, struct kvm_tdx_cmd *cmd)
+static int tdx_servtd_prebind(struct kvm *usertd_kvm, struct kvm_tdx_cmd *cmd)
 {
-	struct kvm_tdx *target_tdx = to_kvm_tdx(target_kvm);
+	struct kvm_tdx *usertd_tdx = to_kvm_tdx(usertd_kvm);
 	struct kvm_tdx_servtd servtd;
 	struct tdx_binding_slot *slot;
 	struct page *hash_page;
@@ -4233,10 +4247,10 @@ static int tdx_servtd_prebind(struct kvm *target_kvm, struct kvm_tdx_cmd *cmd)
 	memcpy(page_to_virt(hash_page),
 	       servtd.hash, KVM_TDX_SERVTD_HASH_SIZE);
 
-	slot = &target_tdx->binding_slots[slot_id];
+	slot = &usertd_tdx->binding_slots[slot_id];
 	tdx_binding_slot_set_status(slot, TDX_BINDING_SLOT_STATUS_INIT);
 
-	err = tdh_servtd_prebind(target_tdx->tdr.pa,
+	err = tdh_servtd_prebind(usertd_tdx->tdr.pa,
 				 page_to_phys(hash_page),
 				 slot_id,
 				 servtd.attr,
@@ -4255,11 +4269,11 @@ static int tdx_servtd_prebind(struct kvm *target_kvm, struct kvm_tdx_cmd *cmd)
 	return 0;
 }
 
-static int tdx_servtd_bind(struct kvm *target_kvm, struct kvm_tdx_cmd *cmd)
+static int tdx_servtd_bind(struct kvm *usertd_kvm, struct kvm_tdx_cmd *cmd)
 {
 	struct kvm *servtd_kvm;
 	struct kvm_tdx *servtd_tdx;
-	struct kvm_tdx *target_tdx = to_kvm_tdx(target_kvm);
+	struct kvm_tdx *usertd_tdx = to_kvm_tdx(usertd_kvm);
 	struct kvm_tdx_servtd servtd;
 	struct tdx_binding_slot *slot;
 	uint16_t slot_id;
@@ -4283,20 +4297,13 @@ static int tdx_servtd_bind(struct kvm *target_kvm, struct kvm_tdx_cmd *cmd)
 	servtd_tdx = to_kvm_tdx(servtd_kvm);
 
 	slot_id = servtd.type;
-	slot = &target_tdx->binding_slots[slot_id];
+	slot = &usertd_tdx->binding_slots[slot_id];
 
-	ret = tdx_servtd_do_bind(target_tdx, servtd_tdx, &servtd, slot);
+	ret = tdx_servtd_do_bind(usertd_tdx, servtd_tdx, &servtd, slot);
 	if (ret)
 		return ret;
 
 	ret = tdx_servtd_add_binding_slot(servtd_tdx, slot);
-	if (ret)
-		return ret;
-
-	/* Tell userspace about the slot_id */
-	if (copy_to_user((void __user *)cmd->data,
-			 &servtd, sizeof(struct kvm_tdx_servtd)))
-		return -EFAULT;
 
 	return ret;
 }
@@ -4332,8 +4339,6 @@ static int tdx_migration_info_set(struct kvm_tdx_mig_info *info,
 	slot->is_src = info->is_src;
 	tdx_binding_slot_set_status(slot, TDX_BINDING_SLOT_STATUS_PREMIG_WAIT);
 	tdx_notify_servtd(servtd_tdx);
-	printk(KERN_EMERG"%s: binding slot status=%d\n",
-		__func__, tdx_binding_slot_get_status(slot));
 	return 0;
 }
 
@@ -4341,9 +4346,11 @@ static int tdx_migration_info(struct kvm *kvm,
 			      struct kvm_tdx_cmd *cmd,
 			      bool set)
 {
-	struct kvm_tdx *target_tdx = to_kvm_tdx(kvm);
+	struct kvm_tdx *servtd_tdx;
+	struct kvm_tdx *usertd_tdx = to_kvm_tdx(kvm);
 	struct kvm_tdx_mig_info info;
 	struct tdx_binding_slot *slot;
+
 
 	if (copy_from_user(&info, (void __user *)cmd->data,
 			   sizeof(struct kvm_tdx_mig_info)))
@@ -4353,9 +4360,17 @@ static int tdx_migration_info(struct kvm *kvm,
 	    info.version != KVM_TDX_MIG_INFO_VERSION)
 		return -EINVAL;
 
-	slot = &target_tdx->binding_slots[KVM_TDX_SERVTD_TYPE_MIGTD];
-	if (set && tdx_migration_info_set(&info, slot))
+	slot = &usertd_tdx->binding_slots[KVM_TDX_SERVTD_TYPE_MIGTD];
+	servtd_tdx = slot->servtd_tdx;
+	if (!servtd_tdx)
+		return -ENOENT;
+
+	spin_lock(&servtd_tdx->binding_slot_lock);
+	if (set && tdx_migration_info_set(&info, slot)) {
+		spin_unlock(&servtd_tdx->binding_slot_lock);
 		return -EINVAL;
+	}
+
 	/*
 	 * For KVM_TDX_GET_MIGRATION_INFO, only status needs to be copied to
 	 * userspace currently.
@@ -4363,7 +4378,7 @@ static int tdx_migration_info(struct kvm *kvm,
 	 * userspace, also updates to the userspace about the status.
 	 */
 	info.status = tdx_binding_slot_get_status(slot);
-	printk(KERN_EMERG"%s: info.status=%x\n", __func__, info.status);
+	spin_unlock(&servtd_tdx->binding_slot_lock);
 
 	if (copy_to_user((void __user *)cmd->data, &info,
 			 sizeof(struct kvm_tdx_mig_info)))

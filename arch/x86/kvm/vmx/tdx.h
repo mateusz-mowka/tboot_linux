@@ -19,15 +19,15 @@ struct tdx_td_page {
 
 /* Information for MigTD to do premigration */
 struct tdx_binding_slot {
-	/* Identify the target TD and the binding slot */
+	/* Identify the user TD and the binding slot */
 	uint64_t handle;
-	/* UUID of the target TD */
+	/* UUID of the user TD */
 	uint8_t  uuid[32];
 	/* Is migration source VM */
 	uint8_t	 is_src;
 	/* See enum tdx_binding_slot_status */
 	atomic_t status;
-	/* Idx to servtd's target_binding_slots array */
+	/* Idx to servtd's usertd_binding_slots array */
 	uint16_t req_id;
 	/* vsock port for MigTD to connect to host */
 	uint32_t vsock_port;
@@ -82,11 +82,23 @@ struct kvm_tdx {
 	struct tdx_binding_slot binding_slots[KVM_TDX_SERVTD_TYPE_MAX];
 
 	/*
-	 * Used when being a servtd. A servtd can be bound to multiple target
-	 * TDs. Each entry in the array is a pointer to the target TD's binding
+	 * Used when being a servtd. A servtd can be bound to multiple user
+	 * TDs. Each entry in the array is a pointer to the user TD's binding
 	 * slot.
 	 */
-	struct tdx_binding_slot *target_binding_slots[SERVTD_SLOTS_MAX];
+	struct tdx_binding_slot *usertd_binding_slots[SERVTD_SLOTS_MAX];
+
+	/*
+	 * The lock is located in servtd, and used for 2 synchronization
+	 * puporses:
+	 * #1 insertion and removal of a binding slot to the
+	 *    usertd_binding_slots array from different user TDs;
+	 * #2 read and write to the fields of a binding slot.
+	 * In theory, #1 and #2 are two independent synchronization
+	 * requirements and can use separate locks. But those operations are neither
+	 * frequent nor in performance critical path. So simply use one lock.
+	 */
+	spinlock_t binding_slot_lock;
 	void *mig_state;
 };
 
@@ -232,7 +244,7 @@ struct migtd_basic_info {
 	uint64_t			req_id;
 	bool				src;
 	uint32_t			cpu_version;
-	uint8_t				target_uuid[32];
+	uint8_t				usertd_uuid[32];
 	uint64_t			binding_handle;
 	uint64_t			policy_id;
 	uint64_t			comm_id;
