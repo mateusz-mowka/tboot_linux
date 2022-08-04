@@ -15,6 +15,7 @@
 #include <linux/intel-svm.h>
 #include <linux/kvm_host.h>
 #include <linux/eventfd.h>
+#include <linux/sched/mm.h>
 #include <uapi/linux/idxd.h>
 #include "registers.h"
 #include "idxd.h"
@@ -35,9 +36,22 @@ static u64 idxd_pci_config[] = {
 	0x0000000000000000ULL,
 	0x0000000000000000ULL,
 	0x0000000000000000ULL,
+	0x0070001000000000ULL, /* point to the extended region. */
 	0x0000000000000000ULL,
 	0x0000000000000000ULL,
 	0x0000000000000000ULL,
+};
+
+static u64 idxd_pci_ext_cap[] = {
+	0x000000611101000fULL, /* ATS capability */
+	0x0000000000000000ULL,
+	0x8100000012010013ULL, /* Page Request capability */
+	0x0000000000000001ULL,
+	0x000014040001001bULL, /* PASID capability */
+	0x0000000000000000ULL,
+	0x0181808600010023ULL, /* Scalable IOV capability */
+	0x0000000100000005ULL,
+	0x0000000000000001ULL,
 	0x0000000000000000ULL,
 };
 
@@ -88,10 +102,19 @@ static void vidxd_mmio_init_wqcfg(struct vdcm_idxd *vidxd)
 
 	wqcfg->wq_size = wq->size;
 	wqcfg->wq_thresh = wq->threshold;
-	wqcfg->mode = WQCFG_MODE_DEDICATED;
+
+	if (wq_dedicated(wq))
+		wqcfg->mode = WQCFG_MODE_DEDICATED;
+	else if (device_user_pasid_enabled(idxd))
+		wqcfg->pasid_en = 1;
+
+	wqcfg->bof = wq->wqcfg->bof;
+
 	wqcfg->priority = wq->priority;
 	wqcfg->max_xfer_shift = idxd->hw.gen_cap.max_xfer_shift;
 	wqcfg->max_batch_shift = idxd->hw.gen_cap.max_batch_shift;
+	/* Fix me: set this bit or not? */
+	wqcfg->mode_support = 1;
 }
 
 static void vidxd_mmio_init_engcap(struct vdcm_idxd *vidxd)
@@ -208,6 +231,8 @@ static void vidxd_reset_config(struct vdcm_idxd *vidxd)
 		*devid = PCI_DEVICE_ID_INTEL_DSA_SPR0;
 	else if (idxd->data->type == IDXD_TYPE_IAX)
 		*devid = PCI_DEVICE_ID_INTEL_IAX_SPR0;
+
+        memcpy(vidxd->cfg + 0x100, idxd_pci_ext_cap, sizeof(idxd_pci_ext_cap));
 }
 
 static inline void vidxd_reset_mmio(struct vdcm_idxd *vidxd)
@@ -432,7 +457,10 @@ static int _pci_cfg_bar_write(struct vdcm_idxd *vidxd, unsigned int offset, void
 
 int vidxd_cfg_write(struct vdcm_idxd *vidxd, unsigned int pos, void *buf, unsigned int size)
 {
-	struct device *dev = vidxd_dev(vidxd);
+	struct device *dev = &vidxd->idxd->pdev->dev;
+	u32 offset = pos & 0xfff;
+	u8 *cfg = vidxd->cfg;
+	u64 val;
 
 	if (size > 4)
 		return -EINVAL;
@@ -467,6 +495,63 @@ int vidxd_cfg_write(struct vdcm_idxd *vidxd, unsigned int pos, void *buf, unsign
 			return -EINVAL;
 		return _pci_cfg_bar_write(vidxd, pos, buf, size);
 
+	case VIDXD_ATS_OFFSET + 4:
+		if (size < 4)
+			break;
+		offset += 2;
+		buf = buf + 2;
+		size -= 2;
+		fallthrough;
+
+	case VIDXD_ATS_OFFSET + 6:
+		memcpy(&cfg[offset], buf, size);
+		break;
+
+	case VIDXD_PRS_OFFSET + 4: {
+		u8 old_val, new_val;
+
+		val = get_reg_val(buf, 1);
+		old_val = cfg[VIDXD_PRS_OFFSET + 4];
+		new_val = val & 1;
+
+		cfg[offset] = new_val;
+		if (old_val == 0 && new_val == 1) {
+			/*
+			 * Clear Stopped, Response Failure,
+			 * and Unexpected Response.
+			 */
+			*(u16 *)&cfg[VIDXD_PRS_OFFSET + 6] &= ~(u16)(0x0103);
+		}
+
+		if (size < 4)
+			break;
+
+		offset += 2;
+		buf = (u8 *)buf + 2;
+		size -= 2;
+		fallthrough;
+	}
+
+	case VIDXD_PRS_OFFSET + 6:
+		cfg[offset] &= ~(get_reg_val(buf, 1) & 3);
+		break;
+
+	case VIDXD_PRS_OFFSET + 12 ... VIDXD_PRS_OFFSET + 15:
+		memcpy(&cfg[offset], buf, size);
+		break;
+
+	case VIDXD_PASID_OFFSET + 4:
+		if (size < 4)
+			break;
+		offset += 2;
+		buf = buf + 2;
+		size -= 2;
+		fallthrough;
+
+	case VIDXD_PASID_OFFSET + 6:
+		cfg[offset] = get_reg_val(buf, 1) & 5;
+		break;
+
 	default:
 		_pci_cfg_mem_write(vidxd, pos, buf, size);
 	}
@@ -494,7 +579,12 @@ static void vidxd_enable(struct vdcm_idxd *vidxd)
 {
 	u8 *bar0 = vidxd->bar0;
 	union gensts_reg *gensts = (union gensts_reg *)(bar0 + IDXD_GENSTATS_OFFSET);
+	struct device *dev = vidxd_dev(vidxd);
+	bool ats = (*(u16 *)&vidxd->cfg[VIDXD_ATS_OFFSET + 6]) & (1U << 15);
+	bool prs = (*(u16 *)&vidxd->cfg[VIDXD_PRS_OFFSET + 4]) & 1U;
+	bool pasid = (*(u16 *)&vidxd->cfg[VIDXD_PASID_OFFSET + 6]) & 1U;
 
+	dev_dbg(dev, "%s\n", __func__);
 	if (gensts->state == IDXD_DEVICE_STATE_ENABLED)
 		return idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_DEV_ENABLED);
 
@@ -502,8 +592,12 @@ static void vidxd_enable(struct vdcm_idxd *vidxd)
 	if (!(vidxd->cfg[PCI_COMMAND] & PCI_COMMAND_MASTER))
 		return idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_BUSMASTER_EN);
 
+	if (pasid != prs || (pasid && !ats))
+		return idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_BUSMASTER_EN);
+
 	gensts->state = IDXD_DEVICE_STATE_ENABLED;
-	idxd_complete_command(vidxd, IDXD_CMDSTS_SUCCESS);
+
+	return idxd_complete_command(vidxd, IDXD_CMDSTS_SUCCESS);
 }
 
 static void vidxd_disable(struct vdcm_idxd *vidxd)
@@ -523,11 +617,16 @@ static void vidxd_disable(struct vdcm_idxd *vidxd)
 	vwqcfg = (union wqcfg *)(bar0 + VIDXD_WQCFG_OFFSET);
 	wq = vidxd->wq;
 
-	rc = idxd_wq_disable(wq, false);
-	if (rc < 0) {
-		dev_warn(dev, "vidxd disable (wq disable) failed.\n");
-		idxd_complete_command(vidxd, IDXD_CMDSTS_HW_ERR);
-		return;
+	/* If it is a DWQ, need to disable the DWQ as well */
+	if (wq_dedicated(wq)) {
+		rc = idxd_wq_disable(wq, false);
+		if (rc) {
+			dev_warn(dev, "vidxd disable (wq disable) failed: %#x\n", rc);
+			idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_DIS_DEV_EN);
+			return;
+		}
+	} else {
+		idxd_wq_drain(wq);
 	}
 
 	vwqcfg->wq_state = IDXD_WQ_DISABLED;
@@ -550,7 +649,7 @@ static void vidxd_wq_drain(struct vdcm_idxd *vidxd, int val)
 	struct idxd_wq *wq = vidxd->wq;
 
 	if (vwqcfg->wq_state != IDXD_WQ_DEV_ENABLED) {
-		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_DEV_NOT_EN);
+		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_WQ_NOT_EN);
 		return;
 	}
 
@@ -579,7 +678,7 @@ static void vidxd_wq_abort(struct vdcm_idxd *vidxd, int val)
 	int rc;
 
 	if (vwqcfg->wq_state != IDXD_WQ_DEV_ENABLED) {
-		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_DEV_NOT_EN);
+		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_WQ_NOT_EN);
 		return;
 	}
 
@@ -631,7 +730,7 @@ static void vidxd_wq_reset(struct vdcm_idxd *vidxd, int wq_id_mask)
 
 	wq = vidxd->wq;
 	if (vwqcfg->wq_state != IDXD_WQ_DEV_ENABLED) {
-		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_DEV_NOT_EN);
+		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_WQ_NOT_EN);
 		return;
 	}
 
@@ -715,6 +814,37 @@ static void vidxd_release_int_handle(struct vdcm_idxd *vidxd, int operand)
 	idxd_complete_command(vidxd, IDXD_CMDSTS_SUCCESS);
 }
 
+int vidxd_get_host_pasid(struct device *dev, u32 gpasid, u32 *pasid)
+{
+	struct ioasid_set *ioasid_set;
+	struct mm_struct *mm;
+
+	mm = get_task_mm(current);
+	if (!mm) {
+		dev_warn(dev, "%s no mm!\n", __func__);
+
+		return -ENXIO;
+	}
+
+	ioasid_set = ioasid_find_mm_set(mm);
+	if (!ioasid_set) {
+		mmput(mm);
+		dev_warn(dev, "%s no ioasid_set!\n", __func__);
+
+		return -ENXIO;
+	}
+
+	*pasid = ioasid_find_by_spid(ioasid_set, gpasid, true);
+	mmput(mm);
+	if (*pasid == INVALID_IOASID) {
+		dev_warn(dev, "%s invalid ioasid by spid!\n", __func__);
+
+		return -ENXIO;
+	}
+
+	return 0;
+}
+
 static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 {
 	struct idxd_wq *wq;
@@ -722,9 +852,9 @@ static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 	union wq_cap_reg *wqcap;
 	struct device *dev = vidxd_dev(vidxd);
 	struct idxd_device *idxd;
-	union wqcfg *vwqcfg;
+	union wqcfg *vwqcfg, *wqcfg;
+	bool wq_pasid_enable;
 	unsigned long flags;
-	u32 wq_pasid;
 	int priv, rc;
 
 	if (wq_id >= VIDXD_MAX_WQS) {
@@ -737,6 +867,7 @@ static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 
 	vwqcfg = (union wqcfg *)(bar0 + VIDXD_WQCFG_OFFSET + wq_id * 32);
 	wqcap = (union wq_cap_reg *)(bar0 + IDXD_WQCAP_OFFSET);
+	wqcfg = wq->wqcfg;
 
 	if (vidxd_state(vidxd) != IDXD_DEVICE_STATE_ENABLED) {
 		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_DEV_NOTEN);
@@ -748,33 +879,78 @@ static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 		return;
 	}
 
-	if (wq_dedicated(wq) && wqcap->dedicated_mode == 0) {
+        if ((!wq_dedicated(wq) && wqcap->shared_mode == 0) ||
+	    (wq_dedicated(wq) && wqcap->dedicated_mode == 0)) {
 		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_WQ_MODE);
 		return;
 	}
 
-	priv = 1;
-	wq_pasid = vfio_device_get_pasid(&vidxd->vdev);
-	if (wq_pasid == IOMMU_PASID_INVALID) {
-		dev_warn(dev, "device has invalid pasid\n");
+//	if ((!wq_dedicated(wq) && vwqcfg->pasid_en == 0) ||
+//	    (vwqcfg->pasid_en && !wq_pasid_enabled(wq))) {
+	if ((!wq_dedicated(wq) && vwqcfg->pasid_en == 0)) {
 		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_PASID_EN);
 		return;
 	}
 
-	dev_dbg(dev, "program pasid %d in wq %d\n", wq_pasid, wq->id);
-	spin_lock_irqsave(&idxd->dev_lock, flags);
-	idxd_wq_setup_pasid(wq, wq_pasid);
-	idxd_wq_setup_priv(wq, priv);
-	spin_unlock_irqrestore(&idxd->dev_lock, flags);
-	rc = idxd_wq_enable(wq);
-	if (rc < 0) {
-		dev_dbg(dev, "vidxd enable wq %d failed\n", wq->id);
-		spin_lock_irqsave(&idxd->dev_lock, flags);
-		idxd_wq_clear_pasid(wq);
-		idxd_wq_setup_priv(wq, 0);
-		spin_unlock_irqrestore(&idxd->dev_lock, flags);
-		idxd_complete_command(vidxd, IDXD_CMDSTS_HW_ERR);
-		return;
+	wq_pasid_enable = vwqcfg->pasid_en;
+
+	if (wq_dedicated(wq)) {
+		int wq_pasid = -1;
+		bool priv;
+
+		if (wq_pasid_enable) {
+			u32 gpasid;
+
+			priv = vwqcfg->priv;
+			gpasid = vwqcfg->pasid;
+
+			if (gpasid == 0) {
+//				rc = idxd_mdev_get_pasid(mdev, &wq_pasid);
+				dev_dbg(dev, "shared wq, pasid 0, use default host: %u\n",
+					wq_pasid);
+			} else {
+				rc = vidxd_get_host_pasid(dev, gpasid, &wq_pasid);
+				dev_dbg(dev, "guest pasid enabled, translate gpasid: %d to wq_pasid %d\n", gpasid, wq_pasid);
+			}
+		} else {
+			priv = 1;
+			wq_pasid = vfio_device_get_pasid(&vidxd->vdev);
+			if (wq_pasid == IOMMU_PASID_INVALID) {
+				dev_warn(dev, "idxd pasid setup failed wq %d\n",
+					 wq->id);
+				idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_PASID_EN);
+				return;
+			}
+
+			dev_dbg(dev, "guest pasid disabled, using default host pasid: %u in wq %d\n",
+				wq_pasid, wq->id);
+		}
+
+		if (wq_pasid >= 0) {
+			u32 status;
+			unsigned long flags;
+
+			wqcfg->bits[WQCFG_PASID_IDX] &= ~GENMASK(29, 8);
+			wqcfg->priv = priv;
+			wqcfg->pasid_en = 1;
+			wqcfg->pasid = wq_pasid;
+			dev_dbg(dev, "program pasid %d in wq %d\n", wq_pasid, wq->id);
+			spin_lock_irqsave(&idxd->dev_lock, flags);
+			idxd_wq_setup_pasid(wq, wq_pasid);
+			idxd_wq_setup_priv(wq, priv);
+			spin_unlock_irqrestore(&idxd->dev_lock, flags);
+			rc = idxd_wq_enable(wq);
+			if (rc < 0) {
+				dev_err(dev, "vidxd enable wq %d failed\n", wq->id);
+				idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_WQ_NOT_EN);
+				return;
+			}
+		} else {
+			dev_err(dev, "idxd pasid setup failed wq %d wq_pasid %d\n",
+				wq->id, wq_pasid);
+			idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_PASID_EN);
+			return;
+		}
 	}
 
 	vwqcfg->wq_state = IDXD_WQ_DEV_ENABLED;
@@ -783,6 +959,59 @@ static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 
 static void vidxd_wq_disable(struct vdcm_idxd *vidxd, int wq_id_mask)
 {
+	struct idxd_wq *wq;
+	union wqcfg *wqcfg, *vwqcfg;
+	u8 *bar0 = vidxd->bar0;
+	struct device *dev = vidxd_dev(vidxd);
+	int rc;
+
+	wq = vidxd->wq;
+
+	dev_dbg(dev, "vidxd disable wq %u:%u\n", 0, wq->id);
+
+	wqcfg = wq->wqcfg;
+	vwqcfg = (union wqcfg *)(bar0 + VIDXD_WQCFG_OFFSET);
+	if (vwqcfg->wq_state != IDXD_WQ_DEV_ENABLED) {
+		idxd_complete_command(vidxd, IDXD_CMDSTS_ERR_WQ_NOT_EN);
+		return;
+	}
+
+	/* If it is a DWQ, need to disable the DWQ as well */
+	if (wq_dedicated(wq)) {
+		struct ioasid_set *ioasid_set;
+		struct mm_struct *mm;
+
+		rc = idxd_wq_disable(wq, false);
+		if (rc < 0) {
+			dev_warn(dev, "vidxd disable wq failed: %#x\n", rc);
+			idxd_complete_command(vidxd, IDXD_CMDSTS_HW_ERR);
+			return;
+		}
+
+		if (vwqcfg->pasid_en) {
+			mm = get_task_mm(current);
+			if (!mm) {
+				dev_dbg(dev, "Can't retrieve task mm\n");
+				return;
+			}
+
+			ioasid_set = ioasid_find_mm_set(mm);
+			if (!ioasid_set) {
+				dev_dbg(dev, "Unable to find ioasid_set\n");
+				mmput(mm);
+				return;
+			}
+			mmput(mm);
+			ioasid_put(ioasid_set, wqcfg->pasid);
+		}
+	} else {
+		idxd_wq_drain(wq);
+	}
+
+	vwqcfg->wq_state = IDXD_WQ_DEV_DISABLED;
+	idxd_complete_command(vidxd, IDXD_CMDSTS_SUCCESS);
+
+#if 0
 	struct idxd_wq *wq;
 	u8 *bar0 = vidxd->bar0;
 	union wqcfg *vwqcfg = (union wqcfg *)(bar0 + VIDXD_WQCFG_OFFSET);
@@ -802,6 +1031,7 @@ static void vidxd_wq_disable(struct vdcm_idxd *vidxd, int wq_id_mask)
 
 	vwqcfg->wq_state = IDXD_WQ_DEV_DISABLED;
 	idxd_complete_command(vidxd, IDXD_CMDSTS_SUCCESS);
+#endif
 }
 
 static bool command_supported(struct vdcm_idxd *vidxd, u32 cmd)
@@ -931,6 +1161,62 @@ int vidxd_mmio_write(struct vdcm_idxd *vidxd, u64 pos, void *buf, unsigned int s
 	case IDXD_SWERR_OFFSET:
 		/* W1C */
 		bar0[offset] &= ~(get_reg_val(buf, 1) & GENMASK(1, 0));
+		break;
+
+	case VIDXD_WQCFG_OFFSET ... VIDXD_WQCFG_OFFSET + VIDXD_WQ_CTRL_SZ - 1: {
+		union wqcfg *wqcfg;
+		int wq_id = (offset - VIDXD_WQCFG_OFFSET) / 0x20;
+		int subreg = offset & 0x1c;
+		u32 new_val;
+
+		if (wq_id >= VIDXD_MAX_WQS)
+			break;
+
+		/* FIXME: Need to sanitize for RO Config WQ mode 1 */
+		wqcfg = (union wqcfg *)(bar0 + VIDXD_WQCFG_OFFSET + wq_id * 0x20);
+		if (size >= 4) {
+			new_val = get_reg_val(buf, 4);
+		} else {
+			u32 tmp1, tmp2, shift, mask;
+
+			switch (subreg) {
+			case 4:
+				tmp1 = wqcfg->bits[1];
+				break;
+			case 8:
+				tmp1 = wqcfg->bits[2];
+				break;
+			case 12:
+				tmp1 = wqcfg->bits[3];
+				break;
+			case 16:
+				tmp1 = wqcfg->bits[4];
+				break;
+			case 20:
+				tmp1 = wqcfg->bits[5];
+				break;
+			default:
+				tmp1 = 0;
+			}
+
+			tmp2 = get_reg_val(buf, size);
+			shift = (offset & 0x03U) * 8;
+			mask = ((1U << size * 8) - 1u) << shift;
+			new_val = (tmp1 & ~mask) | (tmp2 << shift);
+		}
+
+		if (subreg == 8) {
+			if (wqcfg->wq_state == 0) {
+				wqcfg->bits[2] &= 0xfe;
+				wqcfg->bits[2] |= new_val & 0xffffff01;
+			}
+		}
+
+		break;
+	} /* WQCFG */
+
+	case VIDXD_GRPCFG_OFFSET ...  VIDXD_GRPCFG_OFFSET + VIDXD_GRP_CTRL_SZ - 1:
+		/* Nothing is written. Should be all RO */
 		break;
 
 	case VIDXD_MSIX_TABLE_OFFSET ...  VIDXD_MSIX_TABLE_OFFSET + VIDXD_MSIX_TBL_SZ - 1: {

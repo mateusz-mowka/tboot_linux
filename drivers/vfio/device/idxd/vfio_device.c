@@ -236,6 +236,7 @@ void idxd_vdcm_detach_hwpt(struct vfio_device *vdev,
 
 	if (!vidxd->idev || vidxd->iommufd != detach->iommufd)
 		goto out_unlock;
+
 	pasid = idxd_vdcm_get_pasid(vidxd, pasid);
 	if (!pasid_valid(pasid))
 		goto out_unlock;
