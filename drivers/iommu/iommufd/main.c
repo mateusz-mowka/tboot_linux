@@ -332,6 +332,7 @@ static long iommufd_fops_ioctl(struct file *filp, unsigned int cmd,
 				    ucmd.user_size);
 	if (ret)
 		return ret;
+	op = &iommufd_ioctl_ops[nr - IOMMUFD_CMD_BASE];
 	ret = op->execute(&ucmd);
 	return ret;
 }
