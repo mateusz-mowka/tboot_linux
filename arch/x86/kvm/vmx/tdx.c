@@ -850,6 +850,7 @@ int tdx_vm_init(struct kvm *kvm)
 	}
 
 	spin_lock_init(&kvm_tdx->seamcall_lock);
+	spin_lock_init(&kvm_tdx->binding_slot_lock);
 	kvm_tdx->has_range_blocked = false;
 
 	/*
