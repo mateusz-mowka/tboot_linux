@@ -2142,7 +2142,6 @@ static int migtd_start_migration(struct tdvmcall_service_migtd *status_migtd,
 	len += migtd_socket_info_setup(&info->socket, slot);
 	len += migtd_policy_info_setup(&info->policy, slot);
 
-	printk("%s: len=%d \n", __func__, len);
 	status_migtd->operation = TDVMCALL_SERVICE_MIGTD_OP_START_MIG;
 
 	return len;
@@ -2220,7 +2219,8 @@ static int migtd_report_status(struct kvm_tdx *tdx,
 	return len;
 }
 
-static void tdx_handle_service_migtd(struct kvm_tdx *tdx,
+/* Return true if the response isn't ready and need to block the vcpu */
+static bool tdx_handle_service_migtd(struct kvm_tdx *tdx,
 				     struct tdvmcall_service *cmd_hdr,
 				     struct tdvmcall_service *status_hdr)
 {
@@ -2275,6 +2275,11 @@ static void tdx_handle_service_migtd(struct kvm_tdx *tdx,
 
 	status_hdr->length += len;
 	status_hdr->status = status;
+
+	if (status_migtd->operation == TDVMCALL_SERVICE_MIGTD_OP_NOOP)
+		return true;
+
+	return false;
 }
 
 static struct tdvmcall_service *tdvmcall_servbuf_alloc(struct kvm_vcpu *vcpu,
@@ -2343,6 +2348,7 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 	uint64_t nvector = tdvmcall_a2_read(vcpu);
 	struct tdvmcall_service *cmd_buf, *status_buf;
 	enum tdvmcall_service_id service_id;
+	bool need_block = false;
 
 	if (nvector) {
 		pr_warn("%s: interrupt not supported, nvector %lld\n",
@@ -2372,7 +2378,8 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 			tdx_handle_service_query(cmd_buf, status_buf);
 			break;
 		case TDVMCALL_SERVICE_ID_MIGTD:
-			tdx_handle_service_migtd(tdx, cmd_buf, status_buf);
+			need_block = tdx_handle_service_migtd(tdx,
+							cmd_buf, status_buf);
 			break;
 		default:
 			status_buf->status = TDVMCALL_SERVICE_S_UNSUPP;
@@ -2384,6 +2391,9 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 err_status:
 	kfree(cmd_buf);
 err_cmd:
+	if (need_block && !nvector)
+		return kvm_emulate_halt_noskip(vcpu);
+
 	return 1;
 }
 
