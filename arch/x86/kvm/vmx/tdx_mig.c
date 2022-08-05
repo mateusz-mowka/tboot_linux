@@ -703,7 +703,6 @@ static int tdx_mig_export_pause(struct kvm_tdx *kvm_tdx)
 	uint64_t err;
 
 	err = tdh_export_pasue(kvm_tdx->tdr.pa);
-	pr_err("%s: paued, err=%llx\n", __func__, err);
 	if (err != TDX_SUCCESS) {
 		pr_err("%s: failed, err=%llx\n", __func__, err);
 		return -EIO;
@@ -759,13 +758,12 @@ static int tdx_mig_import_track(struct kvm_tdx *kvm_tdx,
 
 	if (tdx_mig_epoch_is_start_token(stream->mbmd.buf)) {
 		err = tdh_import_end(kvm_tdx->tdr.pa);
-		pr_err("%s: tdh_import_end, err=%llx\n",
-			__func__, err);
 		if (err != TDX_SUCCESS) {
 			pr_err("%s: importend failed, err=%llx\n",
 				__func__, err);
 			return -EIO;
 		}
+		printk(KERN_DEBUG"migration flow is done\n");
 	}
 
 	return 0;
@@ -804,7 +802,6 @@ static int tdx_mig_export_state_td(struct kvm_tdx *kvm_tdx,
 	} while (err == TDX_INTERRUPTED_RESUMABLE);
 
 	if (err == TDX_SUCCESS) {
-		pr_err("%s: err=%llx, out.rdx=%lld \n", __func__, err, out.rdx);
 		if (copy_to_user(data, &out.rdx, sizeof(uint64_t)))
 			return -EFAULT;
 	} else {
@@ -827,7 +824,6 @@ static int tdx_mig_import_state_td(struct kvm_tdx *kvm_tdx,
 		return -EFAULT;
 
 	page_list->info.last_entry = npages - 1;
-	pr_err("%s: npages=%lld \n", __func__, npages);
 	do {
 		err = tdh_import_state_td(kvm_tdx->tdr.pa,
 					  stream->mbmd.config,
@@ -1217,7 +1213,6 @@ static void tdx_mig_state_cleanup(struct kvm_tdx *kvm_tdx)
 	if (!mig_state)
 		return;
 
-	printk("%s:..\n", __func__);
 	/* Sanity check: all the streams should have been released */
 	if (atomic_read(&mig_state->mig_stream_next_idx)) {
 		pr_err("%s: not all streams released: %d\n",
