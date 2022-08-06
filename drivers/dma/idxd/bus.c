@@ -78,6 +78,7 @@ struct bus_type dsa_bus_type = {
 	.probe = idxd_config_bus_probe,
 	.remove = idxd_config_bus_remove,
 	.uevent = idxd_bus_uevent,
+	.has_probe_authorization = true,
 };
 EXPORT_SYMBOL_GPL(dsa_bus_type);
 
