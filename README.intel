@@ -47,6 +47,11 @@ README.intel_th:
 # Fixes subset: intel_th-fixes
 
 
+GNR PO bkc-v0.3
+===============
+1. Move to intel-next based on 5.19.0
+2. Pull branch gnr.bkc-v0.3 from intel-sandbox/kernel.git for idxd enable vSVM (commit: 52f7b5146a836f19439eb8788af1c6f9a68f8edd)
+3. Pull saf repo  branch for_gnrbkcv (commit: 2f3924f796eba75e8a4abe6fbf30e9dce7fa7252)
 
 ------------------------------------------------------------------------
 Intel Next Maintainers <intel-next-maintainers@eclists.intel.com>
