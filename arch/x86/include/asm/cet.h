@@ -26,7 +26,7 @@ int setup_signal_shadow_stack(void __user *restorer);
 int restore_signal_shadow_stack(void);
 int wrss_control(bool enable);
 #else
-long cet_prctl(struct task_struct *task, int option,
+static inline long cet_prctl(struct task_struct *task, int option,
 	       unsigned long features) { return -EINVAL; }
 static inline int shstk_setup(void) { return -EOPNOTSUPP; }
 static inline int shstk_alloc_thread_stack(struct task_struct *p,
