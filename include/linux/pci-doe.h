@@ -75,5 +75,7 @@ struct pci_doe_task {
 struct pci_doe_mb *pcim_doe_create_mb(struct pci_dev *pdev, u16 cap_offset);
 bool pci_doe_supports_prot(struct pci_doe_mb *doe_mb, u16 vid, u8 type);
 int pci_doe_submit_task(struct pci_doe_mb *doe_mb, struct pci_doe_task *task);
+int pci_doe_msg_exchange_sync(struct pci_doe_mb *doe_mb, u32 *request,
+			      u32 *response, size_t response_buf_sz);
 
 #endif
