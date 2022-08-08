@@ -5384,6 +5384,8 @@ static int intel_iommu_hw_info(struct device *dev, void *data, size_t length)
 	vtd->cap_reg &= ~cap_addr_mask;
 	vtd->cap_reg |= ((addr_width & 0x3fULL) << 16);
 
+	vtd->id = iommu->id;
+
 	return 0;
 }
 
