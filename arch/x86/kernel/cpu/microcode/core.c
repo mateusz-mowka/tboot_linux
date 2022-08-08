@@ -633,15 +633,23 @@ put:
 	 * required to update to this new version, tainting isn't
 	 * required.
 	 */
-	if (ret == 0 && c->x86_vendor != X86_VENDOR_INTEL) {
-		ret = size;
+	if (c->x86_vendor != X86_VENDOR_INTEL)
 		add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_STILL_OK);
-	}
+
+	if (ret == 0)
+		ret = size;
 
 	return ret;
 }
 
 static DEVICE_ATTR_WO(reload);
+static void get_ucode_scope(void)
+{
+        if (microcode_ops->get_ucode_scope)
+                ucode_scope = microcode_ops->get_ucode_scope();
+}
+#else
+#define get_ucode_scope() {}
 #endif
 
 static ssize_t version_show(struct device *dev,
@@ -841,9 +849,7 @@ static int __init microcode_init(void)
 	if (!microcode_ops)
 		return -ENODEV;
 
-	if (microcode_ops->get_ucode_scope)
-		ucode_scope = microcode_ops->get_ucode_scope();
-
+	get_ucode_scope();
 	microcode_pdev = platform_device_register_simple("microcode", -1,
 							 NULL, 0);
 	if (IS_ERR(microcode_pdev))
