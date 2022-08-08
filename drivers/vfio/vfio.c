@@ -88,6 +88,7 @@ struct vfio_group {
 	struct blocking_notifier_head	notifier;
 	void				*iommufd;
 	u32				hwpt_id;
+	unsigned int			attrs;
 };
 
 #ifdef CONFIG_VFIO_NOIOMMU
@@ -220,7 +221,9 @@ static long vfio_noiommu_ioctl(void *iommu_data,
 }
 
 static int vfio_noiommu_attach_group(void *iommu_data,
-		struct iommu_group *iommu_group, enum vfio_group_type type)
+				     struct iommu_group *iommu_group,
+				     enum vfio_group_type type,
+				     unsigned int attrs)
 {
 	return 0;
 }
@@ -897,7 +900,7 @@ static int __vfio_container_attach_groups(struct vfio_container *container,
 
 	list_for_each_entry(group, &container->group_list, container_next) {
 		ret = driver->ops->attach_group(data, group->iommu_group,
-						group->type);
+						group->type, group->attrs);
 		if (ret)
 			goto unwind;
 	}
@@ -1172,7 +1175,7 @@ static int vfio_group_set_container(struct vfio_group *group, int container_fd)
 	if (driver) {
 		ret = driver->ops->attach_group(container->iommu_data,
 						group->iommu_group,
-						group->type);
+						group->type, group->attrs);
 		if (ret) {
 			if (group->type == VFIO_IOMMU)
 				iommu_group_release_dma_owner(
@@ -1447,6 +1450,20 @@ static long vfio_group_fops_unl_ioctl(struct file *filep,
 
 		ret = vfio_group_get_device_fd(group, buf);
 		kfree(buf);
+		break;
+	}
+	case VFIO_GROUP_SET_ATTRS:
+	{
+		unsigned int attrs;
+
+		if (get_user(attrs, (int __user *)arg))
+			return -EFAULT;
+
+		if (attrs != VFIO_GROUP_ATTRS_TRUSTED)
+			return -EINVAL;
+
+		group->attrs = attrs;
+		ret = 0;
 		break;
 	}
 	}
