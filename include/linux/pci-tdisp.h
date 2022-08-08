@@ -42,11 +42,14 @@ static inline const char *tdisp_message_to_string(u8 message)
 
 static inline bool pci_tdisp_supported(struct pci_dev *pdev)
 {
+#if 0
 	u32 cap;
 
 	pcie_capability_read_dword(pdev, PCI_EXP_DEVCAP, &cap);
 
 	return !!(cap & PCI_EXP_DEVCAP_TEE_IO);
+#endif
+	return true;
 }
 
 #ifdef CONFIG_PCI_TDISP
