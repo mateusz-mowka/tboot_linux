@@ -249,12 +249,14 @@ struct iommu_vfio_ioas {
  *	     register.
  * @ecap_reg: Describe the extended capabilities as defined in VT-d
  *	      extended capability register.
+ * @id: iommu_id, only for TEE-IO (tdxio) mode.
  */
 struct iommu_vtd_data {
 	__u32 flags;
 	__u8 padding[32];
 	__aligned_u64 cap_reg;
 	__aligned_u64 ecap_reg;
+	__aligned_u64 id;
 };
 
 /*

@@ -5197,6 +5197,7 @@ static int intel_iommu_hw_info(struct device *dev, struct iommu_hw_info *info)
 	info->data.vtd.flags = 0;
 	info->data.vtd.cap_reg = iommu->cap;
 	info->data.vtd.ecap_reg = iommu->ecap;
+	info->data.vtd.id = iommu->id;
 
 	return 0;
 }
