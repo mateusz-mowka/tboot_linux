@@ -413,6 +413,11 @@ static inline bool domain_use_first_level(struct dmar_domain *domain)
 	return domain->flags & DOMAIN_FLAG_USE_FIRST_LEVEL;
 }
 
+static inline bool domain_is_trusted(struct dmar_domain *domain)
+{
+	return domain->flags & DOMAIN_FLAG_TRUSTED;
+}
+
 static inline int domain_pfn_supported(struct dmar_domain *domain,
 				       unsigned long pfn)
 {
@@ -4455,6 +4460,12 @@ static void intel_iommu_domain_free(struct iommu_domain *domain)
 		domain_exit(to_dmar_domain(domain));
 }
 
+static int intel_iommu_domain_set_trusted(struct iommu_domain *domain)
+{
+	to_dmar_domain(domain)->flags |= DOMAIN_FLAG_TRUSTED;
+	return 0;
+}
+
 static int prepare_domain_attach_device(struct iommu_domain *domain,
 					struct device *dev)
 {
@@ -4518,6 +4529,23 @@ static int intel_iommu_attach_device(struct iommu_domain *domain,
 			dmar_remove_one_dev_info(dev);
 	}
 
+	if (domain_is_trusted(to_dmar_domain(domain))) {
+		struct intel_iommu *iommu = device_to_iommu(dev, NULL, NULL);
+
+		if (tdxio_supported(iommu)) {
+			/*
+			 * FIXME: currently leave tdx code setup trusted IO
+			 * page tables directly, to be moved to iommu driver.
+			 */
+			dev_dbg(dev, "trusted domain attach\n");
+			return 0;
+		}
+
+		return -ENOTTY;
+	}
+
+	dev_dbg(dev, "normal domain attach\n");
+
 	ret = prepare_domain_attach_device(domain, dev);
 	if (ret)
 		return ret;
@@ -4528,6 +4556,17 @@ static int intel_iommu_attach_device(struct iommu_domain *domain,
 static void intel_iommu_detach_device(struct iommu_domain *domain,
 				      struct device *dev)
 {
+	if (domain_is_trusted(to_dmar_domain(domain))) {
+		/*
+		 * FIXME: currently leave tdx code cleanup trusted IO page
+		 * tables directly, to be moved to iommu driver.
+		 */
+		dev_dbg(dev, "trusted domain detach\n");
+		return;
+	}
+
+	dev_dbg(dev, "normal domain detach\n");
+
 	dmar_remove_one_dev_info(dev);
 }
 
@@ -5194,6 +5233,7 @@ const struct iommu_ops intel_iommu_ops = {
 		.iova_to_phys		= intel_iommu_iova_to_phys,
 		.free			= intel_iommu_domain_free,
 		.enforce_cache_coherency = intel_iommu_enforce_cache_coherency,
+		.set_trusted		= intel_iommu_domain_set_trusted,
 	}
 };
 

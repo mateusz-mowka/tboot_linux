@@ -346,6 +346,7 @@ struct iommu_domain_ops {
 	int (*enable_nesting)(struct iommu_domain *domain);
 	int (*set_pgtable_quirks)(struct iommu_domain *domain,
 				  unsigned long quirks);
+	int (*set_trusted)(struct iommu_domain *domain);
 
 	void (*free)(struct iommu_domain *domain);
 };
@@ -746,6 +747,8 @@ iommu_alloc_nested_domain(struct bus_type *bus, struct iommu_domain *s2_domain,
 			  unsigned long s1_ptr, union iommu_stage1_config *cfg);
 void iommu_domain_cache_inv(struct iommu_domain *domain,
 			    struct iommu_cache_invalidate_info *inv_info);
+int iommu_domain_set_trusted(struct iommu_domain *domain);
+
 ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain);
 #else /* CONFIG_IOMMU_API */
 
@@ -1160,6 +1163,11 @@ static inline void
 iommu_domain_cache_inv(struct iommu_domain *domain,
 		       struct iommu_cache_invalidate_info *inv_info)
 {
+}
+
+static inline int iommu_domain_set_trusted(struct iommu_domain *domain)
+{
+	return -ENODEV;
 }
 
 static inline int

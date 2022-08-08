@@ -591,6 +591,13 @@ struct context_entry {
  */
 #define DOMAIN_FLAG_USE_FIRST_LEVEL		BIT(1)
 
+/*
+ * When VT-d works in the TEE-IO mode, it allows a separated DMA translation
+ * managed by trusted agent. This bit marks that the DMA translation for the
+ * domain goes to the trusted IO page tables.
+ */
+#define DOMAIN_FLAG_TRUSTED			BIT(2)
+
 struct dmar_domain {
 	int	nid;			/* node id */
 

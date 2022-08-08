@@ -3340,6 +3340,12 @@ void iommu_domain_cache_inv(struct iommu_domain *domain,
 }
 EXPORT_SYMBOL_GPL(iommu_domain_cache_inv);
 
+int iommu_domain_set_trusted(struct iommu_domain *domain)
+{
+	return domain->ops->set_trusted(domain);
+}
+EXPORT_SYMBOL_GPL(iommu_domain_set_trusted);
+
 int iommu_get_hw_info(struct device *dev, struct iommu_hw_info *info)
 {
 	const struct iommu_ops *ops = dev_iommu_ops(dev);
