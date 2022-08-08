@@ -25,6 +25,7 @@
 #include <linux/clocksource.h>
 #include <linux/irqbypass.h>
 #include <linux/hyperv.h>
+#include <linux/pci-tdisp.h>
 
 #include <asm/apic.h>
 #include <asm/pvclock-abi.h>
@@ -1709,6 +1710,11 @@ struct kvm_x86_ops {
 	unsigned long (*vcpu_get_apicv_inhibit_reasons)(struct kvm_vcpu *vcpu);
 
 	int (*ioasid_bind)(struct kvm_vcpu *vcpu, struct kvm_bind_pasid *pb);
+
+	int (*bind_tdisp_dev)(struct kvm *kvm, struct pci_tdisp_dev *tdev);
+	int (*unbind_tdisp_dev)(struct kvm *kvm, struct pci_tdisp_dev *tdev);
+	int (*tdisp_request)(struct kvm *kvm, struct pci_tdisp_dev *tdev,
+			     struct pci_tdisp_req *req);
 };
 
 struct kvm_x86_nested_ops {

@@ -4387,3 +4387,19 @@ static u64 tdx_mmio_map(hpa_t tdr, gpa_t gpa, hpa_t mmio_pa, int level)
 
 	return ret;
 }
+
+int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+{
+	return 0;
+}
+
+int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+{
+	return 0;
+}
+
+int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
+		      struct pci_tdisp_req *req)
+{
+	return 0;
+}

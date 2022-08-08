@@ -152,6 +152,9 @@ KVM_X86_OP(vcpu_deliver_init)
 KVM_X86_OP_OPTIONAL_RET0(vcpu_get_apicv_inhibit_reasons);
 KVM_X86_OP(check_processor_compatibility)
 KVM_X86_OP(ioasid_bind)
+KVM_X86_OP(bind_tdisp_dev)
+KVM_X86_OP(unbind_tdisp_dev)
+KVM_X86_OP(tdisp_request)
 
 #undef KVM_X86_OP
 #undef KVM_X86_OP_OPTIONAL

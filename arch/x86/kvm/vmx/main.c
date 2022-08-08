@@ -914,6 +914,31 @@ static bool vt_check_apicv_inhibit_reasons(struct kvm *kvm,
 	return vmx_check_apicv_inhibit_reasons(kvm, reason);
 }
 
+static int vt_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+{
+	if (!is_td(kvm))
+		return -ENOTTY;
+
+	return tdx_bind_tdisp_dev(kvm, tdev);
+}
+
+static int vt_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+{
+	if (!is_td(kvm))
+		return -ENOTTY;
+
+	return tdx_unbind_tdisp_dev(kvm, tdev);
+}
+
+static int vt_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
+			    struct pci_tdisp_req *req)
+{
+	if (!is_td(kvm))
+		return -ENOTTY;
+
+	return tdx_tdisp_request(kvm, tdev, req);
+}
+
 struct kvm_x86_ops vt_x86_ops __initdata = {
 	.name = "kvm_intel",
 
@@ -1064,6 +1089,10 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.vcpu_mem_enc_ioctl = vt_vcpu_mem_enc_ioctl,
 
 	.ioasid_bind = vt_ioasid_bind,
+
+	.bind_tdisp_dev = vt_bind_tdisp_dev,
+	.unbind_tdisp_dev = vt_unbind_tdisp_dev,
+	.tdisp_request = vt_tdisp_request,
 };
 
 struct kvm_x86_init_ops vt_init_ops __initdata = {
