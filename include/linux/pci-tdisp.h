@@ -4,6 +4,7 @@
 #define LINUX_PCI_TDISP_H
 
 #include <linux/pci.h>
+#include <uapi/linux/pci_tdisp.h>
 
 struct kvm;
 
@@ -14,6 +15,56 @@ struct pci_tdisp_dev {
 	struct pci_doe_mb *doe_mb;
 	void *private;
 };
+
+struct tdisp_req_parm {
+	union {
+		u64 raw;
+		struct {
+			u64 message:8;
+			u64 param1:8;
+			u64 param2:8;
+			u64 td_flag:1;
+			u64 rsvd:39;
+		};
+	};
+};
+
+struct tdisp_req_info {
+	union {
+		u64 raw;
+		struct {
+			u64 offset:16;
+			u64 length:16;
+			u64 rsvd:32;
+		} get_devif_report;
+		struct {
+			u64 rsvd;
+		} other_request;
+	};
+};
+
+struct pci_tdisp_req {
+	struct tdisp_req_parm parm;
+	struct tdisp_req_info info;
+};
+
+static inline const char *tdisp_message_to_string(u8 message)
+{
+	switch (message) {
+	case TDISP_LOCK_INTF_REQ:
+		return "TDISP_LOCK_INTF_REQ";
+	case TDISP_STOP_INTF_REQ:
+		return "TDISP_STOP_INTF_REQ";
+	case TDISP_GET_DEVIF_REPORT:
+		return "TDISP_GET_DEVIF_REPORT";
+	case TDISP_START_DEVIF_MMIO_REQ:
+		return "TDISP_START_DEVIF_MMIO_REQ";
+	case TDISP_START_DEVIF_DMA_REQ:
+		return "TDISP_START_DEVIF_DMA_REQ";
+	default:
+		return "unknown";
+	}
+}
 
 static inline bool pci_tdisp_supported(struct pci_dev *pdev)
 {
