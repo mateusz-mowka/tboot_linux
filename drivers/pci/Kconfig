@@ -164,6 +164,17 @@ config PCI_PASID
 
 	  If unsure, say N.
 
+config PCI_TDISP
+	bool "PCI TDISP support"
+	depends on KVM
+	help
+	  Trusted Execution Environment (TEE) Device Interface Security Protocol
+	  defines the secure method to attach/detach TEE Device Interface (TDI)
+	  to/from TEE VMs. Select this option if you want to enable TDISP
+	  support from PCIe Device side.
+
+	  If unsure, say N.
+
 config PCI_P2PDMA
 	bool "PCI peer-to-peer transfer support"
 	depends on ZONE_DEVICE
