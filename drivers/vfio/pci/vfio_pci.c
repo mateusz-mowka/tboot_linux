@@ -122,7 +122,27 @@ static int vfio_pci_open_device(struct vfio_device *core_vdev)
 
 	vfio_pci_core_finish_enable(vdev);
 
+	if (core_vdev->trusted) {
+		struct pci_tdisp_dev *tdev;
+
+		tdev = pci_tdisp_init(pdev, core_vdev->kvm, 0);
+		if (IS_ERR(tdev)) {
+			vfio_pci_core_close_device(core_vdev);
+			return PTR_ERR(tdev);
+		}
+
+		core_vdev->tdev = tdev;
+	}
+
 	return 0;
+}
+
+static void vfio_pci_close_device(struct vfio_device *core_vdev)
+{
+	if (core_vdev->tdev)
+		pci_tdisp_uinit(core_vdev->tdev);
+
+	vfio_pci_core_close_device(core_vdev);
 }
 
 static const struct vfio_device_ops vfio_pci_ops = {
@@ -131,7 +151,7 @@ static const struct vfio_device_ops vfio_pci_ops = {
 	.bind_iommufd	= vfio_pci_core_bind_iommufd,
 	.unbind_iommufd	= vfio_pci_core_unbind_iommufd,
 	.open_device	= vfio_pci_open_device,
-	.close_device	= vfio_pci_core_close_device,
+	.close_device	= vfio_pci_close_device,
 	.attach_ioas	= vfio_pci_core_attach_ioas,
 	.attach_hwpt	= vfio_pci_core_attach_hwpt,
 	.detach_hwpt	= vfio_pci_core_detach_hwpt,

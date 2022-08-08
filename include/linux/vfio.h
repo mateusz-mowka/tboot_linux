@@ -13,6 +13,7 @@
 #include <linux/mm.h>
 #include <linux/workqueue.h>
 #include <linux/poll.h>
+#include <linux/pci-tdisp.h>
 #include <linux/irqbypass.h>
 #include <uapi/linux/vfio.h>
 #include <linux/cdev.h>
@@ -67,6 +68,9 @@ struct vfio_device {
 	struct list_head group_next;
 	struct vfio_ims ims;
 	struct eventfd_ctx *req_trigger;
+
+	bool trusted;
+	struct pci_tdisp_dev *tdev;
 };
 
 static inline struct vfio_device *ims_to_vdev(struct vfio_ims *ims)

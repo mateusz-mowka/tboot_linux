@@ -1260,6 +1260,8 @@ static int __vfio_device_open(struct vfio_device *device)
 		 */
 		down_read(&device->group->group_rwsem);
 		device->kvm = device->group->kvm;
+		if (device->group->attrs & VFIO_GROUP_ATTRS_TRUSTED)
+			device->trusted = true;
 
 		if (device->ops->open_device) {
 			ret = device->ops->open_device(device);
