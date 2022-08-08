@@ -402,6 +402,11 @@ static inline int domain_type_is_si(struct dmar_domain *domain)
 	return domain->domain.type == IOMMU_DOMAIN_IDENTITY;
 }
 
+static inline bool domain_is_trusted(struct dmar_domain *domain)
+{
+	return domain->flags & DOMAIN_FLAG_TRUSTED;
+}
+
 static inline int domain_pfn_supported(struct dmar_domain *domain,
 				       unsigned long pfn)
 {
@@ -4450,6 +4455,12 @@ static void intel_iommu_domain_free(struct iommu_domain *domain)
 		domain_exit(to_dmar_domain(domain));
 }
 
+static int intel_iommu_domain_set_trusted(struct iommu_domain *domain)
+{
+	to_dmar_domain(domain)->flags |= DOMAIN_FLAG_TRUSTED;
+	return 0;
+}
+
 int prepare_domain_attach_device(struct iommu_domain *domain,
 				 struct device *dev)
 {
@@ -4502,8 +4513,38 @@ static int intel_iommu_attach_device(struct iommu_domain *domain,
 		return -EPERM;
 	}
 
-	if (info->domain)
-		device_block_translation(dev);
+	if (info->domain) {
+		if (domain_is_trusted(info->domain)) {
+			/*
+			 * FIXME: currently leave tdx code cleanup trusted IO page
+			 * tables directly, to be moved to iommu driver.
+			 */
+			info->domain = NULL;
+			dev_dbg(dev, "trusted domain cleared\n");
+		} else {
+			device_block_translation(dev);
+		}
+	}
+
+	if (domain_is_trusted(to_dmar_domain(domain))) {
+		struct intel_iommu *iommu = device_to_iommu(dev, NULL, NULL);
+
+		if (tdxio_supported(iommu)) {
+			struct device_domain_info *info = dev_iommu_priv_get(dev);
+
+			/*
+			 * FIXME: currently leave tdx code setup trusted IO
+			 * page tables directly, to be moved to iommu driver.
+			 */
+			info->domain = to_dmar_domain(domain);
+			dev_dbg(dev, "trusted domain attach\n");
+			return 0;
+		}
+
+		return -ENOTTY;
+	}
+
+	dev_dbg(dev, "normal domain attach\n");
 
 	ret = prepare_domain_attach_device(domain, dev);
 	if (ret)
@@ -5377,6 +5418,7 @@ const struct iommu_ops intel_iommu_ops = {
 		.enforce_cache_coherency = intel_iommu_enforce_cache_coherency,
 		.set_dev_pasid		= intel_iommu_attach_device_pasid,
 		.remove_dev_pasid	= intel_iommu_remove_dev_pasid,
+		.set_trusted		= intel_iommu_domain_set_trusted,
 		.set_dirty_tracking	= intel_iommu_set_dirty_tracking,
 		.read_and_clear_dirty   = intel_iommu_read_and_clear_dirty,
 		.unmap_pages_read_dirty = intel_iommu_unmap_read_dirty,

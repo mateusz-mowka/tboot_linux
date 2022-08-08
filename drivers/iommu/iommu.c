@@ -3491,6 +3491,12 @@ struct iommu_domain *iommu_sva_domain_alloc(struct device *dev,
 	return domain;
 }
 
+int iommu_domain_set_trusted(struct iommu_domain *domain)
+{
+	return domain->ops->set_trusted(domain);
+}
+EXPORT_SYMBOL_GPL(iommu_domain_set_trusted);
+
 /**
  * iommu_get_hw_info - get hardware information of the IOMMU for a device
  * @dev - the device for which iommu information is queried

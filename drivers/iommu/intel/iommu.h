@@ -614,6 +614,13 @@ struct iommu_domain_info {
 					 * to VT-d spec, section 9.3 */
 };
 
+/*
+ * When VT-d works in the TEE-IO mode, it allows a separated DMA translation
+ * managed by trusted agent. This bit marks that the DMA translation for the
+ * domain goes to the trusted IO page tables.
+ */
+#define DOMAIN_FLAG_TRUSTED			BIT(2)
+
 struct dmar_domain {
 	int	nid;			/* node id */
 	struct xarray iommu_array;	/* Attached IOMMU array */
@@ -646,6 +653,8 @@ struct dmar_domain {
 			 *   3: level 5 57-bit
 			*/
 			int		agaw;
+			/* flags to find out type of domain */
+			int		flags;
 			/*
 			 * Level of superpages supported:
 			 *   0: 4KiB (no superpages),
