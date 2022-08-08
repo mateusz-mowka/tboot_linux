@@ -1760,6 +1760,9 @@ struct kvm_enc_region {
 #define KVM_S390_NORMAL_RESET	_IO(KVMIO,   0xc3)
 #define KVM_S390_CLEAR_RESET	_IO(KVMIO,   0xc4)
 
+#define KVM_TDISP_GET_INFO	_IOWR(KVMIO,   0xc5, struct kvm_tdisp_info)
+#define KVM_TDISP_USER_REQUEST	_IOWR(KVMIO,   0xc6, struct kvm_tdisp_user_request)
+
 struct kvm_s390_pv_sec_parm {
 	__u64 origin;
 	__u64 length;
@@ -2293,5 +2296,43 @@ struct kvm_stats_desc {
 /* Available with KVM_CAP_X86_NOTIFY_VMEXIT */
 #define KVM_X86_NOTIFY_VMEXIT_ENABLED		(1ULL << 0)
 #define KVM_X86_NOTIFY_VMEXIT_USER		(1ULL << 1)
+
+struct kvm_tdisp_info {
+	__u32 devid;
+	__u64 handle;
+};
+
+struct tdisp_req_parm {
+	union {
+		u64 raw;
+		struct {
+			u64 message:8;
+			u64 param1:8;
+			u64 param2:8;
+			u64 td_flag:1;
+			u64 rsvd:39;
+		};
+	};
+};
+
+struct tdisp_req_info {
+	union {
+		u64 raw;
+		struct {
+			u64 offset:16;
+			u64 length:16;
+			u64 rsvd:32;
+		} get_devif_report;
+		struct {
+			u64 rsvd;
+		} other_request;
+	};
+};
+
+struct kvm_tdisp_user_request {
+	__u64 handle;
+	struct tdisp_req_parm parm;
+	struct tdisp_req_info info;
+};
 
 #endif /* __LINUX_KVM_H */

@@ -4403,3 +4403,13 @@ int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
 {
 	return 0;
 }
+
+int tdx_tdisp_get_info(struct kvm *kvm, struct kvm_tdisp_info *info)
+{
+	return 0;
+}
+
+int tdx_tdisp_user_request(struct kvm *kvm, struct kvm_tdisp_user_request *req)
+{
+	return 0;
+}

@@ -155,6 +155,8 @@ KVM_X86_OP(ioasid_bind)
 KVM_X86_OP(bind_tdisp_dev)
 KVM_X86_OP(unbind_tdisp_dev)
 KVM_X86_OP(tdisp_request)
+KVM_X86_OP(tdisp_get_info)
+KVM_X86_OP(tdisp_user_request)
 
 #undef KVM_X86_OP
 #undef KVM_X86_OP_OPTIONAL

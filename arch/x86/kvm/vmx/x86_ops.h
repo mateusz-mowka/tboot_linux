@@ -202,6 +202,8 @@ int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev);
 int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev);
 int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
 		      struct pci_tdisp_req *req);
+int tdx_tdisp_get_info(struct kvm *kvm, struct kvm_tdisp_info *info);
+int tdx_tdisp_user_request(struct kvm *kvm, struct kvm_tdisp_user_request *req);
 #else
 static inline int tdx_hardware_setup(struct kvm_x86_ops *x86_ops) { return 0; }
 static inline bool tdx_is_vm_type_supported(unsigned long type) { return false; }
@@ -278,6 +280,10 @@ static inline int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev
 static inline int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev) { return -EOPNOTSUPP; }
 static inline int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
 		      struct pci_tdisp_req *req) { return -EOPNOTSUPP; }
+static inline int tdx_tdisp_get_info(struct kvm *kvm,
+		struct kvm_tdisp_info *info) { return -EOPNOTSUPP; }
+static inline int tdx_tdisp_user_request(struct kvm *kvm,
+		struct kvm_tdisp_user_request *req) { return -EOPNOTSUPP; }
 #endif
 
 #endif /* __KVM_X86_VMX_X86_OPS_H */

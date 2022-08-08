@@ -939,6 +939,22 @@ static int vt_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
 	return tdx_tdisp_request(kvm, tdev, req);
 }
 
+static int vt_tdisp_get_info(struct kvm *kvm, struct kvm_tdisp_info *info)
+{
+	if (!is_td(kvm))
+		return -ENOTTY;
+
+	return tdx_tdisp_get_info(kvm, info);
+}
+
+static int vt_tdisp_user_request(struct kvm *kvm, struct kvm_tdisp_user_request *req)
+{
+	if (!is_td(kvm))
+		return -ENOTTY;
+
+	return tdx_tdisp_user_request(kvm, req);
+}
+
 struct kvm_x86_ops vt_x86_ops __initdata = {
 	.name = "kvm_intel",
 
@@ -1093,6 +1109,8 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.bind_tdisp_dev = vt_bind_tdisp_dev,
 	.unbind_tdisp_dev = vt_unbind_tdisp_dev,
 	.tdisp_request = vt_tdisp_request,
+	.tdisp_get_info = vt_tdisp_get_info,
+	.tdisp_user_request = vt_tdisp_user_request,
 };
 
 struct kvm_x86_init_ops vt_init_ops __initdata = {

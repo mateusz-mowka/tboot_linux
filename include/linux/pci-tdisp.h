@@ -5,6 +5,7 @@
 
 #include <linux/pci.h>
 #include <uapi/linux/pci_tdisp.h>
+#include <uapi/linux/kvm.h>
 
 struct kvm;
 
@@ -14,33 +15,6 @@ struct pci_tdisp_dev {
 	struct kvm *kvm;
 	struct pci_doe_mb *doe_mb;
 	void *private;
-};
-
-struct tdisp_req_parm {
-	union {
-		u64 raw;
-		struct {
-			u64 message:8;
-			u64 param1:8;
-			u64 param2:8;
-			u64 td_flag:1;
-			u64 rsvd:39;
-		};
-	};
-};
-
-struct tdisp_req_info {
-	union {
-		u64 raw;
-		struct {
-			u64 offset:16;
-			u64 length:16;
-			u64 rsvd:32;
-		} get_devif_report;
-		struct {
-			u64 rsvd;
-		} other_request;
-	};
 };
 
 struct pci_tdisp_req {

@@ -6835,6 +6835,32 @@ set_pit2_out:
 	case KVM_X86_SET_MSR_FILTER:
 		r = kvm_vm_ioctl_set_msr_filter(kvm, argp);
 		break;
+	case KVM_TDISP_GET_INFO: {
+		struct kvm_tdisp_info info;
+
+		r = -EFAULT;
+		if (copy_from_user(&info, argp, sizeof(info)))
+			goto out;
+
+		r = -ENOTTY;
+		if (kvm_x86_ops.tdisp_get_info)
+			r = static_call(kvm_x86_tdisp_get_info)(kvm, &info);
+		if (!r && copy_to_user(argp, &info, sizeof(info)))
+			r = -EFAULT;
+		break;
+	}
+	case KVM_TDISP_USER_REQUEST: {
+		struct kvm_tdisp_user_request request;
+
+		r = -EFAULT;
+		if (copy_from_user(&request, argp, sizeof(request)))
+			goto out;
+
+		r = -ENOTTY;
+		if (kvm_x86_ops.tdisp_user_request)
+			r = static_call(kvm_x86_tdisp_user_request)(kvm, &request);
+		break;
+	}
 	default:
 		r = -ENOTTY;
 	}
