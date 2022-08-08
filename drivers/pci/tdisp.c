@@ -3,6 +3,7 @@
 #include <linux/pci.h>
 #include <linux/pci-doe.h>
 #include <linux/pci-tdisp.h>
+#include <linux/kvm_host.h>
 
 #define PCI_DOE_PROTOCOL_SPDM		1
 #define PCI_DOE_PROTOCOL_SECURED_SPDM	2
@@ -37,6 +38,7 @@ static struct pci_doe_mb *pci_tdisp_create_doe_mb(struct pci_dev *pdev)
 struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 				     unsigned int flags)
 {
+	struct pci_tdisp_req req = { 0 };
 	struct pci_tdisp_dev *tdev;
 	struct pci_doe_mb* doe_mb;
 	int ret;
@@ -76,8 +78,23 @@ struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 	 * TODO: Request a selective IDE stream with same SPDM session.
 	 */
 
+	/* Bind TDISP Device Interface with target TEE VM */
+	ret = kvm_bind_tdisp_dev(kvm, tdev);
+	if (ret)
+		goto exit_free_tdev;
+
+	tdev->kvm = kvm;
+
+	/* Move TDISP Device Interface state from UNLOCKED to LOCKED */
+	req.parm.message = TDISP_LOCK_INTF_REQ;
+	ret = kvm_tdisp_request(kvm, tdev, &req);
+	if (ret)
+		goto exit_unbind_dev;
+
 	return 0;
 
+exit_unbind_dev:
+	kvm_unbind_tdisp_dev(kvm, tdev);
 exit_free_tdev:
 	kfree(tdev);
 	return ERR_PTR(ret);
@@ -89,6 +106,8 @@ EXPORT_SYMBOL_GPL(pci_tdisp_init);
  */
 void pci_tdisp_uinit(struct pci_tdisp_dev *tdev)
 {
+	struct pci_tdisp_req req = { 0 };
+
 	/*
 	 * Steps to detach a TDI from a TEE VM
 	 *
@@ -97,7 +116,13 @@ void pci_tdisp_uinit(struct pci_tdisp_dev *tdev)
 	 * 2. PCIe IDE remove
 	 * 3. SPDM session release - FIXME
 	 */
+	if (!tdev->kvm)
+		return;
 
+	/* Move TDISP Device Interface state from LOCKED to UNLOCKED */
+	req.parm.message = TDISP_STOP_INTF_REQ;
+	kvm_tdisp_request(tdev->kvm, tdev, &req);
+	kvm_unbind_tdisp_dev(tdev->kvm, tdev);
 	kfree(tdev);
 	return;
 }
