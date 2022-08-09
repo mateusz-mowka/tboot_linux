@@ -15,9 +15,9 @@ struct process_cmd_struct {
 	int arg;
 };
 
-static const char *version_str = "v1.12";
+static const char *version_str = "v1.13-tpmi-2";
 
-static const int supported_api_ver = 1;
+static const int supported_api_ver = 2;
 static struct isst_if_platform_info isst_platform_info;
 static char *progname;
 static int debug_flag;
