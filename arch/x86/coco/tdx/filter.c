@@ -110,8 +110,10 @@ static bool authorized_node_match(struct device *dev,
 	 */
 	if (dev_is_pci(dev)) {
 		if (pci_match_id((struct pci_device_id *)node->dev_list,
-				 to_pci_dev(dev)))
+				 to_pci_dev(dev))) {
+			to_pci_dev(dev)->error_state = pci_channel_io_normal;
 			return true;
+		}
 		/*
 		 * Prevent any config space accesses in initcalls.
 		 * No locking needed here because it's a fresh device.
