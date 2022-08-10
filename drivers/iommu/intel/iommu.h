@@ -596,6 +596,7 @@ struct dmar_domain {
 					   2 == 1GiB, 3 == 512GiB, 4 == 1TiB */
 	u64		max_addr;	/* maximum mapped address */
 
+	u32		spasid;
 	struct iommu_domain domain;	/* generic domain data structure for
 					   iommu core */
 };

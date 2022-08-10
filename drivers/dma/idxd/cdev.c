@@ -15,6 +15,7 @@
 #include <linux/anon_inodes.h>
 #include <linux/mmu_notifier.h>
 #include <linux/sizes.h>
+#include <linux/sched/mm.h>
 #include <uapi/linux/idxd.h>
 #include "registers.h"
 #include "idxd.h"
@@ -680,7 +681,7 @@ static int idxd_idpte_release(struct inode *i, struct file *filp)
 {
 	struct idxd_idpt_entry_data *idpte_data = filp->private_data;
 
-	ioasid_put(idpte_data->access_pasid);
+	ioasid_put(NULL, idpte_data->access_pasid);
 	kfree(idpte_data);
 	return 0;
 }
@@ -699,7 +700,7 @@ static long idxd_idpte_win_fault(struct file *filp, struct idxd_win_fault *win_f
 
 	mutex_lock(&idpte_data->lock);
 
-	submit_sva = iommu_sva_bind_device(dev, current->mm, NULL);
+	submit_sva = iommu_sva_bind_device(dev, current->mm);
 	if (IS_ERR(submit_sva)) {
 		rc = PTR_ERR(submit_sva);
 		goto out;
@@ -866,7 +867,7 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 		goto idpted_failed;
 	}
 
-	idpte_data->owner_sva = iommu_sva_bind_device(dev, current->mm, NULL);
+	idpte_data->owner_sva = iommu_sva_bind_device(dev, current->mm);
 	if (IS_ERR(idpte_data->owner_sva)) {
 		rc = PTR_ERR(idpte_data->owner_sva);
 		goto sva_bind_fail;
@@ -899,7 +900,7 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 	/* non priviledged access */
 	idpte.access_priv = 0;
 
-	ioasid_get(ctx->pasid);
+	ioasid_get(NULL, ctx->pasid);
 	idpte_data->access_pasid = idpte.access_pasid = ctx->pasid;
 	idpte.submit_pasid = 0;
 	idpte.base_addr = win_param->base;
@@ -1076,7 +1077,7 @@ static long idxd_idpt_win_attach(struct file *submit_wq, int fd, u16 __user *uha
 		goto err_invalid_handle;
 	}
 
-	submit_sva = iommu_sva_bind_device(dev, current->mm, NULL);
+	submit_sva = iommu_sva_bind_device(dev, current->mm);
 	if (IS_ERR(submit_sva)) {
 		rc = PTR_ERR(submit_sva);
 		goto err_sva;
