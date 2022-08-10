@@ -55,6 +55,7 @@ GNR PO bkc-v0.3
 4. Pull IAA1.0 update patches from https://github.com/intel-sandbox/idxd/commits/tzanussi/iaa-crypto-5.19-gnr-bkc-v2 (commit: 3c3bc984e1e2cdc955d0a702b96a19e10d32e189)
 5. Fix uniform microcode update error check and report, potentially causing a hang (commit 088084b5004023db7f2ea9d82af724e2e0dcbc29)
 6. Disable IBT to work around firmware bugs
+7. Pull interdomain PASID code for idxd driver https://github.com/intel-sandbox/idxd/tree/fyu/gnr.bkc (commit e0e555a82bc87d9ce3b191782b15fa46449e033d)
 
 ------------------------------------------------------------------------
 Intel Next Maintainers <intel-next-maintainers@eclists.intel.com>
