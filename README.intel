@@ -52,6 +52,7 @@ GNR PO bkc-v0.3
 1. Move to intel-next based on 5.19.0
 2. Pull branch gnr.bkc-v0.3 from intel-sandbox/kernel.git for idxd enable vSVM (commit: 52f7b5146a836f19439eb8788af1c6f9a68f8edd)
 3. Pull saf repo  branch for_gnrbkcv (commit: 2f3924f796eba75e8a4abe6fbf30e9dce7fa7252)
+4. Pull IAA1.0 update patches from https://github.com/intel-sandbox/idxd/commits/tzanussi/iaa-crypto-5.19-gnr-bkc-v2 (commit: 3c3bc984e1e2cdc955d0a702b96a19e10d32e189)
 
 ------------------------------------------------------------------------
 Intel Next Maintainers <intel-next-maintainers@eclists.intel.com>
