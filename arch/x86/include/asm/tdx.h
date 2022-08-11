@@ -178,6 +178,10 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 		  u64 r12, u64 r13, u64 r14, u64 r15,
 		  struct tdx_module_output *out);
 
+/* Export Intel-IOMMU registers for other components */
+#define DMAR_CONFIG_RP_REG	0x8000000B
+#define DMAR_CLEAR_RP_REG	0x8000000C
+
 #define TDH_PHYMEM_PAGE_RECLAIM		28
 #define TDH_PHYMEM_PAGE_WBINVD		41
 #define TDH_IOMMU_SETREG		128
