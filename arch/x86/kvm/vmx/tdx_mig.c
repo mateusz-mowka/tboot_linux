@@ -2,6 +2,8 @@
 #include <linux/anon_inodes.h>
 #include <linux/kvm_host.h>
 
+#include <asm/tdx.h>
+
 struct tdx_mig_mbmd_data {
 	__u16 size;
 	__u16 mig_version;

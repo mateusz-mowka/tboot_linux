@@ -20,41 +20,6 @@
 
 #ifdef CONFIG_INTEL_TDX_HOST
 
-static inline uint64_t kvm_seamcall(u64 op, u64 rcx, u64 rdx, u64 r8,
-				    u64 r9, u64 r10, u64 r11, u64 r12,
-				    u64 r13, struct tdx_module_output *out)
-{
-	u64 err, retries = 0;
-
-	do {
-		err = __seamcall(op, rcx, rdx, r8, r9,
-				 r10, r11, r12, r13, out);
-
-		/*
-		 * If seamcall happens after VMXOFF during reboot,
-		 * the instruction is ignored.
-		 */
-		if (err == TDX_SEAMCALL_UD) {
-			kvm_spurious_fault();
-			return 0;
-		}
-		/*
-		 * On success, non-recoverable errors, or recoverable errors
-		 * that don't expect retries, hand it over to the caller.
-		 */
-		if (!err ||
-		    err == TDX_VCPU_ASSOCIATED ||
-		    err == TDX_VCPU_NOT_ASSOCIATED ||
-		    err == TDX_INTERRUPTED_RESUMABLE)
-			return err;
-
-		if (retries++ > TDX_SEAMCALL_RETRY_MAX)
-			break;
-	} while (TDX_SEAMCALL_ERR_RECOVERABLE(err));
-
-	return err;
-}
-
 bool is_sys_rd_supported(void);
 
 void pr_tdx_error(u64 op, u64 error_code, const struct tdx_module_output *out);
@@ -327,12 +292,14 @@ static inline u64 tdh_mng_key_reclaimid(hpa_t tdr)
 			    tdr, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
+#if 0
 static inline u64 tdh_phymem_page_reclaim(hpa_t page,
 					  struct tdx_module_output *out)
 {
 	return kvm_seamcall(TDH_PHYMEM_PAGE_RECLAIM,
 			    page, 0, 0, 0, 0, 0, 0, 0, out);
 }
+#endif
 
 static inline u64 tdh_mem_page_remove(hpa_t tdr, gpa_t gpa, int level,
 				      struct tdx_module_output *out)
@@ -373,11 +340,13 @@ static inline u64 tdh_phymem_cache_wb(bool resume)
 			    resume ? 1 : 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
+#if 0
 static inline u64 tdh_phymem_page_wbinvd(hpa_t page)
 {
 	return kvm_seamcall(TDH_PHYMEM_PAGE_WBINVD,
 			    page, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
+#endif
 
 static inline u64 tdh_vp_wr(hpa_t tdvpr, u64 field, u64 val, u64 mask,
 			    struct tdx_module_output *out)

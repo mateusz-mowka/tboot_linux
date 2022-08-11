@@ -174,6 +174,18 @@ struct tdsysinfo_struct {
 	DECLARE_FLEX_ARRAY(struct tdx_cpuid_config, cpuid_configs);
 } __packed;
 
+static __always_inline int pg_level_to_tdx_sept_level(enum pg_level level)
+{
+	WARN_ON_ONCE(level == PG_LEVEL_NONE);
+	return level - 1;
+}
+
+#include <asm/processor.h>
+static __always_inline u64 set_hkid_to_hpa(u64 pa, u16 hkid)
+{
+	return pa | ((u64)hkid << boot_cpu_data.x86_phys_bits);
+}
+
 const struct tdsysinfo_struct *tdx_get_sysinfo(void);
 bool platform_tdx_enabled(void);
 int tdx_enable(void);
@@ -189,6 +201,8 @@ int tdx_keyid_alloc(void);
 void tdx_keyid_free(int keyid);
 bool tdx_io_support(void);
 bool tdx_io_enabled(void);
+int tdx_reclaim_page(unsigned long pa, enum pg_level level, bool do_wb, u16 hkid);
+void tdx_reclaim_td_page(unsigned long td_page_pa);
 
 u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10,
 	       u64 r11, u64 r12, u64 r13, struct tdx_module_output *out);
@@ -196,6 +210,8 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 		  u64 r12, u64 r13, u64 r14, u64 r15,
 		  struct tdx_module_output *out);
 
+#define TDH_PHYMEM_PAGE_RECLAIM		28
+#define TDH_PHYMEM_PAGE_WBINVD		41
 #define TDH_IOMMU_SETREG		128
 #define TDH_IOMMU_GETREG		129
 #define TDH_SPDM_CREATE			130
@@ -222,6 +238,65 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_MMIO_UNMAP			160
 #define TDH_IQINV_REQ			161
 #define TDH_IQINV_PROC			162
+
+/* Temp solution, copied from tdx_error.h */
+#define TDX_INTERRUPTED_RESUMABLE		0x8000000300000000ULL
+#define TDX_VCPU_ASSOCIATED			0x8000070100000000ULL
+#define TDX_VCPU_NOT_ASSOCIATED			0x8000070200000000ULL
+
+#define TDX_SEAMCALL_STATUS_MASK		0xFFFFFFFF00000000ULL
+#define TDX_OPERAND_ID_RCX			0x01
+
+static inline uint64_t kvm_seamcall(u64 op, u64 rcx, u64 rdx, u64 r8,
+				    u64 r9, u64 r10, u64 r11, u64 r12,
+				    u64 r13, struct tdx_module_output *out)
+{
+	u64 err, retries = 0;
+
+	do {
+		err = __seamcall(op, rcx, rdx, r8, r9,
+				 r10, r11, r12, r13, out);
+
+		/*
+		 * If seamcall happens after VMXOFF during reboot,
+		 * the instruction is ignored.
+		 */
+		if (err == TDX_SEAMCALL_UD) {
+			#if 0
+			kvm_spurious_fault();
+			#endif
+			pr_warn("%s err 0x%llx TDX_SEAMCALL_UD\n", __func__, err);
+			return 0;
+		}
+		/*
+		 * On success, non-recoverable errors, or recoverable errors
+		 * that don't expect retries, hand it over to the caller.
+		 */
+		if (!err ||
+		    err == TDX_VCPU_ASSOCIATED ||
+		    err == TDX_VCPU_NOT_ASSOCIATED ||
+		    err == TDX_INTERRUPTED_RESUMABLE)
+			return err;
+
+		if (retries++ > TDX_SEAMCALL_RETRY_MAX)
+			break;
+	} while (TDX_SEAMCALL_ERR_RECOVERABLE(err));
+
+	return err;
+}
+
+static inline u64 tdh_phymem_page_reclaim(u64 page,
+					  struct tdx_module_output *out)
+{
+	return kvm_seamcall(TDH_PHYMEM_PAGE_RECLAIM,
+			    page, 0, 0, 0, 0, 0, 0, 0, out);
+}
+
+static inline u64 tdh_phymem_page_wbinvd(u64 page)
+{
+	return kvm_seamcall(TDH_PHYMEM_PAGE_WBINVD,
+			    page, 0, 0, 0, 0, 0, 0, 0, NULL);
+}
 
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
 {
@@ -761,6 +836,12 @@ static inline int tdx_keyid_alloc(void) { return -EOPNOTSUPP; }
 static inline void tdx_keyid_free(int keyid) { }
 static inline bool tdx_io_support(void) { return false; }
 static inline bool tdx_io_enabled(void) { return false; }
+static int tdx_reclaim_page(unsigned long pa, enum pg_level level, bool do_wb,
+			    u16 hkid) { return -EOPNOTSUPP; }
+static void tdx_reclaim_td_page(unsigned long td_page_pa) { }
+static inline u64 tdh_phymem_page_reclaim(u64 page,
+					  struct tdx_module_output *out) { return -EOPNOTSUPP; }
+static inline u64 tdh_phymem_page_wbinvd(u64 page) { return -EOPNOTSUPP; }
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val) { return 0; }
 static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val) { return 0; }
 static inline u64 tdh_mmio_map(u64 gpa_page_info, u64 tdr_pa,

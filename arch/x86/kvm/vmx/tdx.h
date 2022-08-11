@@ -4,6 +4,8 @@
 
 #ifdef CONFIG_INTEL_TDX_HOST
 
+#include <asm/tdx.h>
+
 #include "posted_intr.h"
 #include "pmu_intel.h"
 #include "tdx_ops.h"
@@ -349,14 +351,6 @@ static __always_inline u64 td_tdcs_exec_read64(struct kvm_tdx *kvm_tdx, u32 fiel
 	}
 	return out.r8;
 }
-
-static __always_inline int pg_level_to_tdx_sept_level(enum pg_level level)
-{
-	WARN_ON_ONCE(level == PG_LEVEL_NONE);
-	return level - 1;
-}
-
-void tdx_reclaim_td_page(unsigned long td_page_pa);
 
 void tdx_track(struct kvm_tdx *kvm_tdx);
 

@@ -235,11 +235,6 @@ static inline bool td_profile_allowed(struct kvm_tdx *kvm_tdx)
 	return false;
 }
 
-static __always_inline hpa_t set_hkid_to_hpa(hpa_t pa, u16 hkid)
-{
-	return pa | ((hpa_t)hkid << boot_cpu_data.x86_phys_bits);
-}
-
 static __always_inline unsigned long tdexit_exit_qual(struct kvm_vcpu *vcpu)
 {
 	return to_tdx(vcpu)->exit_qualification;
@@ -343,94 +338,6 @@ static inline void tdx_disassociate_vp(struct kvm_vcpu *vcpu)
 	smp_wmb();
 
 	vcpu->cpu = -1;
-}
-
-static void tdx_clear_page(unsigned long page_pa, int size)
-{
-	const void *zero_page = (const void *) __va(page_to_phys(ZERO_PAGE(0)));
-	void *page = __va(page_pa);
-	unsigned long i;
-
-	WARN_ON_ONCE(size % PAGE_SIZE);
-
-	if (!static_cpu_has(X86_FEATURE_MOVDIR64B)) {
-		for (i = 0; i < size; i += PAGE_SIZE)
-			clear_page(page + i);
-		return;
-	}
-
-	/*
-	 * Zeroing the page is only necessary for systems with MKTME-i:
-	 * when re-assign one page from old keyid to a new keyid, MOVDIR64B is
-	 * required to clear/write the page with new keyid to prevent integrity
-	 * error when read on the page with new keyid.
-	 *
-	 * clflush doesn't flush cache with HKID set.
-	 * The cache line could be poisoned (even without MKTME-i), clear the
-	 * poison bit.
-	 */
-	for (i = 0; i < size; i += 64)
-		movdir64b(page + i, zero_page);
-	/*
-	 * MOVDIR64B store uses WC buffer.  Prevent following memory reads
-	 * from seeing potentially poisoned cache.
-	 */
-	__mb();
-}
-
-static int tdx_reclaim_page(hpa_t pa, enum pg_level level,
-			    bool do_wb, u16 hkid)
-{
-	struct tdx_module_output out;
-	u64 err;
-
-	do {
-		err = tdh_phymem_page_reclaim(pa, &out);
-		/*
-		 * TDH.PHYMEM.PAGE.RECLAIM is allowed only when TD is shutdown.
-		 * state.  i.e. destructing TD.
-		 * TDH.PHYMEM.PAGE.RECLAIM  requires TDR and target page.
-		 * Because we're destructing TD, it's rare to contend with TDR.
-		 */
-	} while (err == (TDX_OPERAND_BUSY | TDX_OPERAND_ID_RCX));
-
-	if (err & TDX_SEAMCALL_STATUS_MASK)
-		return -EIO;
-
-	/* out.r8 == tdx sept page level */
-	WARN_ON_ONCE(out.r8 != pg_level_to_tdx_sept_level(level));
-
-	if (do_wb && level == PG_LEVEL_4K) {
-		/*
-		 * Only TDR page gets into this path.  No contention is expected
-		 * because of the last page of TD.
-		 */
-		err = tdh_phymem_page_wbinvd(set_hkid_to_hpa(pa, hkid));
-		if (WARN_ON_ONCE(err)) {
-			pr_tdx_error(TDH_PHYMEM_PAGE_WBINVD, err, NULL);
-			return -EIO;
-		}
-	}
-
-	tdx_set_page_present_level(pa, level);
-	tdx_clear_page(pa, KVM_HPAGE_SIZE(level));
-	return 0;
-}
-
-void tdx_reclaim_td_page(unsigned long td_page_pa)
-{
-	if (!td_page_pa)
-		return;
-	/*
-	 * TDCX are being reclaimed.  TDX module maps TDCX with HKID
-	 * assigned to the TD.  Here the cache associated to the TD
-	 * was already flushed by TDH.PHYMEM.CACHE.WB before here, So
-	 * cache doesn't need to be flushed again.
-	 */
-	if (WARN_ON(tdx_reclaim_page(td_page_pa, PG_LEVEL_4K, false, 0)))
-		/* If reclaim failed, leak the page. */
-		return;
-	free_page((unsigned long)__va(td_page_pa));
 }
 
 struct tdx_flush_vp_arg {
