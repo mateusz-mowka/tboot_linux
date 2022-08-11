@@ -133,6 +133,29 @@ struct tdsysinfo_struct {
 	};
 } __packed __aligned(TDSYSINFO_STRUCT_ALIGNMENT);
 
+struct tdx_td_page {
+	unsigned long va;
+	u64 pa;
+	bool added;
+};
+
+static __always_inline int pg_level_to_tdx_sept_level(enum pg_level level)
+{
+	WARN_ON(level == PG_LEVEL_NONE);
+	return level - 1;
+}
+
+extern u64 hkid_mask __ro_after_init;
+extern u8 hkid_start_pos __ro_after_init;
+
+static __always_inline u64 set_hkid_to_hpa(u64 pa, u16 hkid)
+{
+	pa &= ~hkid_mask;
+	pa |= (u64)hkid << hkid_start_pos;
+
+	return pa;
+}
+
 bool platform_tdx_enabled(void);
 int tdx_init(void);
 const struct tdsysinfo_struct *tdx_get_sysinfo(void);
@@ -143,6 +166,11 @@ void tdx_keyid_free(int keyid);
 void tdx_hw_enable(void *junk);
 void tdx_hw_disable(void *junk);
 bool tdx_io_support(void);
+int tdx_reclaim_page(unsigned long va, u64 pa, enum pg_level level,
+		     bool do_wb, u16 hkid);
+int tdx_alloc_td_page(struct tdx_td_page *page);
+void tdx_mark_td_page_added(struct tdx_td_page *page);
+void tdx_reclaim_td_page(struct tdx_td_page *page);
 
 u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9,
 	       struct tdx_module_output *out);
@@ -150,6 +178,8 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 		  u64 r12, u64 r13, u64 r14, u64 r15,
 		  struct tdx_module_output *out);
 
+#define TDH_PHYMEM_PAGE_RECLAIM		28
+#define TDH_PHYMEM_PAGE_WBINVD		41
 #define TDH_IOMMU_SETREG		128
 #define TDH_IOMMU_GETREG		129
 #define TDH_IDE_STREAM_CREATE		132
@@ -160,6 +190,17 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_MMIO_MAP			158
 #define TDH_MMIO_BLOCK			159
 #define TDH_MMIO_UNMAP			160
+
+static inline u64 tdh_phymem_page_reclaim(u64 page,
+					  struct tdx_module_output *out)
+{
+	return __seamcall(TDH_PHYMEM_PAGE_RECLAIM, page, 0, 0, 0, out);
+}
+
+static inline u64 tdh_phymem_page_wbinvd(u64 page)
+{
+	return __seamcall(TDH_PHYMEM_PAGE_WBINVD, page, 0, 0, 0, NULL);
+}
 
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
 {
@@ -421,6 +462,15 @@ static inline void tdx_keyid_free(int keyid) { }
 static inline void tdx_hw_enable(void *junk) { }
 static inline void tdx_hw_disable(void *junk) { }
 static inline bool tdx_io_support(void) { return false; }
+static inline int tdx_reclaim_page(unsigned long va, u64 pa,
+				   enum pg_level level, bool do_wb,
+				   u16 hkid) { return -EOPNOTSUPP; }
+static inline int tdx_alloc_td_page(struct tdx_td_page *page) { return -ENOMEM; }
+static inline void tdx_mark_td_page_added(struct tdx_td_page *page) { }
+static inline void tdx_reclaim_td_page(struct tdx_td_page *page) { }
+static inline u64 tdh_phymem_page_reclaim(u64 page,
+					  struct tdx_module_output *out) { }
+static inline u64 tdh_phymem_page_wbinvd(u64 page) { }
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val) { return 0; }
 static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val) { return 0; }
 static inline u64 tdh_ide_stream_create(u64 iommu_id,

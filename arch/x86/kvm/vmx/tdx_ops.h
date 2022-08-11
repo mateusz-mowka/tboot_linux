@@ -203,11 +203,13 @@ static inline u64 tdh_mng_key_reclaimid(hpa_t tdr)
 	return __seamcall(TDH_MNG_KEY_RECLAIMID, tdr, 0, 0, 0, NULL);
 }
 
+#if 0
 static inline u64 tdh_phymem_page_reclaim(hpa_t page,
 					  struct tdx_module_output *out)
 {
 	return __seamcall(TDH_PHYMEM_PAGE_RECLAIM, page, 0, 0, 0, out);
 }
+#endif
 
 static inline u64 tdh_mem_page_remove(hpa_t tdr, gpa_t gpa, int level,
 				      struct tdx_module_output *out)
@@ -238,10 +240,12 @@ static inline u64 tdh_phymem_cache_wb(bool resume)
 	return __seamcall(TDH_PHYMEM_CACHE_WB, resume ? 1 : 0, 0, 0, 0, NULL);
 }
 
+#if 0
 static inline u64 tdh_phymem_page_wbinvd(hpa_t page)
 {
 	return __seamcall(TDH_PHYMEM_PAGE_WBINVD, page, 0, 0, 0, NULL);
 }
+#endif
 
 static inline u64 tdh_vp_wr(hpa_t tdvpr, u64 field, u64 val, u64 mask,
 			    struct tdx_module_output *out)

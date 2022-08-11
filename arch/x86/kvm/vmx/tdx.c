@@ -25,9 +25,6 @@
 #define pr_err_skip_ud(_x) \
 	pr_err_once("Skip #UD injection for " _x " due to it's not supported in TDX 1.0\n")
 
-static u64 hkid_mask __ro_after_init;
-static u8 hkid_start_pos __ro_after_init;
-
 #define TDX_MAX_NR_CPUID_CONFIGS					\
 	((sizeof(struct tdsysinfo_struct) -				\
 		offsetof(struct tdsysinfo_struct, cpuid_configs))	\
@@ -110,14 +107,6 @@ static inline bool td_profile_allowed(struct kvm_tdx *kvm_tdx)
 		return true;
 
 	return false;
-}
-
-static __always_inline hpa_t set_hkid_to_hpa(hpa_t pa, u16 hkid)
-{
-	pa &= ~hkid_mask;
-	pa |= (u64)hkid << hkid_start_pos;
-
-	return pa;
 }
 
 static __always_inline unsigned long tdexit_exit_qual(struct kvm_vcpu *vcpu)
@@ -244,91 +233,6 @@ void tdx_hardware_disable(void)
 	/* Safe variant needed as tdx_disassociate_vp() deletes the entry. */
 	list_for_each_entry_safe(tdx, tmp, tdvcpus, cpu_list)
 		tdx_disassociate_vp(&tdx->vcpu);
-}
-
-static void tdx_clear_page(unsigned long page, int size)
-{
-	const void *zero_page = (const void *) __va(page_to_phys(ZERO_PAGE(0)));
-	unsigned long i;
-
-	WARN_ON_ONCE(size % 64);
-
-	/*
-	 * Zeroing the page is only necessary for systems with MKTME-i:
-	 * when re-assign one page from old keyid to a new keyid, MOVDIR64B is
-	 * required to clear/write the page with new keyid to prevent integrity
-	 * error when read on the page with new keyid.
-	 */
-	if (!static_cpu_has(X86_FEATURE_MOVDIR64B))
-		return;
-
-	for (i = 0; i < size; i += 64)
-		/* MOVDIR64B [rdx], es:rdi */
-		asm (".byte 0x66, 0x0f, 0x38, 0xf8, 0x3a"
-		     : : "d" (zero_page), "D" (page + i) : "memory");
-}
-
-static int tdx_reclaim_page(unsigned long va, hpa_t pa, enum pg_level level,
-			    bool do_wb, u16 hkid)
-{
-	struct tdx_module_output out;
-	u64 err;
-
-	err = tdh_phymem_page_reclaim(pa, &out);
-	if (WARN_ON_ONCE(err)) {
-		pr_err("%s:%d:%s pa 0x%llx level %d hkid 0x%x do_wb %d\n",
-		       __FILE__, __LINE__, __func__,
-		       pa, level, hkid, do_wb);
-		pr_tdx_error(TDH_PHYMEM_PAGE_RECLAIM, err, &out);
-		return -EIO;
-	}
-	/* out.r8 == tdx sept page level */
-	WARN_ON_ONCE(out.r8 != pg_level_to_tdx_sept_level(level));
-
-	/* only TDR page gets into this path */
-	if (do_wb && level == PG_LEVEL_4K) {
-		err = tdh_phymem_page_wbinvd(set_hkid_to_hpa(pa, hkid));
-		if (WARN_ON_ONCE(err)) {
-			pr_tdx_error(TDH_PHYMEM_PAGE_WBINVD, err, NULL);
-			return -EIO;
-		}
-	}
-
-	tdx_clear_page(va, KVM_HPAGE_SIZE(level));
-	return 0;
-}
-
-static int tdx_alloc_td_page(struct tdx_td_page *page)
-{
-	page->va = __get_free_page(GFP_KERNEL_ACCOUNT);
-	if (!page->va)
-		return -ENOMEM;
-
-	page->pa = __pa(page->va);
-	return 0;
-}
-
-static void tdx_mark_td_page_added(struct tdx_td_page *page)
-{
-	WARN_ON_ONCE(page->added);
-	page->added = true;
-}
-
-static void tdx_reclaim_td_page(struct tdx_td_page *page)
-{
-	if (page->added) {
-		/*
-		 * TDCX are being reclaimed.  TDX module maps TDCX with HKID
-		 * assigned to the TD.  Here the cache associated to the TD
-		 * was already flushed by TDH.PHYMEM.CACHE.WB before here, So
-		 * cache doesn't need to be flushed again.
-		 */
-		if (tdx_reclaim_page(page->va, page->pa, PG_LEVEL_4K, false, 0))
-			return;
-
-		page->added = false;
-	}
-	free_page(page->va);
 }
 
 struct tdx_flush_vp_arg {
@@ -4277,7 +4181,6 @@ u64 tdx_non_arch_field_switch(u64 field)
 int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 {
 	int max_pkgs;
-	u32 max_pa;
 	int i;
 
 	if (!enable_ept) {
@@ -4331,9 +4234,6 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 	for (i = 0; i < max_pkgs; i++)
 		mutex_init(&tdx_mng_key_config_lock[i]);
 
-	max_pa = cpuid_eax(0x80000008) & 0xff;
-	hkid_start_pos = boot_cpu_data.x86_phys_bits;
-	hkid_mask = GENMASK_ULL(max_pa - 1, hkid_start_pos);
 	pr_info("kvm: TDX is supported. hkid start pos %d mask 0x%llx\n",
 		hkid_start_pos, hkid_mask);
 
