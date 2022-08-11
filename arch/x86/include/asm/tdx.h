@@ -186,6 +186,8 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_PHYMEM_PAGE_WBINVD		41
 #define TDH_IOMMU_SETREG		128
 #define TDH_IOMMU_GETREG		129
+#define TDH_SPDM_CREATE			130
+#define TDH_SPDM_DELETE			131
 #define TDH_IDE_STREAM_CREATE		132
 #define TDH_IDE_STREAM_BLOCK		133
 #define TDH_IDE_STREAM_DELETE		134
@@ -244,6 +246,57 @@ static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val)
 		*val = out.r8;
 
         return ret;
+}
+
+static inline u64 tdh_spdm_create(u64 iommu_id, u64 spdm_session_idx, u64 spdm_info_pa)
+{
+	u64 ret;
+
+	/*
+	 * TDH.SPDM.CREATE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - IOMMU hosting the stream
+	 * Input: RDX - SPDM session index of device connected to stream
+	 * Input: R8  - Physical address of page a free page in PAMT to
+	 * hold SPDM session information
+	 *
+	 * Output: RAX - SEAMCALL instruction return code
+	 */
+
+	ret = __seamcall_io(TDH_SPDM_CREATE, iommu_id, spdm_session_idx,
+			    spdm_info_pa, 0, 0, 0, 0, 0, 0, 0, NULL);
+	pr_info("%s: iommu_id 0x%llx spdm_session_idx 0x%llx spdm_info_pa 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, spdm_session_idx, spdm_info_pa, ret);
+
+	return ret;
+}
+
+static inline u64 tdh_spdm_delete(u64 iommu_id, u64 spdm_session_idx, u64 *spdm_info_pa)
+{
+	struct tdx_module_output out;
+	u64 ret;
+
+	/*
+	 * TDH.SPDM.DELETE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - IOMMU hosting the stream
+	 * Input: RDX - SPDM session index of device connected to stream
+	 *
+	 * Output: RAX - SEAMCALL instruction return code
+	 * Output: RCX - Physical address of the freed SPDM session information page
+	 */
+
+	ret = __seamcall_io(TDH_SPDM_DELETE, iommu_id, spdm_session_idx,
+			    0, 0, 0, 0, 0, 0, 0, 0, &out);
+	pr_info("%s: iommu_id 0x%llx spdm_session_idx 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, spdm_session_idx, ret);
+
+	if (!ret && spdm_info_pa)
+		*spdm_info_pa = out.rcx;
+
+	return ret;
 }
 
 static inline u64 tdh_ide_stream_create(u64 iommu_id,
