@@ -39,6 +39,7 @@ struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 				     unsigned int flags)
 {
 	struct pci_tdisp_req req = { 0 };
+	struct pci_ide_stream *stm;
 	struct pci_tdisp_dev *tdev;
 	struct pci_doe_mb* doe_mb;
 	int ret;
@@ -74,14 +75,19 @@ struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 
 	tdev->doe_mb = doe_mb;
 
-	/*
-	 * TODO: Request a selective IDE stream with same SPDM session.
-	 */
+	/* Request a selective IDE stream with same SPDM session */
+	stm = pci_ide_stream_setup(pdev, doe_mb, PCI_IDE_FLAG_TEE);
+	if (IS_ERR(stm)) {
+		ret = PTR_ERR(stm);
+		goto exit_free_tdev;
+	}
+
+	tdev->stm = stm;
 
 	/* Bind TDISP Device Interface with target TEE VM */
 	ret = kvm_bind_tdisp_dev(kvm, tdev);
 	if (ret)
-		goto exit_free_tdev;
+		goto exit_ide_remove;
 
 	tdev->kvm = kvm;
 
@@ -95,6 +101,8 @@ struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 
 exit_unbind_dev:
 	kvm_unbind_tdisp_dev(kvm, tdev);
+exit_ide_remove:
+	pci_ide_stream_remove(stm);
 exit_free_tdev:
 	kfree(tdev);
 	return ERR_PTR(ret);
@@ -123,6 +131,7 @@ void pci_tdisp_uinit(struct pci_tdisp_dev *tdev)
 	req.parm.message = TDISP_STOP_INTF_REQ;
 	kvm_tdisp_request(tdev->kvm, tdev, &req);
 	kvm_unbind_tdisp_dev(tdev->kvm, tdev);
+	pci_ide_stream_remove(tdev->stm);
 	kfree(tdev);
 	return;
 }

@@ -14,6 +14,7 @@ struct pci_tdisp_dev {
 	unsigned int flags;
 	struct kvm *kvm;
 	struct pci_doe_mb *doe_mb;
+	struct pci_ide_stream *stm;
 	void *private;
 };
 

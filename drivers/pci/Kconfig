@@ -175,6 +175,7 @@ config PCI_TDISP
 	bool "PCI TDISP support"
 	depends on KVM
 	select PCI_DOE
+	select PCI_IDE
 	help
 	  Trusted Execution Environment (TEE) Device Interface Security Protocol
 	  defines the secure method to attach/detach TEE Device Interface (TDI)
