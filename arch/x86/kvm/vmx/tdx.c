@@ -274,9 +274,6 @@ static int tdx_reclaim_page(unsigned long va, hpa_t pa, enum pg_level level,
 	struct tdx_module_output out;
 	u64 err;
 
-	if (kvm_is_reserved_pfn(pa >> PAGE_SHIFT))
-		return -EIO;
-
 	err = tdh_phymem_page_reclaim(pa, &out);
 	if (WARN_ON_ONCE(err)) {
 		pr_err("%s:%d:%s pa 0x%llx level %d hkid 0x%x do_wb %d\n",
