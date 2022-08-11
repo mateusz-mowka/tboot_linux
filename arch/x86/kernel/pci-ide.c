@@ -79,6 +79,10 @@ struct intel_ide_stream {
 
 	/* for ide streams in tee mode */
 	struct tdx_td_page exinfo;
+
+	/* for simple spdm implementation WA */
+	struct tdx_td_page spdm_wa;
+	int spdm_wa_idx;
 };
 
 struct doe_va_t {
@@ -791,17 +795,97 @@ static int get_mem_range(struct pci_dev *pdev, resource_size_t *start, resource_
 	return 0;
 }
 
+static DEFINE_IDA(spdm_wa_ida);
+static int spdm_wa_create(struct pci_dev *pdev, struct intel_ide_stream *istm,
+			  u8 *session_idx)
+{
+	u64 iommu_id;
+	u64 tdx_ret;
+	int ret;
+
+	pr_info("%s\n", __func__);
+	if (get_iommu_id(pdev, &iommu_id))
+		return -EINVAL;
+
+	ret = tdx_alloc_td_page(&istm->spdm_wa);
+	if (ret) {
+		pr_err("%s(): Cannot allocate spdm_wa page\n", __func__);
+		return ret;
+	}
+
+	ret = ida_alloc(&spdm_wa_ida, GFP_KERNEL);
+	if (ret < 0) {
+		pr_err("%s(): Cannot allocate spdm_wa ida\n", __func__);
+		goto reclaim_page;
+	}
+	istm->spdm_wa_idx = ret;
+
+	tdx_ret = tdh_spdm_create(iommu_id, istm->spdm_wa_idx, istm->spdm_wa.pa);
+	if (tdx_ret) {
+		pr_err("%s(): ret=0x%llx, iommu_id=0x%llx, session_idx=0x%x, pa=0x%llx\n",
+		       __func__, tdx_ret, iommu_id, istm->spdm_wa_idx, istm->spdm_wa.pa);
+		ret = -EFAULT;
+		goto ida_free;
+	}
+
+	*session_idx = (u8)istm->spdm_wa_idx;
+
+	return 0;
+
+ida_free:
+	ida_free(&spdm_wa_ida, istm->spdm_wa_idx);
+reclaim_page:
+	tdx_reclaim_td_page(&istm->spdm_wa);
+	return ret;
+}
+
+static void spdm_wa_destory(struct pci_dev *pdev, struct intel_ide_stream *istm)
+{
+	u64 spdm_info_pa;
+	u64 iommu_id;
+	u64 tdx_ret;
+
+	pr_info("%s\n", __func__);
+	if (get_iommu_id(pdev, &iommu_id)) {
+		pr_warn("%s(): get iommu id failed\n", __func__);
+		goto out;
+	}
+
+	tdx_ret = tdh_spdm_delete(iommu_id, istm->spdm_wa_idx, &spdm_info_pa);
+	if (tdx_ret) {
+		pr_err("%s(): ret=0x%llx, iommu_id=0x%llx, session_idx=0x%x\n",
+		       __func__, tdx_ret, iommu_id, istm->spdm_wa_idx);
+		goto out;
+	}
+
+	if (spdm_info_pa != istm->spdm_wa.pa) {
+		pr_warn("%s(): spdm delete err, returned spdm_pa = 0x%llx, spdm pa = 0x%llx\n",
+			__func__, spdm_info_pa, istm->spdm_wa.pa);
+		goto out;
+	}
+
+out:
+	ida_free(&spdm_wa_ida, istm->spdm_wa_idx);
+	tdx_reclaim_td_page(&istm->spdm_wa);
+}
+
 static int tdx_ide_stream_create(struct pci_dev *pdev, struct pci_ide_stream *stm)
 {
 	struct intel_ide_stream *istm = pci_ide_stream_get_private(stm);
 	struct stream_create_param param = { 0 };
 	resource_size_t start, end;
+	u8 spdm_session_idx;
 	u64 iommu_id;
 	u64 ret;
 
 	param.stream_exinfo = istm->exinfo;
 	if (get_iommu_id(pdev, &iommu_id))
 		return -EINVAL;
+
+	/* for spdm workaround */
+	ret = spdm_wa_create(pdev, istm, &spdm_session_idx);
+	if (ret)
+		return ret;
 
 	param.ide_stream_cfg = FIELD_PREP(STREAM_CFG_IDE_ID, stm->rp_ide_id) |
 			       FIELD_PREP(STREAM_CFG_RP_DF_NUM, stm->rp_dev->devfn) |
@@ -839,8 +923,10 @@ static int tdx_ide_stream_create(struct pci_dev *pdev, struct pci_ide_stream *st
 				    param.addr_assoc2,
 				    param.addr_assoc3,
 				    param.stream_exinfo.pa);
-	if (ret)
+	if (ret) {
+		spdm_wa_destory(pdev, istm);
 		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -893,6 +979,8 @@ static int __ide_stream_release(struct pci_ide_stream *stm)
 	ret = tdx_ide_stream_delete(stm);
 	if (ret)
 		return ret;
+
+	spdm_wa_destory(stm->dev, pci_ide_stream_get_private(stm));
 
 	return 0;
 }
