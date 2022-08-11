@@ -277,6 +277,25 @@ void pci_arch_ide_stream_id_free(struct pci_dev *dev1, struct pci_dev *dev2, int
 	return;
 }
 
+static int get_iommu_id(struct pci_dev *pdev, u64 *iommu_id)
+{
+	struct iommu_hw_info info;
+	int ret;
+
+	if (!iommu_id)
+		return -EINVAL;
+
+	ret = iommu_get_hw_info(&pdev->dev, &info);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to get IOMMU ID\n");
+		return ret;
+	}
+
+	*iommu_id = info.data.vtd.id;
+
+	return 0;
+}
+
 int pci_arch_ide_dev_tee_enter(struct pci_dev *dev)
 {
 	return 0;
