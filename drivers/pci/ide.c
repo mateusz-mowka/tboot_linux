@@ -296,6 +296,13 @@ static int ide_init(struct pci_dev *dev, int pos)
 	}
 	switch (pci_pcie_type(dev)) {
 	case PCI_EXP_TYPE_ENDPOINT:
+		/*
+		 * REVERTME:
+		 * It is a WA for the DSA device of SIMICS,
+		 * It does not set PCI_IDE_CAP_KM bit in IDE capability register
+		 */
+		if (dev->vendor == 0x8086 && dev->device == 0x0b25)
+			break;
 		if (!(cap & PCI_IDE_CAP_KM))
 			return -EFAULT;
 
