@@ -150,11 +150,16 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 		  u64 r12, u64 r13, u64 r14, u64 r15,
 		  struct tdx_module_output *out);
 
-#define TDH_IOMMU_SETREG	128
-#define TDH_IOMMU_GETREG	129
-#define TDH_MMIO_MAP		158
-#define TDH_MMIO_BLOCK		159
-#define TDH_MMIO_UNMAP		160
+#define TDH_IOMMU_SETREG		128
+#define TDH_IOMMU_GETREG		129
+#define TDH_IDE_STREAM_CREATE		132
+#define TDH_IDE_STREAM_BLOCK		133
+#define TDH_IDE_STREAM_DELETE		134
+#define TDH_IDE_STREAM_IDEKMREQ		135
+#define TDH_IDE_STREAM_IDEKMRSP		136
+#define TDH_MMIO_MAP			158
+#define TDH_MMIO_BLOCK			159
+#define TDH_MMIO_UNMAP			160
 
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
 {
@@ -194,6 +199,162 @@ static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val)
 		*val = out.r8;
 
         return ret;
+}
+
+static inline u64 tdh_ide_stream_create(u64 iommu_id,
+					u64 spdm_session_idx,
+					u64 stream_cfg_reg,
+					u64 stream_ctrl_reg,
+					u64 rid_assoc1_reg,
+					u64 rid_assoc2_reg,
+					u64 addr_assoc1_reg,
+					u64 addr_assoc2_reg,
+					u64 addr_assoc3_reg,
+					u64 stream_exinfo_pa)
+{
+	u64 ret;
+
+	/*
+	 * TDH.IDE.STREAM.CREATE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - IOMMU hosting the stream
+	 * Input: RDX - SPDM session index of device connected to stream
+	 * Input: R8  - Stream configuration information   Type: IDE_STREAM_CONFIG_T
+	 * Input: R9  - Stream Control register configurations   Type: IDE_STREAM_CONTROL_T
+	 * Input: R10 - RID association register 1   Type: IDE_RID_ASSOC_REG_1_T
+	 * Input: R11 - RID association register 2   Type: IDE_RID_ASSOC_REG_2_T
+	 * Input: R12 - Address association register 1   Type: IDE_ADDR_ASSOC_REG_1_T
+	 * Input: R13 - Address association register 2   Type: IDE_ADDR_ASSOC_REG_2_T
+	 * Input: R14 - Address association register 3   Type: IDE_ADDR_ASSOC_REG_3_T
+	 * Input: R15 - Physical address of a free page in PAMT to
+	 * hold stream extended information
+	 *
+	 * Output: RAX - SEAMCALL instruction return code
+	 */
+
+	ret = __seamcall_io(TDH_IDE_STREAM_CREATE, iommu_id, spdm_session_idx,
+			    stream_cfg_reg, stream_ctrl_reg, rid_assoc1_reg,
+			    rid_assoc2_reg, addr_assoc1_reg, addr_assoc2_reg,
+			    addr_assoc3_reg, stream_exinfo_pa, NULL);
+	pr_info("%s: iommu_id 0x%llx spdm_session_idx 0x%llx stream_cfg 0x%llx stream_ctrl_reg 0x%llx rid_assoc1_reg 0x%llx rid_assoc2_reg 0x%llx addr_assoc1_reg 0x%llx addr_assoc2_reg 0x%llx addr_assoc3_reg 0x%llx stream_exinfo_pa 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, spdm_session_idx, stream_cfg_reg, stream_ctrl_reg,
+		rid_assoc1_reg, rid_assoc2_reg, addr_assoc1_reg, addr_assoc2_reg,
+		addr_assoc3_reg, stream_exinfo_pa, ret);
+
+	return ret;
+}
+
+static inline u64 tdh_ide_stream_block(u64 iommu_id, u64 stream_id)
+{
+	u64 ret;
+
+	/*
+	 * TDH.IDE.STREAM.BLOCK
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - IOMMU hosting the stream
+	 * Input: RDX - Stream ID of stream to delete
+	 *
+	 * Output: RAX - SEAMCALL instruction return code
+	 */
+
+	ret = __seamcall_io(TDH_IDE_STREAM_BLOCK, iommu_id, stream_id,
+			    0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	pr_info("%s: iommu_id 0x%llx stream_id 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, stream_id, ret);
+
+	return ret;
+}
+
+static inline u64 tdh_ide_stream_delete(u64 iommu_id, u64 stream_id)
+{
+	u64 ret;
+
+	/*
+	 * TDH.IDE.STREAM.DELETE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - IOMMU hosting the stream
+	 * Input: RDX - Stream ID of stream to delete
+	 *
+	 * Output: RAX - SEAMCALL instruction return code
+	 */
+
+	ret = __seamcall_io(TDH_IDE_STREAM_DELETE, iommu_id, stream_id,
+			    0, 0, 0, 0, 0, 0, 0, 0, NULL);
+
+	pr_info("%s: iommu_id 0x%llx stream_id 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, stream_id, ret);
+
+	return ret;
+}
+
+static inline u64 tdh_ide_stream_idekmreq(u64 iommu_id,
+					  u64 stream_id,
+					  u64 object_id,
+					  u64 ide_km_param,
+					  u64 slot_id,
+					  u64 message_pa)
+{
+	u64 ret;
+
+	/*
+	 * TDH.IDE.STREAM.IDEKMREQ
+	 *
+	 * Input: RAX - SEAMCALL ins]truction leaf number
+	 * Input: RCX - IOMMU hosting the stream
+	 * Input: RDX - Stream ID of stream to generate key management request message for
+	 * Input: R8  - Object ID of message to generate
+	 * Input: R9  - IDE Key Management message parameters - Type: IDE_KM_PARAM_T
+	 * Input: R10 - Key Slot ID to configure if needed in the root port
+	 * Input: R11 - Physical address of a shared memory buffer in which to
+	 * emit the key management protocol message
+	 *
+	 * Output: RAX - SEAMCALL instruction return code
+	 */
+
+	ret = __seamcall_io(TDH_IDE_STREAM_IDEKMREQ, iommu_id, stream_id,
+			    object_id, ide_km_param, slot_id, message_pa,
+			    0, 0, 0, 0, NULL);
+
+	pr_info("%s: iommu_id 0x%llx stream_id 0x%llx object_id 0x%llx ide_km_param 0x%llx slot_id 0x%llx message_pa 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, stream_id, object_id,
+		ide_km_param, slot_id, message_pa, ret);
+
+	return ret;
+}
+
+static inline u64 tdh_ide_stream_idekmrsp(u64 iommu_id,
+					  u64 stream_id,
+					  u64 message_pa,
+					  u64 *resp_data)
+{
+	struct tdx_module_output out;
+	u64 ret;
+
+	/*
+	 * TDH.IDE.STREAM.IDEKMRSP
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - IOMMU hosting the stream
+	 * Input: RDX - Stream ID of stream to generate key management request message for
+	 * Input: R8  - Physical address of a shared memory buffer holding the response message
+	 *
+	 * Output: RAX - SEAMCALL instruction return code
+	 * Output: RCX - Returns 8 bytes of the IDE Key management response
+	 * if authentication successful
+	 */
+
+	ret = __seamcall_io(TDH_IDE_STREAM_IDEKMRSP, iommu_id, stream_id,
+			    message_pa, 0, 0, 0, 0, 0, 0, 0, &out);
+	pr_info("%s: iommu_id 0x%llx stream_id 0x%llx message_pa 0x%llx ret 0x%llx\n",
+		__func__, iommu_id, stream_id, message_pa, ret);
+
+	if (!ret && resp_data)
+		*resp_data = out.rcx;
+
+	return ret;
 }
 
 typedef union page_info_api_input_s {
@@ -262,6 +423,28 @@ static inline void tdx_hw_disable(void *junk) { }
 static inline bool tdx_io_support(void) { return false; }
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val) { return 0; }
 static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val) { return 0; }
+static inline u64 tdh_ide_stream_create(u64 iommu_id,
+					u64 spdm_session_idx,
+					u64 stream_cfg_reg,
+					u64 stream_ctrl_reg,
+					u64 rid_assoc1_reg,
+					u64 rid_assoc2_reg,
+					u64 addr_assoc1_reg,
+					u64 addr_assoc2_reg,
+					u64 addr_assoc3_reg,
+					u64 stream_exinfo_pa) { return -EOPNOTSUPP; }
+static inline u64 tdh_ide_stream_block(u64 iommu_id, u64 stream_id) { return -EOPNOTSUPP; }
+static inline u64 tdh_ide_stream_delete(u64 iommu_id, u64 stream_id) { return -EOPNOTSUPP; }
+static inline u64 tdh_ide_stream_idekmreq(u64 iommu_id,
+					  u64 stream_id,
+					  u64 object_id,
+					  u64 ide_km_param,
+					  u64 slot_id,
+					  u64 message_pa) { return -EOPNOTSUPP; }
+static inline u64 tdh_ide_stream_idekmrsp(u64 iommu_id,
+					  u64 stream_id,
+					  u64 message_pa,
+					  u64 *resp_data) { return -EOPNOTSUPP; }
 #endif	/* CONFIG_INTEL_TDX_HOST */
 
 #endif /* !__ASSEMBLY__ */
