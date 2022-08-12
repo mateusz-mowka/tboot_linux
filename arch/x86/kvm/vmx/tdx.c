@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 #include <linux/cpu.h>
+#include <linux/iommu.h>
 #include <linux/mmu_context.h>
 #include <linux/misc_cgroup.h>
 
@@ -4288,11 +4289,84 @@ static u64 tdx_mmio_map(hpa_t tdr, gpa_t gpa, hpa_t mmio_pa, int level)
 	return ret;
 }
 
-static void tdx_tdisp_devif_remove(struct tdx_tdisp_dev *ttdev) { }
+static void tdx_tdisp_devif_remove(struct tdx_tdisp_dev *ttdev)
+{
+	struct pci_dev *pdev = ttdev->tdev->pdev;
+	struct tdx_module_output out = { 0 };
+	u64 retval;
+
+	dev_info(&pdev->dev, "%s: remove tdisp devif\n", __func__);
+
+	retval = tdh_devif_remove(ttdev->devifcs.pa, &out);
+
+	dev_info(&pdev->dev, "%s ret %llx devifcs %llx tdisp %llx\n", __func__,
+		 retval, ttdev->devifcs.pa, out.rcx);
+
+	if (retval)
+		dev_err(&pdev->dev, "failed to remove DEVIF %llx\n", retval);
+
+	if (ttdev->tdisp_msg.pa != out.rcx)
+		dev_err(&pdev->dev, "tdisp buffer address doesn't match\n");
+
+	tdx_reclaim_td_page(&ttdev->tdisp_msg);
+	tdx_reclaim_td_page(&ttdev->devifcs);
+}
 
 static int tdx_tdisp_devif_create(struct tdx_tdisp_dev *ttdev)
 {
+	struct kvm_tdx *kvm_tdx = ttdev->kvm_tdx;
+	struct pci_dev *pdev = ttdev->tdev->pdev;
+	struct tdx_module_output out = { 0 };
+	struct iommu_hw_info info;
+	u64 retval;
+	int ret;
+
+	dev_info(&pdev->dev, "%s: create tdisp devif\n", __func__);
+
+	/* Per-condition, IOMMU for target device must support TDX-IO */
+	ret = iommu_get_hw_info(&pdev->dev, &info);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to get IOMMU ID\n",
+			__func__);
+		return ret;
+	}
+	ttdev->info.iommu_id = info.data.vtd.id;
+
+	ret = tdx_alloc_td_page(&ttdev->devifcs);
+	if (ret)
+		return ret;
+
+	ret = tdx_alloc_td_page(&ttdev->tdisp_msg);
+	if (ret)
+		goto reclaim_devifcs;
+
+	/* FIXME: get type and interface from tdev instead */
+	ttdev->info.devif_type = TD_DEVIF_TYPE_PFVF;
+	ttdev->info.stream_id = ttdev->tdev->stm->stream_id;
+
+	ttdev->id.rid = pci_dev_id(pdev);
+	ttdev->id.interface = 0;
+
+	retval = tdh_devif_create(ttdev->devifcs.pa, kvm_tdx->tdr.pa, ttdev->tdisp_msg.pa,
+				  ttdev->info.raw, ttdev->id.raw, &out);
+
+	dev_info(&pdev->dev, "%s ret %llx devifcs %llx tdr %llx tdisp %llx info %llx id %llx handle %llx\n",
+		 __func__, retval, ttdev->devifcs.pa, kvm_tdx->tdr.pa, ttdev->tdisp_msg.pa,
+		 ttdev->info.raw, ttdev->id.raw, out.rcx);
+
+	if (retval) {
+		ret = -EFAULT;
+		goto reclaim_tdisp_msg;
+	}
+
+	ttdev->handle = out.rcx;
 	return 0;
+
+reclaim_tdisp_msg:
+	tdx_reclaim_td_page(&ttdev->tdisp_msg);
+reclaim_devifcs:
+	tdx_reclaim_td_page(&ttdev->devifcs);
+	return ret;
 }
 
 static void tdx_tdisp_mmiomt_uinit(struct tdx_tdisp_dev *ttdev) { }

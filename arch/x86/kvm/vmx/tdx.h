@@ -332,7 +332,39 @@ static __always_inline u64 td_tdcs_exec_read64(struct kvm_tdx *kvm_tdx, u32 fiel
 	return out.r8;
 }
 
+struct tdx_devif_info {
+	union {
+		u64 raw;
+		struct {
+			u64 iommu_id:16;
+			u64 stream_id:8;
+			u64 devif_type:1;
+#define TD_DEVIF_TYPE_PFVF	0
+#define TD_DEVIF_TYPE_ADI	1
+			u64 reserved:39;
+		};
+	};
+};
+
+struct tdx_devif_id {
+	union {
+		u64 raw;
+		struct {
+			u64 reserved:16;
+			u64 rid:16;
+			u64 interface:32;
+		};
+	};
+};
+
 struct tdx_tdisp_dev {
+	u64 handle;
+	struct tdx_td_page devifcs;
+	struct tdx_td_page tdisp_msg;
+
+	struct tdx_devif_info info;
+	struct tdx_devif_id id;
+
 	struct kvm_tdx *kvm_tdx;
 	struct pci_tdisp_dev *tdev;
 
