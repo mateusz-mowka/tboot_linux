@@ -193,6 +193,8 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_IDE_STREAM_DELETE		134
 #define TDH_IDE_STREAM_IDEKMREQ		135
 #define TDH_IDE_STREAM_IDEKMRSP		136
+#define TDH_DEVIF_CREATE		137
+#define TDH_DEVIF_REMOVE		138
 #define TDH_MMIO_MAP			158
 #define TDH_MMIO_BLOCK			159
 #define TDH_MMIO_UNMAP			160
@@ -507,6 +509,44 @@ static inline u64 tdh_mmio_unmap(u64 gpa_page_info, u64 tdr_pa)
 			     0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
+static inline u64
+tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
+		 u64 devif_id, struct tdx_module_output *out)
+{
+	/*
+	 * TDH.DEVIF.CREATE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX  devifcs_pa
+	 * Input: RDX - TDR PA
+	 * Input: R8 - devif_tdisp_msg_pa
+	 * Input: R9 - devif_info
+	 * Input: R10 - devif_id
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 * Output: RCX - devif handle
+	 */
+	return __seamcall_io(TDH_DEVIF_CREATE, devifcs_pa, tdr_pa,
+			     tdisp_msg_pa, devif_info, devif_id,
+			     0, 0, 0, 0, 0, out);
+}
+
+static inline u64
+tdh_devif_remove(u64 devifcs_pa, struct tdx_module_output *out)
+{
+	/*
+	 * TDH.DEVIF.REMOVE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX  devifcs_pa
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 * Output: RCX - tdisp msg pa
+	 */
+	return __seamcall_io(TDH_DEVIF_REMOVE, devifcs_pa,
+			     0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+}
+
 #else	/* !CONFIG_INTEL_TDX_HOST */
 static inline bool platform_tdx_enabled(void) { return false; }
 static inline int tdx_init(void)  { return -ENODEV; }
@@ -552,6 +592,13 @@ static inline u64 tdh_ide_stream_idekmrsp(u64 iommu_id,
 					  u64 stream_id,
 					  u64 message_pa,
 					  u64 *resp_data) { return -EOPNOTSUPP; }
+static inline u64
+tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
+		 u64 devif_id,
+		 struct tdx_module_output *out) { return -EOPNOTSUPP; }
+static inline u64
+tdh_devif_remove(u64 devifcs_pa,
+		 struct tdx_module_output *out) { return -EOPNOTSUPP; }
 #endif	/* CONFIG_INTEL_TDX_HOST */
 
 #endif /* !__ASSEMBLY__ */
