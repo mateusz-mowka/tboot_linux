@@ -118,6 +118,10 @@ struct kvm_tdx {
 
 	struct tdx_mig_state *mig_state;
 
+	/* mutex for tdi bind */
+	struct mutex ttdi_mutex;
+	struct list_head ttdi_list;
+
 	u64 mmio_offset;
 };
 
@@ -378,6 +382,32 @@ void tdx_flush_vp_on_cpu(struct kvm_vcpu *vcpu);
 int tdx_td_vcpu_setup(struct kvm_vcpu *vcpu);
 
 void tdx_td_vcpu_post_init(struct vcpu_tdx *tdx);
+
+/*
+ * 7.2.2.2.5 Device Interface ID
+ * 7.2.2.2.1 Device Interface Type
+ */
+struct tdx_devif_id {
+	union {
+		u64 raw;
+		struct {
+			u16 iommu_id;
+			u8  stream_id;
+			u8  type;
+#define TDX_DEVIF_TYPE_PFVF	0
+			u32 func_id;
+		};
+	};
+};
+
+struct tdx_tdi {
+	struct tdx_devif_id id;
+
+	struct kvm_tdx *kvm_tdx;
+	struct pci_tdi *tdi;
+
+	struct list_head node;
+};
 
 #else
 struct kvm_tdx {
