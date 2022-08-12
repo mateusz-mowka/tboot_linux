@@ -46,6 +46,9 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v0.4
+===============
+1. Merge 7 fixes for TDX.
 
 GNR PO bkc-v0.3
 ===============
