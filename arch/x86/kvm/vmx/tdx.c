@@ -538,6 +538,9 @@ int tdx_vm_init(struct kvm *kvm)
 	spin_lock_init(&kvm_tdx->seamcall_lock);
 	kvm_tdx->has_range_blocked = false;
 
+	mutex_init(&kvm_tdx->ttdev_mutex);
+	INIT_LIST_HEAD_RCU(&kvm_tdx->ttdev_list);
+
 	/*
 	 * Note, TDH_MNG_INIT cannot be invoked here.  TDH_MNG_INIT requires a dedicated
 	 * ioctl() to define the configure CPUID values for the TD.
@@ -4285,13 +4288,154 @@ static u64 tdx_mmio_map(hpa_t tdr, gpa_t gpa, hpa_t mmio_pa, int level)
 	return ret;
 }
 
-int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+static void tdx_tdisp_devif_remove(struct tdx_tdisp_dev *ttdev) { }
+
+static int tdx_tdisp_devif_create(struct tdx_tdisp_dev *ttdev)
 {
 	return 0;
 }
 
+static void tdx_tdisp_mmiomt_uinit(struct tdx_tdisp_dev *ttdev) { }
+
+static int tdx_tdisp_mmiomt_init(struct tdx_tdisp_dev *ttdev)
+{
+	return 0;
+}
+
+static void tdx_tdisp_mmio_unmap_all(struct tdx_tdisp_dev *ttdev) { }
+
+static void tdx_tdisp_dmar_uinit(struct tdx_tdisp_dev *ttdev) { }
+
+static int tdx_tdisp_dmar_init(struct tdx_tdisp_dev *ttdev)
+{
+	return 0;
+}
+
+static void tdx_tdisp_devif_free(struct tdx_tdisp_dev *ttdev)
+{
+	kfree(ttdev);
+}
+
+static struct tdx_tdisp_dev *
+tdx_tdisp_devif_alloc(struct kvm_tdx *kvm_tdx, struct pci_tdisp_dev *tdev)
+{
+	struct tdx_tdisp_dev *ttdev;
+
+	ttdev = kzalloc(sizeof(*ttdev), GFP_KERNEL);
+	if (!ttdev)
+		return NULL;
+
+	ttdev->tdev = tdev;
+	ttdev->kvm_tdx = kvm_tdx;
+	return ttdev;
+}
+
+static bool __is_tdx_tdisp_devif_added(struct kvm_tdx *kvm_tdx,
+				       struct tdx_tdisp_dev *ttdev)
+{
+	struct tdx_tdisp_dev *tmp;
+
+	list_for_each_entry(tmp, &kvm_tdx->ttdev_list, node) {
+		if (tmp == ttdev)
+			return true;
+	}
+
+	return false;
+}
+
+static void tdx_tdisp_devif_add(struct tdx_tdisp_dev *ttdev)
+{
+	struct kvm_tdx *kvm_tdx = ttdev->kvm_tdx;
+
+	list_add_rcu(&ttdev->node, &kvm_tdx->ttdev_list);
+}
+
+static void tdx_tdisp_devif_del(struct tdx_tdisp_dev *ttdev)
+{
+	list_del_rcu(&ttdev->node);
+	synchronize_rcu();
+}
+
+int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+{
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+	struct tdx_tdisp_dev *ttdev;
+	int ret;
+
+	mutex_lock(&kvm_tdx->ttdev_mutex);
+
+	ttdev = tdx_tdisp_devif_alloc(kvm_tdx, tdev);
+	if (!ttdev) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
+	/*
+	 * Steps to bind the TDISP device
+	 *
+	 * 1. Create DEVIF
+	 * 2. Create MMIOMT
+	 * 3. Create DMAR tables
+	 */
+
+	ret = tdx_tdisp_devif_create(ttdev);
+	if (ret)
+		goto devif_free;
+
+	ret = tdx_tdisp_mmiomt_init(ttdev);
+	if (ret)
+		goto devif_remove;
+
+	ret = tdx_tdisp_dmar_init(ttdev);
+	if (ret)
+		goto mmiomt_uinit;
+
+	tdx_tdisp_devif_add(ttdev);
+	tdev->private = ttdev;
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
+	return 0;
+
+mmiomt_uinit:
+	tdx_tdisp_mmiomt_uinit(ttdev);
+devif_remove:
+	tdx_tdisp_devif_remove(ttdev);
+devif_free:
+	tdx_tdisp_devif_free(ttdev);
+unlock:
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
+	return ret;
+}
+
 int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
 {
+	struct tdx_tdisp_dev *ttdev = tdev->private;
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+	struct pci_dev *pdev = tdev->pdev;
+
+	mutex_lock(&kvm_tdx->ttdev_mutex);
+
+	if (!__is_tdx_tdisp_devif_added(kvm_tdx, ttdev)) {
+		dev_err(&pdev->dev, "%s: target device is not bound\n", __func__);
+		mutex_unlock(&kvm_tdx->ttdev_mutex);
+		return -ENODEV;
+	}
+
+	tdx_tdisp_devif_del(ttdev);
+
+	/*
+	 * Steps to unbind the TDISP device
+	 *
+	 * 1. Unmap MMIO
+	 * 2. Remove DMAR tables
+	 * 3. Remove DEVIF
+	 * 4. Remove MMIOMT
+	 */
+
+	tdx_tdisp_mmio_unmap_all(ttdev);
+	tdx_tdisp_dmar_uinit(ttdev);
+	tdx_tdisp_devif_remove(ttdev);
+	tdx_tdisp_mmiomt_uinit(ttdev);
+	tdx_tdisp_devif_free(ttdev);
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
 	return 0;
 }
 

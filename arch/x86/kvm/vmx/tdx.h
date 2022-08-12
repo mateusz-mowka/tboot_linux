@@ -47,6 +47,10 @@ struct kvm_tdx {
 	 * running concurrently when TDP MMU is enabled.
 	 */
 	spinlock_t seamcall_lock;
+
+	/* mutex for tdisp device bind */
+	struct mutex ttdev_mutex;
+	struct list_head ttdev_list;
 };
 
 union tdx_exit_reason {
@@ -327,6 +331,13 @@ static __always_inline u64 td_tdcs_exec_read64(struct kvm_tdx *kvm_tdx, u32 fiel
 	}
 	return out.r8;
 }
+
+struct tdx_tdisp_dev {
+	struct kvm_tdx *kvm_tdx;
+	struct pci_tdisp_dev *tdev;
+
+	struct list_head node;
+};
 
 #else
 static inline int tdx_module_setup(void) { return -ENODEV; };
