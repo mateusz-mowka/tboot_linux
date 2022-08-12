@@ -1697,6 +1697,8 @@ static ssize_t vdev_remove_store(struct device *dev, struct device_attribute *at
 	}
 
 	rc = idxd->vdev_ops->device_remove(idxd, val);
+	if (rc == 0)
+		rc = count;
 
 out:
 	mutex_unlock(&idxd->vdev_lock);
