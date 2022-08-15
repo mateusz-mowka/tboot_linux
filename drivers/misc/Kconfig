@@ -483,6 +483,12 @@ config OPEN_DICE
 
 	  If unsure, say N.
 
+config RPB
+	tristate "RPB Driver support"
+	depends on PCI
+	help
+	  This option adds Race point beach driver support.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
