@@ -197,6 +197,10 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_DEVIF_REMOVE		138
 #define TDH_DEVIF_REQUEST		139
 #define TDH_DEVIF_RESPONSE		140
+#define TDH_MMIOMT_ADD			154
+#define TDH_MMIOMT_SET			155
+#define TDH_MMIOMT_RD			156
+#define TDH_MMIOMT_REMOVE		157
 #define TDH_MMIO_MAP			158
 #define TDH_MMIO_BLOCK			159
 #define TDH_MMIO_UNMAP			160
@@ -459,6 +463,78 @@ static inline u64 tdh_ide_stream_idekmrsp(u64 iommu_id,
 	return ret;
 }
 
+static inline u64 tdh_mmiomt_add(u64 mmiomt_idx, u64 mmiomt_pa)
+{
+	u64 ret;
+	/*
+	 * TDH.MMIOMT.ADD
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - MMIOMT index (level + PA)
+	 * Input: RDX - MMIOMT PA of new page
+	 *
+	 */
+	ret =  __seamcall_io(TDH_MMIOMT_ADD, mmiomt_idx, mmiomt_pa,
+			     0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	pr_debug("%s: ret %llx, mmiomt_idx %llx, mmiomt_pa %llx\n",
+		 __func__, ret, mmiomt_idx, mmiomt_pa);
+
+	return ret;
+}
+
+static inline u64 tdh_mmiomt_set(u64 mmiomt_idx, u64 mmiomt_info)
+{
+	u64 ret;
+	/*
+	 * TDH.MMIOMT.SET
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - MMIOMT index (level + PA)
+	 * Input: RDX - MMIOMT INFO: devifcs PA and DATA type
+	 *
+	 */
+	ret = __seamcall_io(TDH_MMIOMT_SET, mmiomt_idx, mmiomt_info,
+			    0, 0, 0, 0, 0, 0, 0, 0, NULL);
+
+	pr_debug("%s: ret %llx, mmiomt_idx %llx, mmiomt_info %llx\n",
+		 __func__, ret, mmiomt_idx, mmiomt_info);
+
+	return ret;
+}
+
+static inline u64 tdh_mmiomt_read(u64 mmiomt_idx, struct tdx_module_output *out)
+{
+	/*
+	 * TDH.MMIOMT.READ
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - MMIOMT index (level + PA)
+	 *
+	 * Output: Entry Value - RCX, RDX, R8, R9
+	 */
+	return __seamcall_io(TDH_MMIOMT_RD, mmiomt_idx,
+			     0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+}
+
+static inline u64 tdh_mmiomt_remove(u64 mmiomt_idx)
+{
+	u64 ret;
+	/*
+	 * TDH.MMIOMT.REMOVE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX -  MMIOMT index
+	 *
+	 */
+	ret = __seamcall_io(TDH_MMIOMT_REMOVE, mmiomt_idx,
+			    0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+
+	pr_debug("%s: ret %llx, mmiomt_idx %llx\n",
+		 __func__, ret, mmiomt_idx);
+
+	return ret;
+}
+
 typedef union page_info_api_input_s {
     struct
     {
@@ -630,6 +706,14 @@ static inline u64 tdh_ide_stream_idekmrsp(u64 iommu_id,
 					  u64 stream_id,
 					  u64 message_pa,
 					  u64 *resp_data) { return -EOPNOTSUPP; }
+static inline u64 tdh_mmiomt_add(u64 mmiomt_idx,
+				 u64 mmiomt_pa) { return -EOPNOTSUPP; }
+static inline u64 tdh_mmiomt_set(u64 mmiomt_idx,
+				 u64 mmiomt_info) { return -EOPNOTSUPP; }
+static inline u64
+tdh_mmiomt_read(u64 mmiomt_idx,
+		struct tdx_module_output *out) { return -EOPNOTSUPP; }
+static inline u64 tdh_mmiomt_remove(u64 mmiomt_idx) { return -EOPNOTSUPP; }
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id,
