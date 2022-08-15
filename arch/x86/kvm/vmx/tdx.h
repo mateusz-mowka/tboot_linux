@@ -365,6 +365,8 @@ struct tdx_tdisp_dev {
 	struct tdx_devif_info info;
 	struct tdx_devif_id id;
 
+	struct list_head mmiomt;
+
 	struct kvm_tdx *kvm_tdx;
 	struct pci_tdisp_dev *tdev;
 
