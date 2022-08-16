@@ -208,6 +208,8 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_MMIO_MAP			158
 #define TDH_MMIO_BLOCK			159
 #define TDH_MMIO_UNMAP			160
+#define TDH_IQINV_REQ			161
+#define TDH_IQINV_PROC			162
 
 static inline u64 tdh_phymem_page_reclaim(u64 page,
 					  struct tdx_module_output *out)
@@ -657,6 +659,35 @@ static inline u64 tdh_dmar_remove(u64 index)
 			     0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
+static inline u64 tdh_iqinv_req(u64 iommu_id, u64 inv_type, u64 inv_target,
+				u64 wait_desc_1, u64 wait_desc_2)
+{
+	/*
+	 * TDH.IQ.INV.REQUEST
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - IOMMU ID
+	 * Input: RDX - INVALIDATION TYPE
+	 * Input: R8  - RID, PASID and TDR PA
+	 * Input: R9 - Invalidation Wait Descriptor bits 63:0
+	 * Input: R10 - Invalidation Wait Descriptor bits 127:64
+	 */
+	return __seamcall_io(TDH_IQINV_REQ, iommu_id, inv_type, inv_target,
+			     wait_desc_1, wait_desc_2, 0, 0, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_iqinv_process(u64 iommu_id)
+{
+	/*
+	 * TDH.IQ.INV.PROCESS
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - IOMMU ID
+	 */
+	return __seamcall_io(TDH_IQINV_PROC, iommu_id,
+			     0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+}
+
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id, struct tdx_module_output *out)
@@ -791,6 +822,10 @@ static inline u64 tdh_dmar_block(u64 index) { return -EOPNOTSUPP; }
 static inline u64
 tdh_dmar_read(u64 index, struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64 tdh_dmar_remove(u64 index) { return -EOPNOTSUPP; }
+static inline u64 tdh_iqinv_req(u64 iommu_id, u64 inv_type, u64 inv_target,
+				u64 wait_desc_1,
+				u64 wait_desc_2) { return -EOPNOTSUPP; }
+static inline u64 tdh_iqinv_process(u64 iommu_id) { return -EOPNOTSUPP; }
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id,
