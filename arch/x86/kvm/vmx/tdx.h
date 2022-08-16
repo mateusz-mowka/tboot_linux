@@ -378,6 +378,7 @@ struct tdx_tdisp_dev {
 	u64 handle;
 	struct tdx_td_page devifcs;
 	struct tdx_td_page tdisp_msg;
+	unsigned long dmar_pages_va;
 
 	struct tdx_devif_info info;
 	struct tdx_devif_id id;
