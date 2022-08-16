@@ -4272,28 +4272,6 @@ void tdx_hardware_unsetup(void)
 	kvm_set_tdx_guest_pmi_handler(NULL);
 }
 
-/* level 0 corresponds to PG_LEVEL_4K */
-#define to_gpa_info_level(x)   ((x) - 1)
-
-static u64 tdx_mmio_map(hpa_t tdr, gpa_t gpa, hpa_t mmio_pa, int level)
-{
-	page_info_api_input_t gpa_page_info = { 0 };
-	u64 ret;
-
-	if (level < PG_LEVEL_4K) {
-		pr_err("tdx_mmio_map wrong level %d\n", level);
-		return -EINVAL;
-	}
-
-	gpa_page_info.level = to_gpa_info_level(level);
-	gpa_page_info.gpa = (gpa & GENMASK(51, 12)) >> 12;
-
-	ret = tdh_mmio_map(gpa_page_info.raw, tdr, mmio_pa);
-	pr_debug("%s: ret=%llx tdr %llx mmio_pa %llx gpa info %llx\n", __func__, ret, tdr, mmio_pa, gpa);
-
-	return ret;
-}
-
 static void tdx_tdisp_devif_remove(struct tdx_tdisp_dev *ttdev)
 {
 	struct pci_dev *pdev = ttdev->tdev->pdev;
@@ -4679,6 +4657,39 @@ static int tdx_tdisp_mmiomt_init(struct tdx_tdisp_dev *ttdev)
 	}
 
 	return 0;
+}
+
+/* level 0 corresponds to PG_LEVEL_4K */
+#define to_gpa_info_level(x)   ((x) - 1)
+
+union mmio_map_page_info {
+	struct {
+		u64 level:3;		/* Level */
+		u64 reserved_0:9;	/* Must be 0 */
+		u64 gpa:40;		/* GPA of the page */
+		u64 reserved_1:12;	/* Must be 0 */
+	};
+	u64 raw;
+};
+
+static u64 tdx_mmio_map(hpa_t tdr, gpa_t gpa, hpa_t mmio_pa, int level)
+{
+	union mmio_map_page_info gpa_page_info = { 0 };
+	u64 ret;
+
+	if (level < PG_LEVEL_4K) {
+		pr_err("%s wrong level %d\n", __func__, level);
+		return -EINVAL;
+	}
+
+	gpa_page_info.level = to_gpa_info_level(level);
+	gpa_page_info.gpa = (gpa & GENMASK(51, 12)) >> 12;
+
+	ret = tdh_mmio_map(gpa_page_info.raw, tdr, mmio_pa);
+	pr_debug("%s: ret=%llx tdr %llx mmio_pa %llx gpa info %llx\n",
+		 __func__, ret, tdr, mmio_pa, gpa);
+
+	return ret;
 }
 
 static void tdx_tdisp_mmio_unmap_all(struct tdx_tdisp_dev *ttdev) { }
