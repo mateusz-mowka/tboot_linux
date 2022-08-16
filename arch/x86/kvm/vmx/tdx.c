@@ -76,6 +76,7 @@ static struct tdx_capabilities tdx_caps;
 static DEFINE_MUTEX(tdx_lock);
 static struct mutex *tdx_mng_key_config_lock;
 
+static int tdx_tdisp_iq_inv_iotlb(struct kvm_tdx *kvm_tdx);
 static u64 tdx_mmio_map(hpa_t tdr, gpa_t gpa, hpa_t mmio_pa, int level);
 
 /*
@@ -2255,6 +2256,7 @@ static void tdx_track(struct kvm_tdx *kvm_tdx)
 
 	spin_lock(&kvm_tdx->seamcall_lock);
 	err = tdh_mem_track(kvm_tdx->tdr.pa);
+	tdx_tdisp_iq_inv_iotlb(kvm_tdx);
 	spin_unlock(&kvm_tdx->seamcall_lock);
 
 	/* Release remote vcpu waiting for TDH.MEM.TRACK in tdx_flush_tlb(). */
@@ -3617,6 +3619,7 @@ static int tdx_td_finalizemr(struct kvm *kvm)
 	}
 
 	(void)tdh_mem_track(to_kvm_tdx(kvm)->tdr.pa);
+	tdx_tdisp_iq_inv_iotlb(kvm_tdx);
 
 	kvm_tdx->finalized = true;
 	return 0;
@@ -4680,6 +4683,104 @@ static int tdx_tdisp_mmiomt_init(struct tdx_tdisp_dev *ttdev)
 
 static void tdx_tdisp_mmio_unmap_all(struct tdx_tdisp_dev *ttdev) { }
 
+enum tdxio_inv_type {
+	INVAL_CTE,
+	INVAL_PTE,
+	INVAL_IOTLB,
+};
+
+union tdxio_inv_target {
+	struct {
+		u64 rid	: 16; /* set to 0 for INVAL_IOTLB */
+		u64 reserved1 : 16; /* must be 0 */
+		u64 pasid : 20; /* set to 0 for INVAL_CTE */
+		u64 reserved2 : 12; /* must be 0 */
+	};
+	u64 tdr_pa;
+	u64 raw;
+};
+
+static int tdx_iq_inv(struct tdx_iommu *tiommu, enum tdxio_inv_type inv_type,
+		      u64 inv_target_raw)
+{
+	u64 iommu_id = tiommu->iommu_id;
+	unsigned long flags;
+	u64 wait_desc[2];
+	u64 *status_addr;
+	u64 tdx_ret = 0;
+
+	raw_spin_lock_irqsave(&tiommu->invq_lock, flags);
+
+	wait_desc[0] = (((u64)2) << 32) | (((u64)1) << 6 | (((u64)1) << 5) | 0x5);
+	wait_desc[1] = tiommu->wait_desc.pa;
+
+	status_addr = (u64 *)tiommu->wait_desc.va;
+	*status_addr = 1;
+
+	tdx_ret = tdh_iqinv_req(iommu_id, inv_type, inv_target_raw, wait_desc[0], wait_desc[1]);
+	if (tdx_ret) {
+		pr_err("%s inv req ret=%llx, iommu_id=%llx, inv_type=%x, inv_target=%llx, wait_desc= %llx %llx\n",
+		       __func__, tdx_ret, iommu_id, inv_type, inv_target_raw,
+		       wait_desc[0], wait_desc[1]);
+		goto out;
+	}
+
+	do {
+		tdx_ret = tdh_iqinv_process(iommu_id);
+		cpu_relax();
+	} while ((tdx_ret == TDX_INTERRUPTED_RESUMABLE) ||
+		 (!tdx_ret && *status_addr != 2));
+
+	if (tdx_ret) {
+		pr_err("%s inv process ret=%llx, inv_type=%d iommu_id=%llx, descriptor status=%lld\n",
+		       __func__, tdx_ret, inv_type, iommu_id, *status_addr);
+	}
+out:
+	raw_spin_unlock_irqrestore(&tiommu->invq_lock, flags);
+
+	if (tdx_ret)
+		return -EFAULT;
+
+	return 0;
+}
+
+static int tdx_tdisp_iq_inv_cte(struct tdx_tdisp_dev *ttdev)
+{
+	union tdxio_inv_target inv_target = { 0 };
+	struct pci_dev *pdev = ttdev->tdev->pdev;
+
+	inv_target.rid = PCI_DEVID(pdev->bus->number, pdev->devfn);
+
+	return tdx_iq_inv(ttdev->tiommu, INVAL_CTE, inv_target.raw);
+}
+
+static int tdx_tdisp_iq_inv_pte(struct tdx_tdisp_dev *ttdev)
+{
+	union tdxio_inv_target inv_target = { 0 };
+	struct pci_dev *pdev = ttdev->tdev->pdev;
+
+	inv_target.rid = PCI_DEVID(pdev->bus->number, pdev->devfn);
+	inv_target.pasid = 0;//TODO:  CONFIRM the value
+
+	return tdx_iq_inv(ttdev->tiommu, INVAL_PTE, inv_target.raw);
+}
+
+static int tdx_tdisp_iq_inv_iotlb(struct kvm_tdx *kvm_tdx)
+{
+	union tdxio_inv_target inv_target = { 0 };
+	struct kvm_tdx_iommu *ktiommu;
+
+	inv_target.tdr_pa = kvm_tdx->tdr.pa;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(ktiommu, &kvm_tdx->ktiommu_list, node)
+		tdx_iq_inv(ktiommu->tiommu, INVAL_IOTLB, inv_target.raw);
+
+	rcu_read_unlock();
+
+	return 0;
+}
+
 #define TD_DMAR_LEVEL_PASID_TBL		0x0
 #define TD_DMAR_LEVEL_PASID_DIR		0x1
 #define TD_DMAR_LEVEL_CTX_TBL		0x2
@@ -5001,6 +5102,7 @@ static void tdx_tdisp_dmar_uinit(struct tdx_tdisp_dev *ttdev)
 
 	index.level = TD_DMAR_LEVEL_PASID_TBL;
 	tdx_iommu_dmar_block(index);
+	tdx_tdisp_iq_inv_pte(ttdev);
 	tdx_iommu_dmar_remove(index);
 
 	index.level = TD_DMAR_LEVEL_PASID_DIR;
@@ -5009,6 +5111,7 @@ static void tdx_tdisp_dmar_uinit(struct tdx_tdisp_dev *ttdev)
 
 	index.level = TD_DMAR_LEVEL_CTX_TBL;
 	tdx_iommu_dmar_block(index);
+	tdx_tdisp_iq_inv_cte(ttdev);
 	tdx_iommu_dmar_remove(index);
 
 	index.level = TD_DMAR_LEVEL_ROOT_TBL;

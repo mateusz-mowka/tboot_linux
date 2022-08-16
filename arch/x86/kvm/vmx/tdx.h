@@ -15,6 +15,9 @@ int tdx_module_setup(void);
 struct tdx_iommu {
 	u64 iommu_id;
 
+	struct tdx_td_page wait_desc;
+	raw_spinlock_t  invq_lock;
+
 	struct kref ref;
 	struct list_head node;
 };
