@@ -197,6 +197,10 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_DEVIF_REMOVE		138
 #define TDH_DEVIF_REQUEST		139
 #define TDH_DEVIF_RESPONSE		140
+#define TDH_DMAR_ADD			150
+#define TDH_DMAR_BLOCK			151
+#define TDH_DMAR_READ			152
+#define TDH_DMAR_REMOVE			153
 #define TDH_MMIOMT_ADD			154
 #define TDH_MMIOMT_SET			155
 #define TDH_MMIOMT_RD			156
@@ -587,6 +591,72 @@ static inline u64 tdh_mmio_unmap(u64 gpa_page_info, u64 tdr_pa)
 			     0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
+static inline u64 tdh_dmar_add(u64 index, u64 tdr_pa, u64 entry0, u64 entry1,
+			       u64 entry2, u64 entry3, u64 entry4, u64 entry5,
+			       u64 entry6, u64 entry7)
+{
+	/*
+	 * TDH.DMAR.ADD
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - Index to locate the DMAR entry
+	 * Input: RDX - TDR, valid for PASIDTE only
+	 * Input: R8-R15 - parameters
+	 *   RTE: R8 R9
+	 *   CTE: R8 R9 R10 R11
+	 *   PASIDDE: R8
+	 *   PASIDTE: R8 R9 R10 R11 R12 R13 R14 R15
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 */
+	return __seamcall_io(TDH_DMAR_ADD, index, tdr_pa,
+			     entry0, entry1, entry2, entry3,
+			     entry4, entry5, entry6, entry7, NULL);
+}
+
+static inline u64 tdh_dmar_block(u64 index)
+{
+	/*
+	 * TDH.DMAR.BLOCK
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - Index to locate the DMAR entry
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 */
+	return __seamcall_io(TDH_DMAR_BLOCK, index,
+			     0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+}
+
+static inline u64 tdh_dmar_read(u64 index, struct tdx_module_output *out)
+{
+	/*
+	 * TDH.DMAR.READ
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - Index to locate the DMAR entry
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 * Output: R8-R15
+	 */
+	return __seamcall_io(TDH_DMAR_READ, index,
+			     0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+}
+
+static inline u64 tdh_dmar_remove(u64 index)
+{
+	/*
+	 * TDH.DMAR.REMOVE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - Index to locate the DMAR entry
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 */
+	return __seamcall_io(TDH_DMAR_REMOVE, index,
+			     0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+}
+
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id, struct tdx_module_output *out)
@@ -714,6 +784,13 @@ static inline u64
 tdh_mmiomt_read(u64 mmiomt_idx,
 		struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64 tdh_mmiomt_remove(u64 mmiomt_idx) { return -EOPNOTSUPP; }
+static inline u64 tdh_dmar_add(u64 index, u64 tdr_pa, u64 entry0, u64 entry1,
+			       u64 entry2, u64 entry3, u64 entry4, u64 entry5,
+			       u64 entry6, u64 entry7) { return -EOPNOTSUPP; }
+static inline u64 tdh_dmar_block(u64 index) { return -EOPNOTSUPP; }
+static inline u64
+tdh_dmar_read(u64 index, struct tdx_module_output *out) { return -EOPNOTSUPP; }
+static inline u64 tdh_dmar_remove(u64 index) { return -EOPNOTSUPP; }
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id,
