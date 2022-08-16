@@ -541,18 +541,6 @@ static inline u64 tdh_mmiomt_remove(u64 mmiomt_idx)
 	return ret;
 }
 
-typedef union page_info_api_input_s {
-    struct
-    {
-        uint64_t
-            level          : 3,		/* Level */
-            reserved_0     : 9,		/* Must be 0 */
-            gpa            : 40,	/* GPA of the page */
-            reserved_1     : 12;	/* Must be 0 */
-    };
-    uint64_t raw;
-} page_info_api_input_t;
-
 static inline u64 tdh_mmio_map(u64 gpa_page_info, u64 tdr_pa, u64 mmio_pa)
 {
 	/*
@@ -815,6 +803,12 @@ static inline u64
 tdh_mmiomt_read(u64 mmiomt_idx,
 		struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64 tdh_mmiomt_remove(u64 mmiomt_idx) { return -EOPNOTSUPP; }
+static inline u64 tdh_mmio_map(u64 gpa_page_info, u64 tdr_pa,
+			       u64 mmio_pa) { return -EOPNOTSUPP; }
+static inline u64 tdh_mmio_block(u64 gpa_page_info,
+				 u64 tdr_pa) { return -EOPNOTSUPP; }
+static inline u64 tdh_mmio_unmap(u64 gpa_page_info,
+				 u64 tdr_pa) { return -EOPNOTSUPP; }
 static inline u64 tdh_dmar_add(u64 index, u64 tdr_pa, u64 entry0, u64 entry1,
 			       u64 entry2, u64 entry3, u64 entry4, u64 entry5,
 			       u64 entry6, u64 entry7) { return -EOPNOTSUPP; }
