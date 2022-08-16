@@ -191,6 +191,8 @@ static DEFINE_MUTEX(tdx_lock);
 static struct mutex *tdx_mng_key_config_lock;
 static atomic_t nr_configured_hkid;
 
+static int tdx_tdi_iq_inv_iotlb(struct kvm_tdx *kvm_tdx);
+
 /*
  * A per-CPU list of TD vCPUs associated with a given CPU.  Used when a CPU
  * is brought down to invoke TDH_VP_FLUSH on the approapriate TD vCPUS.
@@ -2641,6 +2643,7 @@ void tdx_track(struct kvm_tdx *kvm_tdx)
 		 */
 		err = tdh_mem_track(kvm_tdx->tdr_pa);
 	} while ((err & TDX_SEAMCALL_STATUS_MASK) == TDX_OPERAND_BUSY);
+	tdx_tdi_iq_inv_iotlb(kvm_tdx);
 
 	/* Release remote vcpu waiting for TDH.MEM.TRACK in tdx_flush_tlb(). */
 	atomic_dec(&kvm_tdx->tdh_mem_track);
@@ -4135,6 +4138,7 @@ static int tdx_td_finalizemr(struct kvm *kvm)
 	 * that were TDH.MEM.RANGE.BLOCK'd prior to TDH.MR.FINALIZE.
 	 */
 	(void)tdh_mem_track(to_kvm_tdx(kvm)->tdr_pa);
+	tdx_tdi_iq_inv_iotlb(kvm_tdx);
 
 	kvm_tdx->finalized = true;
 	return 0;
@@ -5430,12 +5434,352 @@ static int tdx_tdi_mmiomt_init(struct tdx_tdi *ttdi)
 
 static void tdx_tdi_mmio_unmap_all(struct tdx_tdi *ttdi) { }
 
+enum tdxio_inv_type {
+	INVAL_IOTLB,
+	INVAL_RTE,
+	INVAL_CTE,
+	INVAL_PDE,
+	INVAL_PTE,
+};
+
+union tdxio_inv_target {
+	struct {
+		u64 rid	: 16; /* set to 0 for INVAL_IOTLB */
+		u64 reserved1 : 16; /* must be 0 */
+		u64 pasid : 20; /* set to 0 for INVAL_RTE & INVAL_CTE */
+		u64 reserved2 : 12; /* must be 0 */
+	};
+	u64 tdr_pa;
+	u64 raw;
+};
+
+static int tdx_iq_inv(struct tdx_iommu *tiommu, enum tdxio_inv_type inv_type,
+		      u64 inv_target_raw)
+{
+	u64 iommu_id = tiommu->iommu_id;
+	unsigned long flags;
+	u64 wait_desc[2];
+	u64 *status_addr;
+	u64 tdx_ret = 0;
+
+	raw_spin_lock_irqsave(&tiommu->invq_lock, flags);
+
+	wait_desc[0] = (((u64)2) << 32) | (((u64)1) << 6 | (((u64)1) << 5) | 0x5);
+	wait_desc[1] = tiommu->wait_desc_pa;
+
+	status_addr = (u64 *)(__va(tiommu->wait_desc_pa));
+	*status_addr = 1;
+
+	tdx_ret = tdh_iqinv_req(iommu_id, inv_type, inv_target_raw, wait_desc[0], wait_desc[1]);
+	if (tdx_ret) {
+		pr_err("%s inv req ret=%llx, iommu_id=%llx, inv_type=%x, inv_target=%llx, wait_desc= %llx %llx\n",
+		       __func__, tdx_ret, iommu_id, inv_type, inv_target_raw,
+		       wait_desc[0], wait_desc[1]);
+		goto out;
+	} else if (inv_type != INVAL_IOTLB) {
+		pr_debug("%s inv req ret=%llx, iommu_id=%llx, inv_type=%x, inv_target=%llx, wait_desc= %llx %llx\n",
+		       __func__, tdx_ret, iommu_id, inv_type, inv_target_raw,
+		       wait_desc[0], wait_desc[1]);
+	}
+
+	do {
+		tdx_ret = tdh_iqinv_process(iommu_id);
+		cpu_relax();
+	} while ((tdx_ret == TDX_INTERRUPTED_RESUMABLE) ||
+		 (!tdx_ret && *status_addr != 2));
+
+	if (tdx_ret) {
+		pr_err("%s inv process ret=%llx, inv_type=%d iommu_id=%llx, descriptor status=%lld\n",
+		       __func__, tdx_ret, inv_type, iommu_id, *status_addr);
+	} else if (inv_type != INVAL_IOTLB) {
+		pr_debug("%s inv process ret=%llx, inv_type=%d iommu_id=%llx, descriptor status=%lld\n",
+		       __func__, tdx_ret, inv_type, iommu_id, *status_addr);
+	}
+
+out:
+	raw_spin_unlock_irqrestore(&tiommu->invq_lock, flags);
+
+	if (tdx_ret)
+		return -EFAULT;
+
+	return 0;
+}
+
+static int tdx_tdi_iq_inv_rte(struct tdx_tdi *ttdi)
+{
+	union tdxio_inv_target inv_target = { 0 };
+
+	inv_target.rid = ttdi->rid;
+
+	return tdx_iq_inv(ttdi->tiommu, INVAL_RTE, inv_target.raw);
+}
+
+static int tdx_tdi_iq_inv_cte(struct tdx_tdi *ttdi)
+{
+	union tdxio_inv_target inv_target = { 0 };
+
+	inv_target.rid = ttdi->rid;
+
+	return tdx_iq_inv(ttdi->tiommu, INVAL_CTE, inv_target.raw);
+}
+
+static int tdx_tdi_iq_inv_pde(struct tdx_tdi *ttdi)
+{
+	union tdxio_inv_target inv_target = { 0 };
+
+	inv_target.rid = ttdi->rid;
+	inv_target.pasid = 0;//TODO:  CONFIRM the value
+
+	return tdx_iq_inv(ttdi->tiommu, INVAL_PDE, inv_target.raw);
+}
+
+static int tdx_tdi_iq_inv_pte(struct tdx_tdi *ttdi)
+{
+	union tdxio_inv_target inv_target = { 0 };
+
+	inv_target.rid = ttdi->rid;
+	inv_target.pasid = 0;//TODO:  CONFIRM the value
+
+	return tdx_iq_inv(ttdi->tiommu, INVAL_PTE, inv_target.raw);
+}
+
+static int tdx_tdi_iq_inv_iotlb(struct kvm_tdx *kvm_tdx)
+{
+	union tdxio_inv_target inv_target = { 0 };
+	struct kvm_tdx_iommu *ktiommu;
+
+	inv_target.tdr_pa = kvm_tdx->tdr_pa;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(ktiommu, &kvm_tdx->ktiommu_list, node)
+		tdx_iq_inv(ktiommu->tiommu, INVAL_IOTLB, inv_target.raw);
+
+	rcu_read_unlock();
+
+	return 0;
+}
+
+#define TD_DMAR_LEVEL_PASID_TBL		0x0
+#define TD_DMAR_LEVEL_PASID_DIR		0x1
+#define TD_DMAR_LEVEL_CTX_TBL		0x2
+#define TD_DMAR_LEVEL_ROOT_TBL		0x3
+#define TD_DMAR_LEVEL_INV		0x4
+
+union dmar_index {
+	struct {
+		u64 level:3;
+		u64 reserved:9;
+		u64 pasid:20;
+		u64 rid:16;
+		u64 iommu_id:16;
+	};
+	u64 raw;
+};
+
+union dmar_param {
+	struct {
+		u64 present:1;
+		u64 rsvd:11;
+		u64 ctp:52;
+	} rte;
+	struct {
+		u64 present:1; /* must be 1 */
+		u64 fpd:1;
+		u64 dte:1; /* must be 0 */
+		u64 paside:1;
+		u64 pre:1; /* must be 0 */
+		u64 rsvd1:4;
+		u64 pdts:3;
+		u64 pasiddirptr:52;
+
+		u64 rid_pasid:20;
+		u64 rid_priv:1;
+		u64 rsvd2:43;
+		u64 rsvd3;
+		u64 rsvd4;
+	} cte;
+	struct {
+		u64 present:1; /* must be 1 */
+		u64 fpd:1;
+		u64 rsvd:10;
+		u64 smptblptr:52;
+	} pasidde;
+	struct {
+		u64 present:1;
+		u64 fpd:1;
+		u64 aw:3;
+		u64 slee:1;
+		u64 pgtt:3;
+		u64 slade:1;
+		u64 rsvd1:2;
+		u64 slptptr:52;
+
+		u64 did:16;
+		u64 rsvd2:7;
+		u64 pwsnp:1;
+		u64 pgsnp:1;
+		u64 cd:1;
+		u64 emte:1;
+		u64 emt:3;
+		u64 pwt:1;
+		u64 pcd:1;
+		u64 pat:32;
+
+		u64 sre:1;
+		u64 ere:1;
+		u64 flpm:2;
+		u64 wpe:1;
+		u64 nxe:1;
+		u64 smep:1;
+		u64 eafe:1;
+		u64 rsvd3:4;
+		u64 flptptr:52;
+
+		u64 rsvd4;
+		u64 rsvd5;
+		u64 rsvd6;
+		u64 rsvd7;
+		u64 rsvd8;
+	} pasidte;
+	u64 raw[8];
+};
+
+static inline const char *dmaradd_level_to_string(u8 level)
+{
+	switch (level) {
+	case TD_DMAR_LEVEL_ROOT_TBL:
+		return "RTE";
+	case TD_DMAR_LEVEL_PASID_DIR:
+		return "PASIDDE";
+	case TD_DMAR_LEVEL_CTX_TBL:
+		return "CTE";
+	case TD_DMAR_LEVEL_PASID_TBL:
+		return "PASIDTE";
+	}
+
+	return "Unknown";
+}
+
+static inline void dmar_param_dump(u8 level, union dmar_param *p)
+{
+	switch (level) {
+	case TD_DMAR_LEVEL_ROOT_TBL:
+		pr_info("%s: %016llx", __func__, p->raw[0]);
+		break;
+	case TD_DMAR_LEVEL_PASID_DIR:
+		pr_info("%s: %016llx", __func__, p->raw[0]);
+		break;
+	case TD_DMAR_LEVEL_CTX_TBL:
+		pr_info("%s: %016llx %016llx %016llx %016llx\n",
+			__func__, p->raw[0], p->raw[1], p->raw[2], p->raw[3]);
+		break;
+	case TD_DMAR_LEVEL_PASID_TBL:
+		pr_info("%s: %016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
+			__func__, p->raw[0], p->raw[1], p->raw[2], p->raw[3],
+				  p->raw[4], p->raw[5], p->raw[6], p->raw[7]);
+		break;
+	}
+}
+
+static int tdx_iommu_dmar_add(union dmar_index index, hpa_t tdr,
+			      union dmar_param *p)
+{
+	u64 ret;
+
+	do {
+		ret = tdh_dmar_add(index.raw, tdr, p->raw[0], p->raw[1], p->raw[2],
+				   p->raw[3], p->raw[4], p->raw[5], p->raw[6],
+				   p->raw[7]);
+	} while (ret == TDX_INTERRUPTED_RESUMABLE);
+
+	pr_info("%s: %s: ret %llx\n",
+		__func__, dmaradd_level_to_string(index.level), ret);
+
+	dmar_param_dump(index.level, p);
+
+	if (ret)
+		return -EFAULT;
+
+	return 0;
+}
+
+static int tdx_iommu_dmar_read(union dmar_index index,
+			       union dmar_param *p)
+{
+	struct tdx_module_output out;
+	u64 ret;
+
+	ret = tdh_dmar_read(index.raw, &out);
+
+	pr_info("%s: %s: ret %llx, RDX %llx\n",
+		__func__, dmaradd_level_to_string(index.level), ret, out.rdx);
+
+	if (ret)
+		return -EFAULT;
+
+	switch (index.level) {
+	case TD_DMAR_LEVEL_ROOT_TBL:
+	case TD_DMAR_LEVEL_PASID_DIR:
+		p->raw[0] = out.r8;
+		break;
+	case TD_DMAR_LEVEL_PASID_TBL:
+		p->raw[4] = out.r12;
+		p->raw[5] = out.r13;
+		p->raw[6] = out.r14;
+		p->raw[7] = out.r15;
+		fallthrough;
+	case TD_DMAR_LEVEL_CTX_TBL:
+		p->raw[0] = out.r8;
+		p->raw[1] = out.r9;
+		p->raw[2] = out.r10;
+		p->raw[3] = out.r11;
+		break;
+	default:
+		break;
+	}
+
+	dmar_param_dump(index.level, p);
+
+	return 0;
+}
+
+static void tdx_iommu_dmar_block(union dmar_index index)
+{
+	u64 ret = tdh_dmar_block(index.raw);
+
+	pr_info("%s ret %llx index %llx\n", __func__, ret, index.raw);
+
+	if (ret) {
+		union dmar_param p = { 0 };
+
+		tdx_iommu_dmar_read(index, &p);
+	}
+}
+
+static void tdx_iommu_dmar_remove(union dmar_index index)
+{
+	u64 ret;
+
+	do {
+		ret = tdh_dmar_remove(index.raw);
+	} while (ret == TDX_INTERRUPTED_RESUMABLE);
+
+	pr_info("%s ret %llx index %llx\n", __func__, ret, index.raw);
+
+	if (ret) {
+		union dmar_param p = { 0 };
+
+		tdx_iommu_dmar_read(index, &p);
+	}
+}
+
 static DEFINE_MUTEX(global_tiommu_lock);
 static LIST_HEAD(global_tiommu_list);
 
 static struct tdx_iommu *tdx_iommu_get(u64 iommu_id)
 {
 	struct tdx_iommu *tiommu;
+	unsigned long va;
 	int ret;
 
 	mutex_lock(&global_tiommu_lock);
@@ -5455,6 +5799,13 @@ static struct tdx_iommu *tdx_iommu_get(u64 iommu_id)
 	}
 
 	tiommu->iommu_id = iommu_id;
+	raw_spin_lock_init(&tiommu->invq_lock);
+	va = __get_free_page(GFP_KERNEL_ACCOUNT);
+	if (!va) {
+		ret = -ENOMEM;
+		goto free_tiommu;
+	}
+	tiommu->wait_desc_pa = __pa(va);
 
 	kref_init(&tiommu->ref);
 
@@ -5463,6 +5814,8 @@ static struct tdx_iommu *tdx_iommu_get(u64 iommu_id)
 
 	return tiommu;
 
+free_tiommu:
+	kfree(tiommu);
 unlock:
 	mutex_unlock(&global_tiommu_lock);
 	return ERR_PTR(ret);
@@ -5476,6 +5829,7 @@ static void tdx_iommu_release(struct kref *kref)
 	list_del(&tiommu->node);
 	mutex_unlock(&global_tiommu_lock);
 
+	free_page((unsigned long)__va(tiommu->wait_desc_pa));
 	kfree(tiommu);
 }
 
@@ -5532,10 +5886,38 @@ static void tdx_tdi_dmar_uinit(struct tdx_tdi *ttdi)
 {
 	struct pci_dev *pdev = ttdi->tdi->pdev;
 	struct kvm_tdx *kvm_tdx = ttdi->kvm_tdx;
+	union dmar_index index;
 
 	dev_info(&pdev->dev, "%s: dmar uinit\n", __func__);
 
 	tdx_iommu_del(kvm_tdx, ttdi->tiommu);
+
+	index.raw = 0;
+	index.rid = ttdi->rid;
+	index.iommu_id = ttdi->id.iommu_id;
+	index.pasid = 0;
+
+	index.level = TD_DMAR_LEVEL_PASID_TBL;
+	tdx_iommu_dmar_block(index);
+	tdx_tdi_iq_inv_pte(ttdi);
+	tdx_iommu_dmar_remove(index);
+
+	index.level = TD_DMAR_LEVEL_PASID_DIR;
+	tdx_iommu_dmar_block(index);
+	tdx_tdi_iq_inv_pde(ttdi);
+	tdx_iommu_dmar_remove(index);
+
+	index.level = TD_DMAR_LEVEL_CTX_TBL;
+	tdx_iommu_dmar_block(index);
+	tdx_tdi_iq_inv_cte(ttdi);
+	tdx_iommu_dmar_remove(index);
+
+	index.level = TD_DMAR_LEVEL_ROOT_TBL;
+	tdx_iommu_dmar_block(index);
+	tdx_tdi_iq_inv_rte(ttdi);
+	tdx_iommu_dmar_remove(index);
+
+	free_pages(ttdi->dmar_pages_va, 5);
 
 	tdx_iommu_put(ttdi->tiommu);
 }
@@ -5544,12 +5926,115 @@ static int tdx_tdi_dmar_init(struct tdx_tdi *ttdi)
 {
 	struct pci_dev *pdev = ttdi->tdi->pdev;
 	struct kvm_tdx *kvm_tdx = ttdi->kvm_tdx;
+	union dmar_index index = { 0 };
+	union dmar_param p = { 0 };
+
+	unsigned long va, offset;
+	hpa_t pa;
 
 	dev_info(&pdev->dev, "%s: dmar init\n", __func__);
 
 	ttdi->tiommu = tdx_iommu_get(ttdi->id.iommu_id);
 	if (IS_ERR(ttdi->tiommu))
 		return PTR_ERR(ttdi->tiommu);
+
+	va = __get_free_pages(GFP_KERNEL_ACCOUNT, 5);
+	pa = __pa(va);
+	offset = 0;
+
+	index.rid = ttdi->rid;
+	index.iommu_id = ttdi->id.iommu_id;
+	index.pasid = 0;
+
+	/* Setup Root Table Entry 1 page */
+	index.level = TD_DMAR_LEVEL_ROOT_TBL;
+	tdx_iommu_dmar_read(index, &p);
+	if (p.raw[0])
+		dev_warn(&pdev->dev, "%s: rte exists!\n", __func__);
+	memset(&p, 0, sizeof(p));
+	p.raw[0] = pa + offset;
+	/* Present must be 1 */
+	p.rte.present = 1;
+	tdx_iommu_dmar_add(index, 0, &p);
+	tdx_iommu_dmar_read(index, &p);
+	offset += PAGE_SIZE;
+
+	/* Setup Context Table Entry 16 pages */
+	index.level = TD_DMAR_LEVEL_CTX_TBL;
+	memset(&p, 0, sizeof(p));
+	tdx_iommu_dmar_read(index, &p);
+	if (p.raw[0])
+		dev_warn(&pdev->dev, "%s: cte exists!\n", __func__);
+	memset(&p, 0, sizeof(p));
+	/*
+	 * only allow FPD DTE PASIDE PRE PDTS RID_PASID RID_PRIV
+	 * PASIDPTR to be configured.
+	 */
+	p.raw[0] = pa + offset;
+	/* 16 pages */
+	p.cte.pdts = 0x6;
+	/*
+	 * Present must be 1.
+	 * DTE must be 0.
+	 * PRE must be 0.
+	 */
+	p.cte.present = 1;
+	p.cte.dte = 0;
+	p.cte.pre = 0;
+	tdx_iommu_dmar_add(index, 0, &p);
+	tdx_iommu_dmar_read(index, &p);
+	offset += 16 * PAGE_SIZE;
+
+	/* Setup PASID Directory Entry 1 page */
+	index.level = TD_DMAR_LEVEL_PASID_DIR;
+	memset(&p, 0, sizeof(p));
+	tdx_iommu_dmar_read(index, &p);
+	if (p.raw[0])
+		dev_warn(&pdev->dev, "%s: pasidde exists!\n", __func__);
+	memset(&p, 0, sizeof(p));
+	/* only allow FPD SLPTPTR */
+	p.raw[0] = pa + offset;
+	/* Present must be 1. */
+	p.pasidde.present = 1;
+	tdx_iommu_dmar_add(index, 0, &p);
+	tdx_iommu_dmar_read(index, &p);
+
+	/* Setup PASID Table Entry */
+	index.level = TD_DMAR_LEVEL_PASID_TBL;
+	memset(&p, 0, sizeof(p));
+	/* TODO, set it according to current page table level */
+	p.pasidte.pgtt = 0x2;
+	if ((kvm_tdx->eptp_controls & VMX_EPTP_PWL_MASK) == VMX_EPTP_PWL_5)
+		p.pasidte.aw = 0x3;
+	else
+		p.pasidte.aw = 0x2;
+	if ((kvm_tdx->eptp_controls & VMX_EPTP_AD_ENABLE_BIT))
+		p.pasidte.slade = 0x1;
+	else
+		p.pasidte.slade = 0x0;
+	/*
+	 * Present must be 0.
+	 * PWT PCD PAT CD must be 0.
+	 * SLPTR must be 0.
+	 * DID must be 0.
+	 * EMT must be 6.
+	 * EMT PGSNP PWSNP must be 1.
+	 */
+	p.pasidte.present = 0;
+	p.pasidte.did = 0; /* will be ignored by seam module */
+	p.pasidte.pwsnp = 1;
+	p.pasidte.pgsnp = 1;
+	p.pasidte.emte = 1;
+	p.pasidte.slee = 1;
+	p.pasidte.emt = 6;
+	p.pasidte.cd = 0;
+	p.pasidte.pwt = 0;
+	p.pasidte.pcd = 0;
+	p.pasidte.pat = 0;
+	tdx_iommu_dmar_add(index, kvm_tdx->tdr_pa, &p);
+	tdx_iommu_dmar_read(index, &p);
+
+	ttdi->dmar_pages_va = va;
 
 	tdx_iommu_add(kvm_tdx, ttdi->tiommu);
 
