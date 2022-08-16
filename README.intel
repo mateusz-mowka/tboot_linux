@@ -46,6 +46,11 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v0.5
+===============
+1. Merge fix by Fengwei on large page, causing this issue report https://hsdes.intel.com/resource/14016634556
+[SPR] [RAS] Simple single-thread poison test fail under Linux Kernel 5.18 & 5.19 - thp split failed - due to large folio THP
+
 GNR PO bkc-v0.4
 ===============
 1. Merge 7 fixes for TDX.
