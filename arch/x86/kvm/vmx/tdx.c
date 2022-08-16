@@ -540,6 +540,7 @@ int tdx_vm_init(struct kvm *kvm)
 	kvm_tdx->has_range_blocked = false;
 
 	mutex_init(&kvm_tdx->ttdev_mutex);
+	INIT_LIST_HEAD_RCU(&kvm_tdx->ktiommu_list);
 	INIT_LIST_HEAD_RCU(&kvm_tdx->ttdev_list);
 
 	/*
@@ -4678,10 +4679,129 @@ static int tdx_tdisp_mmiomt_init(struct tdx_tdisp_dev *ttdev)
 
 static void tdx_tdisp_mmio_unmap_all(struct tdx_tdisp_dev *ttdev) { }
 
-static void tdx_tdisp_dmar_uinit(struct tdx_tdisp_dev *ttdev) { }
+static DEFINE_MUTEX(global_tiommu_lock);
+static LIST_HEAD(global_tiommu_list);
+
+static struct tdx_iommu *tdx_iommu_get(u64 iommu_id)
+{
+	struct tdx_iommu *tiommu;
+	int ret;
+
+	mutex_lock(&global_tiommu_lock);
+
+	list_for_each_entry(tiommu, &global_tiommu_list, node) {
+		if (tiommu->iommu_id == iommu_id) {
+			kref_get(&tiommu->ref);
+			mutex_unlock(&global_tiommu_lock);
+			return tiommu;
+		}
+	}
+
+	tiommu = kzalloc(sizeof(*tiommu), GFP_KERNEL);
+	if (!tiommu) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
+
+	tiommu->iommu_id = iommu_id;
+
+	kref_init(&tiommu->ref);
+
+	list_add(&tiommu->node, &global_tiommu_list);
+	mutex_unlock(&global_tiommu_lock);
+
+	return tiommu;
+
+unlock:
+	mutex_unlock(&global_tiommu_lock);
+	return ERR_PTR(ret);
+}
+
+static void tdx_iommu_release(struct kref *kref)
+{
+	struct tdx_iommu *tiommu = container_of(kref, struct tdx_iommu, ref);
+
+	mutex_lock(&global_tiommu_lock);
+	list_del(&tiommu->node);
+	mutex_unlock(&global_tiommu_lock);
+
+	kfree(tiommu);
+}
+
+static void tdx_iommu_put(struct tdx_iommu *tiommu)
+{
+	kref_put(&tiommu->ref, tdx_iommu_release);
+}
+
+static int tdx_tdisp_iommu_add(struct kvm_tdx *kvm_tdx, struct tdx_iommu *tiommu)
+{
+	struct kvm_tdx_iommu *ktiommu;
+
+	list_for_each_entry(ktiommu, &kvm_tdx->ktiommu_list, node) {
+		if (ktiommu->tiommu == tiommu) {
+			kref_get(&ktiommu->ref);
+			return 0;
+		}
+	}
+
+	ktiommu = kzalloc(sizeof(*ktiommu), GFP_KERNEL);
+	if (!ktiommu)
+		return -ENOMEM;
+
+	ktiommu->tiommu = tiommu;
+	kref_init(&ktiommu->ref);
+	list_add_rcu(&ktiommu->node, &kvm_tdx->ktiommu_list);
+
+	return 0;
+}
+
+static void kvm_tdx_iommu_release(struct kref *kref)
+{
+	struct kvm_tdx_iommu *ktiommu = container_of(kref, struct kvm_tdx_iommu, ref);
+
+	list_del_rcu(&ktiommu->node);
+	synchronize_rcu();
+
+	kfree(ktiommu);
+}
+
+static void tdx_tdisp_iommu_del(struct kvm_tdx *kvm_tdx, struct tdx_iommu *tiommu)
+{
+	struct kvm_tdx_iommu *ktiommu;
+
+	list_for_each_entry(ktiommu, &kvm_tdx->ktiommu_list, node) {
+		if (ktiommu->tiommu == tiommu) {
+			kref_put(&ktiommu->ref, kvm_tdx_iommu_release);
+			return;
+		}
+	}
+}
+
+static void tdx_tdisp_dmar_uinit(struct tdx_tdisp_dev *ttdev)
+{
+	struct pci_dev *pdev = ttdev->tdev->pdev;
+	struct kvm_tdx *kvm_tdx = ttdev->kvm_tdx;
+
+	dev_info(&pdev->dev, "%s: dmar uinit\n", __func__);
+
+	tdx_tdisp_iommu_del(kvm_tdx, ttdev->tiommu);
+
+	tdx_iommu_put(ttdev->tiommu);
+}
 
 static int tdx_tdisp_dmar_init(struct tdx_tdisp_dev *ttdev)
 {
+	struct pci_dev *pdev = ttdev->tdev->pdev;
+	struct kvm_tdx *kvm_tdx = ttdev->kvm_tdx;
+
+	dev_info(&pdev->dev, "%s: dmar init\n", __func__);
+
+	ttdev->tiommu = tdx_iommu_get(ttdev->info.iommu_id);
+	if (IS_ERR(ttdev->tiommu))
+		return PTR_ERR(ttdev->tiommu);
+
+	tdx_tdisp_iommu_add(kvm_tdx, ttdev->tiommu);
+
 	return 0;
 }
 

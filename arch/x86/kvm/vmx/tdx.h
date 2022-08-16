@@ -12,6 +12,20 @@
 
 int tdx_module_setup(void);
 
+struct tdx_iommu {
+	u64 iommu_id;
+
+	struct kref ref;
+	struct list_head node;
+};
+
+struct kvm_tdx_iommu {
+	struct tdx_iommu *tiommu;
+	struct kref ref;
+
+	struct list_head node;
+};
+
 struct kvm_tdx {
 	struct kvm kvm;
 
@@ -50,6 +64,7 @@ struct kvm_tdx {
 
 	/* mutex for tdisp device bind */
 	struct mutex ttdev_mutex;
+	struct list_head ktiommu_list;
 	struct list_head ttdev_list;
 };
 
@@ -367,6 +382,7 @@ struct tdx_tdisp_dev {
 
 	struct list_head mmiomt;
 
+	struct tdx_iommu *tiommu;
 	struct kvm_tdx *kvm_tdx;
 	struct pci_tdisp_dev *tdev;
 
