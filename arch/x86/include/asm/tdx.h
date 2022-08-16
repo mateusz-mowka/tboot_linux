@@ -242,18 +242,6 @@ static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val)
         return ret;
 }
 
-typedef union page_info_api_input_s {
-    struct
-    {
-        uint64_t
-            level          : 3,		/* Level */
-            reserved_0     : 9,		/* Must be 0 */
-            gpa            : 40,	/* GPA of the page */
-            reserved_1     : 12;	/* Must be 0 */
-    };
-    uint64_t raw;
-} page_info_api_input_t;
-
 static inline u64 tdh_mmio_map(u64 gpa_page_info, u64 tdr_pa, u64 mmio_pa)
 {
 	/*
@@ -306,6 +294,12 @@ static inline bool tdx_io_support(void) { return false; }
 static inline bool tdx_io_enabled(void) { return false; }
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val) { return 0; }
 static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val) { return 0; }
+static inline u64 tdh_mmio_map(u64 gpa_page_info, u64 tdr_pa,
+			       u64 mmio_pa) { return -EOPNOTSUPP; }
+static inline u64 tdh_mmio_block(u64 gpa_page_info,
+				 u64 tdr_pa) { return -EOPNOTSUPP; }
+static inline u64 tdh_mmio_unmap(u64 gpa_page_info,
+				 u64 tdr_pa) { return -EOPNOTSUPP; }
 #endif	/* CONFIG_INTEL_TDX_HOST */
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
