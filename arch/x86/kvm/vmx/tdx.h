@@ -62,6 +62,8 @@ struct kvm_tdx {
 	 */
 	spinlock_t seamcall_lock;
 
+	u64 eptp_controls;
+
 	/* mutex for tdisp device bind */
 	struct mutex ttdev_mutex;
 	struct list_head ktiommu_list;
