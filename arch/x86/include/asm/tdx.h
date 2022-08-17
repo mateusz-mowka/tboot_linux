@@ -195,6 +195,8 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_IDE_STREAM_IDEKMRSP		136
 #define TDH_DEVIF_CREATE		137
 #define TDH_DEVIF_REMOVE		138
+#define TDH_DEVIF_REQUEST		139
+#define TDH_DEVIF_RESPONSE		140
 #define TDH_MMIO_MAP			158
 #define TDH_MMIO_BLOCK			159
 #define TDH_MMIO_UNMAP			160
@@ -547,6 +549,42 @@ tdh_devif_remove(u64 devifcs_pa, struct tdx_module_output *out)
 			     0, 0, 0, 0, 0, 0, 0, 0, 0, out);
 }
 
+static inline u64
+tdh_devif_request(u64 devifcs_pa, u64 req_parm, u64 req_info, u64 req_pa)
+{
+	/*
+	 * TDH.DEVIF.REQUEST
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - devifcs_pa
+	 * Input: RDX - TDISP request parameter
+	 * Input: R8 - TDISP request info
+	 * Input: R9 - pa target of TDISP request message output
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 */
+	return __seamcall_io(TDH_DEVIF_REQUEST, devifcs_pa, req_parm, req_info,
+			     req_pa, 0, 0, 0, 0, 0, 0, NULL);
+}
+
+static inline u64
+tdh_devif_response(u64 devifcs_pa, u64 tdisp_input_pa,
+		   struct tdx_module_output *out)
+{
+	/*
+	 * TDH.DEVIF.RESPONSE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - devifcs_pa
+	 * Input: RDX - TDISP msg input
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 * Output: RCX - TDISP msg type
+	 */
+	return __seamcall_io(TDH_DEVIF_RESPONSE, devifcs_pa, tdisp_input_pa,
+			     0, 0, 0, 0, 0, 0, 0, 0, out);
+}
+
 #else	/* !CONFIG_INTEL_TDX_HOST */
 static inline bool platform_tdx_enabled(void) { return false; }
 static inline int tdx_init(void)  { return -ENODEV; }
@@ -599,6 +637,12 @@ tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 static inline u64
 tdh_devif_remove(u64 devifcs_pa,
 		 struct tdx_module_output *out) { return -EOPNOTSUPP; }
+static inline u64
+tdh_devif_request(u64 devifcs_pa, u64 req_parm, u64 req_info,
+		  u64 req_pa) { return -EOPNOTSUPP; }
+static inline u64
+tdh_devif_response(u64 devifcs_pa, u64 tdisp_input_pa,
+		   struct tdx_module_output *out) { return -EOPNOTSUPP; }
 #endif	/* CONFIG_INTEL_TDX_HOST */
 
 #endif /* !__ASSEMBLY__ */
