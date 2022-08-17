@@ -57,8 +57,9 @@ static inline bool pci_tdisp_supported(struct pci_dev *pdev)
 struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm, unsigned int flags);
 void pci_tdisp_uinit(struct pci_tdisp_dev *tdev);
 #else
-static inline struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, unsigned int flags)
-{ return ERR_PTR(-ENODEV); }
-void pci_tdisp_uinit(struct pci_tdisp_dev *tdev) {}
+static inline struct pci_tdisp_dev *
+pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
+	       unsigned int flags) { return ERR_PTR(-ENODEV); }
+static inline void pci_tdisp_uinit(struct pci_tdisp_dev *tdev) {}
 #endif
 #endif /* LINUX_PCI_TDISP_H */
