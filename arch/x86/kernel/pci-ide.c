@@ -282,7 +282,7 @@ static int key_config_tbl_init(void)
 	 * and associate it with root port.
 	 */
 	ret = key_config_tbl_detect();
-	if (!ret)
+	if (ret)
 		return ret;
 
 	keyp = (struct acpi_table_keyp *)keyp_tbl;
