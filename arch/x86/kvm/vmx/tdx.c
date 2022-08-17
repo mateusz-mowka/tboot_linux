@@ -4385,6 +4385,40 @@ static int tdx_tdisp_dmar_init(struct tdx_tdisp_dev *ttdev)
 	return 0;
 }
 
+static struct tdx_tdisp_dev *
+tdx_find_tdisp_devif_by_rid(struct kvm_tdx *kvm_tdx, u16 rid)
+{
+	struct tdx_tdisp_dev *ttdev;
+
+	mutex_lock(&kvm_tdx->ttdev_mutex);
+	list_for_each_entry(ttdev, &kvm_tdx->ttdev_list, node) {
+		if (ttdev->id.rid == rid) {
+			mutex_unlock(&kvm_tdx->ttdev_mutex);
+			return ttdev;
+		}
+	}
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
+
+	return NULL;
+}
+
+static struct tdx_tdisp_dev *
+tdx_find_tdisp_devif_by_handle(struct kvm_tdx *kvm_tdx, u64 handle)
+{
+	struct tdx_tdisp_dev *ttdev;
+
+	mutex_lock(&kvm_tdx->ttdev_mutex);
+	list_for_each_entry(ttdev, &kvm_tdx->ttdev_list, node) {
+		if (ttdev->handle == handle) {
+			mutex_unlock(&kvm_tdx->ttdev_mutex);
+			return ttdev;
+		}
+	}
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
+
+	return NULL;
+}
+
 static void tdx_tdisp_devif_free(struct tdx_tdisp_dev *ttdev)
 {
 	kfree(ttdev);
@@ -4415,6 +4449,17 @@ static bool __is_tdx_tdisp_devif_added(struct kvm_tdx *kvm_tdx,
 	}
 
 	return false;
+}
+
+static bool is_tdx_tdisp_devif_added(struct kvm_tdx *kvm_tdx, struct tdx_tdisp_dev *ttdev)
+{
+	bool locked;
+
+	mutex_lock(&kvm_tdx->ttdev_mutex);
+	locked = __is_tdx_tdisp_devif_added(kvm_tdx, ttdev);
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
+
+	return locked;
 }
 
 static void tdx_tdisp_devif_add(struct tdx_tdisp_dev *ttdev)
@@ -4513,18 +4558,106 @@ int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
 	return 0;
 }
 
+/* MAX TDISP Payload, see FAS 1.2.4 */
+#define TDX_MAX_TDISP_PAYLOAD				(PAGE_SIZE - 43)
+#define TDX_MAX_TDISP_DEVIF_REPORT_LENGTH		(TDX_MAX_TDISP_PAYLOAD - 21)
+
 int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
 		      struct pci_tdisp_req *req)
 {
-	return 0;
+	struct tdx_tdisp_dev *ttdev = tdev->private;
+	struct kvm_tdx *kvm_tdx = ttdev->kvm_tdx;
+	unsigned long request_va, response_va;
+	struct pci_dev *pdev = tdev->pdev;
+	unsigned int total_sz;
+	struct tdx_module_output out;
+	u64 retval;
+	int ret;
+
+	if (!is_tdx_tdisp_devif_added(kvm_tdx, ttdev))
+		return -ENODEV;
+
+	dev_info(&pdev->dev, "%s: request %s received\n", __func__,
+		 tdisp_message_to_string(req->parm.message));
+
+	/* By default, 1 page for request, and 1 page for response */
+	total_sz = PAGE_SIZE * 2;
+
+	/*
+	 * For GET_DEVIF_REPORT, add additional checking if current existing buffer is
+	 * enough or not. Currently TDX module defines receive buffer as 1 page, larger
+	 * size will be rejected.
+	 */
+	if (req->parm.message == TDISP_GET_DEVIF_REPORT) {
+		dev_info(&pdev->dev, "%s: device report length requested %u\n", __func__,
+			 req->info.get_devif_report.length);
+
+		if (req->info.get_devif_report.length > TDX_MAX_TDISP_DEVIF_REPORT_LENGTH)
+			return -EINVAL;
+	}
+
+	request_va = __get_free_pages(GFP_KERNEL, get_order(total_sz));
+	if (!request_va)
+		return -ENOMEM;
+
+	memset((void *)request_va, 0, total_sz);
+
+	response_va = request_va + PAGE_SIZE;
+
+	retval = tdh_devif_request(ttdev->devifcs.pa, req->parm.raw, req->info.raw,
+				   __pa(request_va));
+	if (retval) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* Message exchange over DOE */
+	ret = pci_doe_msg_exchange_sync(tdev->doe_mb, (void *)request_va,
+					(void *)response_va, PAGE_SIZE);
+	if (ret)
+		goto done;
+
+	retval = tdh_devif_response(ttdev->devifcs.pa, __pa(response_va), &out);
+	if (retval) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* check response message code */
+	if (out.rcx != (req->parm.message & 0x7f))
+		ret = -EFAULT;
+
+done:
+	dev_info(&pdev->dev, "%s: request done %d\n", __func__, ret);
+	free_pages(request_va, get_order(total_sz));
+	return ret;
 }
 
 int tdx_tdisp_get_info(struct kvm *kvm, struct kvm_tdisp_info *info)
 {
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+	struct tdx_tdisp_dev *ttdev;
+
+	ttdev = tdx_find_tdisp_devif_by_rid(kvm_tdx, info->devid);
+	if (!ttdev)
+		return -EINVAL;
+
+	info->handle = ttdev->handle;
 	return 0;
 }
 
 int tdx_tdisp_user_request(struct kvm *kvm, struct kvm_tdisp_user_request *req)
 {
-	return 0;
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+	struct pci_tdisp_req request = { 0 };
+	struct tdx_tdisp_dev *ttdev;
+
+	ttdev = tdx_find_tdisp_devif_by_handle(kvm_tdx, req->handle);
+	if (!ttdev)
+		return -EINVAL;
+
+	request.parm.raw = req->parm.raw;
+	request.info.raw = req->info.raw;
+
+	return tdx_tdisp_request(kvm, ttdev->tdev, &request);
 }
