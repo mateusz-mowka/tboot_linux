@@ -765,12 +765,13 @@ static inline bool tdx_io_support(void) { return false; }
 static inline int tdx_reclaim_page(unsigned long va, u64 pa,
 				   enum pg_level level, bool do_wb,
 				   u16 hkid) { return -EOPNOTSUPP; }
+struct tdx_td_page;
 static inline int tdx_alloc_td_page(struct tdx_td_page *page) { return -ENOMEM; }
 static inline void tdx_mark_td_page_added(struct tdx_td_page *page) { }
 static inline void tdx_reclaim_td_page(struct tdx_td_page *page) { }
 static inline u64 tdh_phymem_page_reclaim(u64 page,
-					  struct tdx_module_output *out) { }
-static inline u64 tdh_phymem_page_wbinvd(u64 page) { }
+					  struct tdx_module_output *out) { return -EOPNOTSUPP; }
+static inline u64 tdh_phymem_page_wbinvd(u64 page) { return -EOPNOTSUPP; }
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val) { return 0; }
 static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val) { return 0; }
 static inline u64 tdh_ide_stream_create(u64 iommu_id,
