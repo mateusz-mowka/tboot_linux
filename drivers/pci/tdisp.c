@@ -71,8 +71,10 @@ static struct pci_doe_mb *pci_tdisp_create_doe_mb(struct pci_dev *pdev)
 		return NULL;
 
 	doe_mb = pcim_doe_create_mb(pdev, pos);
-	if (!doe_mb)
+	if (IS_ERR(doe_mb)) {
+		dev_err(&pdev->dev, "Failed to create DOE MB\n");
 		return NULL;
+	}
 
 	if (!pci_doe_supports_prot(doe_mb, PCI_VENDOR_ID_PCI_SIG,
 				   PCI_DOE_PROTOCOL_SPDM))
