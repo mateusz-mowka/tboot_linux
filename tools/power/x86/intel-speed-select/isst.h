@@ -227,7 +227,7 @@ extern void set_cpu_mask_from_punit_coremask(struct isst_id *id,
 extern int isst_send_msr_command(unsigned int cpu, unsigned int command,
 				 int write, unsigned long long *req_resp);
 
-extern int isst_set_platform_ops(void);
+extern int isst_set_platform_ops(int api_version);
 extern void isst_update_platform_param(enum isst_platform_param, int vale);
 extern int isst_get_disp_freq_multiplier(void);
 extern int isst_get_trl_max_levels(void);
