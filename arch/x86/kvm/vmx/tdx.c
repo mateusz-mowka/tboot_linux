@@ -5103,6 +5103,10 @@ static struct tdx_iommu *tdx_iommu_get(u64 iommu_id)
 	}
 
 	tiommu->iommu_id = iommu_id;
+	raw_spin_lock_init(&tiommu->invq_lock);
+	ret = tdx_alloc_td_page(&tiommu->wait_desc);
+	if (ret)
+		goto free_tiommu;
 
 	kref_init(&tiommu->ref);
 
@@ -5111,6 +5115,8 @@ static struct tdx_iommu *tdx_iommu_get(u64 iommu_id)
 
 	return tiommu;
 
+free_tiommu:
+	kfree(tiommu);
 unlock:
 	mutex_unlock(&global_tiommu_lock);
 	return ERR_PTR(ret);
@@ -5124,6 +5130,7 @@ static void tdx_iommu_release(struct kref *kref)
 	list_del(&tiommu->node);
 	mutex_unlock(&global_tiommu_lock);
 
+	tdx_reclaim_td_page(&tiommu->wait_desc);
 	kfree(tiommu);
 }
 
