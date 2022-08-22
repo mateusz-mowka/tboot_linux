@@ -163,6 +163,7 @@ config INTEL_SDSI
 	depends on X86_64
 	select SPDM
 	select SPDM_GENETLINK
+	select ASN1_ENCODER
 	help
 	  This driver enables access to the Intel Software Defined Silicon
 	  interface used to provision silicon features with an authentication
