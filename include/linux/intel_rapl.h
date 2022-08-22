@@ -17,6 +17,7 @@
 enum rapl_if_type {
 	RAPL_IF_MSR,	/* RAPL I/F using MSR registers */
 	RAPL_IF_MMIO,	/* RAPL I/F using MMIO registers */
+	RAPL_IF_TPMI,	/* RAPL I/F using TPMI registers */
 };
 
 enum rapl_domain_type {
@@ -36,6 +37,7 @@ enum rapl_domain_reg_id {
 	RAPL_DOMAIN_REG_INFO,
 	RAPL_DOMAIN_REG_PL4,
 	RAPL_DOMAIN_REG_UNIT,
+	RAPL_DOMAIN_REG_PL2,
 	RAPL_DOMAIN_REG_MAX,
 };
 
