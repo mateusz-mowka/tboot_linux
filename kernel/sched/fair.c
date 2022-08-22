@@ -9140,10 +9140,6 @@ static void init_rq_ipcc_stats(struct sg_lb_stats *sgs)
 	sgs->min_score = ULONG_MAX;
 }
 
-/*
- * Called only if cpu_of(@rq) is not idle and has tasks running and if the
- * destination CPU is idle.
- */
 static void update_sg_ilb_ipcc_stats(int dst_cpu, struct sg_lb_stats *sgs,
 				     struct rq *rq)
 {
@@ -9175,15 +9171,52 @@ static void update_sg_ilb_ipcc_stats(int dst_cpu, struct sg_lb_stats *sgs,
 	}
 }
 
-static void update_sg_lb_ipcc_stats(int dst_cpu, struct sg_lb_stats *sgs,
+static void update_sg_busy_ipcc_stats(struct sg_lb_stats *sgs, int dst_cpu,
+				      struct rq *rq)
+{
+	unsigned long score_on_dst_cpu, score_on_src_cpu = 0;
+
+	/* TODO: Handle returned errors. */
+	score_on_dst_cpu = arch_get_ipcc_score(rq->curr->ipcc, dst_cpu);
+
+	/*
+	 * When the dst_cpu is the same as the src_cpu, there is no difference
+	 * in score (obviously). However, we do need to know what is the score
+	 * of the task currently running on dst_cpu (we are here because the
+	 * CPU is busy) to determine whether swapping tasks would yield higher
+	 * throughput. See sched_group_has_misfit_ipcc().
+	 */
+	if (dst_cpu != cpu_of(rq))
+		score_on_src_cpu = arch_get_ipcc_score(rq->curr->ipcc,
+						       cpu_of(rq));
+
+	if (score_on_dst_cpu > score_on_src_cpu) {
+		/*
+		 * TODO: Need to cast to unsigned. Otherwise, the max macro
+		 * will complain. There is no risk of overflow. Values can
+		 * never be greater than 1024.
+		 */
+		sgs->ipcc_score_after = max((unsigned long) sgs->ipcc_score_after,
+					    score_on_dst_cpu);
+	}
+}
+
+static void update_sg_lb_ipcc_stats(struct lb_env *env,
+				    struct sg_lb_stats *sgs,
 				    struct rq *rq)
 {
 	if (!sched_ipcc_enabled())
 		return;
 
-	update_sg_ilb_ipcc_stats(dst_cpu, sgs, rq);
+	if (env->idle != CPU_NOT_IDLE) {
+		update_sg_ilb_ipcc_stats(env->dst_cpu, sgs, rq);
+		return;
+	}
+
+	update_sg_busy_ipcc_stats(sgs, env->dst_cpu, rq);
 }
 
+/* Called when the @dst_cpu is idle */
 static void update_sg_lb_stats_scores(struct sg_lb_stats *sgs,
 				      struct sched_group *sg,
 				      struct lb_env *env)
@@ -9347,7 +9380,8 @@ static bool sched_group_has_misfit_ipcc(struct lb_env *env,
 }
 
 #else /* CONFIG_IPC_CLASSES */
-static void update_sg_lb_ipcc_stats(int dst_cpu, struct sg_lb_stats *sgs,
+static void update_sg_lb_ipcc_stats(struct lb_env *env,
+				    struct sg_lb_stats *sgs,
 				    struct rq *rq)
 {
 }
@@ -9518,8 +9552,16 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 			continue;
 		}
 
-		if (local_group)
+		if (local_group) {
+			if (env->idle == CPU_NOT_IDLE)
+				/*
+				 * For non-idle load balancing we need the
+				 * stats of the task classes on the local
+				 * group.
+				 */
+				update_sg_lb_ipcc_stats(env, sgs, rq);
 			continue;
+		}
 
 		if (env->sd->flags & SD_ASYM_CPUCAPACITY) {
 			/* Check for a misfit task on the cpu */
@@ -9534,7 +9576,7 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 				sgs->group_misfit_task_load = load;
 		}
 
-		update_sg_lb_ipcc_stats(env->dst_cpu, sgs, rq);
+		update_sg_lb_ipcc_stats(env, sgs, rq);
 	}
 
 	sgs->group_capacity = group->sgc->capacity;
