@@ -5241,7 +5241,7 @@ static int tdx_tdisp_dmar_init(struct tdx_tdisp_dev *ttdev)
 	/* Setup Root Table Entry 1 page */
 	index.level = TD_DMAR_LEVEL_ROOT_TBL;
 	tdx_iommu_dmar_read(index, &p);
-	if (!p.raw[0])
+	if (p.raw[0])
 		dev_warn(&pdev->dev, "%s: rte exists!\n", __func__);
 	memset(&p, 0, sizeof(p));
 	p.raw[0] = pa + offset;
@@ -5255,7 +5255,7 @@ static int tdx_tdisp_dmar_init(struct tdx_tdisp_dev *ttdev)
 	index.level = TD_DMAR_LEVEL_CTX_TBL;
 	memset(&p, 0, sizeof(p));
 	tdx_iommu_dmar_read(index, &p);
-	if (!p.raw[0])
+	if (p.raw[0])
 		dev_warn(&pdev->dev, "%s: cte exists!\n", __func__);
 	memset(&p, 0, sizeof(p));
 	/*
@@ -5281,7 +5281,7 @@ static int tdx_tdisp_dmar_init(struct tdx_tdisp_dev *ttdev)
 	index.level = TD_DMAR_LEVEL_PASID_DIR;
 	memset(&p, 0, sizeof(p));
 	tdx_iommu_dmar_read(index, &p);
-	if (!p.raw[0])
+	if (p.raw[0])
 		dev_warn(&pdev->dev, "%s: pasidde exists!\n", __func__);
 	memset(&p, 0, sizeof(p));
 	/* only allow FPD SLPTPTR */
