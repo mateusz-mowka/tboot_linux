@@ -1206,6 +1206,7 @@ static int __spdm_get_measurements(struct spdm_state *spdm_state)
 	struct spdm_measurements_rsp *rsp;
 	struct spdm_exchange spdm_ex;
 	size_t rsp_max_sz = 4096;
+	size_t req_max_sz = sizeof(struct spdm_header);
 	u8 measurement_caps = FIELD_GET(SPDM_GET_CAP_FLAG_MEAS_CAP_MSK,
 					spdm_state->responder_caps);
 	enum measurement_type type;
@@ -1240,12 +1241,14 @@ static int __spdm_get_measurements(struct spdm_state *spdm_state)
 		return -ENOMEM;
 
 	/* Create a nonce only if we are signing */
-	if (type == MEASUREMENT_REQUEST_SIGNED)
+	if (type == MEASUREMENT_REQUEST_SIGNED) {
 		get_random_bytes(&req.nonce, sizeof(req.nonce));
+		req_max_sz = sizeof(req);
+	}
 
 	spdm_ex = (struct spdm_exchange) {
 		.request_pl = (struct spdm_header *)&req,
-		.request_pl_sz = sizeof(req),
+		.request_pl_sz = req_max_sz,
 		.response_pl = (struct spdm_header *)rsp,
 		.response_pl_sz = rsp_max_sz,
 		.code = SPDM_GET_MEASUREMENTS,
