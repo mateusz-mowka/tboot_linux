@@ -678,6 +678,10 @@ DEFINE_STATIC_KEY_FALSE(sched_ipcc);
 void sched_enable_ipc_classes(void)
 {
 	static_branch_enable_cpuslocked(&sched_ipcc);
+#ifdef CONFIG_SCHED_DEBUG
+	static_branch_enable_cpuslocked(&sched_ipcc_debug_idle_lb);
+	static_branch_enable_cpuslocked(&sched_ipcc_debug_busy_lb);
+#endif
 }
 #endif
 

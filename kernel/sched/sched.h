@@ -2531,6 +2531,32 @@ void arch_scale_freq_tick(void)
 }
 #endif
 
+#ifdef CONFIG_SCHED_DEBUG
+DECLARE_STATIC_KEY_FALSE(sched_ipcc_debug_idle_lb);
+DECLARE_STATIC_KEY_FALSE(sched_ipcc_debug_busy_lb);
+
+static inline bool sched_ipcc_idle_lb_enabled(void)
+{
+	return static_branch_unlikely(&sched_ipcc_debug_idle_lb);
+}
+
+static inline bool sched_ipcc_busy_lb_enabled(void)
+{
+	return static_branch_unlikely(&sched_ipcc_debug_busy_lb);
+}
+
+#else /* CONFIG_SCHED_DEBUG */
+
+#ifdef CONFIG_IPC_CLASSES
+#define sched_ipcc_idle_lb_enabled() 1
+#define sched_ipcc_busy_lb_enabled() 1
+#else
+#define sched_ipcc_idle_lb_enabled() 0
+#define sched_ipcc_busy_lb_enabled() 0
+#endif
+
+#endif /* CONFIG_SCHED_DEBUG */
+
 #ifdef CONFIG_IPC_CLASSES
 DECLARE_STATIC_KEY_FALSE(sched_ipcc);
 

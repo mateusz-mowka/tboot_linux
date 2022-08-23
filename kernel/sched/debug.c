@@ -294,6 +294,64 @@ static const struct file_operations sched_debug_fops = {
 	.release	= seq_release,
 };
 
+#ifdef CONFIG_IPC_CLASSES
+static ssize_t ipcc_write(struct file *file, const char __user *ptr, size_t len,
+			  loff_t *off)
+{
+	struct static_key *key = ((struct seq_file *)file->private_data)->private;
+	u8 setting;
+	char str[16];
+	int ret;
+
+	if (!sched_ipcc_enabled())
+		return -ENODEV;
+
+	if (len > sizeof(str))
+		return -E2BIG;
+
+	memset(str, 0, sizeof(str));
+	ret = strncpy_from_user(str, ptr, len);
+	if (ret < 0)
+		return ret;
+
+	ret = kstrtou8(str, 10, &setting);
+	if (ret)
+		return ret;
+
+	if (setting != 1 && setting != 0)
+		return -EINVAL;
+
+	if (setting)
+		static_key_enable(key);
+	else
+		static_key_disable(key);
+
+	return ret ? ret : len;
+}
+
+static int ipcc_show(struct seq_file *s, void *unused)
+{
+	struct static_key *key = s->private;
+
+	seq_printf(s, "%u\n", static_key_enabled(key));
+
+	return 0;
+}
+
+static int ipcc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ipcc_show, inode->i_private);
+}
+
+static const struct file_operations ipcc_fops = {
+	.open = ipcc_open,
+	.read = seq_read,
+	.write = ipcc_write,
+	.llseek = seq_lseek,
+	.release = single_release
+};
+#endif /* CONFIG_IPC_CLASSES */
+
 static struct dentry *debugfs_sched;
 
 static __init int sched_init_debug(void)
@@ -334,6 +392,15 @@ static __init int sched_init_debug(void)
 	debugfs_create_u32("scan_period_max_ms", 0644, numa, &sysctl_numa_balancing_scan_period_max);
 	debugfs_create_u32("scan_size_mb", 0644, numa, &sysctl_numa_balancing_scan_size);
 	debugfs_create_u32("hot_threshold_ms", 0644, numa, &sysctl_numa_balancing_hot_threshold);
+#endif
+
+#ifdef CONFIG_IPC_CLASSES
+	debugfs_create_file("ipcc_idle_lb", 0644, debugfs_sched,
+			    &sched_ipcc_debug_idle_lb.key,
+			    &ipcc_fops);
+	debugfs_create_file("ipcc_busy_lb", 0644, debugfs_sched,
+			    &sched_ipcc_debug_busy_lb.key,
+			    &ipcc_fops);
 #endif
 
 	debugfs_create_file("debug", 0444, debugfs_sched, NULL, &sched_debug_fops);
@@ -916,6 +983,10 @@ static void sched_debug_header(struct seq_file *m)
 #if defined(CONFIG_IPC_CLASSES)
 	SEQ_printf(m, "  .%-40s: %d\n", "sched_ipcc",
 		   static_branch_likely(&sched_ipcc) ? 1 : 0);
+	SEQ_printf(m, "  .%-40s: %d\n", "sched_ipcc_debug_idle_lb",
+		   static_branch_likely(&sched_ipcc_debug_idle_lb) ? 1 : 0);
+	SEQ_printf(m, "  .%-40s: %d\n", "sched_ipcc_debug_busy_lb",
+		   static_branch_likely(&sched_ipcc_debug_busy_lb) ? 1 : 0);
 #endif
 
 	SEQ_printf(m, "\n");
