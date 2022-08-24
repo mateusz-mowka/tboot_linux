@@ -116,6 +116,9 @@ int is_spr_platform(void)
 	if (cpu_model == 0x8F)
 		return 1;
 
+	if (cpu_model == 0xCF)
+		return 1;
+
 	return 0;
 }
 
