@@ -50,6 +50,7 @@ GNR PO bkc-v0.5
 ===============
 1. Merge fix by Fengwei on large page, causing this issue report https://hsdes.intel.com/resource/14016634556
 [SPR] [RAS] Simple single-thread poison test fail under Linux Kernel 5.18 & 5.19 - thp split failed - due to large folio THP
+2. Fix compile error when CTE is not configured
 
 GNR PO bkc-v0.4
 ===============
