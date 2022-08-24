@@ -87,7 +87,14 @@ static inline void mem_encrypt_free_decrypted_mem(void) { }
 /* Architecture __weak replacement functions */
 void __init mem_encrypt_init(void);
 
+
+#ifdef CONFIG_X86_MEM_ENCRYPT
 void __init mem_encrypt_init_swiotlb_size(void);
+
+#else /* !CONFIG_X86_MEM_ENCRYPT */
+
+static inline void mem_encrypt_init_swiotlb_size(void) {}
+#endif
 
 /*
  * The __sme_pa() and __sme_pa_nodebug() macros are meant for use when
