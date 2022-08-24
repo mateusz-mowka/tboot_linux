@@ -185,6 +185,7 @@ static u32 vmx_possible_passthrough_msrs[MAX_POSSIBLE_PASSTHROUGH_MSRS] = {
 	MSR_CORE_C3_RESIDENCY,
 	MSR_CORE_C6_RESIDENCY,
 	MSR_CORE_C7_RESIDENCY,
+	MSR_IA32_PASID,
 };
 
 /*
@@ -7387,6 +7388,8 @@ int vmx_vcpu_create(struct kvm_vcpu *vcpu)
 		vmx_disable_intercept_for_msr(vcpu, MSR_CORE_C6_RESIDENCY, MSR_TYPE_R);
 		vmx_disable_intercept_for_msr(vcpu, MSR_CORE_C7_RESIDENCY, MSR_TYPE_R);
 	}
+	if (cpu_has_vmx_pasid_trans())
+		vmx_disable_intercept_for_msr(vcpu, MSR_IA32_PASID, MSR_TYPE_RW);
 
 	vmx->loaded_vmcs = &vmx->vmcs01;
 
@@ -8061,6 +8064,8 @@ static __init void vmx_set_cpu_caps(void)
 
 	if (!cpu_has_vmx_pasid_trans())
 		kvm_cpu_cap_clear(X86_FEATURE_ENQCMD);
+	else if (kvm_cpu_cap_has(X86_FEATURE_ENQCMD))
+		kvm_caps.supported_xss |= XFEATURE_MASK_PASID;
 }
 
 void vmx_request_immediate_exit(struct kvm_vcpu *vcpu)
