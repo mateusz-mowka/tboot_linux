@@ -109,6 +109,11 @@ static int vt_vcpu_precreate(struct kvm *kvm)
 	return vmx_vcpu_precreate(kvm);
 }
 
+static int vt_ioasid_bind(struct kvm_vcpu *vcpu, struct kvm_bind_pasid *pb)
+{
+	return vmx_ioasid_bind(vcpu, pb);
+}
+
 static int vt_vcpu_create(struct kvm_vcpu *vcpu)
 {
 	if (is_td_vcpu(vcpu))
@@ -1057,6 +1062,8 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.dev_mem_enc_ioctl = tdx_dev_ioctl,
 	.mem_enc_ioctl = vt_mem_enc_ioctl,
 	.vcpu_mem_enc_ioctl = vt_vcpu_mem_enc_ioctl,
+
+	.ioasid_bind = vt_ioasid_bind,
 };
 
 struct kvm_x86_init_ops vt_init_ops __initdata = {

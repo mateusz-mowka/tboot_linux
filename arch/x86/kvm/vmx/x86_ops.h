@@ -27,6 +27,8 @@ int vmx_hardware_enable(void);
 void vmx_hardware_disable(void);
 int vmx_vm_init(struct kvm *kvm);
 void vmx_vm_destroy(struct kvm *kvm);
+int vmx_ioasid_bind(struct kvm_vcpu *vcpu, struct kvm_bind_pasid *pb);
+void vmx_vm_destroy(struct kvm *kvm);
 int vmx_vcpu_precreate(struct kvm *kvm);
 int vmx_vcpu_create(struct kvm_vcpu *vcpu);
 int vmx_vcpu_pre_run(struct kvm_vcpu *vcpu);

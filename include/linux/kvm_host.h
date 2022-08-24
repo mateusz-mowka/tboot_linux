@@ -1478,6 +1478,8 @@ int kvm_arch_create_vm_debugfs(struct kvm *kvm);
 bool kvm_arch_dirty_log_supported(struct kvm *kvm);
 bool kvm_arch_private_mem_supported(struct kvm *kvm);
 
+int kvm_arch_ioasid_bind(struct kvm_vcpu *vcpu, struct kvm_bind_pasid *pb);
+
 #ifndef __KVM_HAVE_ARCH_VM_ALLOC
 /*
  * All architectures that want to use vzalloc currently also

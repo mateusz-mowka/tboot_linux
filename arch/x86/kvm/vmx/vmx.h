@@ -356,6 +356,9 @@ struct kvm_vmx {
 	gpa_t ept_identity_map_addr;
 	/* Posted Interrupt Descriptor (PID) table for IPI virtualization */
 	u64 *pid_table;
+
+	struct page *pasid_dirs;
+	spinlock_t pasid_lock;
 };
 
 bool nested_vmx_allowed(struct kvm_vcpu *vcpu);

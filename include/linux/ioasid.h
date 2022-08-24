@@ -67,6 +67,7 @@ ioasid_t ioasid_alloc(struct ioasid_set *set, ioasid_t min, ioasid_t max,
 		      void *private, ioasid_t spid);
 int ioasid_get(struct ioasid_set *set, ioasid_t ioasid);
 int ioasid_get_locked(struct ioasid_set *set, ioasid_t ioasid);
+void ioasid_put_locked(struct ioasid_set *set, ioasid_t ioasid);
 int ioasid_get_if_owned(ioasid_t ioasid);
 void ioasid_put(struct ioasid_set *set, ioasid_t ioasid);
 void ioasid_put_all_in_set(struct ioasid_set *set);
@@ -123,6 +124,11 @@ static inline int ioasid_get(struct ioasid_set *set, ioasid_t ioasid)
 }
 
 static inline int ioasid_get_locked(struct ioasid_set *set, ioasid_t ioasid)
+{
+	return -ENOTSUPP;
+}
+
+static inline void ioasid_put_locked(struct ioasid_set *set, ioasid_t ioasid)
 {
 	return -ENOTSUPP;
 }
