@@ -770,6 +770,17 @@ static void enable_lam_func(void *mm)
 	set_tlbstate_cr3_lam_mask(lam_mask);
 }
 
+static bool lam_u48_allowed(void)
+{
+	struct mm_struct *mm = current->mm;
+
+	if (!full_va_allowed(mm))
+		return true;
+
+	return find_vma(mm, DEFAULT_MAP_WINDOW) == NULL;
+}
+
+#define LAM_U48_BITS 15
 #define LAM_U57_BITS 6
 
 static int prctl_enable_tagged_addr(struct mm_struct *mm, unsigned long nr_bits)
@@ -800,6 +811,14 @@ static int prctl_enable_tagged_addr(struct mm_struct *mm, unsigned long nr_bits)
 	} else if (nr_bits <= LAM_U57_BITS) {
 		mm->context.lam_cr3_mask = X86_CR3_LAM_U57;
 		mm->context.untag_mask =  ~GENMASK(62, 57);
+	} else if (nr_bits <= LAM_U48_BITS) {
+		if (!lam_u48_allowed()) {
+			ret = -EBUSY;
+			goto out;
+		}
+
+		mm->context.lam_cr3_mask = X86_CR3_LAM_U48;
+		mm->context.untag_mask =  ~GENMASK(62, 48);
 	} else {
 		ret = -EINVAL;
 		goto out;
@@ -914,11 +933,24 @@ long do_arch_prctl_64(struct task_struct *task, int option, unsigned long arg2)
 		task->mm->context.flags |= MM_CONTEXT_FORCE_TAGGED_SVA;
 		mmap_write_unlock(task->mm);
 		return 0;
-	case ARCH_GET_MAX_TAG_BITS:
+	case ARCH_GET_MAX_TAG_BITS: {
+		int nr_bits;
+
+		/* lam_u48_allowed() requires mmap_lock */
+		if (mmap_write_lock_killable(task->mm))
+			return -EINTR;
+
 		if (!cpu_feature_enabled(X86_FEATURE_LAM))
-			return put_user(0, (unsigned long __user *)arg2);
+			nr_bits = 0;
+		else if (lam_u48_allowed())
+			nr_bits = LAM_U48_BITS;
 		else
-			return put_user(LAM_U57_BITS, (unsigned long __user *)arg2);
+			nr_bits = LAM_U57_BITS;
+
+		mmap_write_unlock(task->mm);
+
+		return put_user(nr_bits, (unsigned long __user *)arg2);
+	}
 	default:
 		ret = -EINVAL;
 		break;
