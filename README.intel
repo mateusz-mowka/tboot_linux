@@ -46,6 +46,10 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v1.0
+===============
+1. Merge fix to IAX operation code name and add OPcode for Fetch, Decrypt, Encrypt, Zcomress/decompress8
+
 GNR PO bkc-v0.5
 ===============
 1. Merge fix by Fengwei on large page, causing this issue report https://hsdes.intel.com/resource/14016634556
