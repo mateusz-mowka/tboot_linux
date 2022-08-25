@@ -191,6 +191,11 @@ static int pci_doe_recv_resp(struct pci_doe_mb *doe_mb, struct pci_doe_task *tas
 	for (i = 0; i < payload_length; i++) {
 		pci_read_config_dword(pdev, offset + PCI_DOE_READ,
 				      &task->response_pl[i]);
+
+		/* REVERTME: It is a WA for DSA-tdxio device */
+		if (pdev->vendor == 0x8086 && pdev->device == 0x0b25)
+			continue;
+
 		/* Prior to the last ack, ensure Data Object Ready */
 		if (i == (payload_length - 1) && !pci_doe_data_obj_ready(doe_mb))
 			return -EIO;
