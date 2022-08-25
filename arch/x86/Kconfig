@@ -1971,6 +1971,7 @@ config X86_SHADOW_STACK
 	prompt "X86 Shadow Stack"
 	def_bool n
 	depends on ARCH_HAS_SHADOW_STACK
+	select ARCH_USES_HIGH_VMA_FLAGS
 	help
 	  Shadow Stack protection is a hardware feature that detects function
 	  return address corruption. Today the kernel's support is limited to
