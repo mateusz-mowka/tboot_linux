@@ -906,6 +906,7 @@ static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 
 			if (gpasid == 0) {
 //				rc = idxd_mdev_get_pasid(mdev, &wq_pasid);
+				wq_pasid = vidxd->pasid;
 				dev_dbg(dev, "shared wq, pasid 0, use default host: %u\n",
 					wq_pasid);
 			} else {
