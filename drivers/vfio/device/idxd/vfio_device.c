@@ -969,8 +969,9 @@ struct device_type idxd_vdev_device_type = {
 
 static int vdev_device_create(struct idxd_device *idxd, u32 type)
 {
+	struct device *dev, *dev_found;
 	struct idxd_dev *parent;
-	struct device *dev;
+	char dev_name[8];
 	int rc;
 
 	lockdep_assert_held(&idxd->vdev_lock);
@@ -994,6 +995,12 @@ static int vdev_device_create(struct idxd_device *idxd, u32 type)
 	 * ida to enumerate the devices.
 	 */
 	parent->id = 0;
+	sprintf(dev_name, "vdev%u", parent->id);
+	dev_found = device_find_child_by_name(dev->parent, dev_name);
+	if (dev_found) {
+		put_device(dev);
+		return -EEXIST;
+	}
 	rc = dev_set_name(dev, "vdev%u", parent->id);
 	if (rc < 0) {
 		put_device(dev);
