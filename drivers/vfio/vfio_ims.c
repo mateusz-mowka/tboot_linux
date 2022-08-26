@@ -56,6 +56,7 @@ static int vfio_ims_set_vector_signal(struct vfio_ims *ims, int vector, int fd)
 	struct device *dev = &vdev->device;
 	struct eventfd_ctx *trigger;
 	char *name;
+	u64 auxval;
 
 	if (vector < 0 || vector >= ims->num)
 		return -EINVAL;
@@ -101,6 +102,8 @@ static int vfio_ims_set_vector_signal(struct vfio_ims *ims, int vector, int fd)
 	if (!irq)
 		return 0;
 
+	auxval = ims_ctrl_pasid_aux(vfio_device_get_pasid(vdev), true);
+	irq_set_auxdata(irq, IMS_AUXDATA_CONTROL_WORD, auxval);
 	rc = request_irq(irq, vfio_ims_irq_handler, 0, name, trigger);
 	if (rc < 0)
 		goto err;
