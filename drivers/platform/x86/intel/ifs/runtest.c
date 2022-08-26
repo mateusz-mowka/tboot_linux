@@ -319,7 +319,7 @@ static int do_array_test(void *data)
 
 	if (cpu == first) {
 		/* Pass back the result of the scan */
-		rdmsrl(MSR_ARRAY_BIST_STATUS, msrs[1]);
+		rdmsrl(MSR_ARRAY_BIST, msrs[1]);
 	}
 
 	return 0;
