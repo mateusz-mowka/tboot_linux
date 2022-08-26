@@ -846,6 +846,44 @@ int vidxd_get_host_pasid(struct device *dev, u32 gpasid, u32 *pasid)
 	return 0;
 }
 
+static void vidxd_dump_ims_entries(struct vdcm_idxd *vidxd)
+{
+	struct vfio_device *vdev = &vidxd->vdev;
+	struct device *dev = vidxd_dev(vidxd);
+	struct vfio_ims *ims = &vdev->ims;
+	struct vfio_ims_entry *entry;
+	int vector;
+
+	dev_dbg(dev, "IMS entries: num=%d, irq_type=%d, ims_en=%d:\n",
+		ims->num, ims->irq_type, ims->ims_en);
+        for (vector = 0; vector < ims->num; vector++) {
+        	entry = &ims->ims_entries[vector];
+		dev_dbg(dev, "EventFD %d: trigger=%lx, name=%s, ims=%d, ims_id=%d\n",
+			vector, entry->trigger, entry->name, entry->ims,
+			entry->ims_id);
+	}
+}
+
+static void vidxd_dump_ims_table(struct vdcm_idxd *vidxd)
+{
+	struct idxd_device *idxd = vidxd->idxd;
+	struct device *dev = vidxd_dev(vidxd);
+	int ims_index, ims_off;
+	u32 ims_ctrl, ims_mask;
+	struct msi_desc *desc;
+
+	/* Only dump MSI entries which have an interrupt associated */
+	dev_dbg(dev, "IMS MSI entries assocated: idxd->ims_offset=%x:\n",
+		idxd->ims_offset);
+	for (ims_index = 0; ims_index < 2; ims_index++) {
+		ims_off = idxd->ims_offset + ims_index * 16 + sizeof(u64) + sizeof(u32);
+		ims_ctrl = ioread32(idxd->reg_base + ims_off);
+		ims_mask = ims_ctrl & MSIX_ENTRY_MASK_INT;
+		dev_dbg(dev, "ims_index=%d, ims_ctrl=0x%x, ims_mask=0x%x\n",
+			ims_index, ims_ctrl, ims_mask);
+	}
+}
+
 static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 {
 	struct idxd_wq *wq;
@@ -957,6 +995,9 @@ static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 
 	vwqcfg->wq_state = IDXD_WQ_DEV_ENABLED;
 	idxd_complete_command(vidxd, IDXD_CMDSTS_SUCCESS);
+
+	vidxd_dump_ims_entries(vidxd);
+	vidxd_dump_ims_table(vidxd);
 }
 
 static void vidxd_wq_disable(struct vdcm_idxd *vidxd, int wq_id_mask)
