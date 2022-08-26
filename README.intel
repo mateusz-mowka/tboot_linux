@@ -49,6 +49,7 @@ README.intel_th:
 GNR PO bkc-v1.0
 ===============
 1. Merge fix to IAX operation code name and add OPcode for Fetch, Decrypt, Encrypt, Zcomress/decompress8
+2. Disable signature verification in SDSi for now till it can be properly fixed.
 
 GNR PO bkc-v0.5
 ===============
