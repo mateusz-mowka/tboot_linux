@@ -1260,9 +1260,37 @@ int vidxd_mmio_write(struct vdcm_idxd *vidxd, u64 pos, void *buf, unsigned int s
 	}
 
 	case VIDXD_MSIX_PERM_OFFSET ...  VIDXD_MSIX_PERM_OFFSET + VIDXD_MSIX_PERM_TBL_SZ - 1:
-		memcpy(bar0 + offset, buf, size);
-		break;
-	} /* offset */
+#define MSIX_PERM_PASID_EN_MASK		0x8
+#define MSIX_PERM_PASID_MASK		0xfffff000
+#define MSIX_PERM_PASID_SHIFT		12
+
+		struct device *dev = vidxd_dev(vidxd);
+                u32 msix_perm, pasid_en, pasid, gpasid;
+                int index;
+
+                if (size != sizeof(u32) || !IS_ALIGNED(offset, sizeof(u64))) {
+                        dev_warn(dev, "XXX unaligned MSIX PERM access\n");
+                        break;
+                }
+
+                memcpy(bar0 + offset, buf, size);
+                index = (offset - VIDXD_MSIX_PERM_OFFSET) / 8;
+                msix_perm = get_reg_val(buf, sizeof(u32)) & 0xfffff00d;
+		pasid_en = msix_perm & MSIX_PERM_PASID_EN_MASK;
+printk("%s: %d, %d, %x\n", __func__, __LINE__, pasid_en, msix_perm);
+		/* May check if guest changes pasid_en bit, then may do sth. */
+		if (pasid_en) {
+			gpasid = (msix_perm & MSIX_PERM_PASID_MASK) >> MSIX_PERM_PASID_SHIFT;
+			vidxd_get_host_pasid(dev, gpasid, &pasid);
+			vfio_device_set_pasid(&vidxd->vdev, pasid);
+		} else {
+			vfio_device_set_pasid(&vidxd->vdev, vidxd->pasid);
+		}
+
+                dev_dbg(dev, "%s writing to MSIX_PERM: %#x offset %#x index: %u, pasid: %d, gpasid: %d\n",
+                        __func__, msix_perm, offset, index, pasid, gpasid);
+                break;
+	}
 
 	return 0;
 }
