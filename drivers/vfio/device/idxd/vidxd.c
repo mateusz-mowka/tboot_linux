@@ -800,7 +800,8 @@ static void vidxd_release_int_handle(struct vdcm_idxd *vidxd, int operand)
 
 	/* IMS backed entry start at 1, 0 is emulated vector */
 	for (i = 1; i < VIDXD_MAX_MSIX_VECS; i++) {
-		if (vfio_device_msi_hwirq(&vidxd->vdev, i) == handle) {
+//		if (vfio_device_msi_hwirq(&vidxd->vdev, i) == handle) {
+		if (vfio_device_msi_hwirq(&vidxd->vdev, i - 1) == handle) {
 			found = true;
 			break;
 		}
