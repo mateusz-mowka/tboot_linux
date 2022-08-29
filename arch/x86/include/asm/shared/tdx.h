@@ -22,6 +22,7 @@
 /* TDX hypercall Leaf IDs */
 #define TDVMCALL_MAP_GPA		0x10001
 #define TDVMCALL_SETUP_NOTIFY_INTR	0x10004
+#define TDVMCALL_SERVICE		0x10005
 
 #ifndef __ASSEMBLY__
 
