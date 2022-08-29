@@ -92,9 +92,36 @@ static inline u32 devid(struct pci_dev *pdev)
 	return PCI_DEVID(pdev->bus->number, pdev->devfn);
 }
 
+#define DEVICE_INFO_DATA_BUF_SZ		(8 * PAGE_SIZE)
+
+static int tdxio_devif_get_device_info(struct pci_dev *pdev,
+				       void **info_va, size_t *info_sz)
+{
+	size_t buf_sz = DEVICE_INFO_DATA_BUF_SZ;
+	void *buf_va;
+	int ret;
+
+	buf_va = (void *)__get_free_pages(GFP_KERNEL, get_order(buf_sz));
+	if (!buf_va)
+		return -ENOMEM;
+
+	ret = tdx_get_device_info(pdev->handle, buf_va, buf_sz);
+	if (!ret) {
+		*info_va = buf_va;
+		*info_sz = buf_sz;
+		return 0;
+	}
+
+	free_pages((unsigned long)buf_va, get_order(buf_sz));
+	return ret;
+}
+
 static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 {
+	struct device *dev = &pdev->dev;
 	int ret, result = 0;
+	void *info_va;
+	size_t info_sz;
 	u64 handle;
 
 	/*
@@ -122,6 +149,17 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 		return 0;
 
 	pdev->handle = handle;
+
+	/*
+	 * Step 1: Device Data Collection for TDI
+	 *
+	 * 1.1 Get DEVICE_INFO_DATA by TDVMCALL from VMM
+	 */
+	ret = tdxio_devif_get_device_info(pdev, &info_va, &info_sz);
+	if (ret) {
+		dev_err(dev, "Fail to get DEVICE_INFO_DATA %d\n", ret);
+		return 0;
+	}
 
 	return result;
 }

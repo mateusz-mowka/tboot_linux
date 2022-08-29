@@ -175,6 +175,22 @@ struct tdcm_resp_devif {
 	u64 dev_handle;
 };
 
+/* TDG.VP.VMCALL <Service.TDCM.GetDeviceInfo> command */
+struct tdcm_cmd_get_dev_info {
+	struct tdx_serv_cmd cmd;
+	struct tdcm_cmd_hdr hdr;
+	u64 dev_handle;
+	u8 tpa_request_nonce[32];
+};
+
+/* TDG.VP.VMCALL <Service.TDCM.GetDeviceInfo> response */
+struct tdcm_resp_get_dev_info {
+	struct tdx_serv_resp resp;
+	struct tdcm_resp_hdr hdr;
+	u64 dev_handle;
+	u8 dev_info_data[0];
+};
+
 struct tdcm_cmd_tdisp {
 	struct tdx_serv_cmd cmd;
 	struct tdcm_cmd_hdr hdr;
@@ -1256,6 +1272,46 @@ long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa)
 		pr_info("%s: devid %x msg %x %s done\n", __func__,
 			devid, msg, tdisp_message_to_string(msg));
 
+done:
+	tdx_service_deinit(&serv);
+	return ret;
+}
+
+/* For TDG.VP.VMCALL <service.TDCM.GetDeviceInfo> */
+long tdx_get_device_info(u64 handle, void *buf_va, size_t buf_sz)
+{
+	struct tdcm_resp_get_dev_info *resp;
+	struct tdcm_cmd_get_dev_info *cmd;
+	struct tdx_serv serv;
+	u32 dev_info_size;
+	long ret;
+
+	ret = tdx_service_init(&serv, &tdcm_guid, sizeof(*cmd), buf_sz, 0, 0);
+	if (ret)
+		return ret;
+
+	cmd = (struct tdcm_cmd_get_dev_info *)serv.cmd_va;
+	resp = (struct tdcm_resp_get_dev_info *)serv.resp_va;
+
+	cmd->hdr.version = 0;
+	cmd->hdr.command = TDCM_CMD_GET_DEVICE_INFO;
+	cmd->dev_handle = handle;
+
+	pr_info("%s: dev_info_size 0x%x resp.length %x\n", __func__,
+		dev_info_size, resp->resp.length);
+
+	ret = tdx_service(&serv);
+	if (ret)
+		goto done;
+
+	if (tdx_tdcm_resp_status(&resp->hdr)) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	dev_info_size = resp->resp.length - sizeof(*resp);
+
+	memcpy(buf_va, (void *)(resp->dev_info_data), dev_info_size);
 done:
 	tdx_service_deinit(&serv);
 	return ret;

@@ -68,6 +68,8 @@ extern long tdx_devif_read(u64 handle, u64 field, u64 field_parm, u64 *value);
 extern long tdx_dmar_accept(u64 handle, u64 gpasid, u64 param0, u64 param1,
 			    u64 param2, u64 param3, u64 param4, u64 param5,
 			    u64 param6, u64 param7);
+
+extern long tdx_get_device_info(u64 handle, void *buf_va, size_t buf_sz);
 #else
 
 static inline void tdx_early_init(void) { };
@@ -100,6 +102,12 @@ static inline long tdx_dmar_accept(u64 handle, u64 pasid, u64 param0, u64 param1
 {
 	return -EOPNOTSUPP;
 }
+
+static long tdx_get_device_info(u32 devid, void *buf_va, size_t buf_sz)
+{
+	return -EOPNOTSUPP;
+}
+
 #endif /* CONFIG_INTEL_TDX_GUEST */
 
 #if defined(CONFIG_KVM_GUEST) && defined(CONFIG_INTEL_TDX_GUEST)
