@@ -1383,7 +1383,7 @@ static bool tdx_enc_status_changed_phys(phys_addr_t start, phys_addr_t end,
 	 * can be found in TDX Guest-Host-Communication Interface (GHCI),
 	 * section "TDG.VP.VMCALL<MapGPA>"
 	 */
-	if (_trace_tdx_hypercall(TDVMCALL_MAP_GPA, start, end - start, 0, 0))
+	if (_trace_tdx_hypercall(TDVMCALL_MAP_GPA, start, end - start, 1, 0))
 		return false;
 
 	/* private->shared conversion  requires only MapGPA call */
