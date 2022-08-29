@@ -14,11 +14,6 @@
 #include <linux/powercap.h>
 #include <linux/cpuhotplug.h>
 
-enum rapl_if_type {
-	RAPL_IF_MSR,	/* RAPL I/F uses MSR registers */
-	RAPL_IF_PTD,	/* RAPL I/F uses processor thermal device registers */
-};
-
 enum rapl_domain_type {
 	RAPL_DOMAIN_PACKAGE,	/* entire package/socket */
 	RAPL_DOMAIN_PP0,	/* core power plane */
@@ -137,7 +132,6 @@ struct reg_action {
  * @rpi:			internal pointer to interface primitive info
  */
 struct rapl_if_priv {
-	enum rapl_if_type type;
 	struct powercap_control_type *control_type;
 	enum cpuhp_state pcap_rapl_online;
 	u64 reg_unit;

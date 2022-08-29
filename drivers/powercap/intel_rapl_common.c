@@ -176,11 +176,21 @@ struct rapl_defaults {
 	unsigned int psys_domain_energy_unit;
 	bool spr_psys_bits;
 };
-static struct rapl_defaults *rpd_msr;
+static struct rapl_defaults *rapl_defaults;
 
 static struct rapl_defaults *get_rpd(struct rapl_package *rp)
 {
 	return rp->priv->rpd;
+}
+
+static int set_rpd(struct rapl_package *rp)
+{
+	if (rp->priv->rpd)
+		return 0;
+	rp->priv->rpd = (void *)rapl_defaults;
+	if (!rp->priv->rpd)
+		return -ENODEV;
+	return 0;
 }
 
 /* Sideband MBI registers */
@@ -238,7 +248,7 @@ static const char *const rapl_domain_names[] = {
 	"psys",
 };
 
-static struct rapl_primitive_info rpi_msr[NR_RAPL_PRIMITIVES] = {
+static struct rapl_primitive_info rpis_default[NR_RAPL_PRIMITIVES] = {
 	/* name, mask, shift, msr index, unit divisor */
 	[POWER_LIMIT1] = PRIMITIVE_INFO_INIT(POWER_LIMIT1, POWER_LIMIT1_MASK, 0,
 			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
@@ -307,25 +317,13 @@ static struct rapl_primitive_info *get_rpi(struct rapl_package *rp,
 	return &rpi[prim];
 }
 
-static int rapl_config_interface(struct rapl_package *rp)
+static int set_rpi(struct rapl_package *rp)
 {
-	if (rp->priv->rpi && rp->priv->rpd)
+	if (rp->priv->rpi)
 		return 0;
-
-	switch (rp->priv->type) {
-	/* PTD I/F shares the same register layout as MSR registers */
-	case RAPL_IF_PTD:
-	case RAPL_IF_MSR:
-		rp->priv->rpd = (void *)rpd_msr;
-		rp->priv->rpi = (void *)rpi_msr;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	if (!rp->priv->rpd || !rp->priv->rpi)
+	rp->priv->rpi = (void *)rpis_default;
+	if (!rp->priv->rpi)
 		return -ENODEV;
-
 	return 0;
 }
 
@@ -1451,7 +1449,11 @@ struct rapl_package *rapl_add_package(int cpu, struct rapl_if_priv *priv)
 	rp->lead_cpu = cpu;
 	rp->priv = priv;
 
-	ret = rapl_config_interface(rp);
+	ret = set_rpd(rp);
+	if (ret)
+		goto err_free_package;
+
+	ret = set_rpi(rp);
 	if (ret)
 		goto err_free_package;
 
@@ -1549,7 +1551,7 @@ static int __init rapl_init(void)
 
 	id = x86_match_cpu(rapl_ids);
 	if (id) {
-		rpd_msr = (struct rapl_defaults *)id->driver_data;
+		rapl_defaults = (struct rapl_defaults *)id->driver_data;
 
 		rapl_msr_platdev = platform_device_alloc("intel_rapl_msr", 0);
 		if (!rapl_msr_platdev) {
