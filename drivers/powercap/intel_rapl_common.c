@@ -75,15 +75,6 @@
 #define PSYS_TIME_WINDOW1_MASK       (0x7FULL<<19)
 #define PSYS_TIME_WINDOW2_MASK       (0x7FULL<<51)
 
-/* bitmasks for RAPL TPMI, used by primitive access functions */
-#define TPMI_POWER_LIMIT_MASK	0x3FFFF
-#define TPMI_POWER_LIMIT_ENABLE	BIT_ULL(62)
-#define TPMI_TIME_WINDOW_MASK	(0x7FULL<<18)
-#define TPMI_INFO_SPEC_MASK	0x3FFFF
-#define TPMI_INFO_MIN_MASK	(0x3FFFFULL << 18)
-#define TPMI_INFO_MAX_MASK	(0x3FFFFULL << 36)
-#define TPMI_INFO_MAX_TIME_WIN_MASK	(0x7FULL << 54)
-
 /* Non HW constants */
 #define RAPL_PRIMITIVE_DERIVED       BIT(1)	/* not from raw data */
 #define RAPL_PRIMITIVE_DUMMY         BIT(2)
@@ -141,12 +132,8 @@ static int get_pl_prim(struct rapl_domain *rd, int pl, enum pl_prims prim)
 			return TIME_WINDOW1;
 		if (prim == PL_MAX_POWER)
 			return THERMAL_SPEC_POWER;
-		if (prim == PL_LOCK) {
-			if (rd->rp->priv->type == RAPL_IF_TPMI)
-				return PL1_LOCK;
-			else
-				return test_bit(POWER_LIMIT2, &rd->rp->priv->limits[rd->id]) ? FW_HIGH_LOCK : FW_LOCK;
-		}
+		if (prim == PL_LOCK)
+			return test_bit(POWER_LIMIT2, &rd->rp->priv->limits[rd->id]) ? FW_HIGH_LOCK : FW_LOCK;
 		return -EINVAL;
 	case POWER_LIMIT2:
 		if (prim == PL_ENABLE)
@@ -159,12 +146,8 @@ static int get_pl_prim(struct rapl_domain *rd, int pl, enum pl_prims prim)
 			return TIME_WINDOW2;
 		if (prim == PL_MAX_POWER)
 			return MAX_POWER;
-		if (prim == PL_LOCK) {
-			if (rd->rp->priv->type == RAPL_IF_TPMI)
-				return PL2_LOCK;
-			else
-				return test_bit(POWER_LIMIT2, &rd->rp->priv->limits[rd->id]) ? FW_HIGH_LOCK : FW_LOCK;
-		}
+		if (prim == PL_LOCK)
+			return test_bit(POWER_LIMIT2, &rd->rp->priv->limits[rd->id]) ? FW_HIGH_LOCK : FW_LOCK;
 		return -EINVAL;
 	case POWER_LIMIT4:
 		if (prim == PL_LIMIT)
@@ -174,8 +157,6 @@ static int get_pl_prim(struct rapl_domain *rd, int pl, enum pl_prims prim)
 		/* PL4 would be around two times PL2, use same prim as PL2. */
 		if (prim == PL_MAX_POWER)
 			return MAX_POWER;
-		if (prim == PL_LOCK && rd->rp->priv->type == RAPL_IF_TPMI)
-				return PL4_LOCK;
 		return -EINVAL;
 	default:
 		return -EINVAL;
@@ -257,7 +238,6 @@ static const char *const rapl_domain_names[] = {
 	"psys",
 };
 
-/* RAPL primitives for MSR and Processor Thermal device I/F */
 static struct rapl_primitive_info rpi_msr[NR_RAPL_PRIMITIVES] = {
 	/* name, mask, shift, msr index, unit divisor */
 	[POWER_LIMIT1] = PRIMITIVE_INFO_INIT(POWER_LIMIT1, POWER_LIMIT1_MASK, 0,
@@ -316,49 +296,6 @@ static struct rapl_primitive_info rpi_msr[NR_RAPL_PRIMITIVES] = {
 			    RAPL_PRIMITIVE_DERIVED),
 };
 
-/* RAPL primitives for TPMI I/F */
-static struct rapl_primitive_info rpi_tpmi[] = {
-	/* name, mask, shift, msr index, unit divisor */
-	[POWER_LIMIT1] = PRIMITIVE_INFO_INIT(POWER_LIMIT1, TPMI_POWER_LIMIT_MASK, 0,
-		RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
-	[POWER_LIMIT2] = PRIMITIVE_INFO_INIT(POWER_LIMIT2, TPMI_POWER_LIMIT_MASK, 0,
-		RAPL_DOMAIN_REG_PL2, POWER_UNIT, 0),
-	[POWER_LIMIT4] = PRIMITIVE_INFO_INIT(POWER_LIMIT4, TPMI_POWER_LIMIT_MASK, 0,
-		RAPL_DOMAIN_REG_PL4, POWER_UNIT, 0),
-	[ENERGY_COUNTER] = PRIMITIVE_INFO_INIT(ENERGY_COUNTER, ENERGY_STATUS_MASK, 0,
-		RAPL_DOMAIN_REG_STATUS, ENERGY_UNIT, 0),
-	[PL1_LOCK] = PRIMITIVE_INFO_INIT(PL1_LOCK, POWER_HIGH_LOCK, 63,
-		RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	[PL2_LOCK] = PRIMITIVE_INFO_INIT(PL2_LOCK, POWER_HIGH_LOCK, 63,
-		RAPL_DOMAIN_REG_PL2, ARBITRARY_UNIT, 0),
-	[PL4_LOCK] = PRIMITIVE_INFO_INIT(PL4_LOCK, POWER_HIGH_LOCK, 63,
-		RAPL_DOMAIN_REG_PL4, ARBITRARY_UNIT, 0),
-	[PL1_ENABLE] = PRIMITIVE_INFO_INIT(PL1_ENABLE, TPMI_POWER_LIMIT_ENABLE, 62,
-		RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	[PL2_ENABLE] = PRIMITIVE_INFO_INIT(PL2_ENABLE, TPMI_POWER_LIMIT_ENABLE, 62,
-		RAPL_DOMAIN_REG_PL2, ARBITRARY_UNIT, 0),
-	[PL4_ENABLE] = PRIMITIVE_INFO_INIT(PL4_ENABLE, TPMI_POWER_LIMIT_ENABLE, 62,
-		RAPL_DOMAIN_REG_PL4, ARBITRARY_UNIT, 0),
-	[TIME_WINDOW1] = PRIMITIVE_INFO_INIT(TIME_WINDOW1, TPMI_TIME_WINDOW_MASK, 18,
-		RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
-	[TIME_WINDOW2] = PRIMITIVE_INFO_INIT(TIME_WINDOW2, TPMI_TIME_WINDOW_MASK, 18,
-		RAPL_DOMAIN_REG_PL2, TIME_UNIT, 0),
-	[THERMAL_SPEC_POWER] = PRIMITIVE_INFO_INIT(THERMAL_SPEC_POWER, TPMI_INFO_SPEC_MASK, 0,
-		RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
-	[MAX_POWER] = PRIMITIVE_INFO_INIT(MAX_POWER, TPMI_INFO_MAX_MASK, 36,
-		RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
-	[MIN_POWER] = PRIMITIVE_INFO_INIT(MIN_POWER, TPMI_INFO_MIN_MASK, 18,
-		RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
-	[MAX_TIME_WINDOW] = PRIMITIVE_INFO_INIT(MAX_TIME_WINDOW, TPMI_INFO_MAX_TIME_WIN_MASK, 54,
-		RAPL_DOMAIN_REG_INFO, TIME_UNIT, 0),
-	[THROTTLED_TIME] = PRIMITIVE_INFO_INIT(THROTTLED_TIME, PERF_STATUS_THROTTLE_TIME_MASK, 0,
-		RAPL_DOMAIN_REG_PERF, TIME_UNIT, 0),
-	/* non-hardware */
-	[AVERAGE_POWER] = PRIMITIVE_INFO_INIT(AVERAGE_POWER, 0, 0, 0,
-		POWER_UNIT, RAPL_PRIMITIVE_DERIVED),
-	{NULL, 0, 0, 0},
-};
-
 static struct rapl_primitive_info *get_rpi(struct rapl_package *rp,
 					enum rapl_primitives prim)
 {
@@ -369,8 +306,6 @@ static struct rapl_primitive_info *get_rpi(struct rapl_package *rp,
 
 	return &rpi[prim];
 }
-
-static const struct rapl_defaults rapl_defaults_tpmi;
 
 static int rapl_config_interface(struct rapl_package *rp)
 {
@@ -383,10 +318,6 @@ static int rapl_config_interface(struct rapl_package *rp)
 	case RAPL_IF_MSR:
 		rp->priv->rpd = (void *)rpd_msr;
 		rp->priv->rpi = (void *)rpi_msr;
-		break;
-	case RAPL_IF_TPMI:
-		rp->priv->rpd = (void *)&rapl_defaults_tpmi;
-		rp->priv->rpi = (void *)rpi_tpmi;
 		break;
 	default:
 		return -EINVAL;
@@ -1094,12 +1025,6 @@ static u64 rapl_compute_time_window_atom(struct rapl_domain *rd, u64 value,
 
 	return value;
 }
-
-static const struct rapl_defaults rapl_defaults_tpmi = {
-	.check_unit = rapl_check_unit_core,
-	.set_floor_freq = set_floor_freq_default,
-	.compute_time_window = rapl_compute_time_window_core,
-};
 
 static const struct rapl_defaults rapl_defaults_core = {
 	.floor_freq_reg_addr = 0,
