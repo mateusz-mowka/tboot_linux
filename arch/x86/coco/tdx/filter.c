@@ -10,6 +10,7 @@
 #include <linux/cc_platform.h>
 #include <linux/export.h>
 #include <uapi/linux/virtio_ids.h>
+#include <crypto/hash.h>
 
 #include <asm/tdx.h>
 #include <asm/cmdline.h>
@@ -116,6 +117,42 @@ static int tdxio_devif_get_device_info(struct pci_dev *pdev,
 	return ret;
 }
 
+static int tdxio_devif_validate(struct pci_dev *pdev, void *info, size_t size)
+{
+	struct crypto_shash *alg;
+	struct shash_desc *sdesc;
+	u64 result[6];
+	size_t len;
+	int rc, i;
+
+	alg = crypto_alloc_shash("sha384", 0, 0);
+	if (IS_ERR(alg))
+		return PTR_ERR(alg);
+
+	pr_info("%s: sha384 digestsize %u\n", __func__, crypto_shash_digestsize(alg));
+
+	len = sizeof(*sdesc) + crypto_shash_digestsize(alg);
+	sdesc = kmalloc(len, GFP_KERNEL);
+	if (!sdesc) {
+		crypto_free_shash(alg);
+		return -ENOMEM;
+	}
+
+	sdesc->tfm = alg;
+	rc = crypto_shash_digest(sdesc, info, size, (u8 *)result);
+	kfree(sdesc);
+	if (!rc) {
+		for (i = 0; i < 6; i++)
+			pr_info("%s: result[%d] %llx\n", __func__, i, result[i]);
+	}
+
+	crypto_free_shash(alg);
+
+	/* currently use SHA384 HASH for dev pub key hash */
+	return tdx_devif_validate(pdev->handle, result[5], result[4], result[3],
+				  result[2], result[1], result[0]);
+}
+
 static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 {
 	struct device *dev = &pdev->dev;
@@ -154,12 +191,23 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 	 * Step 1: Device Data Collection for TDI
 	 *
 	 * 1.1 Get DEVICE_INFO_DATA by TDVMCALL from VMM
+	 * 1.2 TDG.DEVIF.VALIDATE
+	 *   ensure DEVIF is locked and DEVICE_INFO_DATA is trusted
 	 */
 	ret = tdxio_devif_get_device_info(pdev, &info_va, &info_sz);
 	if (ret) {
 		dev_err(dev, "Fail to get DEVICE_INFO_DATA %d\n", ret);
 		return 0;
 	}
+
+	ret = tdxio_devif_validate(pdev, info_va, info_sz);
+	if (ret) {
+		dev_err(dev, "Fail to validate DEVICE_INFO_DATA %d\n", ret);
+		goto free_device_info;
+	}
+
+free_device_info:
+	free_pages((unsigned long)info_va, get_order(info_sz));
 
 	return result;
 }
