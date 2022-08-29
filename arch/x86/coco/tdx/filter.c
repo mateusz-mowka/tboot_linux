@@ -49,6 +49,14 @@ static bool filter_overridden;
 
 static int dev_attestation_policy;
 
+#define DEVIF_FIELD_TDISP_VER		0x1
+#define DEVIF_FIELD_TDISP_CAP		0x2
+#define DEVIF_FIELD_TDISP_STS		0x3
+
+#define TDISP_DEVIF_STATE_LOCKED	0x1
+#define TDISP_DEVIF_STATE_RUN_MMIO	0x2
+#define TDISP_DEVIF_STATE_RUN_DMA	0x3
+
 #define PCI_DEVICE_DATA2(vend, dev, data) \
 	.vendor = vend, .device = dev, \
 	.subvendor = PCI_ANY_ID, .subdevice = PCI_ANY_ID, 0, 0, \
@@ -324,6 +332,169 @@ static int tdxio_devif_verify(struct pci_dev *pdev, void *info_va, size_t info_s
 	return attested ? 0 : -ENOTSUPP;
 }
 
+static int tdxio_devif_tdisp(struct pci_dev *pdev, u8 msg)
+{
+	return tdx_devif_tdisp(pdev->handle, devid(pdev), msg, 0);
+}
+
+static int tdxio_devif_sts(struct pci_dev *pdev)
+{
+	u64 tdisp_sts;
+	int ret;
+
+	ret = tdx_devif_read(pdev->handle, DEVIF_FIELD_TDISP_STS, 0, &tdisp_sts);
+	if (ret)
+		return ret;
+
+	dev_dbg(&pdev->dev, "DEVIF.RD STS %llx %s\n", tdisp_sts, tdisp_message_to_string(tdisp_sts));
+	return ret;
+}
+
+static int tdxio_devif_dmar_accept(struct pci_dev *pdev)
+{
+	return tdx_dmar_accept(pdev->handle, 0,
+			       0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+static int tdxio_devif_accept_mmios(struct pci_dev *pdev, void *data)
+{
+	u32 num, attr, pages, v, i;
+	u64 hpa, gpa, offset, size;
+	u32 bar, bar_prev;
+	int msix_cap;
+	u32 table_bir = ~1U, table_start = ~1U, table_end = ~1U, pba_bir = ~1U, pba_start = ~1U, pba_end = ~1U;
+	bool ismsix;
+
+#if 0
+	v = devif_rp_read(data, DEVIF_RP_HDR);
+
+	dev_dbg(&pdev->dev, "%s: header: version 0x%x type 0x%x\n",
+		__func__, DEVIF_RP_HDR_VER(v), DEVIF_RP_HDR_TYPE(v));
+#endif
+
+	v = devif_rp_read(data, DEVIF_RP_LEN);
+
+	pr_info("%s: header: portion len 0x%x remaining len 0x%x\n",
+		__func__, DEVIF_RP_LEN_PORTION(v), DEVIF_RP_LEN_REMAIN(v));
+
+	num = devif_rp_read(data, DEVIF_RP_MMIO_NUM);
+
+	pr_info("%s: mmio_range_num: 0x%x\n", __func__, num);
+
+	msix_cap = pci_find_capability(pdev, PCI_CAP_ID_MSIX);
+	if (msix_cap) {
+		u16 control, vec_cnt;
+
+		pci_read_config_word(pdev, msix_cap + PCI_MSIX_FLAGS, &control);
+		vec_cnt = (control & PCI_MSIX_FLAGS_QSIZE) + 1;
+
+		pci_read_config_dword(pdev, msix_cap + PCI_MSIX_TABLE, &table_start);
+		table_end = table_start + vec_cnt * PCI_MSIX_ENTRY_SIZE;
+		table_bir = (u8)(table_start & PCI_MSIX_TABLE_BIR);
+		table_end = ALIGN(table_end, PAGE_SIZE);
+		table_start = ALIGN_DOWN(table_start, PAGE_SIZE);
+
+		pci_read_config_dword(pdev, msix_cap + PCI_MSIX_PBA, &pba_start);
+		pba_end = pba_start + vec_cnt * PCI_MSIX_ENTRY_SIZE;
+		pba_bir = (u8)(pba_start & PCI_MSIX_PBA_BIR);
+		pba_end = ALIGN(pba_end, PAGE_SIZE);
+		pba_start = ALIGN_DOWN(pba_start, PAGE_SIZE);
+
+		pr_info("msix table_size=%x, table_bir=%x, table_start=%x, table_end=%x\n", table_end - table_start, table_bir, table_start, table_end);
+		pr_info("msix pba_size=%x, pba_bir=%x, pba_start=%x, pba_end=%x\n", pba_end - pba_start, pba_bir, pba_start, pba_end);
+	}
+
+	bar_prev = -1;
+	/* for each mmio range */
+	for (i = 0; i < num; i++) {
+		hpa = devif_rp_read(data, DEVIF_RP_MMIO_ADDR_LO(i)) |
+		 ((u64)devif_rp_read(data, DEVIF_RP_MMIO_ADDR_HI(i)) << 32);
+		pages = devif_rp_read(data, DEVIF_RP_MMIO_PAGES(i));
+		attr = devif_rp_read(data, DEVIF_RP_MMIO_ATTR(i));
+		size = pages << PAGE_SHIFT;
+
+		pr_info("%s: range[%u]: hpa 0x%016llx size 0x%llx, attr id %x pba %x msix %x\n",
+			__func__, i, hpa, size,
+			DEVIF_RP_MMIO_ATTR_ID(attr),
+			DEVIF_RP_MMIO_ATTR_PBA(attr),
+			DEVIF_RP_MMIO_ATTR_MSIX(attr));
+
+		bar = DEVIF_RP_MMIO_ATTR_ID(attr);
+		ismsix = DEVIF_RP_MMIO_ATTR_PBA(attr) || DEVIF_RP_MMIO_ATTR_MSIX(attr);
+
+		/* TODO here just skip msix regions as it's falsely reported in devif report
+		 * in future, if msix regions are included in defif report, it should be
+		 * accepted as private mmio
+		 */
+		if (ismsix)
+			continue;
+
+		if (bar != bar_prev)
+			offset = 0;
+		bar_prev = bar;
+
+		/* skip msix table and pba */
+		if (!ismsix) {
+			if (bar == pba_bir && offset >= pba_start && offset < pba_end)
+				offset = pba_end;
+			if (bar == table_bir && offset >= table_start && offset < table_end)
+				offset = table_end;
+			if (bar == pba_bir && offset >= pba_start && offset < pba_end)
+				offset = pba_end;
+		}
+
+		gpa = pci_resource_start(pdev, bar) + offset;
+
+		pr_info("accept mmio range bar %x gpa=%llx hpa=%llx size=%llx", bar, gpa, hpa, size);
+
+		if (gpa + size - 1 > pci_resource_end(pdev, bar))
+			return -EINVAL;
+
+		tdx_map_private_mmio(gpa, hpa, pages);
+
+		offset += size;
+	}
+	return 0;
+}
+
+static int tdxio_devif_accept(struct pci_dev *pdev, void *rp, size_t size)
+{
+	struct device *dev = &pdev->dev;
+	int ret;
+
+	ret = tdxio_devif_dmar_accept(pdev);
+	if (ret) {
+		dev_err(dev, "Fail to accept DMAR %d\n", ret);
+		return ret;
+	}
+
+	ret = tdxio_devif_accept_mmios(pdev, rp);
+	if (ret) {
+		dev_err(dev, "Fail to accept MMIO %d\n", ret);
+		return ret;
+	}
+
+	ret = tdxio_devif_tdisp(pdev, TDISP_START_DEVIF_MMIO_REQ);
+	if (ret) {
+		dev_err(dev, "Fail to issue START MMIO REQ %d\n", ret);
+		return ret;
+	}
+
+	ret = tdxio_devif_tdisp(pdev, TDISP_START_DEVIF_DMA_REQ);
+	if (ret) {
+		dev_err(dev, "Fail to issue START DMA REQ %d\n", ret);
+		return ret;
+	}
+
+	ret = tdxio_devif_sts(pdev);
+	if (ret) {
+		dev_err(dev, "Fail to dump DEVIF STS %d\n", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
 static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 {
 	struct device *dev = &pdev->dev;
@@ -392,6 +563,17 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 	ret = tdxio_devif_verify(pdev, info_va, info_sz, rp_va, rp_sz);
 	if (ret) {
 		dev_err(dev, "Fail to verify TDISP DEVIF %d\n", ret);
+		goto free_device_report;
+	}
+
+	/*
+	 * Step 3: Additional Steps to accept TDISP DEVIF into TCB
+	 *
+	 * Including DMAR Accept, MMIO Accept, move DEVIF to TDISP RUN state.
+	 */
+	ret = tdxio_devif_accept(pdev, rp_va, rp_sz);
+	if (ret) {
+		dev_err(dev, "Fail to accept TDISP DEVIF %d\n", ret);
 		goto free_device_report;
 	}
 
