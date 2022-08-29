@@ -1300,15 +1300,6 @@ static int rapl_package_register_powercap(struct rapl_package *rp)
 			ret = PTR_ERR(power_zone);
 			goto err_cleanup;
 		}
-
-		if (rd->id == RAPL_DOMAIN_PLATFORM) {
-			if (sysfs_create_link(&rd->power_zone.dev.kobj,
-				&rp->power_zone->dev.kobj, rp->power_zone->name))
-				pr_warn("Cannot create symlink\n");
-			if (sysfs_create_link(&rp->power_zone->dev.kobj,
-				&rd->power_zone.dev.kobj, "psys"))
-				pr_warn("Cannot create symlink\n");
-		}
 	}
 	return 0;
 
@@ -1489,11 +1480,6 @@ void rapl_remove_package(struct rapl_package *rp)
 		if (rd->id == RAPL_DOMAIN_PACKAGE) {
 			rd_package = rd;
 			continue;
-		}
-		if (rd->id == RAPL_DOMAIN_PLATFORM) {
-			sysfs_remove_link(&rd->power_zone.dev.kobj,
-					rp->power_zone->name);
-			sysfs_remove_link(&rp->power_zone->dev.kobj, "psys");
 		}
 		pr_debug("remove package, undo power limit on %s: %s\n",
 			 rp->name, rd->name);
