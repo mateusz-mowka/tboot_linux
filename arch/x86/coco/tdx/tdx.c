@@ -1041,6 +1041,20 @@ static void tdx_service_deinit(struct tdx_serv *serv)
 	free_pages(serv->cmd_va, order);
 }
 
+long tdx_dmar_accept(u64 handle, u64 gpasid, u64 param0, u64 param1, u64 param2, u64 param3,
+		     u64 param4, u64 param5, u64 param6, u64 param7)
+{
+	long ret;
+
+	ret = __tdx_module_call_io(TDDMARACCEPT, handle, gpasid, param0, param1, param2, param3, param4, param5, param6, param7, NULL);
+
+	pr_info("%s ret 0x%llx handle %llx gpasid %llx param %llx %llx %llx %llx %llx %llx %llx %llx\n", __func__,
+		(u64)ret, handle, gpasid, param0, param1, param2, param3,
+		param4, param5, param6, param7);
+
+	return ret;
+}
+
 long tdx_devif_read(u64 devif, u64 field, u64 field_parm, u64 *value)
 {
 	struct tdx_module_output out;
