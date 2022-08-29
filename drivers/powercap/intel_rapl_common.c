@@ -115,19 +115,9 @@ struct rapl_defaults {
 };
 static struct rapl_defaults *rapl_defaults;
 
-static struct rapl_defaults *get_rpd(struct rapl_package *rp)
+static struct rapl_defaults *get_rpd(void)
 {
-	return rp->priv->rpd;
-}
-
-static int set_rpd(struct rapl_package *rp)
-{
-	if (rp->priv->rpd)
-		return 0;
-	rp->priv->rpd = (void *)rapl_defaults;
-	if (!rp->priv->rpd)
-		return -ENODEV;
-	return 0;
+	return rapl_defaults;
 }
 
 /* Sideband MBI registers */
@@ -305,7 +295,7 @@ static int find_nr_power_limit(struct rapl_domain *rd)
 static int set_domain_enable(struct powercap_zone *power_zone, bool mode)
 {
 	struct rapl_domain *rd = power_zone_to_rapl_domain(power_zone);
-	struct rapl_defaults *rpd = get_rpd(rd->rp);
+	struct rapl_defaults *rpd = get_rpd();
 
 	if (rd->state & DOMAIN_STATE_BIOS_LOCKED)
 		return -EACCES;
@@ -630,7 +620,7 @@ static void rapl_init_domains(struct rapl_package *rp)
 	enum rapl_domain_type i;
 	enum rapl_domain_reg_id j;
 	struct rapl_domain *rd = rp->domains;
-	struct rapl_defaults *rpd = get_rpd(rp);
+	struct rapl_defaults *rpd = get_rpd();
 
 	for (i = 0; i < RAPL_DOMAIN_MAX; i++) {
 		unsigned int mask = rp->domain_map & (1 << i);
@@ -696,7 +686,7 @@ static u64 rapl_unit_xlate(struct rapl_domain *rd, enum unit_type type,
 {
 	u64 units = 1;
 	struct rapl_package *rp = rd->rp;
-	struct rapl_defaults *rpd = get_rpd(rp);
+	struct rapl_defaults *rpd = get_rpd();
 	u64 scale = 1;
 
 	switch (type) {
@@ -986,7 +976,7 @@ static void set_floor_freq_default(struct rapl_domain *rd, bool mode)
 static void set_floor_freq_atom(struct rapl_domain *rd, bool enable)
 {
 	static u32 power_ctrl_orig_val;
-	struct rapl_defaults *rpd = get_rpd(rd->rp);
+	struct rapl_defaults *rpd = get_rpd();
 	u32 mdata;
 
 	if (!rpd->floor_freq_reg_addr) {
@@ -1407,6 +1397,9 @@ struct rapl_package *rapl_add_package(int cpu, struct rapl_if_priv *priv)
 	struct rapl_defaults *rpd;
 	int ret;
 
+	if (!rapl_defaults)
+		return ERR_PTR(-ENODEV);
+
 	rp = kzalloc(sizeof(struct rapl_package), GFP_KERNEL);
 	if (!rp)
 		return ERR_PTR(-ENOMEM);
@@ -1416,10 +1409,6 @@ struct rapl_package *rapl_add_package(int cpu, struct rapl_if_priv *priv)
 	rp->lead_cpu = cpu;
 	rp->priv = priv;
 
-	ret = set_rpd(rp);
-	if (ret)
-		goto err_free_package;
-
 	if (topology_max_die_per_package() > 1)
 		snprintf(rp->name, PACKAGE_DOMAIN_NAME_LENGTH,
 			 "package-%d-die-%d",
@@ -1428,7 +1417,7 @@ struct rapl_package *rapl_add_package(int cpu, struct rapl_if_priv *priv)
 		snprintf(rp->name, PACKAGE_DOMAIN_NAME_LENGTH, "package-%d",
 			 topology_physical_package_id(cpu));
 
-	rpd = get_rpd(rp);
+	rpd = get_rpd();
 	/* check if the package contains valid domains */
 	if (rapl_detect_domains(rp, cpu) || rpd->check_unit(rp, cpu)) {
 		ret = -ENODEV;
