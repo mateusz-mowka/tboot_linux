@@ -596,7 +596,7 @@ static u64 __init get_snp_jump_table_addr(void)
 	if (!pa)
 		return 0;
 
-	mem = ioremap_encrypted(pa, PAGE_SIZE);
+	mem = ioremap_encrypted(pa, PAGE_SIZE, _PAGE_CACHE_MODE_WB);
 	if (!mem) {
 		pr_err("Unable to locate AP jump table address: failed to map the SNP secrets page.\n");
 		return 0;
@@ -1155,7 +1155,7 @@ int __init sev_es_setup_ap_jump_table(struct real_mode_header *rmh)
 	startup_ip = (u16)(rmh->sev_es_trampoline_start -
 			   rmh->trampoline_start);
 
-	jump_table = ioremap_encrypted(jump_table_pa, PAGE_SIZE);
+	jump_table = ioremap_encrypted(jump_table_pa, PAGE_SIZE, _PAGE_CACHE_MODE_WB);
 	if (!jump_table)
 		return -EIO;
 

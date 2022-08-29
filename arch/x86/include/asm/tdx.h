@@ -55,6 +55,8 @@ extern int tdx_notify_irq;
 
 bool tdx_allowed_port(short int port);
 
+extern int tdx_map_private_mmio(phys_addr_t gpa, u64 offset, int numpages);
+
 #else
 
 static inline void tdx_early_init(void) { };
@@ -62,6 +64,11 @@ static inline void tdx_safe_halt(void) { };
 static inline void tdx_filter_init(void) { };
 
 static inline bool tdx_early_handle_ve(struct pt_regs *regs) { return false; }
+
+static inline int tdx_map_private_mmio(phys_addr_t gpa, u64 offset, int numpages)
+{
+	return -ENODEV;
+}
 
 #endif /* CONFIG_INTEL_TDX_GUEST */
 

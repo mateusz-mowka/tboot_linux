@@ -17,6 +17,7 @@
 #define TDX_GET_INFO			1
 #define TDX_GET_VEINFO			3
 #define TDX_ACCEPT_PAGE			6
+#define TDMMIOACCEPT			71
 
 /* TDX hypercall Leaf IDs */
 #define TDVMCALL_MAP_GPA		0x10001

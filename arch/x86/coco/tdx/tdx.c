@@ -47,6 +47,17 @@
 /* TD Attributes masks */
 #define        ATTR_DEBUG_MODE                 BIT(0)
 
+typedef union page_info_api_input_s {
+	struct {
+		uint64_t
+		level		: 3,  /* Level */
+		reserved_0	: 9,  /* Must be 0 */
+		gpa		: 40, /* GPA of the page */
+		reserved_1	: 12; /* Must be 0 */
+	};
+	u64 raw;
+} page_info_api_input_t;
+
 /* Caches GPA width from TDG.VP.INFO TDCALL */
 static unsigned int gpa_width;
 /* Caches TD Attributes from TDG.VP.INFO TDCALL */
@@ -805,6 +816,26 @@ static bool tdx_cache_flush_required(void)
 	return true;
 }
 
+static long __tdx_mmio_accept(u64 gpa_info, u64 mmio_offset)
+{
+	long ret;
+
+	ret = __tdx_module_call(TDMMIOACCEPT, gpa_info, mmio_offset, 0, 0, NULL);
+
+	pr_debug("%s gpa_info=%llx, mmio_offset=%llx, ret 0x%llx\n", __func__, gpa_info, mmio_offset, (u64)ret);
+	return ret;
+}
+
+static long tdx_mmio_accept(phys_addr_t gpa, u64 mmio_offset)
+{
+	page_info_api_input_t gpa_info = { 0 };
+
+	gpa_info.level = 0;
+	gpa_info.gpa = (gpa & GENMASK(51, 12)) >> 12;
+
+	return __tdx_mmio_accept(gpa_info.raw, mmio_offset);
+}
+
 static unsigned long try_accept_one(phys_addr_t start, unsigned long len,
 				    enum pg_level pg_level)
 {
@@ -892,6 +923,31 @@ static bool tdx_enc_status_changed_phys(phys_addr_t start, phys_addr_t end,
 	}
 
 	return true;
+}
+
+static int __tdx_map_gpa(phys_addr_t gpa, int numpages, bool enc)
+{
+	u64 ret;
+
+	if (!enc)
+		gpa |= cc_mkdec(0);
+
+	ret = _tdx_hypercall(TDVMCALL_MAP_GPA, gpa, PAGE_SIZE * numpages, 1, 0);
+	return ret ? -EIO : 0;
+}
+
+int tdx_map_private_mmio(phys_addr_t gpa, u64 offset, int numpages)
+{
+	int ret, i;
+
+	ret = __tdx_map_gpa(gpa, numpages, true);
+	if (ret)
+		return ret;
+
+	for (i = 0; i < numpages; i++)
+		ret = tdx_mmio_accept(gpa + i * PAGE_SIZE, offset + i * PAGE_SIZE);
+
+	return 0;
 }
 
 void tdx_accept_memory(phys_addr_t start, phys_addr_t end)
