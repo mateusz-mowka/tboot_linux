@@ -1301,7 +1301,7 @@ int vidxd_mmio_write(struct vdcm_idxd *vidxd, u64 pos, void *buf, unsigned int s
 		break;
 	}
 
-	case VIDXD_MSIX_PERM_OFFSET ...  VIDXD_MSIX_PERM_OFFSET + VIDXD_MSIX_PERM_TBL_SZ - 1:
+	case VIDXD_MSIX_PERM_OFFSET ...  VIDXD_MSIX_PERM_OFFSET + VIDXD_MSIX_PERM_TBL_SZ - 1: {
 #define MSIX_PERM_PASID_EN_MASK		0x8
 #define MSIX_PERM_PASID_MASK		0xfffff000
 #define MSIX_PERM_PASID_SHIFT		12
@@ -1332,6 +1332,7 @@ printk("%s: %d, %d, %x\n", __func__, __LINE__, pasid_en, msix_perm);
                 dev_dbg(dev, "%s writing to MSIX_PERM: %#x offset %#x index: %u, pasid: %d, gpasid: %d\n",
                         __func__, msix_perm, offset, index, pasid, gpasid);
                 break;
+	}
 	}
 
 	return 0;
