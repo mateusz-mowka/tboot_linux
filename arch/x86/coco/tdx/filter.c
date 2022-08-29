@@ -15,6 +15,7 @@
 
 #include <asm/tdx.h>
 #include <asm/cmdline.h>
+#include "device-attest.h"
 
 #define CMDLINE_MAX_NODES		100
 #define CMDLINE_MAX_LEN			1000
@@ -45,6 +46,8 @@ static char acpi_allowed[CMDLINE_MAX_LEN];
 
 /* Set true if authorize_allow_devs is used */
 static bool filter_overridden;
+
+static int dev_attestation_policy;
 
 #define PCI_DEVICE_DATA2(vend, dev, data) \
 	.vendor = vend, .device = dev, \
@@ -285,6 +288,42 @@ done:
 	return ret;
 }
 
+static bool test_dev_attestation(struct pci_dev *pdev)
+{
+	static bool res, tested;
+
+	if (!tested) {
+		res = self_test_device_attestation(pdev);
+		tested = true;
+	}
+
+	return res;
+}
+
+static int tdxio_devif_verify(struct pci_dev *pdev, void *info_va, size_t info_sz,
+			      void *rp_va, size_t rp_sz)
+{
+	bool attested;
+
+	if (dev_attestation_policy == MATCH_SKIP) {
+		pr_info("Skip device attestation\n");
+		return 0;
+	}
+
+	if (!test_dev_attestation(pdev)) {
+		pr_err("Self-test device attestation failed\n");
+		return -ENOTSUPP;
+	}
+
+	/* TODO: adding checking for pci_dev per device interface report */
+	attested = tdx_attest_device(pdev, (struct device_info_data *)info_va,
+				     info_sz, dev_attestation_policy);
+
+	pr_info("Device %x is %s attested\n", pdev->device, attested ? "" : "not");
+
+	return attested ? 0 : -ENOTSUPP;
+}
+
 static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 {
 	struct device *dev = &pdev->dev;
@@ -345,6 +384,19 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 		goto free_device_info;
 	}
 
+	/*
+	 * Step 2: Device Verify
+	 *
+	 * Verify with evidence: DEVICE_INFO_DATA + TDISP DEVIF report
+	 */
+	ret = tdxio_devif_verify(pdev, info_va, info_sz, rp_va, rp_sz);
+	if (ret) {
+		dev_err(dev, "Fail to verify TDISP DEVIF %d\n", ret);
+		goto free_device_report;
+	}
+
+free_device_report:
+	free_pages((unsigned long)rp_va, get_order(rp_sz));
 free_device_info:
 	free_pages((unsigned long)info_va, get_order(info_sz));
 
@@ -484,6 +536,18 @@ static __init int allowed_cmdline_setup(char *buf)
 	return 0;
 }
 __setup("authorize_allow_devs=", allowed_cmdline_setup);
+
+static int dev_attestation_setup(char *str)
+{
+	if (!str)
+		return 0;
+
+	if (kstrtos32(str, 0, &dev_attestation_policy))
+		return 0;
+
+	return 1;
+}
+__setup("dev_attest=", dev_attestation_setup);
 
 int arch_dev_authorized(struct device *dev)
 {
