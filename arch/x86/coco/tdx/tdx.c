@@ -8,6 +8,7 @@
 #include <linux/nmi.h>
 #include <linux/pci.h>
 #include <linux/set_memory.h>
+#include <linux/pci-tdisp.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
@@ -24,6 +25,8 @@
 #include <asm/insn-eval.h>
 #include <asm/pgtable.h>
 #include <asm/irqdomain.h>
+#include <asm/apic.h>
+#include <asm/idtentry.h>
 
 #include "tdx.h"
 
@@ -109,6 +112,92 @@ struct tdx_serv_resp {
 #define SERV_RESP_STS_NO_SERV	0xfffffffe
 #define SERV_RESP_STS_DEFAULT	0xffffffff
 };
+
+static struct completion tdcm_completion;
+
+/* TDCM Service GUID */
+static guid_t tdcm_guid =
+	GUID_INIT(0x6270da51, 0x9a23, 0x4b6b,
+		  0x81, 0xce, 0xdd, 0xd8, 0x69, 0x70, 0xf2, 0x96);
+
+#define TDCM_EVENT_VECTOR	0xc0
+
+/* TDG.VP.VMCALL <Service.TDCM> command header */
+struct tdcm_cmd_hdr {
+	u8 version;
+	u8 command;
+#define TDCM_CMD_GET_DEV_HANDLE   0
+#define TDCM_CMD_TDISP            1
+#define TDCM_CMD_MAP_DMA_GPA      2
+#define TDCM_CMD_GET_DEVICE_INFO  3
+
+	u16 reserved;
+};
+
+/* TDG.VP.VMCALL <Service.TDCM> response header */
+struct tdcm_resp_hdr {
+	u8 version;
+	u8 command;
+	u8 status;
+#define TDCM_RESP_STS_OK   0
+#define TDCM_RESP_STS_FAIL 1
+
+	u8 reserved;
+};
+
+/* TDG.VP.VMCALL <Service.TDCM.GetDeviceHandle> command */
+struct tdcm_cmd_get_dev_handle {
+	struct tdx_serv_cmd cmd;
+	struct tdcm_cmd_hdr hdr;
+	u32 devid;
+};
+
+/* TDG.VP.VMCALL <Service.TDCM.GetDeviceHandle> response */
+struct tdcm_resp_get_dev_handle {
+	struct tdx_serv_resp resp;
+	struct tdcm_resp_hdr hdr;
+	u64 dev_handle;
+};
+
+/* TDG.VP.VMCALL <Service.TDCM.DEVIF> command */
+struct tdcm_cmd_devif {
+	struct tdx_serv_cmd cmd;
+	struct tdcm_cmd_hdr hdr;
+	u64 dev_handle;
+	u64 req_param;
+	u64 req_info;
+};
+
+/* TDG.VP.VMCALL <Service.TDCM.DEVIF> response */
+struct tdcm_resp_devif {
+	struct tdx_serv_resp resp;
+	struct tdcm_resp_hdr hdr;
+	u64 dev_handle;
+};
+
+struct tdcm_cmd_tdisp {
+	struct tdx_serv_cmd cmd;
+	struct tdcm_cmd_hdr hdr;
+	u64 req_parm;
+	u64 req_info;
+};
+
+struct tdcm_resp_tdisp {
+	struct tdx_serv_resp resp;
+	struct tdcm_resp_hdr hdr;
+};
+
+static u8 tdx_tdcm_resp_status(struct tdcm_resp_hdr *hdr)
+{
+	return hdr->status;
+}
+
+DEFINE_IDTENTRY_SYSVEC(sysvec_tdcm_event_callback)
+{
+	ack_APIC_irq();
+	pr_info("TDVMCALL<Service> complete notification\n");
+	complete(&tdcm_completion);
+}
 
 /* Caches GPA width from TDG.VP.INFO TDCALL */
 static unsigned int gpa_width;
@@ -952,9 +1041,45 @@ static void tdx_service_deinit(struct tdx_serv *serv)
 	free_pages(serv->cmd_va, order);
 }
 
+static long tdx_devif_request(u64 handle, u64 req_parm, u64 req_info)
+{
+	long ret;
+
+	ret = __tdx_module_call(TDDEVIFREQ, handle, req_parm, req_info, 0, NULL);
+
+	pr_debug("%s ret 0x%llx handle 0x%llx parm 0x%llx info 0x%llx\n",
+		 __func__, (u64)ret, handle, req_parm, req_info);
+
+	return ret;
+}
+
+static long tdx_devif_response(u64 handle, u64 buf_pa, u64 *status)
+{
+	struct tdx_module_output out;
+	u64 sts, len;
+	long ret;
+
+	ret = __tdx_module_call(TDDEVIFRESP, handle, buf_pa, 0, 0, &out);
+	sts = out.rcx;
+	len = out.rdx;
+
+	pr_debug("%s ret 0x%llx sts 0x%llx len 0x%llx\n", __func__,
+		 (u64)ret, sts, len);
+
+	if (!ret)
+		*status = sts;
+
+	return ret;
+}
+
 static struct completion *tdx_get_completion(u64 vector)
 {
-	return NULL;
+	switch (vector) {
+	case TDCM_EVENT_VECTOR:
+		return &tdcm_completion;
+	default:
+		return NULL;
+	}
 }
 
 static long tdx_service(struct tdx_serv *serv)
@@ -984,6 +1109,111 @@ static long tdx_service(struct tdx_serv *serv)
 		return -EFAULT;
 	}
 
+	return ret;
+}
+
+/* For TDG.VP.VMCALL <service.TDCM.GetDeviceHandle> */
+long tdx_get_devif_handle(u32 devid, u64 *devif_handle)
+{
+	struct tdcm_cmd_get_dev_handle *cmd;
+	struct tdcm_resp_get_dev_handle *resp;
+	struct tdx_serv serv;
+	long ret;
+
+	ret = tdx_service_init(&serv, &tdcm_guid, sizeof(*cmd), sizeof(*resp), 0, 0);
+	if (ret)
+		return ret;
+
+	cmd = (struct tdcm_cmd_get_dev_handle *)serv.cmd_va;
+	resp = (struct tdcm_resp_get_dev_handle *)serv.resp_va;
+
+	cmd->hdr.version = 0;
+	cmd->hdr.command = TDCM_CMD_GET_DEV_HANDLE;
+	cmd->devid = devid;
+
+	ret = tdx_service(&serv);
+	if (ret)
+		goto done;
+
+	if (tdx_tdcm_resp_status(&resp->hdr)) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	pr_debug("%s - devid %x handle %llx\n", __func__, devid, resp->dev_handle);
+
+	*devif_handle = resp->dev_handle;
+done:
+	tdx_service_deinit(&serv);
+	return ret;
+}
+
+/* For TDG.VP.VMCALL <service.TDCM.DEVIF> */
+long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa)
+{
+	struct tdisp_req_parm rparm = { 0 };
+	struct tdisp_req_info rinfo = { 0 };
+	struct tdcm_cmd_devif *cmd;
+	struct tdcm_resp_devif *resp;
+	struct tdx_serv serv;
+	u64 status;
+	long ret;
+
+	pr_info("%s: devid %x msg %x %s buf %llx\n", __func__, devid,
+		msg, tdisp_message_to_string(msg), buf_pa);
+
+	rparm.td_flag = 1;
+	rparm.message = msg;
+
+	/* FIXME: hardcode it now */
+	if (msg == TDISP_GET_DEVIF_REPORT) {
+		rinfo.get_devif_report.length = 0xffff;
+		rinfo.get_devif_report.offset = 0;
+	}
+
+	if (msg == TDISP_GET_DEVIF_REPORT && !buf_pa)
+		return -EINVAL;
+
+	ret = tdx_devif_request(handle, rparm.raw, rinfo.raw);
+	if (ret)
+		return ret;
+
+	ret = tdx_service_init(&serv, &tdcm_guid, sizeof(*cmd), sizeof(*resp),
+			       TDCM_EVENT_VECTOR, 0);
+	if (ret)
+		return ret;
+
+	cmd = (struct tdcm_cmd_devif *)serv.cmd_va;
+
+	cmd->hdr.version = 0;
+	cmd->hdr.command = TDCM_CMD_TDISP;
+	cmd->dev_handle = handle;
+	cmd->req_param = rparm.raw;
+	cmd->req_info = rinfo.raw;
+
+	resp = (struct tdcm_resp_devif *)serv.resp_va;
+
+	ret = tdx_service(&serv);
+	if (ret)
+		goto done;
+
+	if (tdx_tdcm_resp_status(&resp->hdr)) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	ret = tdx_devif_response(handle, buf_pa, &status);
+	if (ret)
+		goto done;
+
+	if (status)
+		ret = -EBUSY;
+	else
+		pr_info("%s: devid %x msg %x %s done\n", __func__,
+			devid, msg, tdisp_message_to_string(msg));
+
+done:
+	tdx_service_deinit(&serv);
 	return ret;
 }
 
@@ -1199,6 +1429,8 @@ void __init tdx_early_init(void)
 
 	pci_disable_early();
 	pci_disable_mmconf();
+
+	init_completion(&tdcm_completion);
 
 	pr_info("Guest detected\n");
 }

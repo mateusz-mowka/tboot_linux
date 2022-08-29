@@ -57,6 +57,10 @@ bool tdx_allowed_port(short int port);
 
 extern int tdx_map_private_mmio(phys_addr_t gpa, u64 offset, int numpages);
 
+extern long tdx_get_devif_handle(u32 devid, u64 *handle);
+
+extern long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa);
+
 #else
 
 static inline void tdx_early_init(void) { };
@@ -69,6 +73,10 @@ static inline int tdx_map_private_mmio(phys_addr_t gpa, u64 offset, int numpages
 {
 	return -ENODEV;
 }
+
+static inline long tdx_get_devif_handle(u32 devid, u64 *handle) { return -ENODEV; }
+
+static inline long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa) { return -ENODEV; }
 
 #endif /* CONFIG_INTEL_TDX_GUEST */
 
