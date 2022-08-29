@@ -52,7 +52,7 @@ void process_level_change(int cpu)
 
 	per_package_levels_tm[pkg_id][die_id] = tm;
 
-	ret = isst_get_ctdp_levels(cpu, pkg_id, die_id, &pkg_dev);
+	ret = isst_get_ctdp_levels(cpu, &pkg_dev);
 	if (ret) {
 		debug_printf("Can't get tdp levels for cpu:%d\n", cpu);
 		return;
@@ -77,7 +77,7 @@ void process_level_change(int cpu)
 
 	ctdp_level.core_cpumask_size =
 		alloc_cpu_set(&ctdp_level.core_cpumask);
-	ret = isst_get_coremask_info(cpu, pkg_id, die_id, pkg_dev.current_level, &ctdp_level);
+	ret = isst_get_coremask_info(cpu, pkg_dev.current_level, &ctdp_level);
 	if (ret) {
 		free_cpu_set(ctdp_level.core_cpumask);
 		debug_printf("Can't get core_mask:%d\n", cpu);
@@ -102,7 +102,7 @@ void process_level_change(int cpu)
 	free_cpu_set(ctdp_level.core_cpumask);
 }
 
-static void _poll_for_config_change(int cpu, int pkg, int die, void *arg1, void *arg2,
+static void _poll_for_config_change(int cpu, void *arg1, void *arg2,
 				    void *arg3, void *arg4)
 {
 	process_level_change(cpu);
