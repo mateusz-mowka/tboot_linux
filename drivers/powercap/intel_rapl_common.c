@@ -317,7 +317,7 @@ static struct rapl_primitive_info rpi_msr[NR_RAPL_PRIMITIVES] = {
 };
 
 /* RAPL primitives for TPMI I/F */
-static struct rapl_primitive_info rpi_tpmi[NR_RAPL_PRIMITIVES] = {
+static struct rapl_primitive_info rpi_tpmi[] = {
 	/* name, mask, shift, msr index, unit divisor */
 	[POWER_LIMIT1] = PRIMITIVE_INFO_INIT(POWER_LIMIT1, TPMI_POWER_LIMIT_MASK, 0,
 		RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
@@ -356,6 +356,7 @@ static struct rapl_primitive_info rpi_tpmi[NR_RAPL_PRIMITIVES] = {
 	/* non-hardware */
 	[AVERAGE_POWER] = PRIMITIVE_INFO_INIT(AVERAGE_POWER, 0, 0, 0,
 		POWER_UNIT, RAPL_PRIMITIVE_DERIVED),
+	{NULL, 0, 0, 0},
 };
 
 static struct rapl_primitive_info *get_rpi(struct rapl_package *rp,
