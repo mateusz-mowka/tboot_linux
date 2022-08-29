@@ -63,6 +63,8 @@ extern long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa);
 
 extern long tdx_devif_validate(u64 handle, u64 pkh5, u64 pkh4, u64 pkh3,
 			       u64 pkh2, u64 pkh1, u64 pkh0);
+
+extern long tdx_devif_read(u64 handle, u64 field, u64 field_parm, u64 *value);
 #else
 
 static inline void tdx_early_init(void) { };
@@ -82,6 +84,11 @@ static inline long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa) { 
 
 static inline long tdx_devif_validate(u64 handle, u64 pkh5, u64 pkh4, u64 pkh3,
 				      u64 pkh2, u64 pkh1, u64 pkh0)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline long tdx_devif_read(u64 handle, u64 field, u64 field_parm, u64 *value)
 {
 	return -EOPNOTSUPP;
 }

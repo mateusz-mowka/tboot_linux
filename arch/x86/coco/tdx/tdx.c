@@ -1041,6 +1041,24 @@ static void tdx_service_deinit(struct tdx_serv *serv)
 	free_pages(serv->cmd_va, order);
 }
 
+long tdx_devif_read(u64 devif, u64 field, u64 field_parm, u64 *value)
+{
+	struct tdx_module_output out;
+	long ret;
+	u64 data;
+
+	ret = __tdx_module_call(TDDEVIFRD, devif, field, field_parm, 0, &out);
+	data = out.rdx;
+
+	pr_debug("%s - ret %llx handle %llx field %llx parm %llx data %llx\n",
+		 __func__, (u64)ret, devif, field, field_parm, data);
+
+	if (!ret)
+		*value = data;
+
+	return ret;
+}
+
 long tdx_devif_validate(u64 handle, u64 pkh5, u64 pkh4, u64 pkh3, u64 pkh2, u64 pkh1, u64 pkh0)
 {
 	long ret;
