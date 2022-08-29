@@ -82,7 +82,7 @@ static bool dev_is_acpi(struct device *dev)
 	return !strcmp(dev_bus_name(dev), "acpi");
 }
 
-static bool authorized_node_match(struct device *dev,
+static int authorized_node_match(struct device *dev,
 				  struct authorize_node *node)
 {
 	int i;
@@ -90,7 +90,7 @@ static bool authorized_node_match(struct device *dev,
 
 	/* If bus matches "ALL" and dev_list is NULL, return true */
 	if (!strcmp(node->bus, "ALL") && !node->dev_list)
-		return true;
+		return MODE_SHARED;
 
 	/*
 	 * Since next step involves bus specific comparison, make
@@ -98,11 +98,11 @@ static bool authorized_node_match(struct device *dev,
 	 * return false.
 	 */
 	if (strcmp(node->bus, dev->bus->name))
-		return false;
+		return MODE_UNAUTHORIZED;
 
 	/* If dev_list is NULL, allow all and return true */
 	if (!node->dev_list)
-		return true;
+		return MODE_SHARED;
 
 	/*
 	 * Do bus specific device ID match. Currently only PCI
@@ -111,16 +111,16 @@ static bool authorized_node_match(struct device *dev,
 	if (dev_is_pci(dev)) {
 		if (pci_match_id((struct pci_device_id *)node->dev_list,
 				 to_pci_dev(dev)))
-			return true;
+			return MODE_SHARED;
 	} else if (dev_is_acpi(dev)) {
 		for (i = 0; i < ARRAY_SIZE(acpi_allow_hids); i++) {
 			if (!strncmp(acpi_allow_hids[i], dev_name(dev),
 						strlen(acpi_allow_hids[i])))
-				return true;
+				return MODE_SHARED;
 		}
 	}
 
-	return false;
+	return MODE_UNAUTHORIZED;
 }
 
 static void fixup_unauthorized_device(struct device *dev)
@@ -205,23 +205,26 @@ static __init int allowed_cmdline_setup(char *buf)
 }
 __setup("authorize_allow_devs=", allowed_cmdline_setup);
 
-bool arch_dev_authorized(struct device *dev)
+int arch_dev_authorized(struct device *dev)
 {
-	int i;
+	int i, authorized;
 
 	if (!dev->bus)
 		return dev->authorized;
 
 	/* Lookup arch allow list */
 	for (i = 0;  i < ARRAY_SIZE(allow_list); i++) {
-		if (authorized_node_match(dev, &allow_list[i]))
-			return true;
+		authorized = authorized_node_match(dev, &allow_list[i]);
+		if (authorized)
+			return authorized;
+
 	}
 
 	/* Lookup command line allow list */
 	for (i = 0; i < cmd_allowed_nodes_len; i++) {
-		if (authorized_node_match(dev, &cmd_allowed_nodes[i]))
-			return true;
+		authorized = authorized_node_match(dev, &cmd_allowed_nodes[i]);
+		if (authorized)
+			return authorized;
 	}
 
 	fixup_unauthorized_device(dev);

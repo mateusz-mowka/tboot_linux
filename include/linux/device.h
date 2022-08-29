@@ -455,6 +455,10 @@ struct device_physical_location {
 	bool lid;
 };
 
+#define MODE_UNAUTHORIZED	0
+#define MODE_SHARED		1
+#define MODE_SECURE		2
+
 /**
  * struct device - The basic device structure
  * @parent:	The device's "parent" device, the device to which it is attached.
@@ -638,7 +642,7 @@ struct device {
 
 	enum device_removable	removable;
 
-	bool			authorized:1;
+	int			authorized;
 	bool			offline_disabled:1;
 	bool			offline:1;
 	bool			of_node_reused:1;
@@ -1078,7 +1082,7 @@ int devtmpfs_mount(void);
 static inline int devtmpfs_mount(void) { return 0; }
 #endif
 
-extern bool dev_default_authorization;
+extern int dev_default_authorization;
 
 /* drivers/base/power/shutdown.c */
 void device_shutdown(void);
@@ -1118,6 +1122,6 @@ static inline void dev_set_pasid(struct device *dev, u32 pasid)
 {
 	dev->pasid = pasid;
 }
-bool arch_dev_authorized(struct device *dev);
+int arch_dev_authorized(struct device *dev);
 
 #endif /* _DEVICE_H_ */
