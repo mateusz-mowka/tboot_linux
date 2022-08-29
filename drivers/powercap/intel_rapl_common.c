@@ -237,25 +237,9 @@ static struct rapl_primitive_info rpis_default[] = {
 	{NULL, 0, 0, 0},
 };
 
-static struct rapl_primitive_info *get_rpi(struct rapl_package *rp,
-					enum rapl_primitives prim)
+static struct rapl_primitive_info *get_rpi(enum rapl_primitives prim)
 {
-	struct rapl_primitive_info *rpi = rp->priv->rpi;
-
-	if (prim < 0 || prim > NR_RAPL_PRIMITIVES)
-		return NULL;
-
-	return &rpi[prim];
-}
-
-static int set_rpi(struct rapl_package *rp)
-{
-	if (rp->priv->rpi)
-		return 0;
-	rp->priv->rpi = (void *)rpis_default;
-	if (!rp->priv->rpi)
-		return -ENODEV;
-	return 0;
+	return &rpis_default[prim];
 }
 
 static int get_energy_counter(struct powercap_zone *power_zone,
@@ -789,11 +773,11 @@ static int rapl_read_data_raw(struct rapl_domain *rd,
 {
 	u64 value;
 	enum rapl_primitives prim_fixed = prim_fixups(rd, prim);
-	struct rapl_primitive_info *rpi = get_rpi(rd->rp, prim_fixed);
+	struct rapl_primitive_info *rpi = get_rpi(prim_fixed);
 	struct reg_action ra;
 	int cpu;
 
-	if (!rpi || !rpi->name || rpi->flag & RAPL_PRIMITIVE_DUMMY)
+	if (!rpi->name || rpi->flag & RAPL_PRIMITIVE_DUMMY)
 		return -EINVAL;
 
 	ra.reg = rd->regs[rpi->id];
@@ -836,14 +820,11 @@ static int rapl_write_data_raw(struct rapl_domain *rd,
 			       unsigned long long value)
 {
 	enum rapl_primitives prim_fixed = prim_fixups(rd, prim);
-	struct rapl_primitive_info *rpi = get_rpi(rd->rp, prim_fixed);
+	struct rapl_primitive_info *rpi = get_rpi(prim_fixed);
 	int cpu;
 	u64 bits;
 	struct reg_action ra;
 	int ret;
-
-	if (!rpi || !rpi->name || rpi->flag & RAPL_PRIMITIVE_DUMMY)
-		return -EINVAL;
 
 	cpu = rd->rp->lead_cpu;
 	bits = rapl_unit_xlate(rd, rpi->unit, value, 1);
@@ -1195,10 +1176,8 @@ static void rapl_update_domain_data(struct rapl_package *rp)
 			 rp->domains[dmn].name);
 		/* exclude non-raw primitives */
 		for (prim = 0; prim < NR_RAW_PRIMITIVES; prim++) {
-			struct rapl_primitive_info *rpi = get_rpi(rp, prim);
+			struct rapl_primitive_info *rpi = get_rpi(prim);
 
-			if (!rpi)
-				continue;
 			if (!rapl_read_data_raw(&rp->domains[dmn], prim,
 						rpi->unit, &val))
 				rp->domains[dmn].rdd.primitives[prim] = val;
@@ -1438,10 +1417,6 @@ struct rapl_package *rapl_add_package(int cpu, struct rapl_if_priv *priv)
 	rp->priv = priv;
 
 	ret = set_rpd(rp);
-	if (ret)
-		goto err_free_package;
-
-	ret = set_rpi(rp);
 	if (ret)
 		goto err_free_package;
 
