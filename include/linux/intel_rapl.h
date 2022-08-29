@@ -37,10 +37,10 @@ enum rapl_domain_reg_id {
 struct rapl_domain;
 
 enum rapl_primitives {
+	ENERGY_COUNTER,
 	POWER_LIMIT1,
 	POWER_LIMIT2,
 	POWER_LIMIT4,
-	ENERGY_COUNTER,
 	FW_LOCK,
 
 	PL1_ENABLE,		/* power limit 1, aka long term */
@@ -75,6 +75,7 @@ struct rapl_domain_data {
 	unsigned long timestamp;
 };
 
+#define NR_POWER_LIMITS (3)
 struct rapl_power_limit {
 	struct powercap_zone_constraint *constraint;
 	int prim_id;		/* primitive ID used to enable */
@@ -85,7 +86,6 @@ struct rapl_power_limit {
 
 struct rapl_package;
 
-#define NR_POWER_LIMITS	(POWER_LIMIT4 + 1)
 #define RAPL_DOMAIN_NAME_LENGTH 16
 
 struct rapl_domain {
@@ -132,7 +132,7 @@ struct rapl_if_priv {
 	enum cpuhp_state pcap_rapl_online;
 	u64 reg_unit;
 	u64 regs[RAPL_DOMAIN_MAX][RAPL_DOMAIN_REG_MAX];
-	unsigned long limits[RAPL_DOMAIN_MAX];
+	int limits[RAPL_DOMAIN_MAX];
 	int (*read_raw)(int cpu, struct reg_action *ra);
 	int (*write_raw)(int cpu, struct reg_action *ra);
 	void *rpd;
