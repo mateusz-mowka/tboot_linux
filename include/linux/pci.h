@@ -532,6 +532,8 @@ struct pci_dev {
 	 */
 	const char	*driver_override;
 
+	u64		handle;		/* handle for TDXIO */
+
 	unsigned long	priv_flags;	/* Private flags for the PCI driver */
 
 	/* These methods index pci_reset_fn_methods[] */

@@ -44,6 +44,11 @@ static char acpi_allowed[CMDLINE_MAX_LEN];
 /* Set true if authorize_allow_devs is used */
 static bool filter_overridden;
 
+#define PCI_DEVICE_DATA2(vend, dev, data) \
+	.vendor = vend, .device = dev, \
+	.subvendor = PCI_ANY_ID, .subdevice = PCI_ANY_ID, 0, 0, \
+	.driver_data = (kernel_ulong_t)(data)
+
 /*
  * Allow list for PCI bus
  *
@@ -53,15 +58,15 @@ static bool filter_overridden;
  * and use it.
  */
 struct pci_device_id pci_allow_ids[] = {
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO_TRANS_ID_NET) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO_TRANS_ID_BLOCK) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO_TRANS_ID_CONSOLE) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO_TRANS_ID_9P) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_NET) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_BLOCK) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_CONSOLE) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_9P) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_VSOCK) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO_TRANS_ID_NET, MODE_SHARED) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO_TRANS_ID_BLOCK, MODE_SHARED) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO_TRANS_ID_CONSOLE, MODE_SHARED) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO_TRANS_ID_9P, MODE_SHARED) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_NET, MODE_SHARED) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_BLOCK, MODE_SHARED) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_CONSOLE, MODE_SHARED) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_9P, MODE_SHARED) },
+	{ PCI_DEVICE_DATA2(PCI_VENDOR_ID_REDHAT_QUMRANET, VIRTIO1_ID_VSOCK, MODE_SHARED) },
 	{ 0, },
 };
 
@@ -82,11 +87,52 @@ static bool dev_is_acpi(struct device *dev)
 	return !strcmp(dev_bus_name(dev), "acpi");
 }
 
+static inline u32 devid(struct pci_dev *pdev)
+{
+	return PCI_DEVID(pdev->bus->number, pdev->devfn);
+}
+
+static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
+{
+	int ret, result = 0;
+	u64 handle;
+
+	/*
+	 * Step 0: Check Device Capability
+	 *
+	 * If valid handle (!= 0), means this pci_dev is a TDISP device
+	 * exposed to TDX Guest.
+	 */
+	ret = tdx_get_devif_handle(devid(pdev), &handle);
+	if (ret)
+		return 0;
+
+	/* If invalid handle, means this pci_dev is a non-TDISP device */
+	if (!handle) {
+		if (enum_mode == MODE_SHARED || enum_mode == MODE_UNAUTHORIZED) {
+			pdev->untrusted = true;
+			return MODE_SHARED;
+		}
+
+		return 0;
+	}
+
+	/* uses TDI in shared mode is not possible as TDI may be locked already */
+	if (enum_mode == MODE_SHARED)
+		return 0;
+
+	pdev->handle = handle;
+
+	return result;
+}
+
 static int authorized_node_match(struct device *dev,
 				  struct authorize_node *node)
 {
+	const struct pci_device_id *id;
+	struct pci_dev *pdev;
+	int status;
 	int i;
-
 
 	/* If bus matches "ALL" and dev_list is NULL, return true */
 	if (!strcmp(node->bus, "ALL") && !node->dev_list)
@@ -109,9 +155,18 @@ static int authorized_node_match(struct device *dev,
 	 * and ACPI bus is supported.
 	 */
 	if (dev_is_pci(dev)) {
-		if (pci_match_id((struct pci_device_id *)node->dev_list,
-				 to_pci_dev(dev)))
-			return MODE_SHARED;
+		pdev = to_pci_dev(dev);
+		id = pci_match_id((struct pci_device_id *)node->dev_list, pdev);
+		if (id)
+			status = tdx_guest_dev_attest(pdev, id->driver_data);
+		else
+			status = MODE_UNAUTHORIZED;
+
+		pr_info("PCI vendor:%x device:%x %s %s\n", pdev->vendor,
+			pdev->device, status ? "allowed" : "blocked",
+			status == MODE_SECURE ? "trusted" : "untrusted");
+
+		return status;
 	} else if (dev_is_acpi(dev)) {
 		for (i = 0; i < ARRAY_SIZE(acpi_allow_hids); i++) {
 			if (!strncmp(acpi_allow_hids[i], dev_name(dev),
