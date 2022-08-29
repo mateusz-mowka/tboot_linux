@@ -577,6 +577,19 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 		goto free_device_report;
 	}
 
+	/*
+	 * Step 4: last preparation steps before driver probing.
+	 *
+	 * Mark PCI device is trusted
+	 *
+	 * TODO:also mark PCI device is a TDISP Device in Run state
+	 * (configuration is locked). PCI device driver may need to check this
+	 * flag to prevent operations which may break the configuration and
+	 * cause device entering error state (see TDISP spec, 11.2.6).
+	 */
+	pdev->untrusted = false;
+	result = MODE_SECURE;
+
 free_device_report:
 	free_pages((unsigned long)rp_va, get_order(rp_sz));
 free_device_info:
