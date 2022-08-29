@@ -108,7 +108,6 @@ enum pl_prims {
 	PL_LIMIT,
 	PL_TIME_WINDOW,
 	PL_MAX_POWER,
-	PL_LOCK,
 };
 
 static int is_pl_valid(struct rapl_domain *rd, int pl)
@@ -118,7 +117,7 @@ static int is_pl_valid(struct rapl_domain *rd, int pl)
 	return rd->rpl[pl].name ? true : false;
 }
 
-static int get_pl_prim(struct rapl_domain *rd, int pl, enum pl_prims prim)
+static int get_pl_prim(int pl, enum pl_prims prim)
 {
 	switch (pl) {
 	case POWER_LIMIT1:
@@ -132,8 +131,6 @@ static int get_pl_prim(struct rapl_domain *rd, int pl, enum pl_prims prim)
 			return TIME_WINDOW1;
 		if (prim == PL_MAX_POWER)
 			return THERMAL_SPEC_POWER;
-		if (prim == PL_LOCK)
-			return test_bit(POWER_LIMIT2, &rd->rp->priv->limits[rd->id]) ? FW_HIGH_LOCK : FW_LOCK;
 		return -EINVAL;
 	case POWER_LIMIT2:
 		if (prim == PL_ENABLE)
@@ -146,8 +143,6 @@ static int get_pl_prim(struct rapl_domain *rd, int pl, enum pl_prims prim)
 			return TIME_WINDOW2;
 		if (prim == PL_MAX_POWER)
 			return MAX_POWER;
-		if (prim == PL_LOCK)
-			return test_bit(POWER_LIMIT2, &rd->rp->priv->limits[rd->id]) ? FW_HIGH_LOCK : FW_LOCK;
 		return -EINVAL;
 	case POWER_LIMIT4:
 		if (prim == PL_LIMIT)
@@ -259,8 +254,6 @@ static struct rapl_primitive_info rpis_default[NR_RAPL_PRIMITIVES] = {
 	[ENERGY_COUNTER] = PRIMITIVE_INFO_INIT(ENERGY_COUNTER, ENERGY_STATUS_MASK, 0,
 			    RAPL_DOMAIN_REG_STATUS, ENERGY_UNIT, 0),
 	[FW_LOCK] = PRIMITIVE_INFO_INIT(FW_LOCK, POWER_LOW_LOCK, 31,
-			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	[FW_HIGH_LOCK] = PRIMITIVE_INFO_INIT(FW_LOCK, POWER_HIGH_LOCK, 63,
 			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
 	[PL1_ENABLE] = PRIMITIVE_INFO_INIT(PL1_ENABLE, POWER_LIMIT1_ENABLE, 15,
 			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
@@ -741,6 +734,11 @@ static int rapl_read_data_raw(struct rapl_domain *rd,
 
 	cpu = rd->rp->lead_cpu;
 
+	/* domain with 2 limits has different bit */
+	if (prim == FW_LOCK && test_bit(POWER_LIMIT2, &rd->rp->priv->limits[rd->id])) {
+		rpi->mask = POWER_HIGH_LOCK;
+		rpi->shift = 63;
+	}
 	/* non-hardware data are collected by the polling thread */
 	if (rpi->flag & RAPL_PRIMITIVE_DERIVED) {
 		*data = rd->rdd.primitives[prim];
@@ -798,7 +796,7 @@ static int rapl_write_data_raw(struct rapl_domain *rd,
 static int rapl_read_pl_data(struct rapl_domain *rd, int pl,
 			      enum pl_prims pl_prim, bool xlate, u64 *data)
 {
-	enum rapl_primitives prim = get_pl_prim(rd, pl, pl_prim);
+	enum rapl_primitives prim = get_pl_prim(pl, pl_prim);
 
 	if (!is_pl_valid(rd, pl))
 		return -EINVAL;
@@ -810,12 +808,12 @@ static int rapl_write_pl_data(struct rapl_domain *rd, int pl,
 			       enum pl_prims pl_prim,
 			       unsigned long long value)
 {
-	enum rapl_primitives prim = get_pl_prim(rd, pl, pl_prim);
+	enum rapl_primitives prim = get_pl_prim(pl, pl_prim);
 
 	if (!is_pl_valid(rd, pl))
 		return -EINVAL;
 
-	if (rd->rpl[pl].locked) {
+	if (rd->state & DOMAIN_STATE_BIOS_LOCKED) {
 		pr_info("RAPL %s:%s:%s locked by BIOS\n",
 			rd->rp->name, rd->name, pl_names[pl]);
 		return -EACCES;
@@ -1330,22 +1328,22 @@ use_default_unit:
 static void rapl_detect_powerlimit(struct rapl_domain *rd)
 {
 	u64 val64;
-	bool locked = true;
-	int ret;
 	int i;
 
-	for (i = POWER_LIMIT1; i < NR_POWER_LIMITS; i++) {
-		ret = rapl_read_pl_data(rd, i, PL_LOCK, false, &val64);
-		if (!ret) {
-			rd->rpl[i].locked = val64;
-			locked &= val64;
+	/* check if the domain is locked by BIOS */
+	if (!rapl_read_data_raw(rd, FW_LOCK, false, &val64)) {
+		if (val64) {
+			pr_info("RAPL %s domain %s locked by BIOS\n",
+				rd->rp->name, rd->name);
+			rd->state |= DOMAIN_STATE_BIOS_LOCKED;
 		}
+	}
 
+	/* check if power limit MSR exists, otherwise domain is monitoring only */
+	for (i = POWER_LIMIT1; i < NR_POWER_LIMITS; i++) {
 		if (rapl_read_pl_data(rd, i, PL_ENABLE, false, &val64))
 			rd->rpl[i].name = NULL;
 	}
-	if (locked)
-		rd->state |= DOMAIN_STATE_BIOS_LOCKED;
 }
 
 /* Detect active and valid domains for the given CPU, caller must
