@@ -124,6 +124,7 @@ struct reg_action {
  */
 struct rapl_if_priv {
 	struct powercap_control_type *control_type;
+	struct rapl_domain *platform_rapl_domain;
 	enum cpuhp_state pcap_rapl_online;
 	u64 reg_unit;
 	u64 regs[RAPL_DOMAIN_MAX][RAPL_DOMAIN_REG_MAX];
