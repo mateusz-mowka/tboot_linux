@@ -748,25 +748,33 @@ int arch_dev_authorized(struct device *dev)
 {
 	int i, authorized;
 
-	if (!dev->bus)
+	if (!dev->bus) {
+		dev_info(dev, "%s line %d: auth %d\n", __func__, __LINE__, dev->authorized);
 		return dev->authorized;
+	}
 
 	/* Lookup arch allow list */
 	for (i = 0;  i < ARRAY_SIZE(allow_list); i++) {
 		authorized = authorized_node_match(dev, &allow_list[i]);
-		if (authorized)
+		if (authorized) {
+			dev_info(dev, "%s line %d: auth %d\n", __func__, __LINE__, authorized);
 			return authorized;
+		}
 
 	}
 
 	/* Lookup command line allow list */
 	for (i = 0; i < cmd_allowed_nodes_len; i++) {
 		authorized = authorized_node_match(dev, &cmd_allowed_nodes[i]);
-		if (authorized)
+		if (authorized) {
+			dev_info(dev, "%s line %d: auth %d\n", __func__, __LINE__, authorized);
 			return authorized;
+		}
 	}
 
 	fixup_unauthorized_device(dev);
+
+	dev_info(dev, "%s line %d: auth %d\n", __func__, __LINE__, dev_default_authorization);
 
 	return dev_default_authorization;
 }
