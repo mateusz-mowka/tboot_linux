@@ -1317,11 +1317,14 @@ done:
 	return ret;
 }
 
+/* TDX Module call error codes */
+#define TDX_PAGE_ALREADY_ACCEPTED       0x00000b0a00000000
+
 static unsigned long try_accept_one(phys_addr_t start, unsigned long len,
 				    enum pg_level pg_level)
 {
 	unsigned long accept_size = page_level_size(pg_level);
-	u64 tdcall_rcx;
+	u64 ret, tdcall_rcx;
 	u8 page_size;
 
 	if (!IS_ALIGNED(start, accept_size))
@@ -1351,9 +1354,17 @@ static unsigned long try_accept_one(phys_addr_t start, unsigned long len,
 	}
 
 	tdcall_rcx = start | page_size;
-	if (__trace_tdx_module_call(TDX_ACCEPT_PAGE, tdcall_rcx, 0, 0,
-				0, NULL))
+
+	ret = __trace_tdx_module_call(TDX_ACCEPT_PAGE, tdcall_rcx, 0, 0, 0,
+				NULL);
+	if (ret) {
+		if (ret == TDX_PAGE_ALREADY_ACCEPTED)
+			pr_err("%s: failed to accept page due to TDX_PAGE_ALREADY_ACCEPTED\n", __func__);
+		else
+			pr_err("%s: failed to accept page ret %llx\n", __func__, ret);
+
 		return 0;
+	}
 
 	return accept_size;
 }
