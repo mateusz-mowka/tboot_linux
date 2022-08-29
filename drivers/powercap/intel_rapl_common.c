@@ -164,69 +164,6 @@ static const char *const rapl_domain_names[] = {
 	"psys",
 };
 
-/* in the order of enum rapl_primitives */
-static struct rapl_primitive_info rpis_default[] = {
-	/* name, mask, shift, msr index, unit divisor */
-	PRIMITIVE_INFO_INIT(ENERGY_COUNTER, ENERGY_STATUS_MASK, 0,
-			    RAPL_DOMAIN_REG_STATUS, ENERGY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(POWER_LIMIT1, POWER_LIMIT1_MASK, 0,
-			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
-	PRIMITIVE_INFO_INIT(POWER_LIMIT2, POWER_LIMIT2_MASK, 32,
-			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
-	PRIMITIVE_INFO_INIT(POWER_LIMIT4, POWER_LIMIT4_MASK, 0,
-				RAPL_DOMAIN_REG_PL4, POWER_UNIT, 0),
-	PRIMITIVE_INFO_INIT(FW_LOCK, POWER_LOW_LOCK, 31,
-			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PL1_ENABLE, POWER_LIMIT1_ENABLE, 15,
-			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PL1_CLAMP, POWER_LIMIT1_CLAMP, 16,
-			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PL2_ENABLE, POWER_LIMIT2_ENABLE, 47,
-			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PL2_CLAMP, POWER_LIMIT2_CLAMP, 48,
-			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PL4_ENABLE, POWER_LIMIT4_MASK, 0,
-				RAPL_DOMAIN_REG_PL4, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(TIME_WINDOW1, TIME_WINDOW1_MASK, 17,
-			    RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
-	PRIMITIVE_INFO_INIT(TIME_WINDOW2, TIME_WINDOW2_MASK, 49,
-			    RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
-	PRIMITIVE_INFO_INIT(THERMAL_SPEC_POWER, POWER_INFO_THERMAL_SPEC_MASK,
-			    0, RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
-	PRIMITIVE_INFO_INIT(MAX_POWER, POWER_INFO_MAX_MASK, 32,
-			    RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
-	PRIMITIVE_INFO_INIT(MIN_POWER, POWER_INFO_MIN_MASK, 16,
-			    RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
-	PRIMITIVE_INFO_INIT(MAX_TIME_WINDOW, POWER_INFO_MAX_TIME_WIN_MASK, 48,
-			    RAPL_DOMAIN_REG_INFO, TIME_UNIT, 0),
-	PRIMITIVE_INFO_INIT(THROTTLED_TIME, PERF_STATUS_THROTTLE_TIME_MASK, 0,
-			    RAPL_DOMAIN_REG_PERF, TIME_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PRIORITY_LEVEL, PP_POLICY_MASK, 0,
-			    RAPL_DOMAIN_REG_POLICY, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PSYS_POWER_LIMIT1, PSYS_POWER_LIMIT1_MASK, 0,
-			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PSYS_POWER_LIMIT2, PSYS_POWER_LIMIT2_MASK, 32,
-			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PSYS_PL1_ENABLE, PSYS_POWER_LIMIT1_ENABLE, 17,
-			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PSYS_PL2_ENABLE, PSYS_POWER_LIMIT2_ENABLE, 49,
-			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PSYS_TIME_WINDOW1, PSYS_TIME_WINDOW1_MASK, 19,
-			    RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
-	PRIMITIVE_INFO_INIT(PSYS_TIME_WINDOW2, PSYS_TIME_WINDOW2_MASK, 51,
-			    RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
-
-	/* non-hardware */
-	PRIMITIVE_INFO_INIT(AVERAGE_POWER, 0, 0, 0, POWER_UNIT,
-			    RAPL_PRIMITIVE_DERIVED),
-	{NULL, 0, 0, 0},
-};
-
-static struct rapl_primitive_info *get_rpi(enum rapl_primitives prim)
-{
-	return &rpis_default[prim];
-}
-
 static int get_energy_counter(struct powercap_zone *power_zone,
 			      u64 *energy_raw)
 {
@@ -708,6 +645,63 @@ static u64 rapl_unit_xlate(struct rapl_domain *rd, enum unit_type type,
 	return div64_u64(value, scale);
 }
 
+/* in the order of enum rapl_primitives */
+static struct rapl_primitive_info rpi[] = {
+	/* name, mask, shift, msr index, unit divisor */
+	PRIMITIVE_INFO_INIT(ENERGY_COUNTER, ENERGY_STATUS_MASK, 0,
+			    RAPL_DOMAIN_REG_STATUS, ENERGY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(POWER_LIMIT1, POWER_LIMIT1_MASK, 0,
+			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
+	PRIMITIVE_INFO_INIT(POWER_LIMIT2, POWER_LIMIT2_MASK, 32,
+			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
+	PRIMITIVE_INFO_INIT(POWER_LIMIT4, POWER_LIMIT4_MASK, 0,
+				RAPL_DOMAIN_REG_PL4, POWER_UNIT, 0),
+	PRIMITIVE_INFO_INIT(FW_LOCK, POWER_LOW_LOCK, 31,
+			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PL1_ENABLE, POWER_LIMIT1_ENABLE, 15,
+			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PL1_CLAMP, POWER_LIMIT1_CLAMP, 16,
+			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PL2_ENABLE, POWER_LIMIT2_ENABLE, 47,
+			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PL2_CLAMP, POWER_LIMIT2_CLAMP, 48,
+			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PL4_ENABLE, POWER_LIMIT4_MASK, 0,
+				RAPL_DOMAIN_REG_PL4, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(TIME_WINDOW1, TIME_WINDOW1_MASK, 17,
+			    RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
+	PRIMITIVE_INFO_INIT(TIME_WINDOW2, TIME_WINDOW2_MASK, 49,
+			    RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
+	PRIMITIVE_INFO_INIT(THERMAL_SPEC_POWER, POWER_INFO_THERMAL_SPEC_MASK,
+			    0, RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
+	PRIMITIVE_INFO_INIT(MAX_POWER, POWER_INFO_MAX_MASK, 32,
+			    RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
+	PRIMITIVE_INFO_INIT(MIN_POWER, POWER_INFO_MIN_MASK, 16,
+			    RAPL_DOMAIN_REG_INFO, POWER_UNIT, 0),
+	PRIMITIVE_INFO_INIT(MAX_TIME_WINDOW, POWER_INFO_MAX_TIME_WIN_MASK, 48,
+			    RAPL_DOMAIN_REG_INFO, TIME_UNIT, 0),
+	PRIMITIVE_INFO_INIT(THROTTLED_TIME, PERF_STATUS_THROTTLE_TIME_MASK, 0,
+			    RAPL_DOMAIN_REG_PERF, TIME_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PRIORITY_LEVEL, PP_POLICY_MASK, 0,
+			    RAPL_DOMAIN_REG_POLICY, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PSYS_POWER_LIMIT1, PSYS_POWER_LIMIT1_MASK, 0,
+			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PSYS_POWER_LIMIT2, PSYS_POWER_LIMIT2_MASK, 32,
+			    RAPL_DOMAIN_REG_LIMIT, POWER_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PSYS_PL1_ENABLE, PSYS_POWER_LIMIT1_ENABLE, 17,
+			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PSYS_PL2_ENABLE, PSYS_POWER_LIMIT2_ENABLE, 49,
+			    RAPL_DOMAIN_REG_LIMIT, ARBITRARY_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PSYS_TIME_WINDOW1, PSYS_TIME_WINDOW1_MASK, 19,
+			    RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
+	PRIMITIVE_INFO_INIT(PSYS_TIME_WINDOW2, PSYS_TIME_WINDOW2_MASK, 51,
+			    RAPL_DOMAIN_REG_LIMIT, TIME_UNIT, 0),
+	/* non-hardware */
+	PRIMITIVE_INFO_INIT(AVERAGE_POWER, 0, 0, 0, POWER_UNIT,
+			    RAPL_PRIMITIVE_DERIVED),
+	{NULL, 0, 0, 0},
+};
+
 static enum rapl_primitives
 prim_fixups(struct rapl_domain *rd, enum rapl_primitives prim)
 {
@@ -753,14 +747,14 @@ static int rapl_read_data_raw(struct rapl_domain *rd,
 {
 	u64 value;
 	enum rapl_primitives prim_fixed = prim_fixups(rd, prim);
-	struct rapl_primitive_info *rpi = get_rpi(prim_fixed);
+	struct rapl_primitive_info *rp = &rpi[prim_fixed];
 	struct reg_action ra;
 	int cpu;
 
-	if (!rpi->name || rpi->flag & RAPL_PRIMITIVE_DUMMY)
+	if (!rp->name || rp->flag & RAPL_PRIMITIVE_DUMMY)
 		return -EINVAL;
 
-	ra.reg = rd->regs[rpi->id];
+	ra.reg = rd->regs[rp->id];
 	if (!ra.reg)
 		return -EINVAL;
 
@@ -768,26 +762,26 @@ static int rapl_read_data_raw(struct rapl_domain *rd,
 
 	/* domain with 2 limits has different bit */
 	if (prim == FW_LOCK && rd->rp->priv->limits[rd->id] == 2) {
-		rpi->mask = POWER_HIGH_LOCK;
-		rpi->shift = 63;
+		rp->mask = POWER_HIGH_LOCK;
+		rp->shift = 63;
 	}
 	/* non-hardware data are collected by the polling thread */
-	if (rpi->flag & RAPL_PRIMITIVE_DERIVED) {
+	if (rp->flag & RAPL_PRIMITIVE_DERIVED) {
 		*data = rd->rdd.primitives[prim];
 		return 0;
 	}
 
-	ra.mask = rpi->mask;
+	ra.mask = rp->mask;
 
 	if (rd->rp->priv->read_raw(cpu, &ra)) {
 		pr_debug("failed to read reg 0x%llx on cpu %d\n", ra.reg, cpu);
 		return -EIO;
 	}
 
-	value = ra.value >> rpi->shift;
+	value = ra.value >> rp->shift;
 
 	if (xlate)
-		*data = rapl_unit_xlate(rd, rpi->unit, value, 0);
+		*data = rapl_unit_xlate(rd, rp->unit, value, 0);
 	else
 		*data = value;
 
@@ -800,21 +794,21 @@ static int rapl_write_data_raw(struct rapl_domain *rd,
 			       unsigned long long value)
 {
 	enum rapl_primitives prim_fixed = prim_fixups(rd, prim);
-	struct rapl_primitive_info *rpi = get_rpi(prim_fixed);
+	struct rapl_primitive_info *rp = &rpi[prim_fixed];
 	int cpu;
 	u64 bits;
 	struct reg_action ra;
 	int ret;
 
 	cpu = rd->rp->lead_cpu;
-	bits = rapl_unit_xlate(rd, rpi->unit, value, 1);
-	bits <<= rpi->shift;
-	bits &= rpi->mask;
+	bits = rapl_unit_xlate(rd, rp->unit, value, 1);
+	bits <<= rp->shift;
+	bits &= rp->mask;
 
 	memset(&ra, 0, sizeof(ra));
 
-	ra.reg = rd->regs[rpi->id];
-	ra.mask = rpi->mask;
+	ra.reg = rd->regs[rp->id];
+	ra.mask = rp->mask;
 	ra.value = bits;
 
 	ret = rd->rp->priv->write_raw(cpu, &ra);
@@ -1155,10 +1149,8 @@ static void rapl_update_domain_data(struct rapl_package *rp)
 			 rp->domains[dmn].name);
 		/* exclude non-raw primitives */
 		for (prim = 0; prim < NR_RAW_PRIMITIVES; prim++) {
-			struct rapl_primitive_info *rpi = get_rpi(prim);
-
 			if (!rapl_read_data_raw(&rp->domains[dmn], prim,
-						rpi->unit, &val))
+						rpi[prim].unit, &val))
 				rp->domains[dmn].rdd.primitives[prim] = val;
 		}
 	}
