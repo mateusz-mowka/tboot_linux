@@ -6,6 +6,7 @@
 
 #include <linux/acpi.h>
 #include <linux/pci.h>
+#include <linux/pci-tdisp.h>
 #include <linux/device.h>
 #include <linux/cc_platform.h>
 #include <linux/export.h>
@@ -93,6 +94,73 @@ static inline u32 devid(struct pci_dev *pdev)
 	return PCI_DEVID(pdev->bus->number, pdev->devfn);
 }
 
+/* debug only */
+static u32 devif_rp_read(void *data, u32 offset)
+{
+	return *(u32 *)(data + offset);
+}
+
+static u32 devif_rp_remain(void *data)
+{
+	return DEVIF_RP_LEN_REMAIN(devif_rp_read(data, DEVIF_RP_LEN));
+}
+
+static u32 devif_rp_len(void *data)
+{
+	return DEVIF_RP_LEN_PORTION(devif_rp_read(data, DEVIF_RP_LEN));
+}
+
+static u64 devif_rp_read_mmio_addr(void *data, u32 index)
+{
+	return devif_rp_read(data, DEVIF_RP_MMIO_ADDR_LO(index)) |
+	 ((u64)devif_rp_read(data, DEVIF_RP_MMIO_ADDR_HI(index)) << 32);
+}
+
+static u32 devif_rp_read_mmio_pages(void *data, u32 index)
+{
+	return devif_rp_read(data, DEVIF_RP_MMIO_PAGES(index));
+}
+
+static u32 devif_rp_read_mmio_attr(void *data, u32 index)
+{
+	return devif_rp_read(data, DEVIF_RP_MMIO_ATTR(index));
+}
+
+static void dump_devif_report(struct pci_dev *pdev, void *data)
+{
+	struct device *dev = &pdev->dev;
+	u32 num, attr, v, i;
+
+#if 0
+	v = devif_rp_read(data, DEVIF_RP_HDR);
+
+	dev_dbg(dev, "%s: header: version 0x%x type 0x%x\n",
+		__func__, DEVIF_RP_HDR_VER(v), DEVIF_RP_HDR_TYPE(v));
+#endif
+
+	v = devif_rp_read(data, DEVIF_RP_LEN);
+
+	dev_dbg(dev, "%s: header: portion len 0x%x remaining len 0x%x\n",
+		__func__, DEVIF_RP_LEN_PORTION(v), DEVIF_RP_LEN_REMAIN(v));
+
+	num = devif_rp_read(data, DEVIF_RP_MMIO_NUM);
+
+	dev_dbg(dev, "%s: mmio_range_num: 0x%x\n", __func__, num);
+
+	/* for each mmio range */
+	for (i = 0; i < num; i++) {
+		attr = devif_rp_read_mmio_attr(data, i);
+
+		dev_dbg(dev, "%s: range[%u]: addr 0x%016llx pages 0x%x, attr id %x pba %x msix %x\n",
+			__func__, i,
+			devif_rp_read_mmio_addr(data, i),
+			devif_rp_read_mmio_pages(data, i),
+			DEVIF_RP_MMIO_ATTR_ID(attr),
+			DEVIF_RP_MMIO_ATTR_PBA(attr),
+			DEVIF_RP_MMIO_ATTR_MSIX(attr));
+	}
+}
+
 #define DEVICE_INFO_DATA_BUF_SZ		(8 * PAGE_SIZE)
 
 static int tdxio_devif_get_device_info(struct pci_dev *pdev,
@@ -153,12 +221,76 @@ static int tdxio_devif_validate(struct pci_dev *pdev, void *info, size_t size)
 				  result[2], result[1], result[0]);
 }
 
+static int tdxio_devif_get_report(struct pci_dev *pdev, void **report, size_t *size)
+{
+	u64 total, remain, offset;
+	void *tmp, *rp;
+	int ret;
+
+	/* FIXME: need to use TD_TDISP_BUFF_SIZE, now it's hardcode as 4096 */
+	tmp = (void *)__get_free_page(GFP_KERNEL);
+	if (!tmp)
+		return -ENOMEM;
+
+	ret = tdx_devif_tdisp(pdev->handle, devid(pdev),
+			     TDISP_GET_DEVIF_REPORT, __pa(tmp));
+	if (ret)
+		goto done;
+
+	remain = devif_rp_remain(tmp);
+	if (!remain) {
+		*report = tmp;
+		*size = devif_rp_len(tmp) + DEVIF_RP_HDR_SIZE;
+		dump_devif_report(pdev, tmp);
+		return 0;
+	}
+
+	/*
+	 * as remaining length is not zero, copy devif report in one
+	 * buffer for later phasing.
+	 */
+	total = devif_rp_len(tmp) + remain + DEVIF_RP_HDR_SIZE;
+	offset = total - remain;
+
+	rp = (void *)__get_free_pages(GFP_KERNEL, get_order(total));
+	if (!rp) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	memcpy(rp, tmp, DEVIF_RP_HDR_SIZE + devif_rp_len(tmp));
+
+	while (remain) {
+		memset(tmp, 0, PAGE_SIZE);
+
+		ret = tdx_devif_tdisp(pdev->handle, devid(pdev),
+				     TDISP_GET_DEVIF_REPORT, __pa(tmp));
+		if (ret) {
+			free_pages((unsigned long)rp, get_order(total));
+			goto done;
+		}
+
+		memcpy(rp + offset, tmp + DEVIF_RP_HDR_SIZE, devif_rp_len(tmp));
+
+		offset += devif_rp_len(tmp);
+		remain -= devif_rp_len(tmp);
+	}
+
+	*report = rp;
+	*size = total;
+	dump_devif_report(pdev, rp);
+
+done:
+	free_page((unsigned long)tmp);
+	return ret;
+}
+
 static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 {
 	struct device *dev = &pdev->dev;
+	void *info_va, *rp_va;
+	size_t info_sz, rp_sz;
 	int ret, result = 0;
-	void *info_va;
-	size_t info_sz;
 	u64 handle;
 
 	/*
@@ -193,6 +325,7 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 	 * 1.1 Get DEVICE_INFO_DATA by TDVMCALL from VMM
 	 * 1.2 TDG.DEVIF.VALIDATE
 	 *   ensure DEVIF is locked and DEVICE_INFO_DATA is trusted
+	 * 1.3 Get TDISP DEVIF report
 	 */
 	ret = tdxio_devif_get_device_info(pdev, &info_va, &info_sz);
 	if (ret) {
@@ -203,6 +336,12 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 	ret = tdxio_devif_validate(pdev, info_va, info_sz);
 	if (ret) {
 		dev_err(dev, "Fail to validate DEVICE_INFO_DATA %d\n", ret);
+		goto free_device_info;
+	}
+
+	ret = tdxio_devif_get_report(pdev, &rp_va, &rp_sz);
+	if (ret) {
+		dev_err(dev, "Fail to get TDISP DEVIF Report %d\n", ret);
 		goto free_device_info;
 	}
 
