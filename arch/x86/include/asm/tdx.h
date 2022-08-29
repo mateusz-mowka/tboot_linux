@@ -61,6 +61,8 @@ extern long tdx_get_devif_handle(u32 devid, u64 *handle);
 
 extern long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa);
 
+extern long tdx_devif_validate(u64 handle, u64 pkh5, u64 pkh4, u64 pkh3,
+			       u64 pkh2, u64 pkh1, u64 pkh0);
 #else
 
 static inline void tdx_early_init(void) { };
@@ -78,6 +80,11 @@ static inline long tdx_get_devif_handle(u32 devid, u64 *handle) { return -ENODEV
 
 static inline long tdx_devif_tdisp(u64 handle, u32 devid, u8 msg, u64 buf_pa) { return -ENODEV; }
 
+static inline long tdx_devif_validate(u64 handle, u64 pkh5, u64 pkh4, u64 pkh3,
+				      u64 pkh2, u64 pkh1, u64 pkh0)
+{
+	return -EOPNOTSUPP;
+}
 #endif /* CONFIG_INTEL_TDX_GUEST */
 
 #if defined(CONFIG_KVM_GUEST) && defined(CONFIG_INTEL_TDX_GUEST)

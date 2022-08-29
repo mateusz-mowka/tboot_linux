@@ -1041,6 +1041,18 @@ static void tdx_service_deinit(struct tdx_serv *serv)
 	free_pages(serv->cmd_va, order);
 }
 
+long tdx_devif_validate(u64 handle, u64 pkh5, u64 pkh4, u64 pkh3, u64 pkh2, u64 pkh1, u64 pkh0)
+{
+	long ret;
+
+	ret = __tdx_module_call_io(TDDEVIFVALIDATE, handle, pkh5, pkh4, pkh3, pkh2, pkh1, pkh0, 0, 0, 0, NULL);
+
+	pr_info("%s ret 0x%llx pkh %llx %llx %llx %llx %llx %llx\n", __func__,
+		(u64)ret, pkh5, pkh4, pkh3, pkh2, pkh1, pkh0);
+
+	return ret;
+}
+
 static long tdx_devif_request(u64 handle, u64 req_parm, u64 req_info)
 {
 	long ret;
