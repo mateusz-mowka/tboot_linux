@@ -87,8 +87,19 @@ static inline dma_addr_t dma_direct_map_page(struct device *dev,
 	phys_addr_t phys = page_to_phys(page) + offset;
 	dma_addr_t dma_addr = phys_to_dma(dev, phys);
 
-	if (is_swiotlb_force_bounce(dev))
-		return swiotlb_map(dev, phys, size, dir, attrs);
+	if (dev->authorized == MODE_SECURE && !(attrs & DMA_ATTR_FORCEUNENCRYPTED)) {
+		unsigned long vaddr = page_address(page) + offset;
+		x86_platform.guest.enc_status_change_finish(vaddr, PFN_UP(size), true);
+		return dma_addr;
+	}
+
+	if (is_swiotlb_force_bounce(dev)) {
+		dma_addr = swiotlb_map(dev, phys, size, dir, attrs);
+		if (dev->authorized == MODE_SECURE && (attrs & DMA_ATTR_FORCEUNENCRYPTED))
+			dma_addr |= cc_mkdec(0);
+
+		return dma_addr;
+	}
 
 	if (unlikely(!dma_capable(dev, dma_addr, size, true))) {
 		if (is_swiotlb_active(dev))
