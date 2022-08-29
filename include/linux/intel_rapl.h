@@ -30,7 +30,6 @@ enum rapl_domain_reg_id {
 	RAPL_DOMAIN_REG_POLICY,
 	RAPL_DOMAIN_REG_INFO,
 	RAPL_DOMAIN_REG_PL4,
-	RAPL_DOMAIN_REG_UNIT,
 	RAPL_DOMAIN_REG_MAX,
 };
 
@@ -97,9 +96,7 @@ struct rapl_domain {
 	struct rapl_power_limit rpl[NR_POWER_LIMITS];
 	u64 attr_map;		/* track capabilities */
 	unsigned int state;
-	unsigned int power_unit;
-	unsigned int energy_unit;
-	unsigned int time_unit;
+	unsigned int domain_energy_unit;
 	struct rapl_package *rp;
 };
 
