@@ -198,6 +198,7 @@ static int tdxio_devif_get_device_info(struct pci_dev *pdev,
 
 static int tdxio_devif_validate(struct pci_dev *pdev, void *info, size_t size)
 {
+#if 0
 	struct crypto_shash *alg;
 	struct shash_desc *sdesc;
 	u64 result[6];
@@ -230,6 +231,9 @@ static int tdxio_devif_validate(struct pci_dev *pdev, void *info, size_t size)
 	/* currently use SHA384 HASH for dev pub key hash */
 	return tdx_devif_validate(pdev->handle, result[5], result[4], result[3],
 				  result[2], result[1], result[0]);
+#else
+	return tdx_devif_validate(pdev->handle, 0, 0, 0, 0, 0, 0);
+#endif
 }
 
 static int tdxio_devif_get_report(struct pci_dev *pdev, void **report, size_t *size)
@@ -537,11 +541,13 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 	 *   ensure DEVIF is locked and DEVICE_INFO_DATA is trusted
 	 * 1.3 Get TDISP DEVIF report
 	 */
+#if 0
 	ret = tdxio_devif_get_device_info(pdev, &info_va, &info_sz);
 	if (ret) {
 		dev_err(dev, "Fail to get DEVICE_INFO_DATA %d\n", ret);
 		return 0;
 	}
+#endif
 
 	ret = tdxio_devif_validate(pdev, info_va, info_sz);
 	if (ret) {
@@ -560,12 +566,13 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 	 *
 	 * Verify with evidence: DEVICE_INFO_DATA + TDISP DEVIF report
 	 */
+#if 0
 	ret = tdxio_devif_verify(pdev, info_va, info_sz, rp_va, rp_sz);
 	if (ret) {
 		dev_err(dev, "Fail to verify TDISP DEVIF %d\n", ret);
 		goto free_device_report;
 	}
-
+#endif
 	/*
 	 * Step 3: Additional Steps to accept TDISP DEVIF into TCB
 	 *
@@ -593,8 +600,9 @@ static int tdx_guest_dev_attest(struct pci_dev *pdev, unsigned int enum_mode)
 free_device_report:
 	free_pages((unsigned long)rp_va, get_order(rp_sz));
 free_device_info:
+#if 0
 	free_pages((unsigned long)info_va, get_order(info_sz));
-
+#endif
 	return result;
 }
 
