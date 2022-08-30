@@ -639,7 +639,7 @@ static int __init sev_guest_probe(struct platform_device *pdev)
 		return -ENODEV;
 
 	data = (struct sev_guest_platform_data *)dev->platform_data;
-	mapping = ioremap_encrypted(data->secrets_gpa, PAGE_SIZE);
+	mapping = ioremap_encrypted(data->secrets_gpa, PAGE_SIZE, _PAGE_CACHE_MODE_WB);
 	if (!mapping)
 		return -ENODEV;
 
