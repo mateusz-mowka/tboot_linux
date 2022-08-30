@@ -46,10 +46,12 @@ void __iomem *pci_iomap_range(struct pci_dev *dev,
 		if (dev->dev.authorized == MODE_SECURE) {
 			pci_info(dev, "%s() calls ioremap_encrypted()\n", __func__);
 			return ioremap_encrypted(start, len, _PAGE_CACHE_MODE_UC_MINUS);
+		} else if (dev->dev.authorized == MODE_SHARED) {
+			pci_info(dev, "%s() calls ioremap_driver_hardened()\n", __func__);
+			return ioremap_driver_hardened(start, len);
+		} else {
+			return ioremap(start, len);
 		}
-
-		pci_info(dev, "%s() calls ioremap_driver_hardened()\n", __func__);
-		return ioremap_driver_hardened(start, len);
 	}
 	/* What? */
 	return NULL;
