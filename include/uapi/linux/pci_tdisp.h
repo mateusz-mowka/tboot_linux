@@ -37,23 +37,30 @@
 #define TDISP_SET_MMIO_ATTR_RESP		0x0d
 #define TDISP_ERROR			0x7f
 
-/* Device Interface Report - header */
-#define DEVIF_RP_HDR                    0x0
-#define DEVIF_RP_HDR_VER(v)             ((v) & 0xff)
-#define DEVIF_RP_HDR_TYPE(v)            (((v) >> 8) & 0xff)
-#define DEVIF_RP_LEN                    0x4
-#define DEVIF_RP_LEN_PORTION(v)         ((v) & 0xffff)
-#define DEVIF_RP_LEN_REMAIN(v)          (((v) >> 16) & 0xffff)
-#define DEVIF_RP_HDR_SIZE               8
+/*
+ * Device Interface Report - header
+ * The TDISP header is not taken into account. This is because TDX module will
+ * strip the TDISP header for DEVIF_REPORT seamcall.
+ */
+#define DEVIF_RP_LEN			0x0
+#define DEVIF_RP_LEN_PORTION(v)		((v) & 0xffff)
+#define DEVIF_RP_LEN_REMAIN(v)		(((v) >> 16) & 0xffff)
+#define DEVIF_RP_HDR_SIZE		4
 
-/* Device Interface Report - content */
-#define DEVIF_RP_MMIO_NUM               0x18
-#define DEVIF_RP_MMIO_ADDR_LO(n)        (0x1c + (n) * 16)
-#define DEVIF_RP_MMIO_ADDR_HI(n)        (0x20 + (n) * 16)
-#define DEVIF_RP_MMIO_PAGES(n)          (0x24 + (n) * 16)
-#define DEVIF_RP_MMIO_ATTR(n)           (0x28 + (n) * 16)
-#define DEVIF_RP_MMIO_ATTR_MSIX(v)      ((v) & 0x1)
-#define DEVIF_RP_MMIO_ATTR_PBA(v)       (((v) >> 1) & 0x1)
-#define DEVIF_RP_MMIO_ATTR_ID(v)        (((v) >> 16) & 0xffff)
+/*
+ * Device Interface Report - content
+ * The Device Interface Report header is taken into account, but the TDISP
+ * header is not.
+ */
+#define DEVIF_RP_INTF_INFO		0x4
+#define DEVIF_RP_MSIX_CTRL(v)		(((v) >> 16) & 0xffff)
+#define DEVIF_RP_MMIO_NUM		0x14
+#define DEVIF_RP_MMIO_ADDR_LO(n)	(0x18 + (n) * 16)
+#define DEVIF_RP_MMIO_ADDR_HI(n)	(0x1c + (n) * 16)
+#define DEVIF_RP_MMIO_PAGES(n)		(0x20 + (n) * 16)
+#define DEVIF_RP_MMIO_ATTR(n)		(0x24 + (n) * 16)
+#define DEVIF_RP_MMIO_ATTR_MSIX(v)	((v) & 0x1)
+#define DEVIF_RP_MMIO_ATTR_PBA(v)	(((v) >> 1) & 0x1)
+#define DEVIF_RP_MMIO_ATTR_ID(v)	(((v) >> 16) & 0xffff)
 
 #endif
