@@ -1027,7 +1027,7 @@ static int tdx_service_init(struct tdx_serv *serv, guid_t *guid,
 	if (!va)
 		return -ENOMEM;
 
-	if (set_memory_decrypted(va, get_order(total_sz)))
+	if (set_memory_decrypted(va, 1 << get_order(total_sz)))
 		return -EFAULT;
 
 	serv->cmd_va = va;
