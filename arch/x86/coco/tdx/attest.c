@@ -129,7 +129,7 @@ static long tdx_get_quote_hypercall(struct quote_buf *buf)
 
 	args.r10 = TDX_HYPERCALL_STANDARD;
 	args.r11 = TDVMCALL_GET_QUOTE;
-	args.r12 = virt_to_phys(buf->vmaddr);
+	args.r12 = cc_mkdec(virt_to_phys(buf->vmaddr));
 	args.r13 = buf->size;
 
 	/*
