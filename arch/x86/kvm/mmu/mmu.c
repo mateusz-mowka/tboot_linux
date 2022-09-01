@@ -4647,6 +4647,7 @@ static int kvm_faultin_pfn_private_mapped(struct kvm_vcpu *vcpu,
 {
 	hva_t hva = gfn_to_hva_memslot(fault->slot, fault->gfn);
 	struct page *page[1];
+	bool writeable = fault->map_writable;
 
 	fault->map_writable = false;
 	fault->pfn = KVM_PFN_ERR_FAULT;
@@ -4655,8 +4656,15 @@ static int kvm_faultin_pfn_private_mapped(struct kvm_vcpu *vcpu,
 
 	/* TDX allows only RWX.  Read-only isn't supported. */
 	WARN_ON_ONCE(!fault->write);
-	if (get_user_pages_fast(hva, 1, FOLL_WRITE, page) != 1)
-		return RET_PF_INVALID;
+	/*
+	 * Temporary for tdxio private mmio, which cannot get valid pages,
+	 * RET_PF_EMULATE doesn't mean emulated mmio, just to distinguish
+	 * with real invalid cases and let private mmio handling continue.
+	 */
+	if (get_user_pages_fast(hva, 1, FOLL_WRITE, page) != 1) {
+		fault->map_writable = writeable;
+		return RET_PF_EMULATE;
+	}
 
 	fault->map_writable = true;
 	fault->pfn = page_to_pfn(page[0]);
@@ -4744,8 +4752,22 @@ static int kvm_faultin_pfn(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault)
 		r = kvm_faultin_pfn_private(vcpu, fault);
 		if (r != RET_PF_CONTINUE)
 			return r == RET_PF_FIXED ? RET_PF_CONTINUE : r;
-	} else if (fault->is_private)
-		return kvm_faultin_pfn_private_mapped(vcpu, fault);
+	} else if (fault->is_private) {
+		r = kvm_faultin_pfn_private_mapped(vcpu, fault);
+		if (r != RET_PF_EMULATE)
+			return r;
+
+		/*
+		 * tdx private mmios are not set in private slot yet, so they
+		 * fall in this path.
+		 * In this path, it is still a temporary solution. mmio
+		 * cannot get valid pages. In order to make private mmio
+		 * fallthrough to the standard path.
+		 * kvm_faultin_pfn_private_mapped return RET_PF_EMULATE, which
+		 * doesn't mean emulated mmio, just to distinguish with real
+		 * invalid cases and let the flow continue.
+		 */
+	}
 
 	async = false;
 	fault->pfn = __gfn_to_pfn_memslot(slot, fault->gfn, false, &async,
