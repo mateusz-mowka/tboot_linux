@@ -50,6 +50,7 @@ GNR PO bkc-v1.0
 ===============
 1. Merge fix to IAX operation code name and add OPcode for Fetch, Decrypt, Encrypt, Zcomress/decompress8
 2. Disable signature verification in SDSi for now till it can be properly fixed.
+3. Fix duplicate user file name causing error in inter-domain pasid (https://jira.devtools.intel.com/browse/LCK-11871)
 
 GNR PO bkc-v0.5
 ===============
