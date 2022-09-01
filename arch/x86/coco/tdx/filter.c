@@ -426,25 +426,18 @@ static int tdxio_devif_accept_mmios(struct pci_dev *pdev, void *data)
 		bar = DEVIF_RP_MMIO_ATTR_ID(attr);
 		ismsix = DEVIF_RP_MMIO_ATTR_PBA(attr) || DEVIF_RP_MMIO_ATTR_MSIX(attr);
 
+		if (bar != bar_prev) {
+			offset = 0;
+			bar_prev = bar;
+		}
+
 		/* TODO here just skip msix regions as it's falsely reported in devif report
 		 * in future, if msix regions are included in defif report, it should be
 		 * accepted as private mmio
 		 */
-		if (ismsix)
+		if (ismsix) {
+			offset += size;
 			continue;
-
-		if (bar != bar_prev)
-			offset = 0;
-		bar_prev = bar;
-
-		/* skip msix table and pba */
-		if (!ismsix) {
-			if (bar == pba_bir && offset >= pba_start && offset < pba_end)
-				offset = pba_end;
-			if (bar == table_bir && offset >= table_start && offset < table_end)
-				offset = table_end;
-			if (bar == pba_bir && offset >= pba_start && offset < pba_end)
-				offset = pba_end;
 		}
 
 		gpa = pci_resource_start(pdev, bar) + offset;
