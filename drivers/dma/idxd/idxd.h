@@ -165,8 +165,6 @@ struct idxd_cdev {
 	struct cdev cdev;
 	struct idxd_dev idxd_dev;
 	int minor;
-	struct ida file_ida;
-	struct mutex ida_lock;
 };
 
 #define IDXD_ALLOCATED_BATCH_SIZE	128U

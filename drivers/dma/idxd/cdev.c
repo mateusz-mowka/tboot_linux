@@ -27,6 +27,13 @@ struct idxd_cdev_context {
 };
 
 /*
+ * Since user file names are global in DSA devices, define their ida's as
+ * global to avoid conflict file names.
+ */
+static DEFINE_IDA(file_ida);
+static DEFINE_MUTEX(ida_lock);
+
+/*
  * ictx is an array based off of accelerator types. enum idxd_type
  * is used as index
  */
@@ -119,9 +126,9 @@ static void idxd_file_dev_release(struct device *dev)
 	struct idxd_device *idxd = wq->idxd;
 	int rc;
 
-	mutex_lock(&idxd_cdev->ida_lock);
-	ida_free(&idxd_cdev->file_ida, ctx->id);
-	mutex_unlock(&idxd_cdev->ida_lock);
+	mutex_lock(&ida_lock);
+	ida_free(&file_ida, ctx->id);
+	mutex_unlock(&ida_lock);
 
 	/* Wait for in-flight operations to complete. */
 	if (wq_shared(wq)) {
@@ -310,9 +317,9 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 
 
 	idxd_cdev = wq->idxd_cdev;
-	mutex_lock(&idxd_cdev->ida_lock);
-	ctx->id = ida_alloc(&idxd_cdev->file_ida, GFP_KERNEL);
-	mutex_unlock(&idxd_cdev->ida_lock);
+	mutex_lock(&ida_lock);
+	ctx->id = ida_alloc(&file_ida, GFP_KERNEL);
+	mutex_unlock(&ida_lock);
 	if (ctx->id < 0) {
 		dev_warn(dev, "ida alloc failure\n");
 		goto failed_ida;
@@ -1202,8 +1209,6 @@ int idxd_wq_add_cdev(struct idxd_wq *wq)
 		return minor;
 	}
 	idxd_cdev->minor = minor;
-	ida_init(&idxd_cdev->file_ida);
-	mutex_init(&idxd_cdev->ida_lock);
 
 	device_initialize(dev);
 	dev->parent = wq_confdev(wq);
@@ -1236,7 +1241,7 @@ void idxd_wq_del_cdev(struct idxd_wq *wq)
 	struct idxd_cdev *idxd_cdev;
 
 	idxd_cdev = wq->idxd_cdev;
-	ida_destroy(&idxd_cdev->file_ida);
+	ida_destroy(&file_ida);
 	wq->idxd_cdev = NULL;
 	cdev_device_del(&idxd_cdev->cdev, cdev_dev(idxd_cdev));
 	put_device(cdev_dev(idxd_cdev));
