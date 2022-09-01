@@ -324,7 +324,7 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 	fdev->bus = &dsa_bus_type;
 	fdev->type = &idxd_cdev_file_type;
 
-	rc = dev_set_name(fdev, "file%d", ctx->id);
+	rc = dev_set_name(fdev, "cdev%d_file%d", idxd_cdev->minor, ctx->id);
 	if (rc < 0) {
 		dev_warn(dev, "set name failure\n");
 		goto failed_dev_name;
