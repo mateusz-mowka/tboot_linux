@@ -2123,12 +2123,14 @@ static void tdx_sept_drop_private_spte(
 	if (KVM_BUG_ON(level > PG_LEVEL_2M, kvm))
 		return;
 
+	/* TODO: we could block and unmap private mmio here? */
+	if (kvm_is_mmio_pfn(pfn))
+		return;
+
 	if (is_hkid_assigned(kvm_tdx)) {
-		if (!kvm_is_mmio_pfn(pfn)) {
-			spin_lock(&kvm_tdx->seamcall_lock);
-			err = tdh_mem_page_remove(kvm_tdx->tdr.pa, gpa, tdx_level, &out);
-			spin_unlock(&kvm_tdx->seamcall_lock);
-		}
+		spin_lock(&kvm_tdx->seamcall_lock);
+		err = tdh_mem_page_remove(kvm_tdx->tdr.pa, gpa, tdx_level, &out);
+		spin_unlock(&kvm_tdx->seamcall_lock);
 		if (KVM_BUG_ON(err, kvm)) {
 			pr_tdx_error(TDH_MEM_PAGE_REMOVE, err, &out);
 			return;
