@@ -1358,12 +1358,13 @@ static unsigned long try_accept_one(phys_addr_t start, unsigned long len,
 	ret = __trace_tdx_module_call(TDX_ACCEPT_PAGE, tdcall_rcx, 0, 0, 0,
 				NULL);
 	if (ret) {
-		if (ret == TDX_PAGE_ALREADY_ACCEPTED)
-			pr_err("%s: failed to accept page due to TDX_PAGE_ALREADY_ACCEPTED\n", __func__);
-		else
+		if (ret != TDX_PAGE_ALREADY_ACCEPTED) {
 			pr_err("%s: failed to accept page ret %llx\n", __func__, ret);
+			return 0;
+		}
 
-		return 0;
+		pr_info("%s: TDX_PAGE_ALREADY_ACCEPTED, start = 0x%llx, accept_size = 0x%lx\n",
+			__func__, start, accept_size);
 	}
 
 	return accept_size;
