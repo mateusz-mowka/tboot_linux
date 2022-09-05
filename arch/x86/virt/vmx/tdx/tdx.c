@@ -1851,9 +1851,9 @@ int tdx_reclaim_page(unsigned long va, u64 pa, enum pg_level level,
 
 	err = tdh_phymem_page_reclaim(pa, &out);
 	if (WARN_ON_ONCE(err)) {
-		pr_err("%s:%d:%s pa 0x%llx level %d hkid 0x%x do_wb %d\n",
+		pr_err("%s:%d:%s pa 0x%llx level %d hkid 0x%x do_wb %d err 0x%llx\n",
 		       __FILE__, __LINE__, __func__,
-		       pa, level, hkid, do_wb);
+		       pa, level, hkid, do_wb, err);
 		#if 0
 		pr_tdx_error(TDH_PHYMEM_PAGE_RECLAIM, err, &out);
 		#endif
