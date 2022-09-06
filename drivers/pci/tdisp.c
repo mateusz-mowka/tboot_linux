@@ -152,7 +152,7 @@ struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 	if (ret)
 		goto exit_unbind_dev;
 
-	return 0;
+	return tdev;
 
 exit_unbind_dev:
 	tdisp_kvm_unbind_tdisp_dev(kvm, tdev);
