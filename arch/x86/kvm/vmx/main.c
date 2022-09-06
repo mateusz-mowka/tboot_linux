@@ -65,8 +65,10 @@ static int vt_vm_init(struct kvm *kvm)
 
 static void vt_flush_shadow_all_private(struct kvm *kvm)
 {
-	if (is_td(kvm))
+	if (is_td(kvm)) {
 		tdx_mmu_release_hkid(kvm);
+		tdx_unbind_tdi_all(kvm);
+	}
 }
 
 static void vt_vm_destroy(struct kvm *kvm)
