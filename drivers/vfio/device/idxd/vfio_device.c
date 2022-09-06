@@ -14,8 +14,16 @@
 
 enum {
 	IDXD_VDEV_TYPE_1DWQ = 0,
+	IDXD_VDEV_TYPE_1SWQ,
 	IDXD_VDEV_TYPE_MAX
 };
+
+/*
+ * Since vdev file names are global in DSA devices, define their ida's as
+ * global to avoid conflict vdev file names.
+ */
+static DEFINE_IDA(vdev_ida);
+static DEFINE_MUTEX(vdev_ida_lock);
 
 static int idxd_vdcm_open(struct vfio_device *vdev)
 {
@@ -842,9 +850,9 @@ static const struct vfio_device_ops idxd_vdev_ops = {
 
 static struct idxd_wq *find_wq_by_type(struct idxd_device *idxd, u32 type)
 {
-	struct idxd_wq *wq;
+	struct idxd_wq *wq, *least_used_swq;
+	int i, min_wq_refcount = INT_MAX;
 	bool found = false;
-	int i;
 
 	for (i = 0; i < idxd->max_wqs; i++) {
 		wq = idxd->wqs[i];
@@ -866,8 +874,19 @@ static struct idxd_wq *find_wq_by_type(struct idxd_device *idxd, u32 type)
 			found = true;
 			break;
 		}
+
+		/* Find least used shared WQ. */
+		if (type == IDXD_VDEV_TYPE_1SWQ && wq_shared(wq)) {
+			found = true;
+			if (idxd_wq_refcount(wq) < min_wq_refcount)
+				least_used_swq = wq;
+			break;
+		}
 		mutex_unlock(&wq->wq_lock);
 	}
+
+	if (type == IDXD_VDEV_TYPE_1SWQ && found)
+		wq = least_used_swq;
 
 	if (found) {
 		idxd_wq_get(wq);
@@ -990,11 +1009,9 @@ static int vdev_device_create(struct idxd_device *idxd, u32 type)
 	dev->bus = &dsa_bus_type;
 	dev->type = &idxd_vdev_device_type;
 
-	/*
-	 * Here it's set to vdev0, however, with swq support, this needs an
-	 * ida to enumerate the devices.
-	 */
-	parent->id = 0;
+	mutex_lock(&vdev_ida_lock);
+	parent->id = ida_alloc(&vdev_ida, GFP_KERNEL);
+	mutex_unlock(&vdev_ida_lock);
 	sprintf(dev_name, "vdev%u", parent->id);
 	dev_found = device_find_child_by_name(dev->parent, dev_name);
 	if (dev_found) {
@@ -1029,6 +1046,9 @@ static int vdev_device_remove(struct idxd_device *idxd, int id)
 
 	list_for_each_entry_safe(pos, n, &idxd->vdev_list, list) {
 		if (pos->id == id) {
+			mutex_lock(&vdev_ida_lock);
+			ida_free(&vdev_ida, pos->id);
+			mutex_unlock(&vdev_ida_lock);
 			list_del(&pos->list);
 			device_unregister(&pos->conf_dev);
 			return 0;

@@ -647,7 +647,9 @@ static int idxd_probe(struct idxd_device *idxd)
 	if (IS_ENABLED(CONFIG_INTEL_IDXD_SVM) && sva) {
 		if (iommu_dev_enable_feature(dev, IOMMU_DEV_FEAT_SVA)) {
 			dev_warn(dev, "Unable to turn on user SVA feature.\n");
+printk("%s: %d\n", __func__, __LINE__);
 		} else {
+printk("%s: %d\n", __func__, __LINE__);
 			set_bit(IDXD_FLAG_USER_PASID_ENABLED, &idxd->flags);
 
 			if (idxd_enable_system_pasid(idxd))

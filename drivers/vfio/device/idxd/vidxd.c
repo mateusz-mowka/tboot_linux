@@ -88,9 +88,25 @@ static void vidxd_mmio_init_wqcap(struct vdcm_idxd *vidxd)
 	struct idxd_wq *wq = vidxd->wq;
 	union wq_cap_reg *wq_cap = (union wq_cap_reg *)(bar0 + IDXD_WQCAP_OFFSET);
 
+#if 0
 	wq_cap->total_wq_size = wq->size;
+	/* should this be 1? */
 	wq_cap->num_wqs = 1;
 	wq_cap->dedicated_mode = 1;
+	wq_cap->shared_mode = 1;
+#endif
+
+        wq_cap->occupancy_int = 0;
+        wq_cap->occupancy = 0;
+        wq_cap->priority = 0;
+        wq_cap->total_wq_size = wq->size;
+        wq_cap->num_wqs = VIDXD_MAX_WQS;
+        wq_cap->wq_ats_support = 0;
+        if (wq_dedicated(wq))
+                wq_cap->dedicated_mode = 1;
+        else
+                wq_cap->shared_mode = 1;
+
 }
 
 static void vidxd_mmio_init_wqcfg(struct vdcm_idxd *vidxd)
@@ -701,7 +717,7 @@ void vidxd_reset(struct vdcm_idxd *vidxd)
 	gensts->state = IDXD_DEVICE_STATE_DRAIN;
 	wq = vidxd->wq;
 
-	if (wq->state == IDXD_WQ_ENABLED) {
+	if (wq_dedicated(wq) && wq->state == IDXD_WQ_ENABLED) {
 		rc = idxd_wq_abort(wq);
 		if (rc < 0) {
 			idxd_complete_command(vidxd, IDXD_CMDSTS_HW_ERR);
@@ -734,16 +750,20 @@ static void vidxd_wq_reset(struct vdcm_idxd *vidxd, int wq_id_mask)
 		return;
 	}
 
-	rc = idxd_wq_abort(wq);
-	if (rc < 0) {
-		idxd_complete_command(vidxd, IDXD_CMDSTS_HW_ERR);
-		return;
-	}
+	if (wq_dedicated(wq)) {
+		rc = idxd_wq_abort(wq);
+		if (rc < 0) {
+			idxd_complete_command(vidxd, IDXD_CMDSTS_HW_ERR);
+			return;
+		}
 
-	rc = idxd_wq_disable(wq, false);
-	if (rc < 0) {
-		idxd_complete_command(vidxd, IDXD_CMDSTS_HW_ERR);
-		return;
+		rc = idxd_wq_disable(wq, false);
+		if (rc < 0) {
+			idxd_complete_command(vidxd, IDXD_CMDSTS_HW_ERR);
+			return;
+		}
+	} else {
+		idxd_wq_drain(wq);
 	}
 
 	vwqcfg->wq_state = IDXD_WQ_DEV_DISABLED;
@@ -1319,7 +1339,6 @@ int vidxd_mmio_write(struct vdcm_idxd *vidxd, u64 pos, void *buf, unsigned int s
                 index = (offset - VIDXD_MSIX_PERM_OFFSET) / 8;
                 msix_perm = get_reg_val(buf, sizeof(u32)) & 0xfffff00d;
 		pasid_en = msix_perm & MSIX_PERM_PASID_EN_MASK;
-printk("%s: %d, %d, %x\n", __func__, __LINE__, pasid_en, msix_perm);
 		/* May check if guest changes pasid_en bit, then may do sth. */
 		if (pasid_en) {
 			gpasid = (msix_perm & MSIX_PERM_PASID_MASK) >> MSIX_PERM_PASID_SHIFT;
