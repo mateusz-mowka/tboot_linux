@@ -13475,12 +13475,6 @@ int kvm_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
 }
 EXPORT_SYMBOL_GPL(kvm_unbind_tdisp_dev);
 
-int kvm_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev, struct pci_tdisp_req *req)
-{
-	return static_call(kvm_x86_tdisp_request)(kvm, tdev, req);
-}
-EXPORT_SYMBOL_GPL(kvm_tdisp_request);
-
 EXPORT_TRACEPOINT_SYMBOL_GPL(kvm_entry);
 EXPORT_TRACEPOINT_SYMBOL_GPL(kvm_exit);
 EXPORT_TRACEPOINT_SYMBOL_GPL(kvm_mmio);

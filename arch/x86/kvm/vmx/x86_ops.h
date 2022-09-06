@@ -200,8 +200,7 @@ void tdx_set_dr7(struct kvm_vcpu *vcpu, unsigned long val);
 bool tdx_check_apicv_inhibit_reasons(struct kvm *kvm, ulong bit);
 int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev);
 int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev);
-int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
-		      struct pci_tdisp_req *req);
+void tdx_unbind_tdisp_dev_all(struct kvm *kvm);
 int tdx_tdisp_get_info(struct kvm *kvm, struct kvm_tdisp_info *info);
 int tdx_tdisp_user_request(struct kvm *kvm, struct kvm_tdisp_user_request *req);
 #else
@@ -278,8 +277,7 @@ static inline void tdx_set_dr7(struct kvm_vcpu *vcpu, unsigned long val) {}
 static inline bool tdx_check_apicv_inhibit_reasons(struct kvm *kvm, ulong bit) { return false; }
 static inline int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev) { return -EOPNOTSUPP; }
 static inline int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev) { return -EOPNOTSUPP; }
-static inline int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
-		      struct pci_tdisp_req *req) { return -EOPNOTSUPP; }
+static inline void tdx_unbind_tdisp_dev_all(struct kvm *kvm) {}
 static inline int tdx_tdisp_get_info(struct kvm *kvm,
 		struct kvm_tdisp_info *info) { return -EOPNOTSUPP; }
 static inline int tdx_tdisp_user_request(struct kvm *kvm,

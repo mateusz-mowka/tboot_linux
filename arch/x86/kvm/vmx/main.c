@@ -83,8 +83,10 @@ static int vt_vm_init(struct kvm *kvm)
 
 static void vt_flush_shadow_all_private(struct kvm *kvm)
 {
-	if (is_td(kvm))
-		return tdx_mmu_release_hkid(kvm);
+	if (is_td(kvm)) {
+		tdx_mmu_release_hkid(kvm);
+		tdx_unbind_tdisp_dev_all(kvm);
+	}
 }
 
 static void vt_vm_destroy(struct kvm *kvm)
@@ -930,15 +932,6 @@ static int vt_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
 	return tdx_unbind_tdisp_dev(kvm, tdev);
 }
 
-static int vt_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
-			    struct pci_tdisp_req *req)
-{
-	if (!is_td(kvm))
-		return -ENOTTY;
-
-	return tdx_tdisp_request(kvm, tdev, req);
-}
-
 static int vt_tdisp_get_info(struct kvm *kvm, struct kvm_tdisp_info *info)
 {
 	if (!is_td(kvm))
@@ -1108,7 +1101,6 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 
 	.bind_tdisp_dev = vt_bind_tdisp_dev,
 	.unbind_tdisp_dev = vt_unbind_tdisp_dev,
-	.tdisp_request = vt_tdisp_request,
 	.tdisp_get_info = vt_tdisp_get_info,
 	.tdisp_user_request = vt_tdisp_user_request,
 };

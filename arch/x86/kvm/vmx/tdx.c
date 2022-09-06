@@ -79,7 +79,6 @@ static struct mutex *tdx_mng_key_config_lock;
 static int tdx_tdisp_iq_inv_iotlb(struct kvm_tdx *kvm_tdx);
 static int tdx_tdisp_mmio_map(struct kvm_tdx *kvm_tdx, gfn_t gfn,
 			      enum pg_level level, kvm_pfn_t pfn);
-
 /*
  * A per-CPU list of TD vCPUs associated with a given CPU.  Used when a CPU
  * is brought down to invoke TDH_VP_FLUSH on the approapriate TD vCPUS.
@@ -5453,17 +5452,6 @@ static bool __is_tdx_tdisp_devif_added(struct kvm_tdx *kvm_tdx,
 	return false;
 }
 
-static bool is_tdx_tdisp_devif_added(struct kvm_tdx *kvm_tdx, struct tdx_tdisp_dev *ttdev)
-{
-	bool locked;
-
-	mutex_lock(&kvm_tdx->ttdev_mutex);
-	locked = __is_tdx_tdisp_devif_added(kvm_tdx, ttdev);
-	mutex_unlock(&kvm_tdx->ttdev_mutex);
-
-	return locked;
-}
-
 static void tdx_tdisp_devif_add(struct tdx_tdisp_dev *ttdev)
 {
 	struct kvm_tdx *kvm_tdx = ttdev->kvm_tdx;
@@ -5477,103 +5465,16 @@ static void tdx_tdisp_devif_del(struct tdx_tdisp_dev *ttdev)
 	synchronize_rcu();
 }
 
-int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
-{
-	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
-	struct tdx_tdisp_dev *ttdev;
-	int ret;
-
-	mutex_lock(&kvm_tdx->ttdev_mutex);
-
-	ttdev = tdx_tdisp_devif_alloc(kvm_tdx, tdev);
-	if (!ttdev) {
-		ret = -ENOMEM;
-		goto unlock;
-	}
-	/*
-	 * Steps to bind the TDISP device
-	 *
-	 * 1. Create DEVIF
-	 * 2. Create MMIOMT
-	 * 3. Create DMAR tables
-	 */
-
-	ret = tdx_tdisp_devif_create(ttdev);
-	if (ret)
-		goto devif_free;
-
-	ret = tdx_tdisp_mmiomt_init(ttdev);
-	if (ret)
-		goto devif_remove;
-
-	ret = tdx_tdisp_dmar_init(ttdev);
-	if (ret)
-		goto mmiomt_uinit;
-
-	tdx_tdisp_devif_add(ttdev);
-	tdev->private = ttdev;
-	mutex_unlock(&kvm_tdx->ttdev_mutex);
-	return 0;
-
-mmiomt_uinit:
-	tdx_tdisp_mmiomt_uinit(ttdev);
-devif_remove:
-	tdx_tdisp_devif_remove(ttdev);
-devif_free:
-	tdx_tdisp_devif_free(ttdev);
-unlock:
-	mutex_unlock(&kvm_tdx->ttdev_mutex);
-	return ret;
-}
-
-int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+static int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
+			     struct pci_tdisp_req *req)
 {
 	struct tdx_tdisp_dev *ttdev = tdev->private;
-	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
-	struct pci_dev *pdev = tdev->pdev;
-
-	mutex_lock(&kvm_tdx->ttdev_mutex);
-
-	if (!__is_tdx_tdisp_devif_added(kvm_tdx, ttdev)) {
-		dev_err(&pdev->dev, "%s: target device is not bound\n", __func__);
-		mutex_unlock(&kvm_tdx->ttdev_mutex);
-		return -ENODEV;
-	}
-
-	tdx_tdisp_devif_del(ttdev);
-
-	/*
-	 * Steps to unbind the TDISP device
-	 *
-	 * 1. Unmap MMIO
-	 * 2. Remove DMAR tables
-	 * 3. Remove DEVIF
-	 * 4. Remove MMIOMT
-	 */
-
-	tdx_tdisp_mmio_unmap_all(ttdev);
-	tdx_tdisp_dmar_uinit(ttdev);
-	tdx_tdisp_devif_remove(ttdev);
-	tdx_tdisp_mmiomt_uinit(ttdev);
-	tdx_tdisp_devif_free(ttdev);
-	mutex_unlock(&kvm_tdx->ttdev_mutex);
-	return 0;
-}
-
-int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
-		      struct pci_tdisp_req *req)
-{
-	struct tdx_tdisp_dev *ttdev = tdev->private;
-	struct kvm_tdx *kvm_tdx = ttdev->kvm_tdx;
 	unsigned long request_va, response_va;
 	struct pci_dev *pdev = tdev->pdev;
 	unsigned int total_sz;
 	struct tdx_module_output out;
 	u64 retval;
 	int ret;
-
-	if (!is_tdx_tdisp_devif_added(kvm_tdx, ttdev))
-		return -ENODEV;
 
 	dev_info(&pdev->dev, "%s: request %s received\n", __func__,
 		 tdisp_message_to_string(req->parm.message));
@@ -5629,6 +5530,123 @@ done:
 	dev_info(&pdev->dev, "%s: request done %d\n", __func__, ret);
 	free_pages(request_va, get_order(total_sz));
 	return ret;
+}
+
+int tdx_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+{
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+	struct pci_tdisp_req req = { 0 };
+	struct tdx_tdisp_dev *ttdev;
+	int ret;
+
+	mutex_lock(&kvm_tdx->ttdev_mutex);
+
+	ttdev = tdx_tdisp_devif_alloc(kvm_tdx, tdev);
+	if (!ttdev) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
+	tdev->private = ttdev;
+
+	/*
+	 * Steps to bind the TDISP device
+	 *
+	 * 1. Create DEVIF
+	 * 2. Create MMIOMT
+	 * 3. Create DMAR tables
+	 */
+
+	ret = tdx_tdisp_devif_create(ttdev);
+	if (ret)
+		goto devif_free;
+
+	ret = tdx_tdisp_mmiomt_init(ttdev);
+	if (ret)
+		goto devif_remove;
+
+	ret = tdx_tdisp_dmar_init(ttdev);
+	if (ret)
+		goto mmiomt_uinit;
+
+	/* Move TDISP Device Interface state from UNLOCKED to LOCKED */
+	req.parm.message = TDISP_LOCK_INTF_REQ;
+	ret = tdx_tdisp_request(kvm, tdev, &req);
+	if (ret)
+		goto dmar_uinit;
+
+	tdx_tdisp_devif_add(ttdev);
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
+	return 0;
+
+dmar_uinit:
+	tdx_tdisp_dmar_uinit(ttdev);
+mmiomt_uinit:
+	tdx_tdisp_mmiomt_uinit(ttdev);
+devif_remove:
+	tdx_tdisp_devif_remove(ttdev);
+devif_free:
+	tdev->private = NULL;
+	tdx_tdisp_devif_free(ttdev);
+unlock:
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
+	return ret;
+}
+
+int __tdx_unbind_tdisp_dev(struct kvm_tdx *kvm_tdx, struct tdx_tdisp_dev *ttdev)
+{
+	struct pci_tdisp_dev *tdev = ttdev->tdev;
+	struct pci_dev *pdev = tdev->pdev;
+	struct pci_tdisp_req req = { 0 };
+
+	if (!ttdev || !__is_tdx_tdisp_devif_added(kvm_tdx, ttdev)) {
+		dev_err(&pdev->dev, "%s: target device is not bound\n", __func__);
+		return -ENODEV;
+	}
+
+	tdx_tdisp_devif_del(ttdev);
+
+	/* Move TDISP Device Interface state from LOCKED to UNLOCKED */
+	req.parm.message = TDISP_STOP_INTF_REQ;
+	tdx_tdisp_request(tdev->kvm, tdev, &req);
+
+	/*
+	 * Steps to unbind the TDISP device
+	 *
+	 * 1. Unmap MMIO
+	 * 2. Remove DMAR tables
+	 * 3. Remove DEVIF
+	 * 4. Remove MMIOMT
+	 */
+
+	tdx_tdisp_mmio_unmap_all(ttdev);
+	tdx_tdisp_dmar_uinit(ttdev);
+	tdx_tdisp_devif_remove(ttdev);
+	tdx_tdisp_mmiomt_uinit(ttdev);
+	tdev->private = NULL;
+	tdx_tdisp_devif_free(ttdev);
+
+	return 0;
+}
+
+int tdx_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev)
+{
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+
+	mutex_lock(&kvm_tdx->ttdev_mutex);
+	__tdx_unbind_tdisp_dev(kvm_tdx, tdev->private);
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
+	return 0;
+}
+
+void tdx_unbind_tdisp_dev_all(struct kvm *kvm)
+{
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+	struct tdx_tdisp_dev *ttdev;
+
+	mutex_lock(&kvm_tdx->ttdev_mutex);
+	list_for_each_entry(ttdev, &kvm_tdx->ttdev_list, node)
+		__tdx_unbind_tdisp_dev(kvm_tdx, ttdev);
+	mutex_unlock(&kvm_tdx->ttdev_mutex);
 }
 
 int tdx_tdisp_get_info(struct kvm *kvm, struct kvm_tdisp_info *info)

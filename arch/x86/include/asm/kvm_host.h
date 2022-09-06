@@ -1713,8 +1713,6 @@ struct kvm_x86_ops {
 
 	int (*bind_tdisp_dev)(struct kvm *kvm, struct pci_tdisp_dev *tdev);
 	int (*unbind_tdisp_dev)(struct kvm *kvm, struct pci_tdisp_dev *tdev);
-	int (*tdisp_request)(struct kvm *kvm, struct pci_tdisp_dev *tdev,
-			     struct pci_tdisp_req *req);
 	int (*tdisp_get_info)(struct kvm *kvm, struct kvm_tdisp_info *info);
 	int (*tdisp_user_request)(struct kvm *kvm, struct kvm_tdisp_user_request *req);
 };
