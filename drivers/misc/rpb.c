@@ -3,6 +3,7 @@
  * Race Point Beach(RPB) driver.
  */
 #include <linux/pci.h>
+#include <linux/aer.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/rpb.h>
@@ -1115,7 +1116,6 @@ static int check_error_regs(struct rpb_device *rdev)
 	u64 err_addr;
 	u32 tmp_data;
 	u32 data;
-	u32 val;
 	int i;
 
 	/* Check VMx Error Control Register */
@@ -1157,24 +1157,6 @@ static int check_error_regs(struct rpb_device *rdev)
 		dev_err(&rdev->pdev->dev, "%s: VM Abort/Unsupport Counter: 0x%x",
 			__func__, data);
 		err = -EFAULT;
-	}
-
-	/* Check PCIe Error Register */
-	if (rdev->pdev->aer_cap) {
-		pci_read_config_dword(rdev->pdev, rdev->pdev->aer_cap + PCI_ERR_UNCOR_STATUS,
-				      &val);
-		if (val) {
-			dev_info(&rdev->pdev->dev, "PCIe Uncorrectable Error Register: 0x%x\n",
-				 val);
-			err = -EFAULT;
-		}
-		pci_read_config_dword(rdev->pdev, rdev->pdev->aer_cap + PCI_ERR_COR_STATUS,
-				      &val);
-		if (val) {
-			dev_info(&rdev->pdev->dev, "PCIe Correctable Error Register: 0x%x\n",
-				 val);
-			err = -EFAULT;
-		}
 	}
 
 	return err;
@@ -1896,6 +1878,8 @@ static int rpb_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		return ret;
 
 	pci_set_master(pdev);
+	pci_aer_clear_nonfatal_status(pdev);
+	pci_enable_pcie_error_reporting(pdev);
 
 	rdev = devm_kzalloc(&pdev->dev, sizeof(*rdev), GFP_KERNEL);
 	if (!rdev)
@@ -1941,18 +1925,32 @@ static void rpb_remove(struct pci_dev *pdev)
 	rpb_reset_vm(rdev);
 }
 
+static pci_ers_result_t rpb_error_detected(struct pci_dev *pdev,
+					   pci_channel_state_t state)
+{
+	if (state == pci_channel_io_normal)
+		return PCI_ERS_RESULT_CAN_RECOVER;
+
+	dev_warn(&pdev->dev, "Error State 0x%x\n", state);
+	return PCI_ERS_RESULT_NEED_RESET;
+}
+
+static const struct pci_error_handlers rpb_err_handler = {
+	.error_detected = rpb_error_detected,
+};
+
 static const struct pci_device_id rpb_id_table[] = {
 	{PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCIE_DEVICE_ID_CAMBRIA),},
 	{ 0, }
 };
 MODULE_DEVICE_TABLE(pci, rpb_id_table);
-
 static struct pci_driver rpb_driver = {
 	.name		= DRV_NAME,
 	.id_table	= rpb_id_table,
 	.probe		= rpb_probe,
 	.remove		= rpb_remove,
 	.dev_groups	= rpb_attr_grps,
+	.err_handler	= &rpb_err_handler,
 };
 
 static int __init rpb_init(void)
