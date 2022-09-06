@@ -46,6 +46,11 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v1.1
+===============
+1. IDXD: Merge Fenghua's patches for shared work queue (from https://github.com/intel-sandbox/kernel/commits/gnr.bkc-v1.0,
+commit 52c8cfd9 8cffde75)
+
 GNR PO bkc-v1.0
 ===============
 1. Merge fix to IAX operation code name and add OPcode for Fetch, Decrypt, Encrypt, Zcomress/decompress8
