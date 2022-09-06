@@ -1753,9 +1753,16 @@ static int rpb_start_mem_test(struct rpb_device *rdev)
 	t.mem_size = rdev->mem_size;
 	t.mmio_addr = rdev->mmio_addr;
 
-	dev_info(dev, "Start Test: OP[%s] MEM[%s] SIZE[0x%x]\n",
-		 mem_op_to_string(t.mem_op),
-		 mem_attr_to_string(t.mem_attr), t.mem_size);
+	if (t.mem_op == RPB_MEM_OP_P2P_MMIO_READ ||
+	    t.mem_op == RPB_MEM_OP_P2P_MMIO_WRITE) {
+		dev_info(dev, "Start Test: OP[%s] MEM[%s] ADDR[0x%lx] SIZE[0x%x]\n",
+			 mem_op_to_string(t.mem_op), mem_attr_to_string(t.mem_attr),
+			 t.mmio_addr, t.mem_size);
+	} else {
+		dev_info(dev, "Start Test: OP[%s] MEM[%s] SIZE[0x%x]\n",
+			 mem_op_to_string(t.mem_op),
+			 mem_attr_to_string(t.mem_attr), t.mem_size);
+	}
 
 	if (rpb_mem_test_check(t)) {
 		dev_info(dev, "Bad Test Parameter\n");
