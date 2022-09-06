@@ -1848,7 +1848,11 @@ static int rpb_map_bars(struct rpb_device *rdev)
 {
 	struct pci_dev *pdev = rdev->pdev;
 
-	if (pcim_iomap_regions(pdev, BIT(0) | BIT(4), DRV_NAME)) {
+	if (pci_resource_len(pdev, 0) == 0 ||
+	    pci_resource_flags(pdev, 0) & IORESOURCE_UNSET)
+		return -ENODEV;
+
+	if (pcim_iomap_regions(pdev, BIT(0), DRV_NAME)) {
 		dev_err(&pdev->dev, "Failed to map bars\n");
 		return -ENODEV;
 	}
