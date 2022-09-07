@@ -58,6 +58,8 @@ GNR PO bkc-v1.0
 2. Disable signature verification in SDSi for now till it can be properly fixed.
 3. Fix duplicate user file name causing error in inter-domain pasid (https://jira.devtools.intel.com/browse/LCK-11871)
 4. TDX: Merge x86/tdx: Set shared bit in GetQuote hypercall request
+5. RAPL/TPMI: tpmi rapl rework patches including recent fixes with GNR Simics test result.  All the current tpmi rapl patches are reverted, and new patches are appended.
+   (Pull from https://github.com/zhang-rui/os.linux.graniterapids.poweron/tree/rapl-rework)
 
 GNR PO bkc-v0.5
 ===============
