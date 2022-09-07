@@ -1377,12 +1377,12 @@ DEFINE_PER_CPU(u64 [X86_PMC_IDX_MAX], pmc_prev_left);
  * Set the next IRQ period, based on the hwc->period_left value.
  * To be called with the event disabled in hw:
  */
-int x86_perf_event_set_period(struct perf_event *event)
+int __x86_perf_event_set_period(struct perf_event *event, u64 *value)
 {
 	struct hw_perf_event *hwc = &event->hw;
 	s64 left = local64_read(&hwc->period_left);
 	s64 period = hwc->sample_period;
-	int ret = 0, idx = hwc->idx;
+	int ret = 0;
 
 	if (unlikely(!hwc->event_base))
 		return 0;
@@ -1414,7 +1414,7 @@ int x86_perf_event_set_period(struct perf_event *event)
 
 	static_call_cond(x86_pmu_limit_period)(event, &left);
 
-	this_cpu_write(pmc_prev_left[idx], left);
+	this_cpu_write(pmc_prev_left[hwc->idx], left);
 
 	/*
 	 * The hw event starts counting from this event offset,
@@ -1422,16 +1422,33 @@ int x86_perf_event_set_period(struct perf_event *event)
 	 */
 	local64_set(&hwc->prev_count, (u64)-left);
 
-	wrmsrl(hwc->event_base, (u64)(-left) & x86_pmu.cntval_mask);
+	*value = (u64)(-left) & x86_pmu.cntval_mask;
+
+	perf_event_update_userpage(event);
+
+	return ret;
+}
+
+/*
+ * Set the next IRQ period, based on the hwc->period_left value.
+ * To be called with the event disabled in hw:
+ */
+int x86_perf_event_set_period(struct perf_event *event)
+{
+	struct hw_perf_event *hwc = &event->hw;
+	u64 value;
+	int ret;
+
+	ret = __x86_perf_event_set_period(event, &value);
+
+	wrmsrl(hwc->event_base, value);
 
 	/*
 	 * Sign extend the Merge event counter's upper 16 bits since
 	 * we currently declare a 48-bit counter width
 	 */
 	if (is_counter_pair(hwc))
-		wrmsrl(x86_pmu_event_addr(idx + 1), 0xffff);
-
-	perf_event_update_userpage(event);
+		wrmsrl(x86_pmu_event_addr(hwc->idx + 1), 0xffff);
 
 	return ret;
 }
