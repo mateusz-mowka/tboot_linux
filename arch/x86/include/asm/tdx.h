@@ -157,12 +157,13 @@ struct tmu_req {
 };
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
-int tdx_module_update(void);
+int tdx_module_update(bool *recoverable);
 int tdx_module_update_prepare(const struct tmu_req *req);
 void tdx_module_update_end(void);
 #else /* !CONFIG_INTEL_TDX_MODULE_UPDATE */
-static inline int tdx_module_update(void)
+static inline int tdx_module_update(bool *recoverable)
 {
+	*recoverable = false;
 	return -EOPNOTSUPP;
 }
 static inline int tdx_module_update_prepare(const struct tmu_req *req)

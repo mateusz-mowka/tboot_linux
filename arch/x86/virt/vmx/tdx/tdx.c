@@ -2219,12 +2219,17 @@ free:
 }
 EXPORT_SYMBOL_GPL(tdx_module_update_prepare);
 
-int tdx_module_update(void)
+/*
+ * @recoverable is used to tell the caller if the old TDX module still works after
+ * an update failure. @recoverable is meaningful only when an error code is returned.
+ */
+int tdx_module_update(bool *recoverable)
 {
 	int ret;
 	bool preserving;
 	const struct seam_sigstruct *sig = __va(saved_seamldr_params->sigstruct_pa);
 
+	*recoverable = true;
 	if (!saved_seamldr_params)
 		return -EINVAL;
 
@@ -2243,6 +2248,11 @@ int tdx_module_update(void)
 	ret = seamldr_install(saved_seamldr_params);
 	/* Initialize TDX module after a successful update */
 	if (!ret) {
+		/*
+		 * The old module has been overridden by the new one. Any
+		 * failure after this point is unrecoverable.
+		 */
+		*recoverable = false;
 		tdx_module_status = TDX_MODULE_UNKNOWN;
 		ret = __tdx_init_cpuslocked(preserving);
 		if (ret && preserving)

@@ -5063,6 +5063,7 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 	int ret;
 	unsigned int num_tds;
 	struct tmu_req req;
+	bool recoverable = false;
 
 	num_tds = td_creation_block();
 
@@ -5098,7 +5099,7 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 		percpu_down_write(&tdx_update_percpu_rwsem_mn_invalidate);
 		write_lock(&tdx_update_rwlock);
 
-		ret = tdx_module_update();
+		ret = tdx_module_update(&recoverable);
 
 		/* Unblock mmu notifier invalidation */
 		write_unlock(&tdx_update_rwlock);
@@ -5112,14 +5113,14 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 		if (ret)
 			goto hardware_disable;
 
-		ret = tdx_module_update();
+		ret = tdx_module_update(&recoverable);
 		tdx_module_update_end();
 	}
 
 	if (!ret) {
 		ret = tdx_module_setup();
 		enable_tdx = !ret;
-	} else {
+	} else if (!recoverable) {
 		enable_tdx = false;
 	}
 
