@@ -348,7 +348,7 @@ static const struct pci_device_id intel_th_pci_id_table[] = {
 	{
 		/* Sapphire Rapids PCH */
 		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x3456),
-		.driver_data = (kernel_ulong_t)&intel_th_2x,
+		.driver_data = (kernel_ulong_t)&intel_th_2x_tgl,
 	},
 	{
 		/* Alder Lake CPU */
