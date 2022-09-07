@@ -1081,6 +1081,7 @@ DECLARE_PER_CPU(struct cpu_hw_events, cpu_hw_events);
 DECLARE_PER_CPU(u64 [X86_PMC_IDX_MAX], pmc_prev_left);
 
 int x86_perf_event_set_period(struct perf_event *event);
+int __x86_perf_event_set_period(struct perf_event *event, u64 *value);
 
 /*
  * Generalized hw caching related hw_event table, filled

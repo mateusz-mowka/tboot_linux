@@ -2948,10 +2948,17 @@ int intel_pmu_save_and_restart(struct perf_event *event)
 
 static int intel_pmu_set_period(struct perf_event *event)
 {
+	u64 value;
+	int ret;
+
 	if (unlikely(is_topdown_count(event)))
 		return static_call(intel_pmu_set_topdown_event_period)(event);
 
-	return x86_perf_event_set_period(event);
+	ret = __x86_perf_event_set_period(event, &value);
+
+	wrmsrl(event->hw.event_base, value);
+
+	return ret;
 }
 
 static u64 intel_pmu_update(struct perf_event *event)
