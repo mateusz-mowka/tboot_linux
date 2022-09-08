@@ -4932,6 +4932,15 @@ int intel_iommu_enable_pasid(struct intel_iommu *iommu, struct device *dev)
 	if (!domain)
 		return -EINVAL;
 
+	if (domain_is_trusted(domain)) {
+		/*
+		 * FIXME: currently leave tdx code set trusted IO page
+		 * tables directly, to be moved to iommu driver.
+		 */
+		dev_info(dev, "trusted domain enable pasid not supported\n");
+		return -EOPNOTSUPP;
+	}
+
 	spin_lock(&iommu->lock);
 
 	ret = -EINVAL;
