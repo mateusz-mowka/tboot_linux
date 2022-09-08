@@ -279,8 +279,10 @@ int handle_max_bits(struct testcases *test)
 	ptr = mmap((void *)test->addr, PAGE_SIZE, PROT_READ | PROT_WRITE,
 		   flags, -1, 0);
 	if (ptr == MAP_FAILED) {
-		if (test->addr == HIGH_ADDR && !la57)
+		if (test->addr == HIGH_ADDR && !la57) {
+			perror("la57 unvailabel. Skip");
 			return 3; /* unsupport LA57 */
+		}
 		return 1;
 	}
 
@@ -341,8 +343,10 @@ static int handle_mmap(struct testcases *test)
 		   flags, -1, 0);
 	if (ptr == MAP_FAILED) {
 		if (test->addr == HIGH_ADDR)
-			if (!cpu_has_la57())
+			if (!cpu_has_la57()) {
+				perror("Unsupport LA57. Skip");
 				return 3; /* unsupport LA57 */
+			}
 		return 1;
 	}
 
