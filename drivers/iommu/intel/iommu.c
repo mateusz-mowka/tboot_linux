@@ -4533,10 +4533,13 @@ static int intel_iommu_attach_device(struct iommu_domain *domain,
 		struct intel_iommu *iommu = device_to_iommu(dev, NULL, NULL);
 
 		if (tdxio_supported(iommu)) {
+			struct device_domain_info *info = dev_iommu_priv_get(dev);
+
 			/*
 			 * FIXME: currently leave tdx code setup trusted IO
 			 * page tables directly, to be moved to iommu driver.
 			 */
+			info->domain = to_dmar_domain(domain);
 			dev_dbg(dev, "trusted domain attach\n");
 			return 0;
 		}
@@ -4557,10 +4560,13 @@ static void intel_iommu_detach_device(struct iommu_domain *domain,
 				      struct device *dev)
 {
 	if (domain_is_trusted(to_dmar_domain(domain))) {
+		struct device_domain_info *info = dev_iommu_priv_get(dev);
+
 		/*
 		 * FIXME: currently leave tdx code cleanup trusted IO page
 		 * tables directly, to be moved to iommu driver.
 		 */
+		info->domain = NULL;
 		dev_dbg(dev, "trusted domain detach\n");
 		return;
 	}
@@ -4924,6 +4930,15 @@ int intel_iommu_enable_pasid(struct intel_iommu *iommu, struct device *dev)
 	domain = info->domain;
 	if (!domain)
 		return -EINVAL;
+
+	if (domain_is_trusted(domain)) {
+		/*
+		 * FIXME: currently leave tdx code set trusted IO page
+		 * tables directly, to be moved to iommu driver.
+		 */
+		dev_info(dev, "trusted domain enable pasid not supported\n");
+		return -EOPNOTSUPP;
+	}
 
 	spin_lock_irqsave(&device_domain_lock, flags);
 	spin_lock(&iommu->lock);
