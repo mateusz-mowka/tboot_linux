@@ -34,6 +34,16 @@ static inline bool is_rpb_device(struct pci_dev *pdev)
 		pdev->device == PCIE_DEVICE_ID_CAMBRIA);
 }
 
+static inline bool is_vtc_device(struct pci_dev *pdev)
+{
+	u8 val;
+
+	if (pci_read_config_byte(pdev, PCI_REVISION_ID, &val))
+		return false;
+
+	return is_rpb_device(pdev) && val == 0x1;
+}
+
 struct rpb_ide *_rpb_ide_init(struct pci_dev *pdev, u8 stream_id);
 void _rpb_ide_release(struct rpb_ide *ide);
 int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust);

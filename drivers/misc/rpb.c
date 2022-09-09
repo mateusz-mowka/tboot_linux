@@ -531,16 +531,6 @@ static const char *mem_attr_to_string(unsigned int mem_attr)
 	return "Invalid Memory Attribute";
 }
 
-static inline bool is_vtc(struct pci_dev *pdev)
-{
-	u8 val;
-
-	if (pci_read_config_byte(pdev, PCI_REVISION_ID, &val))
-		return false;
-
-	return (val == 0x1);
-}
-
 static void vtc_disable_sel_stream(struct rpb_ide *ide)
 {
 	u32 val;
@@ -580,7 +570,7 @@ static void __rpb_disable_sel_stream(struct rpb_ide *ide)
 
 void _rpb_disable_sel_stream(struct rpb_ide *ide)
 {
-	if (is_vtc(ide->pdev))
+	if (is_vtc_device(ide->pdev))
 		vtc_disable_sel_stream(ide);
 	else
 		__rpb_disable_sel_stream(ide);
@@ -685,7 +675,7 @@ exit_disable_stream:
 
 int _rpb_enable_sel_stream(struct rpb_ide *ide)
 {
-	if (is_vtc(ide->pdev))
+	if (is_vtc_device(ide->pdev))
 		return vtc_enable_sel_stream(ide);
 	else
 		return __rpb_enable_sel_stream(ide);
@@ -734,7 +724,7 @@ void _rpb_ide_key_prog(struct rpb_ide *ide, u32 sub_stream,
 	ifv_slot_addr = ide->bar0_base +
 			ide->ifv_slot_offset[sub_stream][direction];
 
-	if (is_vtc(ide->pdev)) {
+	if (is_vtc_device(ide->pdev)) {
 		for (i = 0; i < 4; i++)
 			writel(((u64 *)key)[i], &((u64 __iomem *)key_slot_addr)[i]);
 		writeq(*(u64 *)ifv, ifv_slot_addr);
@@ -753,7 +743,7 @@ int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust)
 	u32 val;
 
 	/* Currently, VTC doesn't support to enable trust bit */
-	if (is_vtc(ide->pdev))
+	if (is_vtc_device(ide->pdev))
 		return -ENODEV;
 
 	offset = get_vm_reg_block_offset(ide->pdev, DEFAULT_VM_ID) + MMR;
@@ -787,7 +777,7 @@ struct rpb_ide *_rpb_ide_init(struct pci_dev *pdev, u8 stream_id)
 	ide->ctrl_blk_id = DEFAULT_STREAM_CTRL_BLK;
 	ide->sel_stream_id = stream_id;
 	ide->pdev = pdev;
-	if (is_vtc(pdev)) {
+	if (is_vtc_device(pdev)) {
 		vtc_set_sel_stream_id(ide);
 		memcpy(ide->key_slot_offset, vtc_key_slot_offset,
 		       sizeof(ide->key_slot_offset));
