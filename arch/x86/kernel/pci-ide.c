@@ -5,6 +5,7 @@
 #include <linux/pci.h>
 #include <linux/pci-doe.h>
 #include <linux/spinlock.h>
+#include <linux/rpb.h>
 
 #include <asm/pci_ide.h>
 
@@ -1163,6 +1164,15 @@ static int get_mem_range(struct pci_dev *pdev, resource_size_t *start, resource_
 
 	for (i = 0; i < PCI_STD_NUM_BARS; i++) {
 		bar = i + PCI_STD_RESOURCES;
+		/*
+		 * WA for RPB device
+		 * TDX-IO requires address type of BARx must be 64 bits,
+		 * but only BAR0 is 64 bits in RPB device, so just using
+		 * BAR0 address as target address range of Selective IDE
+		 * stream on RP side.
+		 */
+		if (is_rpb_device(pdev) && i > 0)
+			break;
 
 		if (!(pci_resource_flags(pdev, bar) & IORESOURCE_MEM))
 			continue;
