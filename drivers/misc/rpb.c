@@ -881,7 +881,7 @@ static ssize_t mem_size_show(struct device *dev, struct device_attribute *attr,
 {
 	struct rpb_device *rdev = dev_get_drvdata(dev);
 
-	return sprintf(buf, "%s\n", mem_attr_to_string(rdev->mem_size));
+	return sprintf(buf, "%u\n", rdev->mem_size);
 }
 static DEVICE_ATTR_RW(mem_size);
 
