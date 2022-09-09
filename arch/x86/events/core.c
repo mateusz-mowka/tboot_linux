@@ -1234,8 +1234,6 @@ static inline void x86_assign_hw_event(struct perf_event *event,
 	hwc->last_cpu = smp_processor_id();
 	hwc->last_tag = ++cpuc->tags[i];
 
-	static_call_cond(x86_pmu_assign)(event, idx);
-
 	switch (hwc->idx) {
 	case INTEL_PMC_IDX_FIXED_BTS:
 	case INTEL_PMC_IDX_FIXED_VLBR:
@@ -1261,6 +1259,8 @@ static inline void x86_assign_hw_event(struct perf_event *event,
 		hwc->event_base_rdpmc = x86_pmu_rdpmc_index(hwc->idx);
 		break;
 	}
+
+	static_call_cond(x86_pmu_assign)(event, idx);
 }
 
 /**

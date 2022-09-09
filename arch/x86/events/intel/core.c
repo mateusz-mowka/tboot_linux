@@ -2510,7 +2510,7 @@ static void intel_pmu_disable_event(struct perf_event *event)
 
 static void intel_pmu_assign_event(struct perf_event *event, int idx)
 {
-	if (is_pebs_pt(event))
+	if (x86_pmu.intel_cap.pebs_output_pt_available && is_pebs_pt(event))
 		perf_report_aux_output_id(event, idx);
 }
 
@@ -5039,16 +5039,8 @@ static int intel_pmu_check_period(struct perf_event *event, u64 value)
 	return intel_pmu_has_bts_period(event, value) ? -EINVAL : 0;
 }
 
-static void intel_aux_output_init(void)
-{
-	/* Refer also intel_pmu_aux_output_match() */
-	if (x86_pmu.intel_cap.pebs_output_pt_available)
-		x86_pmu.assign = intel_pmu_assign_event;
-}
-
 static int intel_pmu_aux_output_match(struct perf_event *event)
 {
-	/* intel_pmu_assign_event() is needed, refer intel_aux_output_init() */
 	if (!x86_pmu.intel_cap.pebs_output_pt_available)
 		return 0;
 
@@ -5266,6 +5258,7 @@ static __initconst const struct x86_pmu intel_pmu = {
 	.set_period		= intel_pmu_set_period,
 	.update			= intel_pmu_update,
 	.hw_config		= intel_pmu_hw_config,
+	.assign			= intel_pmu_assign_event,
 	.schedule_events	= x86_schedule_events,
 	.eventsel		= MSR_ARCH_PERFMON_EVENTSEL0,
 	.perfctr		= MSR_ARCH_PERFMON_PERFCTR0,
@@ -7304,8 +7297,6 @@ __init int intel_pmu_init(void)
 
 	if (x86_pmu.intel_cap.pebs_timing_info)
 		x86_pmu.flags |= PMU_FL_RETIRE_LATENCY;
-
-	intel_aux_output_init();
 
 	return 0;
 }
