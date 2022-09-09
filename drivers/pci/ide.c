@@ -192,12 +192,14 @@ struct pci_ide_stream *pci_ide_stream_setup(struct pci_dev *dev,
 		goto exit_target_dev_put;
 	}
 
-	if (!pci_doe_supports_prot(doe_mb, PCI_DOE_VID_PCISIG,
-				   PCI_DOE_PCISIG_SECURE_SPDM)) {
-		dev_err(&dev->dev, "%s: DOE mailbox doesn't support Secure SPDM\n",
-			__func__);
-		ret = -EINVAL;
-		goto exit_target_dev_put;
+	if (!is_rpb_device(target_dev)) {
+		if (!pci_doe_supports_prot(doe_mb, PCI_DOE_VID_PCISIG,
+					   PCI_DOE_PCISIG_SECURE_SPDM)) {
+			dev_err(&dev->dev, "%s: DOE mailbox doesn't support Secure SPDM\n",
+				__func__);
+			ret = -EINVAL;
+			goto exit_target_dev_put;
+		}
 	}
 
 	if (flags & PCI_IDE_FLAG_TEE) {
