@@ -5469,6 +5469,799 @@ static void tdx_tdisp_devif_del(struct tdx_tdisp_dev *ttdev)
 	synchronize_rcu();
 }
 
+/* functions/structures for faking TDISP response message */
+#include <linux/bitfield.h>
+#include <linux/rpb.h>
+#include <asm/pci_ide.h>
+extern struct xarray rpb_ti_mgrs_xa;
+/*
+ * tdisp_fake_resp_mode == TDISP_RPB_FAKE_RESP_MODE:
+ * fake response message for RPB and return it to TDX module,
+ * don't do anything if device is a non RPB device.
+ *
+ * tdisp_fake_resp_mode == TDISP_DSA_VERIFY_FAKE_RESP_MODE:
+ * verify fake resp message for DSA, this mode only
+ * checks the data between fake response message and the
+ * real response message from DSA.
+ *
+ * tdisp_fake_resp_mode == TDISP_DSA_USING_FAKE_RESP_MODE:
+ * request message will send to dsa device over DOE, but
+ * kernel will generate corresponding fake response
+ * message for TDX module.(don't use the response message
+ * from DSA)
+ */
+#define TDISP_RPB_FAKE_RESP_MODE		1
+#define TDISP_DSA_VERIFY_FAKE_RESP_MODE		2
+#define TDISP_DSA_USING_FAKE_RESP_MODE		3
+static int tdisp_fake_resp_mode = TDISP_RPB_FAKE_RESP_MODE;
+module_param(tdisp_fake_resp_mode, int, 0644);
+
+enum tdisp_error_code {
+	INVALID_REQUEST			= 0x01,
+	INVALID_SESSION_ID		= 0x02,
+	BUSY				= 0x03,
+	INVALID_INTERFACE_STATE		= 0x04,
+	UNSPECIFIED			= 0x05,
+	MAC_ERROR			= 0x06,
+	UNSUPPORTED_REQUEST		= 0x07,
+	VERSION_MISMATCH		= 0x41,
+	RESPONSE_NOT_READY		= 0x42,
+	VENDOR_SPECIFIED_ERROR		= 0xFF,
+	INVALID_INTERFACE		= 0x101,
+	INVALID_NONCE			= 0x102,
+	INSUFFICIENT_ENTRORY		= 0x103,
+	INVALID_FUNCTIONAL_UNIT_ID	= 0x104,
+	INVALID_DEVICE_CONFIGURATIOn	= 0x105,
+};
+
+#pragma pack(push, 1)
+struct doe_header {
+	u16 vendor_id;
+	u8 type;
+	u8 reserved;
+	u32 length;
+};
+
+struct secure_spdm_header {
+	u32 session_id;
+	u16 length;
+	u16 app_length;
+};
+
+struct vendor_def_header {
+	u8 spdm_ver;
+	u8 spdm_code;
+	u8 param1;
+	u8 param2;
+	u16 standard_id;
+	u8 len;
+	u16 vendor_id;
+	u16 payload_len;
+};
+
+#define TDISP_PROTO_ID	0x01
+#define TDISP_VER	0x10
+struct tdisp_header {
+	u8 ver;
+	u8 message;
+	u8 param1;
+	u8 param2;
+};
+
+struct tdisp_lock_intf_req_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+
+	u16 req_id;	/* requester id */
+	u32 intf_id;	/* interface id */
+	u8 stream_id;	/* IDE stream id */
+	u32 mmio_report_offset_lower;
+	u16 mmio_report_offset_upper;
+};
+
+struct tdisp_lock_intf_resp_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+
+	u8 mmio_nonce[32];
+	u8 dma_nonce[32];
+};
+
+struct tdisp_stop_intf_req_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+
+	u16 req_id;
+	u32 intf_id;
+};
+
+struct tdisp_stop_intf_resp_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+};
+
+struct tdisp_start_mmio_req_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+
+	u16 req_id;
+	u32 intf_id;
+	u8 nonce[32];
+};
+
+struct tdisp_start_mmio_resp_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+};
+
+struct tdisp_start_dma_req_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+
+	u16 req_id;
+	u32 intf_id;
+	u8 nonce[32];
+};
+
+struct tdisp_start_dma_resp_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+};
+
+struct tdisp_get_intf_report_req_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+
+	u16 req_id;
+	u32 intf_id;
+	u16 offset;
+	u16 length;
+};
+
+struct tdisp_intf_report_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+
+	u16 portion_len;
+	u16 remainder_len;
+};
+
+struct tdisp_intf_report {
+	u16 intf_info;
+	u16 msix_msg_ctrl;
+	u32 tph_ctrl;
+	u16 lnr_ctrl;
+	u16 pasid_ctrl;
+	u32 virt_dev_id;
+	u32 mmio_range_cnt;
+};
+
+#define TDISP_MMIO_MSIX_TABLE	0x1
+#define TDISP_MMIO_MSIX_PBA	0x2
+#define TDISP_MMIO_TEE_MEM	0x4
+struct dev_mmio_range {
+	u64 offset;
+	u32 pages;
+	u32 attrs;
+	u8 bar;
+};
+
+struct tdisp_mmio_range {
+	u64 offset;
+	u32 pages;
+	u32 attrs;
+};
+
+struct tdisp_error_resp_msg {
+	u8 protocol_id;
+	struct tdisp_header header;
+
+	u32 err_code;
+	u32 err_data;
+};
+
+#pragma pack(pop)
+static void dump_doe_message(struct pci_dev *pdev, u32 *resp)
+{
+	int i;
+	int len = ((struct doe_header *)resp)->length;
+
+	for (i = 0; i < len; i++)
+		dev_info(&pdev->dev, "  DW %d: 0x%08x\n", i, resp[i]);
+}
+
+static void *get_vendor_def_pl_pos(void *va)
+{
+	return va + sizeof(struct doe_header) +
+	       sizeof(struct secure_spdm_header) +
+	       sizeof(struct vendor_def_header);
+}
+#define get_tdisp_header_pos(_va)	(get_vendor_def_pl_pos(_va) + 1)
+
+#define MAC_SIZE 16
+static void fake_doe_header(void *va, int tdisp_msg_size)
+{
+	struct doe_header *doe_h = va;
+
+	doe_h->vendor_id = 0x1;
+	doe_h->type = 0x3;
+	doe_h->length = round_up(sizeof(struct doe_header) +
+				 sizeof(struct secure_spdm_header) +
+				 sizeof(struct vendor_def_header) +
+				 tdisp_msg_size + MAC_SIZE, 4) / 4;
+}
+
+static void fake_secure_spdm_header(void *va, int tdisp_msg_size)
+{
+	struct secure_spdm_header *spdm_h = va + sizeof(struct doe_header);
+
+	spdm_h->session_id = 0;
+	spdm_h->length = sizeof(spdm_h->app_length) +
+			 sizeof(struct vendor_def_header) +
+			 tdisp_msg_size + MAC_SIZE;
+	spdm_h->app_length = sizeof(struct vendor_def_header) + tdisp_msg_size;
+}
+
+static void fake_vendor_def_header(void *va, int tdisp_msg_size)
+{
+	struct vendor_def_header *vendor_h = va + sizeof(struct doe_header) +
+					     sizeof(struct secure_spdm_header);
+
+	vendor_h->spdm_ver = 0x1;
+	vendor_h->spdm_code = 0x7E;
+	vendor_h->standard_id = 0x3;
+	vendor_h->len = 2;
+	vendor_h->vendor_id = 0x1;
+	vendor_h->payload_len = tdisp_msg_size;
+}
+
+static void fake_lock_intf_resp_msg(struct pci_dev *pdev, void *response_va,
+				    u8 *mmio_nonce, u8 *dma_nonce)
+{
+	struct tdisp_lock_intf_resp_msg *resp_msg;
+
+	resp_msg = get_vendor_def_pl_pos(response_va);
+
+	resp_msg->protocol_id = TDISP_PROTO_ID;
+	resp_msg->header.ver = TDISP_VER;
+	resp_msg->header.message = TDISP_LOCK_INTF_RESP;
+	memcpy(resp_msg->mmio_nonce, mmio_nonce, 32);
+	memcpy(resp_msg->dma_nonce, dma_nonce, 32);
+
+	fake_vendor_def_header(response_va, sizeof(*resp_msg));
+	fake_secure_spdm_header(response_va, sizeof(*resp_msg));
+	fake_doe_header(response_va, sizeof(*resp_msg));
+}
+
+static void fake_stop_intf_resp_msg(struct pci_dev *pdev, void *response_va)
+{
+	struct tdisp_stop_intf_resp_msg *resp_msg;
+
+	resp_msg = get_vendor_def_pl_pos(response_va);
+
+	resp_msg->protocol_id = TDISP_PROTO_ID;
+	resp_msg->header.ver = TDISP_VER;
+	resp_msg->header.message = TDISP_STOP_INTF_RESP;
+	fake_vendor_def_header(response_va, sizeof(*resp_msg));
+	fake_secure_spdm_header(response_va, sizeof(*resp_msg));
+	fake_doe_header(response_va, sizeof(*resp_msg));
+}
+
+static void fake_error_resp_msg(struct pci_dev *pdev, void *response_va,
+				u32 err_code, u32 err_data)
+{
+	struct tdisp_error_resp_msg *resp_msg;
+
+	resp_msg = get_vendor_def_pl_pos(response_va);
+	resp_msg->protocol_id = TDISP_PROTO_ID;
+	resp_msg->header.ver = TDISP_VER;
+	resp_msg->header.message = TDISP_ERROR;
+	resp_msg->err_code = err_code;
+	resp_msg->err_data = err_data;
+	fake_vendor_def_header(response_va, sizeof(*resp_msg));
+	fake_secure_spdm_header(response_va, sizeof(*resp_msg));
+	fake_doe_header(response_va, sizeof(*resp_msg));
+}
+
+#define msix_table_size(flags)	((flags & PCI_MSIX_FLAGS_QSIZE) + 1)
+static int generate_msix_table_mmio_range(struct pci_dev *pdev,
+					  struct dev_mmio_range *range)
+{
+	u32 val;
+	u32 len;
+	int ret;
+
+	if (!pdev->msix_cap) {
+		range->pages = 0;
+		return 0;
+	}
+
+	ret = pci_read_config_dword(pdev, pdev->msix_cap + PCI_MSIX_TABLE, &val);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to read PCI_MSIX_TABLE\n",
+			__func__);
+		return ret;
+	}
+	range->bar = FIELD_GET(PCI_MSIX_TABLE_BIR, val);
+	range->offset = (val & PCI_MSIX_TABLE_OFFSET) +
+			pci_resource_start(pdev, range->bar);
+
+	ret = pci_read_config_word(pdev, pdev->msix_cap + PCI_MSIX_FLAGS, (u16 *)&val);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to read PCI_MSIX_FLAGS\n",
+			__func__);
+		return ret;
+	}
+	len = msix_table_size(val) * PCI_MSIX_ENTRY_SIZE;
+	range->attrs = TDISP_MMIO_MSIX_TABLE;
+	if (len % PAGE_SIZE)
+		dev_warn(&pdev->dev, "%s: MSI-X Table size is %d\n",
+			 __func__, len);
+	range->pages = round_up(len, PAGE_SIZE) / PAGE_SIZE;
+
+	return 0;
+}
+
+static int generate_msix_pba_mmio_range(struct pci_dev *pdev,
+					struct dev_mmio_range *range)
+{
+	u32 val;
+	u32 len;
+	int ret;
+
+	if (!pdev->msix_cap) {
+		range->pages = 0;
+		return 0;
+	}
+
+	ret = pci_read_config_dword(pdev, pdev->msix_cap + PCI_MSIX_PBA, &val);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to read PCI_MSIX_PBA\n",
+			__func__);
+		return ret;
+	}
+	range->bar = FIELD_GET(PCI_MSIX_PBA_BIR, val);
+	range->offset = (val & PCI_MSIX_PBA_OFFSET) +
+			pci_resource_start(pdev, range->bar);
+
+	ret = pci_read_config_word(pdev, pdev->msix_cap + PCI_MSIX_FLAGS, (u16 *)&val);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to read PCI_MSIX_FLAGS\n",
+			__func__);
+		return ret;
+	}
+	range->attrs = TDISP_MMIO_MSIX_PBA;
+	len = round_up(msix_table_size(val), 64) / 64 * 8;
+	if (len % PAGE_SIZE)
+		dev_warn(&pdev->dev, "%s: MSI-X PBA size is %d\n",
+			 __func__, len);
+	range->pages = round_up(len, PAGE_SIZE) / PAGE_SIZE;
+
+	return 0;
+}
+
+#define DEV_MMIO_ARRAY_SIZE	(PCI_STD_NUM_BARS + 4)
+
+#define get_dev_mmio_end(_mmio)	((_mmio)->offset + (_mmio)->pages * PAGE_SIZE - 1)
+static void dev_mmio_array_move_back(struct dev_mmio_range *dev_mmio,
+				     int idx, int step)
+{
+	memmove(&dev_mmio[idx + step], &dev_mmio[idx],
+		sizeof(*dev_mmio) * (DEV_MMIO_ARRAY_SIZE - (idx + step)));
+}
+
+static void insert_to_dev_mmio_array(struct dev_mmio_range *dst, struct dev_mmio_range *src)
+{
+	u64 start;
+	u32 pages;
+	int i;
+
+	for (i = 0; i < DEV_MMIO_ARRAY_SIZE; i++) {
+		if (!dst[i].pages)
+			break;
+		if (dst[i].bar != src->bar)
+			continue;
+
+		start = dst[i].offset;
+		pages = dst[i].pages;
+		if (start == src->offset) {
+			if (dst[i].pages == src->pages) {
+				dst[i] = *src;
+			} else {
+				dev_mmio_array_move_back(dst, i, 1);
+				dst[i + 1].offset = get_dev_mmio_end(src) + 1;
+				dst[i + 1].pages = dst[i + 1].pages - src->pages;
+				dst[i] = *src;
+			}
+			return;
+		} else if (get_dev_mmio_end(&dst[i]) == get_dev_mmio_end(src)) {
+			dev_mmio_array_move_back(dst, i, 1);
+			dst[i + 1] = *src;
+			dst[i].pages = dst[i].pages - src->pages;
+			return;
+		} else if (start < src->offset &&
+			   get_dev_mmio_end(&dst[i]) > get_dev_mmio_end(src)) {
+			dev_mmio_array_move_back(dst, i, 2);
+			dst[i].pages = (src->offset - start + 1) / PAGE_SIZE;
+			dst[i + 1] = *src;
+			dst[i + 2].offset = get_dev_mmio_end(src) + 1;
+			dst[i + 2].pages = dst[i + 2].pages - dst[i + 1].pages - dst[i].pages;
+			return;
+		}
+	}
+}
+
+static void dump_dev_mmio_range(struct dev_mmio_range *dev_mmio)
+{
+	int i;
+
+	for (i = 0; i < DEV_MMIO_ARRAY_SIZE; i++)
+		pr_info("%s: %d offset=0x%llx, pages=0x%x, attrs=0x%x, bar=%d\n",
+			__func__, i, dev_mmio[i].offset, dev_mmio[i].pages,
+			dev_mmio[i].attrs, dev_mmio[i].bar);
+}
+
+static int generate_dev_mmio_range(struct pci_dev *pdev, struct dev_mmio_range *dev_mmio)
+{
+	struct dev_mmio_range msix_tbl = { 0 };
+	struct dev_mmio_range msix_pba = { 0 };
+	unsigned long flags;
+	int ret;
+	int pos;
+	int i;
+
+	/* the last two mmio_ranges are used to store MSIX-TABLE and MSIX-PBA */
+	ret = generate_msix_table_mmio_range(pdev, &msix_tbl);
+	if (ret)
+		return ret;
+	ret = generate_msix_pba_mmio_range(pdev, &msix_pba);
+	if (ret)
+		return ret;
+
+	/* Parse BARs */
+	for (pos = 0, i = 0; i < PCI_STD_NUM_BARS; i++) {
+		flags = pci_resource_flags(pdev, i);
+		if (!pci_resource_len(pdev, i) || (flags & IORESOURCE_UNSET))
+			continue;
+
+		/* It is a WA for RPB device, we don't publish BAR4 to TD */
+		if (is_rpb_device(pdev) && i == 4)
+			continue;
+
+		if (pci_resource_len(pdev, i) % PAGE_SIZE)
+			dev_warn(&pdev->dev, "%s: BAR %d size is not PAGE_SIZE aligned\n",
+				 __func__, i);
+		dev_mmio[pos].offset = pci_resource_start(pdev, i);
+		dev_mmio[pos].pages = round_up(pci_resource_len(pdev, i), PAGE_SIZE) / PAGE_SIZE;
+		dev_mmio[pos].bar = i;
+		dev_mmio[pos].attrs = (i << 16);
+		pos++;
+	}
+	dump_dev_mmio_range(dev_mmio);
+
+	if (msix_tbl.pages)
+		insert_to_dev_mmio_array(dev_mmio, &msix_tbl);
+
+	dump_dev_mmio_range(dev_mmio);
+	if (msix_pba.pages)
+		insert_to_dev_mmio_array(dev_mmio, &msix_pba);
+	dump_dev_mmio_range(dev_mmio);
+
+	return 0;
+}
+
+static void fake_devif_report_msg(struct pci_dev *pdev, u64 mmio_offset,
+				  void *response_va)
+{
+	struct dev_mmio_range dev_mmio[DEV_MMIO_ARRAY_SIZE] = { 0 };
+	struct tdisp_intf_report_msg *resp_msg;
+	struct tdisp_intf_report *report;
+	struct tdisp_mmio_range *range;
+	int size = sizeof(*resp_msg);
+	u32 *special_info_len;
+	u32 val32;
+	u16 val16;
+	int pos;
+	int ret;
+	int i;
+
+	ret = generate_dev_mmio_range(pdev, dev_mmio);
+	if (ret)
+		goto exit_fake_err;
+
+	resp_msg = get_vendor_def_pl_pos(response_va);
+
+	resp_msg->protocol_id = TDISP_PROTO_ID;
+	resp_msg->header.ver = TDISP_VER;
+	resp_msg->header.message = TDISP_DEVIF_REPORT;
+
+	report = (struct tdisp_intf_report *)(resp_msg + 1);
+	memset(report, 0, sizeof(*report));
+	report->intf_info = 0;
+	report->lnr_ctrl = 0;
+	report->virt_dev_id = 0;
+	if (pdev->msix_cap) {
+		ret = pci_read_config_word(pdev, pdev->msix_cap + PCI_MSIX_FLAGS, &val16);
+		if (ret)
+			goto exit_fake_err;
+		//report->msix_msg_ctrl = val16;
+		report->msix_msg_ctrl = 0;
+	}
+	pos = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_TPH);
+	if (pos) {
+#define PCI_TPH_CTRL	8
+		ret = pci_read_config_dword(pdev, pos + PCI_TPH_CTRL, &val32);
+		if (ret)
+			goto exit_fake_err;
+		report->tph_ctrl = val32;
+	}
+
+	pos = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_PASID);
+	if (pos) {
+		ret = pci_read_config_word(pdev, pos + PCI_PASID_CTRL, &val16);
+		if (ret)
+			goto exit_fake_err;
+		report->pasid_ctrl = val16;
+	}
+	size += sizeof(*report);
+
+	range = (struct tdisp_mmio_range *)(report + 1);
+	for (i = 0; i < DEV_MMIO_ARRAY_SIZE; i++) {
+		if (!dev_mmio[i].pages)
+			continue;
+		range->offset = dev_mmio[i].offset + mmio_offset;
+		range->pages = dev_mmio[i].pages;
+		range->attrs = dev_mmio[i].attrs;
+		range++;
+		report->mmio_range_cnt++;
+		size += sizeof(*range);
+	}
+
+	special_info_len = (u32 *)range;
+	*special_info_len = 0;
+	size += sizeof(*special_info_len);
+	resp_msg->portion_len = size - sizeof(*resp_msg);
+	resp_msg->remainder_len = 0;
+
+	fake_vendor_def_header(response_va, size);
+	fake_secure_spdm_header(response_va, size);
+	fake_doe_header(response_va, size);
+
+	return;
+exit_fake_err:
+	fake_error_resp_msg(pdev, response_va, INVALID_REQUEST, 0);
+}
+
+static void fake_start_mmio_resp_msg(struct pci_dev *pdev, void *response_va)
+{
+	struct tdisp_start_mmio_resp_msg *resp_msg;
+
+	resp_msg = get_vendor_def_pl_pos(response_va);
+
+	resp_msg->protocol_id = TDISP_PROTO_ID;
+	resp_msg->header.ver = TDISP_VER;
+	resp_msg->header.message = TDISP_START_DEVIF_MMIO_RESP;
+	fake_vendor_def_header(response_va, sizeof(*resp_msg));
+	fake_secure_spdm_header(response_va, sizeof(*resp_msg));
+	fake_doe_header(response_va, sizeof(*resp_msg));
+}
+
+static void fake_start_dma_resp_msg(struct pci_dev *pdev, void *response_va)
+{
+	struct tdisp_start_dma_resp_msg *resp_msg;
+
+	resp_msg = get_vendor_def_pl_pos(response_va);
+
+	resp_msg->protocol_id = TDISP_PROTO_ID;
+	resp_msg->header.ver = TDISP_VER;
+	resp_msg->header.message = TDISP_START_DEVIF_DMA_RESP;
+	fake_vendor_def_header(response_va, sizeof(*resp_msg));
+	fake_secure_spdm_header(response_va, sizeof(*resp_msg));
+	fake_doe_header(response_va, sizeof(*resp_msg));
+}
+
+static int tdisp_fake_resp_message(struct pci_dev *pdev,
+				   void *req_va, void *resp_va,
+				   void *fake_resp_va)
+{
+	struct tdisp_header *tdisp_h = get_tdisp_header_pos(req_va);
+	struct tdisp_header *tdisp_resp_h;
+	struct tdisp_lock_intf_resp_msg *lock_resp;
+	struct tdisp_lock_intf_req_msg *lock_req;
+	bool is_rpb = is_rpb_device(pdev);
+	struct rpb_ti_mgr *ti_mgr;
+	u8 mmio_nonce[32] = { 0 };
+	u8 dma_nonce[32] = { 0 };
+	u64 mmio_offset = 0;
+	int ret = 0;
+
+	dev_info(&pdev->dev, "DOE request message:\n");
+	dump_doe_message(pdev, (u32 *)req_va);
+
+	/*
+	 * If resp_va is not NULL, means that we need to get MMIO nonce
+	 * and DMA nonce from it.
+	 * It only happens on TDISP_VERIFY_FAKE_RESP_MODE and
+	 * TDISP_DSA_USING_FAKE_RESP_MODE.
+	 */
+	if (resp_va) {
+		tdisp_resp_h = get_tdisp_header_pos(resp_va);
+		if (tdisp_resp_h->message == TDISP_ERROR) {
+			dev_info(&pdev->dev, "%s: Skip, because response is error\n",
+				 __func__);
+			return -EFAULT;
+		}
+	}
+
+	switch (tdisp_h->message) {
+	case TDISP_LOCK_INTF_REQ:
+		if (resp_va) {
+			lock_resp = get_vendor_def_pl_pos(resp_va);
+			memcpy(mmio_nonce, lock_resp->mmio_nonce, 32);
+			memcpy(dma_nonce, lock_resp->dma_nonce, 32);
+		}
+		lock_req = (struct tdisp_lock_intf_req_msg *)get_vendor_def_pl_pos(req_va);
+		if (is_rpb) {
+			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+			WARN_ON(!ti_mgr);
+			if (!ti_mgr) {
+				ret = -EFAULT;
+				break;
+			}
+			mmio_offset = (u64)lock_req->mmio_report_offset_upper << 32 |
+				      lock_req->mmio_report_offset_lower;
+			ti_mgr->mmio_report_offset = mmio_offset;
+		}
+		fake_lock_intf_resp_msg(pdev, fake_resp_va,
+					mmio_nonce, dma_nonce);
+		break;
+	case TDISP_STOP_INTF_REQ:
+		if (is_rpb) {
+			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+			WARN_ON(!ti_mgr);
+			if (!ti_mgr) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = rpb_set_trust_bit(ti_mgr->ide, false);
+		}
+		if (!ret)
+			fake_stop_intf_resp_msg(pdev, fake_resp_va);
+		break;
+	case TDISP_GET_DEVIF_REPORT:
+		if (is_rpb) {
+			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+			WARN_ON(!ti_mgr);
+			if (!ti_mgr) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = rpb_set_trust_bit(ti_mgr->ide, false);
+			mmio_offset = ti_mgr->mmio_report_offset;
+		}
+		fake_devif_report_msg(pdev, mmio_offset, fake_resp_va);
+		break;
+	case TDISP_START_DEVIF_MMIO_REQ:
+		if (is_rpb) {
+			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+			WARN_ON(!ti_mgr);
+			if (!ti_mgr) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = rpb_set_trust_bit(ti_mgr->ide, false);
+			ret = rpb_set_trust_bit(ti_mgr->ide, true);
+		}
+		if (!ret)
+			fake_start_mmio_resp_msg(pdev, fake_resp_va);
+		break;
+	case TDISP_START_DEVIF_DMA_REQ:
+		if (is_rpb) {
+			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+			WARN_ON(!ti_mgr);
+			if (!ti_mgr) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = rpb_set_trust_bit(ti_mgr->ide, false);
+			ret = rpb_set_trust_bit(ti_mgr->ide, true);
+		}
+		if (!ret)
+			fake_start_dma_resp_msg(pdev, fake_resp_va);
+		break;
+	default:
+		dev_err(&pdev->dev, "%s: Not support TDISP Message 0x%x\n",
+			__func__, tdisp_h->message);
+		fake_error_resp_msg(pdev, fake_resp_va, UNSUPPORTED_REQUEST, 0);
+		break;
+	}
+	if (ret)
+		fake_error_resp_msg(pdev, fake_resp_va,
+				    INVALID_INTERFACE_STATE, 0);
+
+	dev_info(&pdev->dev, "Fake response message:\n");
+	dump_doe_message(pdev, (u32 *)fake_resp_va);
+	return 0;
+}
+
+static void __tdisp_verify_fake_resp_message(struct pci_dev *pdev,
+					     void *orig_response,
+					     void *fake_response)
+{
+	void *orig_p = orig_response;
+	void *fake_p = fake_response;
+	int len;	/* tdisp message length */
+
+	dev_info(&pdev->dev, "%s: Start to verify fake response message\n",
+		 __func__);
+	if (memcmp(orig_p, fake_p, sizeof(struct doe_header))) {
+		dev_err(&pdev->dev, "%s: DOE headers don't match\n",
+			__func__);
+		goto exit;
+	}
+
+	orig_p = ((struct doe_header *)orig_p) + 1;
+	fake_p = ((struct doe_header *)fake_p) + 1;
+
+	if (memcmp(orig_p, fake_p, sizeof(struct secure_spdm_header))) {
+		dev_err(&pdev->dev, "%s: Secure SPDM headers don't match\n",
+			__func__);
+		goto exit;
+	}
+
+	orig_p = ((struct secure_spdm_header *)orig_p) + 1;
+	fake_p = ((struct secure_spdm_header *)fake_p) + 1;
+
+	if (memcmp(orig_p, fake_p, sizeof(struct vendor_def_header))) {
+		dev_err(&pdev->dev, "%s: Vendor Define headers don't match\n",
+			__func__);
+		goto exit;
+	}
+	len = ((struct vendor_def_header *)orig_p)->payload_len;
+
+	orig_p = ((struct vendor_def_header *)orig_p) + 1;
+	fake_p = ((struct vendor_def_header *)fake_p) + 1;
+
+	if (memcmp(orig_p, fake_p, len)) {
+		dev_err(&pdev->dev, "%s: TDISP response don't match\n",
+			__func__);
+		goto exit;
+	}
+
+	dev_info(&pdev->dev, "%s: Fake response message matches real message(Skip MAC)\n",
+		 __func__);
+exit:
+	dev_info(&pdev->dev, "orig resp message:\n");
+	dump_doe_message(pdev, orig_response);
+	dev_info(&pdev->dev, "fake resp message:\n");
+	dump_doe_message(pdev, fake_response);
+}
+
+static void tdisp_verify_fake_resp_message(struct pci_dev *pdev,
+					  void *request_va,
+					  void *response_va)
+{
+	void *fake_response_va;
+	int ret;
+
+	fake_response_va = (void *)get_zeroed_page(GFP_KERNEL);
+	if (!fake_response_va) {
+		dev_info(&pdev->dev, "%s: Cannot allocate page to fake response\n",
+			 __func__);
+		return;
+	}
+
+	ret = tdisp_fake_resp_message(pdev, request_va,
+				      response_va, fake_response_va);
+	if (ret)
+		goto exit;
+	__tdisp_verify_fake_resp_message(pdev, response_va, fake_response_va);
+
+exit:
+	free_page((u64)fake_response_va);
+}
+/* End of functions/structures for faking TDISP response message */
+
 static int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
 			     struct pci_tdisp_req *req)
 {
@@ -5514,11 +6307,26 @@ static int tdx_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev,
 		goto done;
 	}
 
-	/* Message exchange over DOE */
-	ret = pci_doe_msg_exchange_sync(tdev->doe_mb, (void *)request_va,
-					(void *)response_va, PAGE_SIZE);
+	if (tdisp_fake_resp_mode == TDISP_RPB_FAKE_RESP_MODE &&
+	    is_rpb_device(pdev))
+		ret = tdisp_fake_resp_message(pdev, (void *)request_va, NULL,
+					      (void *)response_va);
+	else
+		ret = pci_doe_msg_exchange_sync(tdev->doe_mb, (void *)request_va,
+						(void *)response_va, PAGE_SIZE);
 	if (ret)
 		goto done;
+
+	if (pdev->vendor == 0x8086 && pdev->device == 0x0b25) {
+		if (tdisp_fake_resp_mode == TDISP_DSA_USING_FAKE_RESP_MODE)
+			tdisp_fake_resp_message(pdev, (void *)request_va,
+						(void *)response_va,
+						(void *)response_va);
+		else if (tdisp_fake_resp_mode == TDISP_DSA_VERIFY_FAKE_RESP_MODE)
+			tdisp_verify_fake_resp_message(pdev,
+						       (void *)request_va,
+						       (void *)response_va);
+	}
 
 	retval = tdh_devif_response(ttdev->devifcs.pa, __pa(response_va), &out);
 	if (retval) {
