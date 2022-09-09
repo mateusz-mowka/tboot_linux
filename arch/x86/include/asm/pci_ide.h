@@ -5,6 +5,22 @@
 #include <linux/pci.h>
 #include <asm/kvm_host.h>
 
+/*
+ * RPB TDISP/IDE manager
+ * used to store relevant information.
+ */
+struct rpb_ti_mgr {
+	struct rpb_ide *ide;
+
+	/* TDISP information */
+	u64 mmio_report_offset;
+
+	/* IDE information */
+	/* Only use key set 0 in RPB device */
+	u8 kset_go_cnt;
+	bool key_set_go[PCI_IDE_SUB_STREAM_NUM][PCI_IDE_SUB_STREAM_DIRECTION_NUM];
+};
+
 #define KCB_CAP_NUM_STREAM_SUPPORTED	0x000000FF
 #define KCB_CAP_NUM_TX_KEY_SLOTS	0x000FFC00
 #define KCB_CAP_NUM_RX_KEY_SLOTS	0x3FF00000

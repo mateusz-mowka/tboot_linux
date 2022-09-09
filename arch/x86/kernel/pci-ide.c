@@ -90,6 +90,391 @@ struct doe_va_t {
 	unsigned long doe_response_va;
 };
 
+/* functions and structures for fake IDE KM ACK */
+#include <linux/rpb.h>
+
+DEFINE_XARRAY(rpb_ti_mgrs_xa);
+EXPORT_SYMBOL(rpb_ti_mgrs_xa);
+/*
+ * ide_fake_resp_message == IDE_RPB_FAKE_RESP_MODE:
+ * fake response message for RPB test card
+ * and return to TDX module. Will do nothing for non RPB
+ * device.
+ *
+ * ide_fake_resp_message == IDE_DSA_VERIFY_FAKE_RESP_MODE:
+ * verify fake resp message mode, this mode only
+ * checks the data between fake response message and the
+ * real response message from DSA device.
+ *
+ * ide_fake_resp_message == IDE_DSA_USING_FAKE_RESP_MODE:
+ * request message will send to dsa device over DOE, but
+ * IDE driver will generate corresponding fake response
+ * message for TDX module.(don't use the response message
+ * from DSA)
+ */
+#define IDE_RPB_FAKE_RESP_MODE		1
+#define IDE_VERIFY_FAKE_RESP_MODE	2
+#define IDE_DSA_USING_FAKE_RESP_MODE	3
+static int ide_fake_resp_message = IDE_RPB_FAKE_RESP_MODE;
+module_param(ide_fake_resp_message, int, 0644);
+
+#pragma pack(push, 1)
+struct doe_header {
+	u16 vendor_id;
+	u8 type;
+	u8 reserved;
+	u32 length;
+};
+
+struct secure_spdm_header {
+	u32 session_id;
+	u16 length;
+	u16 app_length;
+};
+
+struct vendor_def_header {
+	u8 spdm_ver;
+	u8 spdm_code;
+	u8 param1;
+	u8 param2;
+	u16 standard_id;
+	u8 len;
+	u16 vendor_id;
+	u16 payload_len;
+};
+
+struct ide_km_object {
+	u8 protocol_id;
+	u8 object_id;
+	u16 reserved1;
+	u8 stream_id;
+	u8 reserved2;
+	u8 key_set_index:1;
+	u8 direction:1;
+	u8 reserved3:2;
+	u8 sub_stream:4;
+	u8 portindex;
+};
+#pragma pack(pop)
+
+#define KEY_SIZE 32
+static void get_idekm_key(struct ide_km_request *req, u32 *key_buf)
+{
+	void *pos = (void *)req->request_va;
+	u32 *key;
+	int i;
+
+	pos += sizeof(struct doe_header) +
+	       sizeof(struct secure_spdm_header) +
+	       sizeof(struct vendor_def_header) +
+	       sizeof(struct ide_km_object);
+
+	key = (u32 *)pos;
+	for (i = 0; i < 8; i++)
+		key_buf[7 - i] = key[i];
+}
+
+static void get_idekm_iv_key(struct ide_km_request *req, u32 *key_buf)
+{
+	void *pos = (void *)req->request_va;
+	u32 *iv_key;
+
+	pos += sizeof(struct doe_header) +
+	       sizeof(struct secure_spdm_header) +
+	       sizeof(struct vendor_def_header) +
+	       sizeof(struct ide_km_object) +
+	       KEY_SIZE;
+
+	iv_key = (u32 *)pos;
+	key_buf[1] = iv_key[0];
+	key_buf[0] = iv_key[1];
+}
+
+#define MAC_SIZE	16
+static void generate_idekm_ack_msg(struct pci_dev *pdev,
+				   struct ide_km_request *req,
+				   bool success)
+{
+	struct vendor_def_header *vendor_h;
+	struct secure_spdm_header *spdm_h;
+	struct pci_ide_km_ack *idekm_ack_h;
+	struct doe_header *doe_h;
+
+	doe_h = (void *)req->response_va;
+	spdm_h = (struct secure_spdm_header *)(doe_h + 1);
+	vendor_h = (struct vendor_def_header *)(spdm_h + 1);
+	idekm_ack_h = (struct pci_ide_km_ack *)(vendor_h + 1);
+
+	/* Fake DOE header */
+	doe_h->vendor_id = 0x1;
+	doe_h->type = 0x2;
+	/* doe_h->length must be 0xd */
+	doe_h->length = round_up(sizeof(*doe_h) + sizeof(*spdm_h) +
+				 sizeof(*vendor_h) + sizeof(*idekm_ack_h) +
+				 MAC_SIZE, 4) / 4;
+
+	/* Fake secure spdm message header */
+	spdm_h->session_id = 0;
+	/* spdm_h->length must be 0x25 */
+	spdm_h->length = sizeof(spdm_h->app_length) +
+			 sizeof(*vendor_h) +
+			 sizeof(*idekm_ack_h) +
+			 MAC_SIZE;
+	/* spdm_h->app_length must be 0x13 */
+	spdm_h->app_length = sizeof(*vendor_h) + sizeof(*idekm_ack_h);
+
+	/* Fake vendor define response header */
+	vendor_h->spdm_ver = 0x1;
+	vendor_h->spdm_code = 0x7E;
+	vendor_h->standard_id = 0x3;
+	vendor_h->len = 2;
+	vendor_h->vendor_id = 0x1;
+	vendor_h->payload_len = sizeof(*idekm_ack_h);
+
+	/* Fake IDE KM KP_ACK message */
+	idekm_ack_h->protocol_id = 0x0;
+	if (req->object_id == PCI_IDE_OBJECT_ID_KEY_PROG) {
+		idekm_ack_h->object_id = PCI_IDE_OBJECT_ID_KP_ACK;
+		if (success)
+			idekm_ack_h->status = 0;
+		else
+			idekm_ack_h->status = 0x4;	/* Unspecified Failure */
+	} else
+		idekm_ack_h->object_id = PCI_IDE_OBJECT_ID_K_GOSTOP_ACK;
+	idekm_ack_h->stream_id = req->stream_id;
+	idekm_ack_h->key_set_index = req->key_set;
+	idekm_ack_h->direction = req->direction;
+	idekm_ack_h->sub_stream = req->sub_stream;
+	idekm_ack_h->portindex = 0;
+
+	/*
+	 * at the end of the message, there are a MAC and a Padding,
+	 * but we don't have SPDM, so just skip them. spdm header length
+	 * already includes the length of them.
+	 */
+}
+
+static int rpb_ide_key_set_go(struct rpb_ti_mgr *ti_mgr,
+			      u32 sub_stream, u8 direction)
+{
+	if (ti_mgr->key_set_go[sub_stream][direction] == false) {
+		ti_mgr->key_set_go[sub_stream][direction] = true;
+		ti_mgr->kset_go_cnt++;
+		if (ti_mgr->kset_go_cnt == PCI_IDE_SUB_STREAM_DIRECTION_NUM *
+					    PCI_IDE_SUB_STREAM_NUM)
+			return rpb_enable_sel_stream(ti_mgr->ide);
+	}
+
+	return 0;
+}
+
+static void rpb_ide_key_set_stop(struct rpb_ti_mgr *ti_mgr,
+				u32 sub_stream, u8 direction)
+{
+	if (ti_mgr->key_set_go[sub_stream][direction] == true) {
+		ti_mgr->key_set_go[sub_stream][direction] = false;
+		ti_mgr->kset_go_cnt--;
+		if (ti_mgr->kset_go_cnt == 0)
+			rpb_disable_sel_stream(ti_mgr->ide);
+	}
+}
+
+static void dump_doe_message(struct pci_dev *pdev, u32 *resp)
+{
+	int i;
+	int len = ((struct doe_header *)resp)->length;
+
+	for (i = 0; i < len; i++)
+		dev_info(&pdev->dev, "  DW %d: 0x%08x\n", i, resp[i]);
+}
+
+static int req_fake_resp_message(struct pci_dev *pdev, struct ide_km_request *req)
+{
+	struct rpb_ti_mgr *ti_mgr;
+	u32 iv_key[2];
+	u32 key[8];
+	int ret = 0;
+
+	dev_info(&pdev->dev, "DOE request message:\n");
+	dump_doe_message(pdev, (u32 *)req->request_va);
+
+	switch (req->object_id) {
+	case PCI_IDE_OBJECT_ID_KEY_PROG:
+		get_idekm_key(req, key);
+		get_idekm_iv_key(req, iv_key);
+		if (is_rpb_device(pdev)) {
+			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+			WARN_ON(!ti_mgr);
+			if (!ti_mgr) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = rpb_ide_key_prog(ti_mgr->ide, req->sub_stream,
+					       req->direction, key, iv_key);
+		}
+		generate_idekm_ack_msg(pdev, req, !ret);
+		break;
+	case PCI_IDE_OBJECT_ID_K_SET_GO:
+		if (is_rpb_device(pdev)) {
+			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+			WARN_ON(!ti_mgr);
+			if (!ti_mgr) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = rpb_ide_key_set_go(ti_mgr, req->sub_stream,
+						 req->direction);
+		}
+		generate_idekm_ack_msg(pdev, req, !ret);
+		break;
+	case PCI_IDE_OBJECT_ID_K_SET_STOP:
+		if (is_rpb_device(pdev)) {
+			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+			WARN_ON(!ti_mgr);
+			if (!ti_mgr) {
+				ret = -EFAULT;
+				break;
+			}
+			rpb_ide_key_set_stop(ti_mgr, req->sub_stream,
+					     req->direction);
+		}
+		generate_idekm_ack_msg(pdev, req, true);
+		break;
+	default:
+		dev_err(&pdev->dev, "%s: Not support IDE KM object %d\n",
+			__func__, req->object_id);
+		return -EINVAL;
+	}
+
+	dev_info(&pdev->dev, "Fake response message:\n");
+	dump_doe_message(pdev, (u32 *)req->response_va);
+	return 0;
+}
+
+static void __ide_verify_fake_resp_message(struct pci_dev *pdev,
+					   void *orig_response,
+					   void *fake_response)
+{
+	void *orig_p = orig_response;
+	void *fake_p = fake_response;
+
+	dev_info(&pdev->dev, "%s: Start to verify fake response message\n",
+		 __func__);
+	if (memcmp(orig_p, fake_p, sizeof(struct doe_header))) {
+		dev_err(&pdev->dev, "%s: DOE headers don't match\n",
+			__func__);
+		goto exit;
+	}
+
+	orig_p = ((struct doe_header *)orig_p) + 1;
+	fake_p = ((struct doe_header *)fake_p) + 1;
+
+	if (memcmp(orig_p, fake_p, sizeof(struct secure_spdm_header))) {
+		dev_err(&pdev->dev, "%s: Secure SPDM headers don't match\n",
+			__func__);
+		goto exit;
+	}
+
+	orig_p = ((struct secure_spdm_header *)orig_p) + 1;
+	fake_p = ((struct secure_spdm_header *)fake_p) + 1;
+
+	if (memcmp(orig_p, fake_p, sizeof(struct vendor_def_header))) {
+		dev_err(&pdev->dev, "%s: Vendor Define headers don't match\n",
+			__func__);
+		goto exit;
+	}
+
+	orig_p = ((struct vendor_def_header *)orig_p) + 1;
+	fake_p = ((struct vendor_def_header *)fake_p) + 1;
+
+	if (memcmp(orig_p, fake_p, sizeof(struct pci_ide_km_ack))) {
+		dev_err(&pdev->dev, "%s: IDE KM ackes don't match\n",
+			__func__);
+		goto exit;
+	}
+
+	dev_info(&pdev->dev, "%s: Fake response message matches real message(Skip MAC)\n",
+		 __func__);
+exit:
+	dev_info(&pdev->dev, "orig resp message:\n");
+	dump_doe_message(pdev, orig_response);
+	dev_info(&pdev->dev, "fake resp message:\n");
+	dump_doe_message(pdev, fake_response);
+}
+
+static void ide_verify_fake_resp_message(struct pci_dev *pdev,
+					 struct ide_km_request *orig_req)
+{
+	struct ide_km_request fake_req = *orig_req;
+
+	fake_req.response_va = get_zeroed_page(GFP_KERNEL);
+	if (!fake_req.response_va) {
+		dev_info(&pdev->dev, "%s: Cannot allocate page to fake request\n",
+			 __func__);
+		return;
+	}
+
+	switch (fake_req.object_id) {
+	case PCI_IDE_OBJECT_ID_KEY_PROG:
+	case PCI_IDE_OBJECT_ID_K_SET_GO:
+	case PCI_IDE_OBJECT_ID_K_SET_STOP:
+		generate_idekm_ack_msg(pdev, &fake_req, true);
+		break;
+	default:
+		dev_err(&pdev->dev, "%s: Not support IDE KM object %d\n",
+			__func__, fake_req.object_id);
+		goto exit;
+	}
+
+	__ide_verify_fake_resp_message(pdev,
+				       (void *)orig_req->response_va,
+				       (void *)fake_req.response_va);
+exit:
+	free_page(fake_req.response_va);
+}
+
+static int rpb_ti_mgr_create(struct pci_dev *pdev, u8 stream_id)
+{
+	struct rpb_ti_mgr *ti_mgr;
+	int ret;
+
+	ti_mgr = kzalloc(sizeof(*ti_mgr), GFP_KERNEL);
+	if (!ti_mgr)
+		return -ENOMEM;
+
+	ti_mgr->ide = rpb_ide_init(pdev, stream_id);
+	if (IS_ERR(ti_mgr->ide)) {
+		dev_err(&pdev->dev, "%s: Failed to initialize RPB IDE\n",
+			__func__);
+		ret = PTR_ERR(ti_mgr->ide);
+		goto exit_free_mgr;
+	}
+	ret = xa_insert(&rpb_ti_mgrs_xa, pci_dev_id(pdev),
+			ti_mgr, GFP_KERNEL);
+	if (ret)
+		goto exit_release_ide;
+
+	return 0;
+
+exit_release_ide:
+	rpb_ide_release(ti_mgr->ide);
+exit_free_mgr:
+	kfree(ti_mgr);
+	return ret;
+}
+
+static void rpb_ti_mgr_release(struct pci_dev *pdev)
+{
+	struct rpb_ti_mgr *ti_mgr;
+
+	ti_mgr = xa_erase(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
+	if (ti_mgr) {
+		rpb_ide_release(ti_mgr->ide);
+		kfree(ti_mgr);
+	}
+}
+/* end of fake IDE KM ACK related functions and structures */
+
 static void keyp_table_print_keycu_entry(struct acpi_keyp_kcu *entry)
 {
 	pr_info("KEYP kcu entry: type:0x%x, length:0x%x, prot_type:0x%x, version:0x%x, rp_count:0x%x, flags:0x%x, addr:0x%llx\n",
@@ -980,6 +1365,9 @@ static int __ide_stream_release(struct pci_ide_stream *stm)
 	if (ret)
 		return ret;
 
+	if (is_rpb_device(stm->dev))
+		rpb_ti_mgr_release(stm->dev);
+
 	spdm_wa_destory(stm->dev, pci_ide_stream_get_private(stm));
 
 	return 0;
@@ -1108,10 +1496,23 @@ static int ide_stream_req_resp(struct pci_dev *pdev, struct pci_doe_mb *doe_mb,
 	if (ret)
 		return ret;
 
-	ret = pci_doe_msg_exchange_sync(doe_mb, (void *)req->request_va,
-					(void *)req->response_va, PAGE_SIZE);
+	if (ide_fake_resp_message == IDE_RPB_FAKE_RESP_MODE &&
+	    is_rpb_device(pdev))
+		ret = req_fake_resp_message(pdev, req);
+	else
+		ret = pci_doe_msg_exchange_sync(doe_mb, (void *)req->request_va,
+						(void *)req->response_va, PAGE_SIZE);
 	if (ret)
 		return ret;
+
+	if (pdev->vendor == 0x8086 && pdev->device == 0x0b25) {
+		if (ide_fake_resp_message == IDE_DSA_USING_FAKE_RESP_MODE) {
+			memset((void *)req->response_va, 0x0, PAGE_SIZE);
+			ret = req_fake_resp_message(pdev, req);
+		} else if (ide_fake_resp_message == IDE_VERIFY_FAKE_RESP_MODE) {
+			ide_verify_fake_resp_message(pdev, req);
+		}
+	}
 
 	return tdx_ide_stream_idekmrsp(pdev, req);
 }
@@ -1177,6 +1578,12 @@ static int ide_stream_setup(struct pci_dev *pdev, struct pci_ide_stream *stm)
 	ret = doe_buffer_alloc(&req);
 	if (ret)
 		goto exit_stream_release;
+
+	if (is_rpb_device(pdev)) {
+		ret = rpb_ti_mgr_create(pdev, stm->stream_id);
+		if (ret)
+			goto exit_stream_release;
+	}
 
 	req.object_id = PCI_IDE_OBJECT_ID_KEY_PROG;
 	ret = ide_km_msg_exchange(pdev, stm->doe_mb, istm, &req);
