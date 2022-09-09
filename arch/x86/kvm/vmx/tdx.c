@@ -4384,10 +4384,12 @@ union mmiomt_entry {
 		u64 type:2;
 	};
 	struct qnode {
-		u64 rsvd1:11;
-		u64 p:1;
-		u64 pa:40;
-		u64 rsvd2:12;
+		struct qnode_pa {
+			u64 rsvd1:11;
+			u64 p:1;
+			u64 pa:40;
+			u64 rsvd2:12;
+		} pa[4];
 	} qnode;
 	u64 value[4];
 };
@@ -4519,6 +4521,7 @@ tdx_tdisp_mmiomt_find(hpa_t mmio_hpa, int level)
 static u8 mmiomt_level_shift[MMIOMT_LEVEL_MAX] = { 19, 28, 37, 46, 52 };
 #define MMIOMT_LEVEL_SHIFT(x) (mmiomt_level_shift[(x)])
 #define MMIOMT_LEVEL_MASK(x) ~((1ULL << MMIOMT_LEVEL_SHIFT(x)) - 1)
+#define MMIOMT_PA_TO_IDX(_pa, _l) (((_pa) >> MMIOMT_LEVEL_SHIFT(_l)) & 0x3)
 
 #define MMIOMT_TYPE_QNODE	0
 #define MMIOMT_TYPE_DATA	1
@@ -4569,6 +4572,7 @@ static int tdx_tdisp_mmiomt_add(struct tdx_tdisp_dev *ttdev, u64 mmio_pa, int re
 
 	for (plvl = MMIOMT_LEVEL_MAX; plvl > req_lvl; plvl--) {
 		u64 base = mmio_pa & ~((1ULL << MMIOMT_LEVEL_SHIFT(plvl - 1)) - 1);
+		u8 pa_idx = MMIOMT_PA_TO_IDX(mmio_pa, plvl - 1);
 		union mmiomt_entry entry;
 
 		tdx_mmiomt_read(mmio_pa, plvl, &entry);
@@ -4583,7 +4587,7 @@ static int tdx_tdisp_mmiomt_add(struct tdx_tdisp_dev *ttdev, u64 mmio_pa, int re
 			continue;
 		}
 
-		if (entry.qnode.p) {
+		if (entry.qnode.pa[pa_idx].p) {
 			pr_err("%s parent entry is linked, but not by OS\n", __func__);
 			continue;
 		}
