@@ -4,6 +4,7 @@
 #include <linux/pci-doe.h>
 #include <linux/pci-tdisp.h>
 #include <linux/kvm_host.h>
+#include <linux/rpb.h>
 
 static int tdisp_kvm_bind_tdisp_dev(struct kvm *kvm,
 				    struct pci_tdisp_dev *tdev)
@@ -85,10 +86,12 @@ struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 	 * TODO: Request a SPDM session for TEE-IO.
 	 * Use DOE mailbox directly as workaround for now.
 	 */
-	doe_mb = pci_tdisp_create_doe_mb(pdev);
-	if (!doe_mb) {
-		ret = -ENODEV;
-		goto exit_free_tdev;
+	if (!is_rpb_device(pdev)) {
+		doe_mb = pci_tdisp_create_doe_mb(pdev);
+		if (!doe_mb) {
+			ret = -ENODEV;
+			goto exit_free_tdev;
+		}
 	}
 
 	tdev->doe_mb = doe_mb;
