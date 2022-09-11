@@ -50,6 +50,10 @@ static int idxd_vdcm_open(struct vfio_device *vdev)
 	return 0;
 }
 
+static int idxd_vdcm_set_irqs(struct vdcm_idxd *vidxd, uint32_t flags,
+			      unsigned int index, unsigned int start,
+			      unsigned int count, void *data);
+
 static void idxd_vdcm_close(struct vfio_device *vdev)
 {
 	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
@@ -57,6 +61,11 @@ static void idxd_vdcm_close(struct vfio_device *vdev)
 	mutex_lock(&vidxd->dev_lock);
 	vidxd_shutdown(vidxd);
 	vfio_device_set_pasid(vdev, IOMMU_PASID_INVALID);
+	/* Disable MSIX. */
+	idxd_vdcm_set_irqs(vidxd,
+			   VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
+			   VFIO_PCI_MSIX_IRQ_INDEX, 0, 0, NULL);
+
 	ioasid_put(NULL, vidxd->pasid);
 	mutex_unlock(&vidxd->dev_lock);
 }
