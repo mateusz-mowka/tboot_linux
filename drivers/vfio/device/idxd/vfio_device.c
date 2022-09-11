@@ -1055,11 +1055,12 @@ static int vdev_device_remove(struct idxd_device *idxd, int id)
 
 	list_for_each_entry_safe(pos, n, &idxd->vdev_list, list) {
 		if (pos->id == id) {
+			list_del(&pos->list);
+			device_unregister(&pos->conf_dev);
 			mutex_lock(&vdev_ida_lock);
 			ida_free(&vdev_ida, pos->id);
 			mutex_unlock(&vdev_ida_lock);
-			list_del(&pos->list);
-			device_unregister(&pos->conf_dev);
+
 			return 0;
 		}
 	}
