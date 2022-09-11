@@ -407,6 +407,7 @@ EXPORT_SYMBOL_GPL(dev_msi_domain_alloc_irqs);
 void dev_msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
 {
 	msi_domain_free_irqs(domain, dev);
+	msi_free_device_data(dev);
 }
 EXPORT_SYMBOL_GPL(dev_msi_domain_free_irqs);
 

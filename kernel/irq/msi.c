@@ -360,6 +360,30 @@ static inline int msi_sysfs_create_group(struct device *dev)
 	return devm_device_add_group(dev, &msi_irqs_group);
 }
 
+static inline void msi_sysfs_remove_group(struct device *dev)
+{
+	devm_device_remove_group(dev, &msi_irqs_group);
+}
+
+static int msi_device_data_match(struct device *dev, void *res, void *data)
+{
+	struct msi_device_data *r = res;
+
+	if (WARN_ON(!r))
+		return 0;
+
+	return r == data;
+}
+
+void msi_free_device_data(struct device *dev)
+{
+	/* Remove msi_irqs. */
+	msi_sysfs_remove_group(dev);
+	/* Remove MSI device data. */
+	WARN_ON(devres_release(dev, msi_device_data_release,
+			       msi_device_data_match, (void *)dev->msi.data));
+}
+
 static ssize_t msi_mode_show(struct device *dev, struct device_attribute *attr,
 			     char *buf)
 {
@@ -455,6 +479,7 @@ void msi_device_destroy_sysfs(struct device *dev)
 #endif /* CONFIG_PCI_MSI_ARCH_FALLBACK */
 #else /* CONFIG_SYSFS */
 static inline int msi_sysfs_create_group(struct device *dev) { return 0; }
+static inline void msi_free_device_data(struct device *dev) { }
 static inline int msi_sysfs_populate_desc(struct device *dev, struct msi_desc *desc) { return 0; }
 static inline void msi_sysfs_remove_desc(struct device *dev, struct msi_desc *desc) { }
 #endif /* !CONFIG_SYSFS */

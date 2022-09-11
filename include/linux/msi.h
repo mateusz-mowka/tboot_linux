@@ -199,6 +199,7 @@ struct msi_device_data {
 };
 
 int msi_setup_device_data(struct device *dev);
+void msi_free_device_data(struct device *dev);
 
 unsigned int msi_get_virq(struct device *dev, unsigned int index);
 void msi_lock_descs(struct device *dev);
