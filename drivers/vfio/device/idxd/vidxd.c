@@ -877,10 +877,10 @@ static void vidxd_dump_ims_entries(struct vdcm_idxd *vidxd)
 	dev_dbg(dev, "IMS entries: num=%d, irq_type=%d, ims_en=%d:\n",
 		ims->num, ims->irq_type, ims->ims_en);
         for (vector = 0; vector < ims->num; vector++) {
-        	entry = &ims->ims_entries[vector];
+		entry = &ims->ims_entries[vector];
 		dev_dbg(dev, "EventFD %d: trigger=%lx, name=%s, ims=%d, ims_id=%d\n",
-			vector, entry->trigger, entry->name, entry->ims,
-			entry->ims_id);
+			vector, (unsigned long)entry->trigger, entry->name,
+			entry->ims, entry->ims_id);
 	}
 }
 
@@ -890,7 +890,6 @@ static void vidxd_dump_ims_table(struct vdcm_idxd *vidxd)
 	struct device *dev = vidxd_dev(vidxd);
 	int ims_index, ims_off;
 	u32 ims_ctrl, ims_mask;
-	struct msi_desc *desc;
 
 	/* Only dump MSI entries which have an interrupt associated */
 	dev_dbg(dev, "IMS MSI entries assocated: idxd->ims_offset=%x:\n",
@@ -913,8 +912,7 @@ static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 	struct idxd_device *idxd;
 	union wqcfg *vwqcfg, *wqcfg;
 	bool wq_pasid_enable;
-	unsigned long flags;
-	int priv, rc;
+	int rc;
 
 	if (wq_id >= VIDXD_MAX_WQS) {
 		idxd_complete_command(vidxd, IDXD_CMDSTS_INVAL_WQIDX);
@@ -987,7 +985,6 @@ static void vidxd_wq_enable(struct vdcm_idxd *vidxd, int wq_id)
 		}
 
 		if (wq_pasid >= 0) {
-			u32 status;
 			unsigned long flags;
 
 			wqcfg->bits[WQCFG_PASID_IDX] &= ~GENMASK(29, 8);
