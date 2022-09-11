@@ -1120,6 +1120,8 @@ static void idxd_vdev_drv_remove(struct idxd_dev *idxd_dev)
 
 	mutex_lock(&wq->wq_lock);
 	drv_disable_wq(wq);
+        if (wq->state == IDXD_WQ_LOCKED)
+                wq->state = IDXD_WQ_DISABLED;
 	wq->type = IDXD_WQT_NONE;
 	mutex_unlock(&wq->wq_lock);
 }
