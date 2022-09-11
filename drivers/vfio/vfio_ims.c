@@ -168,13 +168,18 @@ static int vfio_ims_enable(struct vfio_ims *ims, int nvec)
 static int vfio_ims_disable(struct vfio_ims *ims)
 {
 	struct vfio_device *vdev = ims_to_vdev(ims);
-	struct device *dev = vdev->dev;
+	struct device *dev = &vdev->device;
 	struct irq_domain *irq_domain;
 
 	vfio_ims_set_vector_signals(ims, 0, ims->num, NULL);
 	irq_domain = dev_get_msi_domain(dev);
-	if (irq_domain)
-		msi_domain_free_irqs(irq_domain, dev);
+
+	if (irq_domain) {
+		struct msi_domain_info *info = msi_get_domain_info(irq_domain);
+
+		info->flags |= MSI_FLAG_FREE_MSI_DESCS;
+		dev_msi_domain_free_irqs(irq_domain, dev);
+	}
 	ims->ims_en = false;
 	ims->irq_type = VFIO_PCI_NUM_IRQS;
 	return 0;
