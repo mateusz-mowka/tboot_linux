@@ -255,6 +255,7 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_MMIO_UNMAP			160
 #define TDH_IQINV_REQ			161
 #define TDH_IQINV_PROC			162
+#define TDH_MEM_SHARED_SEPT_WR		163
 
 static inline u64 tdh_phymem_page_reclaim(u64 page,
 					  struct tdx_module_output *out)
@@ -721,6 +722,24 @@ static inline u64 tdh_iqinv_process(u64 iommu_id)
 			     0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
+static inline u64 tdh_mem_shared_sept_wr(u64 gpa_info, u64 tdr_pa, u64 entry,
+					 struct tdx_module_output *out)
+{
+	/*
+	 * TDH.MEM.SHARED.SEPT.WR
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - GPA [51:12] + Level [2:0] - must be GPAW + 3
+	 * Input: RDX - TDR page
+	 * Input: R8 - EPT entry value
+	 *
+	 * Output: RAX - SEAMCALL instruction return code
+	 * Output: RCX - Secure EPT entry architectural content
+	 */
+	return __seamcall_io(TDH_MEM_SHARED_SEPT_WR, gpa_info, tdr_pa, entry,
+			     0, 0, 0, 0, 0, 0, 0, out);
+}
+
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id, struct tdx_module_output *out)
@@ -866,6 +885,9 @@ static inline u64 tdh_iqinv_req(u64 iommu_id, u64 inv_type, u64 inv_target,
 				u64 wait_desc_1,
 				u64 wait_desc_2) { return -EOPNOTSUPP; }
 static inline u64 tdh_iqinv_process(u64 iommu_id) { return -EOPNOTSUPP; }
+static inline u64
+tdh_mem_shared_sept_wr(u64 gpa_info, u64 tdr_pa, u64 entry,
+		       struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id,
