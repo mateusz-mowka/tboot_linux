@@ -1607,7 +1607,8 @@ struct kvm_x86_ops {
 		struct kvm *kvm, const struct kvm_spte_change *change);
 	void (*handle_changed_private_spte)(
 		struct kvm *kvm, const struct kvm_spte_change *change);
-
+	void (*link_shared_spte)(struct kvm *kvm, gfn_t gfn, int level,
+				 u64 spte);
 	/*
 	 * The following five operations are only for legacy MMU.
 	 * They aren't used for TDP MMU.

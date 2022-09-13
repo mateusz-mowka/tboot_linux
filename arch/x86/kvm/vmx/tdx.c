@@ -2501,6 +2501,24 @@ static void tdx_handle_changed_private_spte(
 	}
 }
 
+static void tdx_link_shared_spte(struct kvm *kvm, gfn_t gfn, int level,
+				 u64 spte)
+{
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
+	struct tdx_module_output out;
+	gpa_t gpa = gfn_to_gpa(gfn);
+	u64 gpa_info;
+	u64 err;
+
+	gpa_info = (u64)gpa | (level - 1);
+
+	err = tdh_mem_shared_sept_wr(gpa_info, kvm_tdx->tdr.pa, spte, &out);
+	pr_info("%s gpa_info=0x%llx, spte=0x%llx, err=0x%llx, out_rcx=0x%llx, out_rdx=0x%llx\n",
+		__func__, gpa_info, spte, err, out.rcx, out.rdx);
+	if (WARN_ON_ONCE(err))
+		pr_tdx_error(TDH_MEM_SHARED_SEPT_WR, err, &out);
+}
+
 void tdx_deliver_interrupt(struct kvm_lapic *apic, int delivery_mode,
 			   int trig_mode, int vector)
 {
@@ -4258,6 +4276,7 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 	x86_ops->split_private_spte = tdx_sept_split_private_spte;
 	x86_ops->handle_private_zapped_spte = tdx_handle_private_zapped_spte;
 	x86_ops->handle_changed_private_spte = tdx_handle_changed_private_spte;
+	x86_ops->link_shared_spte = tdx_link_shared_spte;
 	x86_ops->set_private_spte = tdx_sept_set_private_spte;
 	x86_ops->drop_private_spte = tdx_sept_drop_private_spte;
 	x86_ops->zap_private_spte = tdx_sept_zap_private_spte;

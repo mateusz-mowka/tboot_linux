@@ -1554,6 +1554,14 @@ int kvm_tdp_mmu_map(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault)
 
 			if (tdp_mmu_populate_nonleaf(vcpu, &iter, account_nx))
 				break;
+
+			if (!is_private && iter.level == vcpu->arch.mmu->root_role.level &&
+			    vcpu->kvm->arch.gfn_shared_mask) {
+				pr_info("link shared spte fault->addr = 0x%llx, iter_gfn=0x%llx, level=%d\n",
+				        fault->addr, iter.gfn, iter.level);
+				static_call(kvm_x86_link_shared_spte)(vcpu->kvm, iter.gfn, iter.level,
+								      kvm_tdp_mmu_read_spte(iter.sptep));
+			}
 		}
 	}
 
