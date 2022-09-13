@@ -158,7 +158,7 @@ static void mdev_type_release(struct kobject *kobj)
 	pr_debug("Releasing group %s\n", kobj->name);
 	/* Pairs with the get in add_mdev_supported_type() */
 	put_device(type->parent->dev);
-	kfree(type);
+	memset(kobj, 0, sizeof(*kobj));
 }
 
 static struct kobj_type mdev_type_ktype = {
