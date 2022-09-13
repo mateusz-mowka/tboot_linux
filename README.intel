@@ -53,6 +53,7 @@ commit 52c8cfd9 8cffde75)
 2. KVM: Merge support of vENQCMD (from https://github.com/yisun-git/os.linux.graniterapids.poweron/tree/gnr_po_enqcmds-v1.0 commit c931e3b to 1955f24)
 3. VFIO/MSI: Merge 6 fixes to vdev (from https://github.com/intel-sandbox/kernel/commits/gnr.bkc-v1.1-staging commit 81167ta to 0c8a98f)
    (See https://jira.devtools.intel.com/browse/LCK-11783)
+4. Fix 3 TDX bugs in bkc-v1.0 (See https://github.com/intel-sandbox/os.linux.graniterapids.poweron/pull/11)
 
 GNR PO bkc-v1.0
 ===============
