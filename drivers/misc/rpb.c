@@ -948,18 +948,30 @@ static void rpb_vm_dma_buffer_unmap(struct rpb_device *rdev,
 }
 
 static int rpb_vm_dma_buffer_map(struct rpb_device *rdev,
-				 enum dma_data_direction dir)
+				 enum dma_data_direction dir,
+				 bool force_shared)
 {
 	struct device *dev = &rdev->pdev->dev;
 	struct rpb_vector *rvec;
 	dma_addr_t dma_addr;
 	int i;
 
+	if (dev->authorized == MODE_SECURE)
+		dev_info(dev, "Auth - private mode, %s memory is used\n",
+			 force_shared ? "force-shared" : "private");
+	else
+		dev_info(dev, "Auth - shared mode, uses bounce buffer\n");
+
 	for (i = 0; i < rdev->next_vec; i++) {
 		rvec = &rdev->vecs[i];
 
-		dma_addr = dma_map_single(dev, (void *)rvec->virt_addr,
-					  rvec->len, dir);
+		if (dev->authorized == MODE_SECURE && force_shared)
+			dma_addr = dma_map_single_attrs(dev, (void *)rvec->virt_addr,
+							rvec->len, dir,
+							DMA_ATTR_FORCEUNENCRYPTED);
+		else
+			dma_addr = dma_map_single(dev, (void *)rvec->virt_addr,
+						  rvec->len, dir);
 		if (dma_mapping_error(dev, dma_addr)) {
 			dev_err(dev, "Failed to map DMA\n");
 			return -ENOMEM;
@@ -1608,7 +1620,7 @@ static int rpb_vm_mem_ops(struct rpb_device *rdev, int mem_size,
 	if (ret)
 		return ret;
 
-	rpb_vm_dma_buffer_map(rdev, dir);
+	rpb_vm_dma_buffer_map(rdev, dir, force_shared);
 
 	rpb_vm_data_pattern_generate(rdev, write);
 
@@ -1647,6 +1659,7 @@ static int rpb_vm_p2p_mmio_ops(struct rpb_device *rdev, phys_addr_t mmio_addr,
 	enum dma_data_direction dir;
 	struct rpb_vector *rvec;
 	dma_addr_t dma_addr;
+	bool force_shared;
 	void *virt_addr;
 	bool write;
 	int ret;
@@ -1659,17 +1672,32 @@ static int rpb_vm_p2p_mmio_ops(struct rpb_device *rdev, phys_addr_t mmio_addr,
 		write = false;
 	}
 
+	if (mem_attr == RPB_MEM_ATTR_SHARED)
+		force_shared = true;
+	else
+		force_shared = false;
+
 	rpb_vector_pos_reset(rdev);
 
 	rvec = rpb_vm_get_next_vector(rdev);
 
-	/* FIXME: change ioremap based on mem_attr */
-	virt_addr = ioremap(mmio_addr, mmio_size);
+	dev_info(dev, "Auth - Source device is in %s mode, target MMIO address is a %s address\n",
+		 dev->authorized == MODE_SECURE ? "private" : "shared",
+		 force_shared ? "shared" : "private");
+
+	if (force_shared)
+		virt_addr = ioremap_driver_hardened(mmio_addr, mmio_size);
+	else
+		virt_addr = ioremap_encrypted(mmio_addr, mmio_size,
+					      _PAGE_CACHE_MODE_UC_MINUS);
 	if (!virt_addr)
 		return -EFAULT;
 
-	/* FIXME: change dma map based on mem_attr */
-	dma_addr = dma_map_resource(dev, mmio_addr, mmio_size, dir, 0);
+	if (force_shared)
+		dma_addr = dma_map_resource(dev, mmio_addr, mmio_size, dir,
+					    DMA_ATTR_FORCEUNENCRYPTED);
+	else
+		dma_addr = dma_map_resource(dev, mmio_addr, mmio_size, dir, 0);
 	if (dma_mapping_error(dev, dma_addr)) {
 		dev_err(dev, "Failed to map P2P MMIO\n");
 		return -EFAULT;
