@@ -1841,6 +1841,7 @@ static int rpb_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	pci_set_master(pdev);
 	pci_aer_clear_nonfatal_status(pdev);
 	pci_enable_pcie_error_reporting(pdev);
+	dma_set_mask(&pdev->dev, DMA_BIT_MASK(64));
 
 	rdev = devm_kzalloc(&pdev->dev, sizeof(*rdev), GFP_KERNEL);
 	if (!rdev)
