@@ -724,6 +724,15 @@ void _rpb_ide_key_prog(struct rpb_ide *ide, u32 sub_stream,
 	ifv_slot_addr = ide->bar0_base +
 			ide->ifv_slot_offset[sub_stream][direction];
 
+	dev_dbg(&ide->pdev->dev, "Program key to sub stream %d dir %d\n",
+		sub_stream, direction);
+	for (i = 0; i < 8; i++)
+		dev_dbg(&ide->pdev->dev, "Key %d: 0x%08x\n",
+			i, key[i]);
+	for (i = 0; i < 2; i++)
+		dev_dbg(&ide->pdev->dev, "IFV Key %d: 0x%08x\n",
+			i, ifv[i]);
+
 	if (is_vtc_device(ide->pdev)) {
 		for (i = 0; i < 4; i++)
 			writel(((u64 *)key)[i], &((u64 __iomem *)key_slot_addr)[i]);
@@ -746,6 +755,7 @@ int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust)
 	if (is_vtc_device(ide->pdev))
 		return -ENODEV;
 
+	dev_dbg(&ide->pdev->dev, "Set trust bit to %d\n", !!trust);
 	offset = get_vm_reg_block_offset(ide->pdev, DEFAULT_VM_ID) + MMR;
 	val = readl(ide->bar0_base + offset);
 	if (trust)
