@@ -415,7 +415,7 @@ static int tdxio_devif_accept_mmios(struct pci_dev *pdev, void *data)
 		 ((u64)devif_rp_read(data, DEVIF_RP_MMIO_ADDR_HI(i)) << 32);
 		pages = devif_rp_read(data, DEVIF_RP_MMIO_PAGES(i));
 		attr = devif_rp_read(data, DEVIF_RP_MMIO_ATTR(i));
-		size = pages << PAGE_SHIFT;
+		size = (u64)pages << PAGE_SHIFT;
 
 		pr_info("%s: range[%u]: hpa 0x%016llx size 0x%llx, attr id %x pba %x msix %x\n",
 			__func__, i, hpa, size,
