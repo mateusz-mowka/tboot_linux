@@ -2167,11 +2167,9 @@ static int init_tdx_module_via_handoff_data(void)
 	}
 
 	tdx_module_status = TDX_MODULE_INITIALIZED;
-	pr_info("TDX module initialized.\n");
 	return 0;
 
 out:
-	pr_info("Failed to initialize TDX module.\n");
 	return ret;
 }
 
