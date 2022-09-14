@@ -5496,6 +5496,7 @@ static void tdx_tdisp_devif_del(struct tdx_tdisp_dev *ttdev)
 #include <linux/rpb.h>
 #include <asm/pci_ide.h>
 extern struct xarray rpb_ti_mgrs_xa;
+DEFINE_XARRAY(mmio_offset_xa);
 /*
  * tdisp_fake_resp_mode == TDISP_RPB_FAKE_RESP_MODE:
  * fake response message for RPB and return it to TDX module,
@@ -6125,6 +6126,8 @@ static int tdisp_fake_resp_message(struct pci_dev *pdev,
 			memcpy(dma_nonce, lock_resp->dma_nonce, 32);
 		}
 		lock_req = (struct tdisp_lock_intf_req_msg *)get_vendor_def_pl_pos(req_va);
+		mmio_offset = (u64)lock_req->mmio_report_offset_upper << 32 |
+			      lock_req->mmio_report_offset_lower;
 		if (is_rpb) {
 			ti_mgr = xa_load(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
 			WARN_ON(!ti_mgr);
@@ -6132,9 +6135,10 @@ static int tdisp_fake_resp_message(struct pci_dev *pdev,
 				ret = -EFAULT;
 				break;
 			}
-			mmio_offset = (u64)lock_req->mmio_report_offset_upper << 32 |
-				      lock_req->mmio_report_offset_lower;
 			ti_mgr->mmio_report_offset = mmio_offset;
+		} else {
+			ret = xa_insert(&mmio_offset_xa, pci_dev_id(pdev),
+					(void *)mmio_offset, GFP_KERNEL);
 		}
 		fake_lock_intf_resp_msg(pdev, fake_resp_va,
 					mmio_nonce, dma_nonce);
@@ -6148,6 +6152,8 @@ static int tdisp_fake_resp_message(struct pci_dev *pdev,
 				break;
 			}
 			ret = rpb_set_trust_bit(ti_mgr->ide, false);
+		} else {
+			xa_erase(&mmio_offset_xa, pci_dev_id(pdev));
 		}
 		if (!ret)
 			fake_stop_intf_resp_msg(pdev, fake_resp_va);
@@ -6162,6 +6168,8 @@ static int tdisp_fake_resp_message(struct pci_dev *pdev,
 			}
 			ret = rpb_set_trust_bit(ti_mgr->ide, false);
 			mmio_offset = ti_mgr->mmio_report_offset;
+		} else {
+			mmio_offset = (u64)xa_load(&mmio_offset_xa, pci_dev_id(pdev));
 		}
 		fake_devif_report_msg(pdev, mmio_offset, fake_resp_va);
 		break;
