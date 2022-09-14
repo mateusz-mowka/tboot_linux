@@ -5943,7 +5943,9 @@ static int generate_dev_mmio_range(struct pci_dev *pdev, struct dev_mmio_range *
 	/* Parse BARs */
 	for (pos = 0, i = 0; i < PCI_STD_NUM_BARS; i++) {
 		flags = pci_resource_flags(pdev, i);
-		if (!pci_resource_len(pdev, i) || (flags & IORESOURCE_UNSET))
+		if (!pci_resource_len(pdev, i) ||
+		    flags & IORESOURCE_UNSET ||
+		    flags & IORESOURCE_IO)
 			continue;
 
 		/* It is a WA for RPB device, we don't publish BAR4 to TD */
