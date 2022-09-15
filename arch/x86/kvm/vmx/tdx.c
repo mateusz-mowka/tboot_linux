@@ -1504,7 +1504,16 @@ static int tdx_complete_vp_vmcall(struct kvm_vcpu *vcpu)
 {
 	struct kvm_tdx_vmcall *tdx_vmcall = &vcpu->run->tdx.u.vmcall;
 	__u64 reg_mask;
-	int r = 1;
+	int r;
+
+	if (unlikely(vcpu->arch.complete_tdx_vp_vmcall)) {
+		int (*ctvv)(struct kvm_vcpu *) = vcpu->arch.complete_tdx_vp_vmcall;
+
+		vcpu->arch.complete_tdx_vp_vmcall = NULL;
+		r = ctvv(vcpu);
+		if (r <= 0)
+			return r;
+	}
 
 	tdvmcall_set_return_code(vcpu, tdx_vmcall->status_code);
 	tdvmcall_set_return_val(vcpu, tdx_vmcall->out_r11);
@@ -1531,13 +1540,7 @@ static int tdx_complete_vp_vmcall(struct kvm_vcpu *vcpu)
 	if (reg_mask & TDX_VMCALL_REG_MASK_RDX)
 		kvm_rdx_write(vcpu, tdx_vmcall->out_rdx);
 
-	if (unlikely(vcpu->arch.complete_tdx_vp_vmcall)) {
-		int (*ctvv)(struct kvm_vcpu *) = vcpu->arch.complete_tdx_vp_vmcall;
-		vcpu->arch.complete_tdx_vp_vmcall = NULL;
-		r = ctvv(vcpu);
-	}
-
-	return r;
+	return 1;
 }
 
 static int tdx_vp_vmcall_to_user(struct kvm_vcpu *vcpu)
@@ -1837,8 +1840,7 @@ static int tdx_complete_map_gpa(struct kvm_vcpu *vcpu)
 	gpa_t size = tdvmcall_a1_read(vcpu);
 	bool prefault = tdvmcall_a2_read(vcpu);
 
-	if (!prefault)
-		return 1;
+	WARN_ON(!prefault);
 
 	while (size) {
 		kvm_pfn_t pfn;
