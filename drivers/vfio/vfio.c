@@ -1262,6 +1262,8 @@ static int __vfio_device_open(struct vfio_device *device)
 		device->kvm = device->group->kvm;
 		if (device->group->attrs & VFIO_GROUP_ATTRS_TRUSTED)
 			device->trusted = true;
+		else
+			device->trusted = false;
 
 		if (device->ops->open_device) {
 			ret = device->ops->open_device(device);
@@ -1528,6 +1530,9 @@ static int vfio_group_fops_release(struct inode *inode, struct file *filep)
 		__vfio_group_unset_container(group);
 	}
 	group->opened_file = NULL;
+
+	/* clear the TRUSTED attr */
+	group->attrs = 0;
 	up_write(&group->group_rwsem);
 
 	vfio_group_put(group);
