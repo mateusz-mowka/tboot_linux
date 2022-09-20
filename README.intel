@@ -57,6 +57,8 @@ commit 52c8cfd9 8cffde75)
 5. Pull TDXIO support patches, including support for RPB test card. (https://github.com/intel-sandbox/os.linux.graniterapids.poweron/pull/12)
 6. ISST (intel-speed-select): bug fix - add cpu id check for power domain availability
    (https://github.com/intel-sandbox/os.linux.graniterapids.poweron/pull/14/commits/477b49bd33211f4a8d93acef3b5d5ec1437e7d8b)
+7. ISST: Update SST-BF offsets (pull from https://github.com/intel-sandbox/os.linux.spandruv_graniterapids.poweron/tree/po_pull)
+8. TPMI: Update retry count to accommodate slow Simics response
 
 GNR PO bkc-v1.0
 ===============
