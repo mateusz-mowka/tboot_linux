@@ -59,6 +59,7 @@ commit 52c8cfd9 8cffde75)
    (https://github.com/intel-sandbox/os.linux.graniterapids.poweron/pull/14/commits/477b49bd33211f4a8d93acef3b5d5ec1437e7d8b)
 7. ISST: Update SST-BF offsets (pull from https://github.com/intel-sandbox/os.linux.spandruv_graniterapids.poweron/tree/po_pull)
 8. TPMI: Update retry count to accommodate slow Simics response
+9. Pull TDXIO bug fixes, additional RPB card support patches (https://github.com/intel-sandbox/yilun-gnr-po-folk/tree/bkc-v1.1)
 
 GNR PO bkc-v1.0
 ===============
