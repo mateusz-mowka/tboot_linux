@@ -18,13 +18,6 @@ enum {
 	IDXD_VDEV_TYPE_MAX
 };
 
-/*
- * Since vdev file names are global in DSA devices, define their ida's as
- * global to avoid conflict vdev file names.
- */
-static DEFINE_IDA(vdev_ida);
-static DEFINE_MUTEX(vdev_ida_lock);
-
 static int idxd_vdcm_open(struct vfio_device *vdev)
 {
 	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
@@ -1001,7 +994,7 @@ static int vdev_device_create(struct idxd_device *idxd, u32 type)
 {
 	struct device *dev, *dev_found;
 	struct idxd_dev *parent;
-	char dev_name[8];
+	char vdev_name[32];
 	int rc;
 
 	lockdep_assert_held(&idxd->vdev_lock);
@@ -1020,16 +1013,14 @@ static int vdev_device_create(struct idxd_device *idxd, u32 type)
 	dev->bus = &dsa_bus_type;
 	dev->type = &idxd_vdev_device_type;
 
-	mutex_lock(&vdev_ida_lock);
-	parent->id = ida_alloc(&vdev_ida, GFP_KERNEL);
-	mutex_unlock(&vdev_ida_lock);
-	sprintf(dev_name, "vdev%u", parent->id);
-	dev_found = device_find_child_by_name(dev->parent, dev_name);
+	parent->id = ida_alloc(&idxd->vdev_ida, GFP_KERNEL);
+	sprintf(vdev_name, "vdev%u.%u", idxd->id, parent->id);
+	dev_found = device_find_child_by_name(dev->parent, vdev_name);
 	if (dev_found) {
 		put_device(dev);
 		return -EEXIST;
 	}
-	rc = dev_set_name(dev, "vdev%u", parent->id);
+	rc = dev_set_name(dev, "%s", vdev_name);
 	if (rc < 0) {
 		put_device(dev);
 		return rc;
@@ -1048,20 +1039,19 @@ static int vdev_device_create(struct idxd_device *idxd, u32 type)
 	return 0;
 }
 
-
-static int vdev_device_remove(struct idxd_device *idxd, int id)
+static int vdev_device_remove(struct idxd_device *idxd, char *vdev_name)
 {
 	struct idxd_dev *pos, *n;
 
 	lockdep_assert_held(&idxd->vdev_lock);
 
 	list_for_each_entry_safe(pos, n, &idxd->vdev_list, list) {
-		if (pos->id == id) {
+		struct device *dev = &pos->conf_dev;
+
+		if (!strcmp(dev_name(dev), vdev_name)) {
 			list_del(&pos->list);
-			device_unregister(&pos->conf_dev);
-			mutex_lock(&vdev_ida_lock);
-			ida_free(&vdev_ida, pos->id);
-			mutex_unlock(&vdev_ida_lock);
+			device_unregister(dev);
+			ida_free(&idxd->vdev_ida, pos->id);
 
 			return 0;
 		}

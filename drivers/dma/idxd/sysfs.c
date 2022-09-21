@@ -1684,12 +1684,14 @@ static ssize_t vdev_remove_store(struct device *dev, struct device_attribute *at
 				 const char *buf, size_t count)
 {
 	struct idxd_device *idxd = confdev_to_idxd(dev);
-	u32 val;
+	char *input, *vdev_name;
 	int rc = count;
 
-	rc = kstrtouint(buf, 10, &val);
-	if (rc < 0)
-		return -EINVAL;
+	input = kstrndup(buf, count, GFP_KERNEL);
+	if (!input)
+		return -ENOMEM;
+
+	vdev_name = strim(input);
 
 	mutex_lock(&idxd->vdev_lock);
 	if (!idxd->vdev_ops) {
@@ -1697,12 +1699,14 @@ static ssize_t vdev_remove_store(struct device *dev, struct device_attribute *at
 		goto out;
 	}
 
-	rc = idxd->vdev_ops->device_remove(idxd, val);
+	rc = idxd->vdev_ops->device_remove(idxd, vdev_name);
 	if (rc == 0)
 		rc = count;
 
 out:
 	mutex_unlock(&idxd->vdev_lock);
+	kfree(input);
+
 	return rc;
 }
 static DEVICE_ATTR_WO(vdev_remove);
