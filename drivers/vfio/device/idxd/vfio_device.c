@@ -2155,15 +2155,17 @@ static struct idxd_wq *find_wq_by_type(struct idxd_device *idxd, u32 type)
 		if (type == IDXD_VDEV_TYPE_1DWQ && wq_dedicated(wq) &&
 		    !idxd_wq_refcount(wq)) {
 			found = true;
+			mutex_unlock(&wq->wq_lock);
 			break;
 		}
 
 		/* Find least used shared WQ. */
 		if (type == IDXD_VDEV_TYPE_1SWQ && wq_shared(wq)) {
 			found = true;
-			if (idxd_wq_refcount(wq) < min_wq_refcount)
+			if (idxd_wq_refcount(wq) < min_wq_refcount) {
 				least_used_swq = wq;
-			break;
+				min_wq_refcount = idxd_wq_refcount(wq);
+			}
 		}
 		mutex_unlock(&wq->wq_lock);
 	}
@@ -2173,7 +2175,7 @@ static struct idxd_wq *find_wq_by_type(struct idxd_device *idxd, u32 type)
 
 	if (found) {
 		idxd_wq_get(wq);
-		mutex_unlock(&wq->wq_lock);
+
 		return wq;
 	}
 
