@@ -204,6 +204,7 @@ struct dsa_hw_desc {
 		uint64_t	pattern;
 		uint64_t	desc_list_addr;
 		uint64_t	win_base_addr;
+		uint64_t	pattern_lower;
 	};
 	union {
 		uint64_t	dst_addr;
@@ -344,6 +345,11 @@ struct dsa_hw_desc {
 			uint8_t update_win_resv2[21];
 			uint8_t idpt_win_flags;
 			uint16_t idpt_win_handle;
+		};
+
+		/* Fill */
+		struct {
+			uint64_t	pattern_upper;
 		};
 
 		uint8_t		op_specific[24];
