@@ -15,6 +15,7 @@
 #include <linux/init.h>
 #include <linux/export.h>
 #include <linux/slab.h>
+#include <linux/highmem.h>
 #include <linux/errno.h>
 #include <linux/host1x_context_bus.h>
 #include <linux/iommu.h>
@@ -3280,6 +3281,33 @@ bool iommu_group_dma_owner_claimed(struct iommu_group *group)
 	return user;
 }
 EXPORT_SYMBOL_GPL(iommu_group_dma_owner_claimed);
+
+unsigned int iommu_dirty_bitmap_record(struct iommu_dirty_bitmap *dirty,
+				       unsigned long iova, unsigned long length)
+{
+	unsigned long nbits, offset, start_offset, idx, size, *kaddr;
+
+	nbits = max(1UL, length >> dirty->pgshift);
+	offset = (iova - dirty->iova) >> dirty->pgshift;
+	idx = offset / (PAGE_SIZE * BITS_PER_BYTE);
+	offset = offset % (PAGE_SIZE * BITS_PER_BYTE);
+	start_offset = dirty->start_offset;
+
+	while (nbits > 0) {
+		kaddr = kmap(dirty->pages[idx]) + start_offset;
+		size = min(PAGE_SIZE * BITS_PER_BYTE - offset, nbits);
+		bitmap_set(kaddr, offset, size);
+		kunmap(dirty->pages[idx]);
+		start_offset = offset = 0;
+		nbits -= size;
+		idx++;
+	}
+
+	if (dirty->gather)
+		iommu_iotlb_gather_add_range(dirty->gather, iova, length);
+
+	return nbits;
+}
 
 static int __iommu_set_group_pasid(struct iommu_domain *domain,
 				   struct iommu_group *group, ioasid_t pasid)
