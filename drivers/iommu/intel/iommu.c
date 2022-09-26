@@ -66,6 +66,8 @@
 #define LEVEL_STRIDE		(9)
 #define LEVEL_MASK		(((u64)1 << LEVEL_STRIDE) - 1)
 
+DEFINE_SPINLOCK(device_domain_lock);
+
 static inline int agaw_to_level(int agaw)
 {
 	return agaw + 2;
@@ -4806,6 +4808,113 @@ static void intel_iommu_iotlb_sync_map(struct iommu_domain *domain,
 		__mapping_notify_one(info->iommu, dmar_domain, pfn, pages);
 }
 
+static int intel_iommu_set_dirty_tracking(struct iommu_domain *domain,
+					  bool enable)
+{
+	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
+	struct device_domain_info *info;
+	unsigned long flags;
+	int ret = -EINVAL;
+
+	spin_lock_irqsave(&device_domain_lock, flags);
+	if (list_empty(&dmar_domain->devices)) {
+		spin_unlock_irqrestore(&device_domain_lock, flags);
+		return ret;
+	}
+
+	list_for_each_entry(info, &dmar_domain->devices, link) {
+		if (!info->dev || (info->domain != dmar_domain))
+			continue;
+
+		/* Dirty tracking is second-stage level SM only */
+		if ((info->domain && dmar_domain->use_first_level) ||
+		    !ecap_slads(info->iommu->ecap) ||
+		    !sm_supported(info->iommu) || !intel_iommu_sm) {
+			ret = -EOPNOTSUPP;
+			continue;
+		}
+
+		ret = intel_pasid_setup_dirty_tracking(info->iommu, info->domain,
+						     info->dev, PASID_RID2PASID,
+						     enable);
+		if (ret)
+			break;
+	}
+	spin_unlock_irqrestore(&device_domain_lock, flags);
+
+	/*
+	 * We need to flush context TLB and IOTLB with any cached translations
+	 * to force the incoming DMA requests for have its IOTLB entries tagged
+	 * with A/D bits
+	 */
+	intel_flush_iotlb_all(domain);
+	return ret;
+}
+
+static int intel_iommu_get_dirty_tracking(struct iommu_domain *domain)
+{
+	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
+	struct device_domain_info *info;
+	unsigned long flags;
+	int ret = 0;
+
+	spin_lock_irqsave(&device_domain_lock, flags);
+	list_for_each_entry(info, &dmar_domain->devices, link) {
+		if (!info->dev || (info->domain != dmar_domain))
+			continue;
+
+		/* Dirty tracking is second-stage level SM only */
+		if ((info->domain && dmar_domain->use_first_level) ||
+		    !ecap_slads(info->iommu->ecap) ||
+		    !sm_supported(info->iommu) || !intel_iommu_sm) {
+			ret = -EOPNOTSUPP;
+			continue;
+		}
+
+		if (!intel_pasid_dirty_tracking_enabled(info->iommu, info->domain,
+						 info->dev, PASID_RID2PASID)) {
+			ret = -EINVAL;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&device_domain_lock, flags);
+
+	return ret;
+}
+
+static int intel_iommu_read_and_clear_dirty(struct iommu_domain *domain,
+					    unsigned long iova, size_t size,
+					    struct iommu_dirty_bitmap *dirty)
+{
+	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
+	unsigned long end = iova + size - 1;
+	unsigned long pgsize;
+	int ret;
+
+	ret = intel_iommu_get_dirty_tracking(domain);
+	if (ret)
+		return ret;
+
+	do {
+		struct dma_pte *pte;
+		int lvl = 0;
+
+		pte = pfn_to_dma_pte(dmar_domain, iova >> VTD_PAGE_SHIFT, &lvl);
+		pgsize = level_size(lvl) << VTD_PAGE_SHIFT;
+		if (!pte || !dma_pte_present(pte)) {
+			iova += pgsize;
+			continue;
+		}
+
+		/* It is writable, set the bitmap */
+		if (dma_sl_pte_test_and_clear_dirty(pte))
+			iommu_dirty_bitmap_record(dirty, iova, pgsize);
+		iova += pgsize;
+	} while (iova < end);
+
+	return 0;
+}
+
 static int domain_attach_device_pasid(struct dmar_domain *domain,
 				      struct device *dev, ioasid_t pasid)
 {
@@ -4955,6 +5064,8 @@ const struct iommu_ops intel_iommu_ops = {
 		.enforce_cache_coherency = intel_iommu_enforce_cache_coherency,
 		.set_dev_pasid		= intel_iommu_attach_device_pasid,
 		.remove_dev_pasid	= intel_iommu_remove_dev_pasid,
+		.set_dirty_tracking	= intel_iommu_set_dirty_tracking,
+		.read_and_clear_dirty   = intel_iommu_read_and_clear_dirty,
 	}
 };
 
