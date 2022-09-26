@@ -224,6 +224,25 @@ struct iommu_iotlb_gather {
 };
 
 /**
+ * struct iommu_dirty_bitmap - Dirty IOVA bitmap state
+ *
+ * @iova: IOVA representing the start of the bitmap, the first bit of the bitmap
+ * @pgshift: Page granularity of the bitmap
+ * @gather: Range information for a pending IOTLB flush
+ * @start_offset: Offset of the first user page
+ * @pages: User pages representing the bitmap region
+ * @npages: Number of user pages pinned
+ */
+struct iommu_dirty_bitmap {
+	unsigned long iova;
+	unsigned long pgshift;
+	struct iommu_iotlb_gather *gather;
+	unsigned long start_offset;
+	unsigned long npages;
+	struct page **pages;
+};
+
+/**
  * struct iommu_ops - iommu ops and capabilities
  * @capable: check capability
  * @domain_alloc: allocate iommu domain
@@ -349,6 +368,15 @@ struct iommu_domain_ops {
 	int (*set_trusted)(struct iommu_domain *domain);
 
 	void (*free)(struct iommu_domain *domain);
+
+	int (*set_dirty_tracking)(struct iommu_domain *domain, bool enabled);
+	int (*set_dirty_tracking_range)(struct iommu_domain *domain,
+					unsigned long iova, size_t size,
+					struct iommu_iotlb_gather *iotlb_gather,
+					bool enabled);
+	int (*read_and_clear_dirty)(struct iommu_domain *domain,
+				    unsigned long iova, size_t size,
+				    struct iommu_dirty_bitmap *dirty);
 };
 
 /**
@@ -552,6 +580,23 @@ void iommu_set_dma_strict(void);
 
 extern int report_iommu_fault(struct iommu_domain *domain, struct device *dev,
 			      unsigned long iova, int flags);
+
+unsigned int iommu_dirty_bitmap_record(struct iommu_dirty_bitmap *dirty,
+				       unsigned long iova, unsigned long length);
+
+static inline void iommu_dirty_bitmap_init(struct iommu_dirty_bitmap *dirty,
+					   unsigned long base,
+					   unsigned long pgshift,
+					   struct iommu_iotlb_gather *gather)
+{
+	memset(dirty, 0, sizeof(*dirty));
+	dirty->iova = base;
+	dirty->pgshift = pgshift;
+	dirty->gather = gather;
+
+	if (gather)
+		iommu_iotlb_gather_init(dirty->gather);
+}
 
 static inline void iommu_flush_iotlb_all(struct iommu_domain *domain)
 {
