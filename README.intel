@@ -46,6 +46,10 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v1.2
+===============
+1. ACPI: Enable CONFIG_ACPI_PFRUT to support SMM error injection.
+
 GNR PO bkc-v1.1
 ===============
 1. IDXD: Merge Fenghua's patches for shared work queue (from https://github.com/intel-sandbox/kernel/commits/gnr.bkc-v1.0,
