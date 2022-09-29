@@ -50,6 +50,7 @@ GNR PO bkc-v1.2
 ===============
 1. ACPI: Enable CONFIG_ACPI_PFRUT to support SMM error injection.
 2. IXGBE: Built it in kernel so network driver is always loaded for PO systems.
+3. I3C: Turn on support for I3C devices
 
 GNR PO bkc-v1.1
 ===============
