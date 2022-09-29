@@ -2513,6 +2513,9 @@ static void tdx_link_shared_spte(struct kvm *kvm, gfn_t gfn, int level,
 	u64 gpa_info;
 	u64 err;
 
+	if (!is_td(kvm) || !tdx_io_support())
+		return;
+
 	gpa_info = (u64)gpa | (level - 1);
 
 	err = tdh_mem_shared_sept_wr(gpa_info, kvm_tdx->tdr.pa, spte, &out);
