@@ -901,6 +901,14 @@ static struct idxd_wq *find_wq_by_type(struct idxd_device *idxd, u32 type)
 	return NULL;
 }
 
+static void idxd_vfio_dev_migration_init(struct vdcm_idxd *vidxd)
+{
+	mutex_init(&vidxd->mig_submit_lock);
+	vidxd->vdev.migration_flags = VFIO_MIGRATION_STOP_COPY;
+
+	dev_dbg(vidxd_dev(vidxd), "idxd migration is initialized\n");
+}
+
 static int idxd_vfio_dev_drv_probe(struct idxd_dev *idxd_dev)
 {
 	bool ims_map[VIDXD_MAX_MSIX_VECS];
@@ -939,6 +947,9 @@ static int idxd_vfio_dev_drv_probe(struct idxd_dev *idxd_dev)
 		goto err_vfio_register;
 
 	dev_set_drvdata(&idxd_dev->conf_dev, vidxd);
+
+	idxd_vfio_dev_migration_init(vidxd);
+
 	return 0;
 
 err_vfio_register:
