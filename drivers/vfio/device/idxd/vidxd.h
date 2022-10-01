@@ -60,6 +60,7 @@ struct vdcm_idxd {
 	struct idxd_dev *parent;
 
 	struct mutex dev_lock; /* lock for vidxd resources */
+	struct mutex mig_submit_lock;
 	ioasid_t pasid;
 	struct eventfd_ctx *req_trigger;
 	struct xarray pasid_xa;
