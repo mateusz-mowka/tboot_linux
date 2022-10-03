@@ -256,6 +256,16 @@ static inline void vidxd_reset_mmio(struct vdcm_idxd *vidxd)
 	memset(&vidxd->bar0, 0, VIDXD_MAX_MMIO_SPACE_SZ);
 }
 
+
+static inline void vidxd_vwq_init(struct vdcm_idxd *vidxd)
+{
+	INIT_LIST_HEAD(&vidxd->vwq.head);
+	vidxd->vwq.ndescs = 0;
+
+	memset(vidxd->vwq.portals, 0,
+	       VIDXD_MAX_PORTALS * sizeof(struct idxd_wq_portal));
+}
+
 void vidxd_init(struct vdcm_idxd *vidxd)
 {
 	struct idxd_wq *wq = vidxd->wq;
@@ -267,6 +277,8 @@ void vidxd_init(struct vdcm_idxd *vidxd)
 	vidxd->bar_size[1] = VIDXD_BAR2_SIZE;
 
 	vidxd_mmio_init(vidxd);
+
+	vidxd_vwq_init(vidxd);
 
 	if (wq_dedicated(wq) && wq->state == IDXD_WQ_ENABLED) {
 		idxd_wq_disable(wq, false);
