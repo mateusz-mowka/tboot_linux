@@ -259,11 +259,15 @@ static inline void vidxd_reset_mmio(struct vdcm_idxd *vidxd)
 
 static inline void vidxd_vwq_init(struct vdcm_idxd *vidxd)
 {
-	INIT_LIST_HEAD(&vidxd->vwq.head);
-	vidxd->vwq.ndescs = 0;
+	int i;
 
-	memset(vidxd->vwq.portals, 0,
-	       VIDXD_MAX_PORTALS * sizeof(struct idxd_wq_portal));
+	for (i = 0; i < VIDXD_MAX_WQS; i++) {
+		INIT_LIST_HEAD(&vidxd->vwq[i].head);
+		vidxd->vwq[i].ndescs = 0;
+
+		memset(vidxd->vwq[i].portals, 0,
+		       VIDXD_MAX_PORTALS * sizeof(struct idxd_wq_portal));
+	}
 }
 
 void vidxd_init(struct vdcm_idxd *vidxd)
