@@ -478,8 +478,7 @@ static void ifs_sbft_test_core(int cpu, struct device *dev)
 
 		status.data = msrvals[1];
 
-		// TODO - add SBFT trace
-		//trace_ifs_status(cpu, activate, status);
+		trace_ifs_sbft(cpu, activate, status);
 
 		/* Some cases can be retried, give up for others */
 		// TODO adjust restart for restartable errors
