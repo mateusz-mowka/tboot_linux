@@ -22,6 +22,7 @@ enum test_types {
 static const struct x86_cpu_id ifs_cpu_ids[] __initconst = {
 	X86_MATCH(SAPPHIRERAPIDS_X, 0),
 	X86_MATCH(GRANITERAPIDS_X, 1),
+	X86_MATCH(EMERALDRAPIDS_X, 0),
 	{}
 };
 MODULE_DEVICE_TABLE(x86cpu, ifs_cpu_ids);
