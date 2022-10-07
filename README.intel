@@ -51,6 +51,10 @@ GNR PO bkc-v1.2
 1. ACPI: Enable CONFIG_ACPI_PFRUT to support SMM error injection.
 2. IXGBE: Built it in kernel so network driver is always loaded for PO systems.
 3. I3C: Turn on support for I3C devices
+4. SAF: Pull in fixes from https://github.com/intel-sandbox/drivers.saf/commits/for_gnrbkcv
+	a. No separate ARRAY_BIST_STATUS MSR
+	b. Trace support for SBFT test
+	c. EMR CPUID for IFS driver
 
 GNR PO bkc-v1.1
 ===============
