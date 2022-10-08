@@ -1809,6 +1809,11 @@ static int __kvm_set_msr(struct kvm_vcpu *vcpu, u32 index, u64 data,
 	case MSR_KERNEL_GS_BASE:
 	case MSR_CSTAR:
 	case MSR_LSTAR:
+		/*
+		 * LAM applies only addresses used for data accesses.
+		 * Tagged address should never reach here.
+		 * Strict canonical check still applies here.
+		 */
 		if (is_noncanonical_address(data, vcpu))
 			return 1;
 		break;
