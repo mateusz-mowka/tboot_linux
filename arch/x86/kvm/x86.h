@@ -195,10 +195,47 @@ static inline u8 vcpu_virt_addr_bits(struct kvm_vcpu *vcpu)
 	return kvm_read_cr4_bits(vcpu, X86_CR4_LA57) ? 57 : 48;
 }
 
+static inline u64 get_canonical(u64 la, u8 vaddr_bits)
+{
+	return ((int64_t)la << (64 - vaddr_bits)) >> (64 - vaddr_bits);
+}
+
 static inline bool is_noncanonical_address(u64 la, struct kvm_vcpu *vcpu)
 {
 	return !__is_canonical_address(la, vcpu_virt_addr_bits(vcpu));
 }
+
+#ifdef CONFIG_X86_64
+/* untag addr for guest, according to vCPU CR3 and CR4 settings */
+static inline u64 kvm_untagged_addr(u64 addr, struct kvm_vcpu *vcpu)
+{
+	if (addr >> 63 == 0) {
+		/* User pointers */
+		if (kvm_read_cr3(vcpu) & X86_CR3_LAM_U57)
+			addr = get_canonical(addr, 57);
+		else if (kvm_read_cr3(vcpu) & X86_CR3_LAM_U48) {
+			/*
+			 * If guest enabled 5-level paging and LAM_U48,
+			 * bit 47 should be 0, bit 48:56 contains meta data
+			 * although bit 47:56 are valid 5-level address
+			 * bits.
+			 * If LAM_U48 and 4-level paging, bit47 is 0.
+			 */
+			WARN_ON(addr & _BITUL(47));
+			addr = get_canonical(addr, 48);
+		}
+	} else if (kvm_read_cr4(vcpu) & X86_CR4_LAM_SUP) { /* Supervisor pointers */
+		if (kvm_read_cr4(vcpu) & X86_CR4_LA57)
+			addr = get_canonical(addr, 57);
+		else
+			addr = get_canonical(addr, 48);
+	}
+
+	return addr;
+}
+#else
+#define kvm_untagged_addr(addr, vcpu)	(addr)
+#endif
 
 static inline void vcpu_cache_mmio_info(struct kvm_vcpu *vcpu,
 					gva_t gva, gfn_t gfn, unsigned access)
