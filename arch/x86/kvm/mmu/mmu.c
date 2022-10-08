@@ -5108,8 +5108,12 @@ void kvm_mmu_new_pgd(struct kvm_vcpu *vcpu, gpa_t new_pgd)
 	struct kvm_mmu *mmu = vcpu->arch.mmu;
 	union kvm_mmu_page_role new_role = mmu->root_role;
 
+	/*
+	 * If no root is found in cache, current active root.hpa will be (set)
+	 * INVALID_PAGE, a new root will be set up during vcpu_enter_guest()
+	 * --> kvm_mmu_reload().
+	 */
 	if (!fast_pgd_switch(vcpu->kvm, mmu, new_pgd, new_role)) {
-		/* kvm_mmu_ensure_valid_pgd will set up a new root.  */
 		return;
 	}
 
