@@ -1519,6 +1519,8 @@ static void rpb_start_vm(struct rpb_device *rdev)
 	data &= ~(VMX_START | VMX_END_STS);
 	data |= FIELD_PREP(VMX_START, 1);
 	writel(data, vm_reg_addr(rdev, MMR));
+	dev_info(&rdev->pdev->dev, "VM - Trust bit %d\n",
+		 !!FIELD_GET(VMX_TRUST, data));
 }
 
 static bool rpb_check_done(struct rpb_device *rdev)
@@ -1540,7 +1542,6 @@ static bool rpb_check_done(struct rpb_device *rdev)
 
 static void rpb_reset_vm(struct rpb_device *rdev)
 {
-	struct device *dev = &rdev->pdev->dev;
 	u32 data;
 
 	writel(0, vm_reg_addr(rdev, ABORT_CNT));
@@ -1554,7 +1555,6 @@ static void rpb_reset_vm(struct rpb_device *rdev)
 
 	writel(data, vm_reg_addr(rdev, MMR));
 
-	dev_info(dev, "VM - Trust bit %d\n", !!FIELD_GET(VMX_TRUST, data));
 	memset(rdev->vectors, 0, sizeof(*rdev->vectors) * MAX_VECTOR_NUM);
 }
 
