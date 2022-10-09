@@ -1318,7 +1318,8 @@ done:
 }
 
 /* TDX Module call error codes */
-#define TDX_PAGE_ALREADY_ACCEPTED       0x00000b0a00000000
+#define TDX_PAGE_ALREADY_ACCEPTED	0x00000b0a00000000ULL
+#define TDX_SEAMCALL_STATUS_MASK	0xFFFFFFFF00000000ULL
 
 static unsigned long try_accept_one(phys_addr_t start, unsigned long len,
 				    enum pg_level pg_level)
@@ -1358,7 +1359,8 @@ static unsigned long try_accept_one(phys_addr_t start, unsigned long len,
 	ret = __trace_tdx_module_call(TDX_ACCEPT_PAGE, tdcall_rcx, 0, 0, 0,
 				NULL);
 	if (ret) {
-		if (ret != TDX_PAGE_ALREADY_ACCEPTED) {
+		if ((ret & TDX_SEAMCALL_STATUS_MASK) !=
+		    TDX_PAGE_ALREADY_ACCEPTED) {
 			pr_err("%s: failed to accept page ret %llx\n", __func__, ret);
 			return 0;
 		}
