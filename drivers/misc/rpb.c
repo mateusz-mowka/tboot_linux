@@ -1835,7 +1835,6 @@ static int rpb_initialize(struct rpb_device *rdev)
 	data &= ~VMX_MODE;
 	data |= FIELD_PREP(VMX_MODE, 0);
 	/* VM stop when read data mismatch */
-	data &= VMX_SM;
 	data |= FIELD_PREP(VMX_SM, 1);
 	data |= FIELD_PREP(VMX_ENABLE, 1);
 	writel(data, vm_reg_addr(rdev, MMR));
