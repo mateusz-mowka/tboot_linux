@@ -60,6 +60,7 @@ GNR PO bkc-v1.2
 	b. Fix failure to seamcall(TDH_MEM_SHARED_SEPT_WR) when tdxio is not supported
 	c. Revert simics workaround commit 6b284d6b44f3f46bb68d9e2157aa92ec7f7c3409 after simics
 	   fixed in VTC 5.0.pre693, PV WW40 release
+6. WATCHDOG: Enable CONFIG_SOFTLOCKUP_DETECTOR to allow turning on soft lockup detector with nmi-watchdog.
 
 GNR PO bkc-v1.1
 ===============
