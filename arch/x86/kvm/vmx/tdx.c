@@ -5498,7 +5498,11 @@ static void tdx_tdisp_devif_del(struct tdx_tdisp_dev *ttdev)
 #include <linux/bitfield.h>
 #include <linux/rpb.h>
 #include <asm/pci_ide.h>
+#ifdef CONFIG_PCI_IDE
 extern struct xarray rpb_ti_mgrs_xa;
+#else
+struct xarray rpb_ti_mgrs_xa;
+#endif
 DEFINE_XARRAY(mmio_offset_xa);
 /*
  * tdisp_fake_resp_mode == TDISP_RPB_FAKE_RESP_MODE:
