@@ -103,7 +103,7 @@ static inline long tdx_dmar_accept(u64 handle, u64 pasid, u64 param0, u64 param1
 	return -EOPNOTSUPP;
 }
 
-static long tdx_get_device_info(u32 devid, void *buf_va, size_t buf_sz)
+static inline long tdx_get_device_info(u32 devid, void *buf_va, size_t buf_sz)
 {
 	return -EOPNOTSUPP;
 }
