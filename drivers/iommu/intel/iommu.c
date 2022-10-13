@@ -3102,10 +3102,11 @@ static int __init init_dmars(void)
 
 		init_translation_status(iommu);
 
-		if (translation_pre_enabled(iommu) && !is_kdump_kernel()) {
+		if (translation_pre_enabled(iommu) &&
+		    (!is_kdump_kernel() || sm_supported(iommu))) {
 			iommu_disable_translation(iommu);
 			clear_translation_pre_enabled(iommu);
-			pr_warn("Translation was enabled for %s but we are not in kdump mode\n",
+			pr_warn("Translation was enabled for %s but we are not in kdump mode or copy table not supported\n",
 				iommu->name);
 		}
 
