@@ -24,8 +24,10 @@
 /* LAM modes, these definitions were copied from kernel code */
 #define LAM_NONE                0
 #define LAM_U57_BITS            6
+#define LAM_U48_BITS            15
 
 #define LAM_U57_MASK            (0x3fULL << 57)
+#define LAM_U48_MASK            (0x7fffULL << 48)
 /* arch prctl for LAM */
 #define ARCH_GET_UNTAG_MASK     0x4001
 #define ARCH_ENABLE_TAGGED_ADDR 0x4002
@@ -143,7 +145,7 @@ static int set_lam(unsigned long lam)
 	int ret = 0;
 	uint64_t ptr = 0;
 
-	if (lam != LAM_U57_BITS && lam != LAM_NONE)
+	if (lam != LAM_U48_BITS && lam != LAM_U57_BITS && lam != LAM_NONE)
 		return -1;
 
 	/* Skip check return */
@@ -155,6 +157,8 @@ static int set_lam(unsigned long lam)
 	/* Check mask returned is expected */
 	if (lam == LAM_U57_BITS)
 		ret = (ptr != ~(LAM_U57_MASK));
+	else if (lam == LAM_U48_BITS)
+		ret = (ptr != ~(LAM_U48_MASK));
 	else if (lam == LAM_NONE)
 		ret = (ptr != -1ULL);
 
@@ -172,7 +176,9 @@ static unsigned long get_default_tag_bits(void)
 		perror("Fork failed.");
 	} else if (pid == 0) {
 		/* Set LAM mode in child process */
-		if (set_lam(LAM_U57_BITS) == 0)
+		if (set_lam(LAM_U48_BITS) == 0)
+			lam = LAM_U48_BITS;
+		else if (set_lam(LAM_U57_BITS) == 0)
 			lam = LAM_U57_BITS;
 		else
 			lam = LAM_NONE;
@@ -202,6 +208,8 @@ static int get_lam(void)
 		ret = LAM_U57_BITS;
 	else if (ptr == -1ULL)
 		ret = LAM_NONE;
+	else if (ptr == ~(LAM_U48_MASK))
+		ret = LAM_U48_BITS;
 
 
 	return ret;
@@ -217,6 +225,9 @@ static uint64_t set_metadata(uint64_t src, unsigned long lam)
 	metadata = rand();
 
 	switch (lam) {
+	case LAM_U48_BITS: /* Set metadata in bits 62:48 */
+		metadata = (src & ~(LAM_U48_MASK)) | ((metadata & 0x7fff) << 48);
+		break;
 	case LAM_U57_BITS: /* Set metadata in bits 62:57 */
 		metadata = (src & ~(LAM_U57_MASK)) | ((metadata & 0x3f) << 57);
 		break;
@@ -255,11 +266,23 @@ static int handle_lam_test(void *src, unsigned int lam)
 
 int handle_max_bits(struct testcases *test)
 {
+	void *ptr;
+	unsigned int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
+	int la57 = cpu_has_la57();
 	unsigned long exp_bits = get_default_tag_bits();
 	unsigned long bits = 0;
 
-	if (exp_bits != LAM_NONE)
-		exp_bits = LAM_U57_BITS;
+	if (exp_bits != LAM_NONE && la57)
+		if (test->addr == HIGH_ADDR && exp_bits == LAM_U48_BITS)
+			exp_bits = LAM_U57_BITS;
+
+	ptr = mmap((void *)test->addr, PAGE_SIZE, PROT_READ | PROT_WRITE,
+		   flags, -1, 0);
+	if (ptr == MAP_FAILED) {
+		if (test->addr == HIGH_ADDR && !la57)
+			return 3; /* unsupport LA57 */
+		return 1;
+	}
 
 	/* Get LAM max tag bits */
 	if (syscall(SYS_arch_prctl, ARCH_GET_MAX_TAG_BITS, &bits) == -1)
@@ -613,6 +636,9 @@ out:
 			uint64_t addr = ((uint64_t)fi->iovecs[i].iov_base);
 
 			switch (lam) {
+			case LAM_U48_BITS: /* Clear bits 62:48 */
+				addr = (addr & ~(LAM_U48_MASK));
+				break;
 			case LAM_U57_BITS: /* Clear bits 62:57 */
 				addr = (addr & ~(LAM_U57_MASK));
 				break;
@@ -765,6 +791,12 @@ static struct testcases uring_cases[] = {
 		.msg = "URING: LAM_U57. Dereferencing pointer with metadata\n",
 	},
 	{
+		.later = 0,
+		.lam = LAM_U48_BITS,
+		.test_func = handle_uring,
+		.msg = "URING: LAM_U48. Dereferencing pointer with metadata.\n",
+	},
+	{
 		.later = 1,
 		.expected = 1,
 		.lam = LAM_U57_BITS,
@@ -781,6 +813,12 @@ static struct testcases malloc_cases[] = {
 		.msg = "MALLOC: LAM_U57. Dereferencing pointer with metadata\n",
 	},
 	{
+		.later = 0,
+		.lam = LAM_U48_BITS,
+		.test_func = handle_malloc,
+		.msg = "MALLOC: LAM_U48. Dereferencing pointer with metadata.\n",
+	},
+	{
 		.later = 1,
 		.expected = 2,
 		.lam = LAM_U57_BITS,
@@ -791,6 +829,12 @@ static struct testcases malloc_cases[] = {
 
 static struct testcases bits_cases[] = {
 	{
+		.addr = HIGH_ADDR,
+		.test_func = handle_max_bits,
+		.msg = "BITS: Map high address, tag_bits is 6.\n",
+	},
+	{
+		.addr = LOW_ADDR,
 		.test_func = handle_max_bits,
 		.msg = "BITS: Check default tag bits\n",
 	},
@@ -804,6 +848,12 @@ static struct testcases syscall_cases[] = {
 		.msg = "SYSCALL: LAM_U57. syscall with metadata\n",
 	},
 	{
+		.later = 0,
+		.lam = LAM_U48_BITS,
+		.test_func = handle_syscall,
+		.msg = "SYSCALL: LAM_U48. syscall with metadata\n",
+	},
+	{
 		.later = 1,
 		.expected = 1,
 		.lam = LAM_U57_BITS,
@@ -814,12 +864,28 @@ static struct testcases syscall_cases[] = {
 
 static struct testcases mmap_cases[] = {
 	{
+		.later = 0,
+		.expected = 2,
+		.lam = LAM_U48_BITS,
+		.addr = HIGH_ADDR,
+		.test_func = handle_mmap,
+		.msg = "MMAP: [Negative] First LAM_U48, then High address.\n",
+	},
+	{
 		.later = 1,
 		.expected = 0,
 		.lam = LAM_U57_BITS,
 		.addr = HIGH_ADDR,
 		.test_func = handle_mmap,
 		.msg = "MMAP: First mmap high address, then set LAM_U57.\n",
+	},
+	{
+		.later = 1,
+		.expected = 1,
+		.lam = LAM_U48_BITS,
+		.addr = HIGH_ADDR,
+		.test_func = handle_mmap,
+		.msg = "MMAP: [Negative] First mmap high address, then set LAM_U48.\n",
 	},
 	{
 		.later = 0,
@@ -837,6 +903,14 @@ static struct testcases mmap_cases[] = {
 		.test_func = handle_mmap,
 		.msg = "MMAP: First LAM_U57, then Low address.\n",
 	},
+	{
+		.later = 0,
+		.expected = 0,
+		.lam = LAM_U48_BITS,
+		.addr = LOW_ADDR,
+		.test_func = handle_mmap,
+		.msg = "MMAP: First LAM_U48, then low address.\n",
+	},
 };
 
 static struct testcases inheritance_cases[] = {
@@ -848,9 +922,21 @@ static struct testcases inheritance_cases[] = {
 	},
 	{
 		.expected = 0,
+		.lam = LAM_U48_BITS,
+		.test_func = handle_inheritance,
+		.msg = "FORK: LAM_U48, child process should get LAM mode same as parent\n",
+	},
+	{
+		.expected = 0,
 		.lam = LAM_U57_BITS,
 		.test_func = handle_execve,
 		.msg = "EXECVE: LAM_U57, child process should get disabled LAM mode\n",
+	},
+	{
+		.expected = 0,
+		.lam = LAM_U48_BITS,
+		.test_func = handle_execve,
+		.msg = "EXECVE: LAM_U48, child process should get disabled LAM mode\n",
 	},
 };
 
