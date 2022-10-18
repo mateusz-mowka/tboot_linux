@@ -62,6 +62,8 @@ GNR PO bkc-v1.2
 	   fixed in VTC 5.0.pre693, PV WW40 release
 6. WATCHDOG: Enable CONFIG_SOFTLOCKUP_DETECTOR to allow turning on soft lockup detector with nmi-watchdog.
 	     Enable CONFIG_HARDLOCKUP_DETECTOR to make nmi_watchdog enabled by default.
+7. TDX: Pull in 5 fixes for TDX.
+8. RPB: Pull in 2 fixes for Race Point Beach card for testing TDXIO.
 
 GNR PO bkc-v1.1
 ===============
