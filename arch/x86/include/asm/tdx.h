@@ -36,6 +36,12 @@ struct ve_info {
 	u32 instr_info;
 };
 
+struct tdx_td_page {
+	unsigned long va;
+	u64 pa;
+	bool added;
+};
+
 #ifdef CONFIG_INTEL_TDX_GUEST
 
 void __init tdx_early_init(void);
@@ -177,12 +183,6 @@ struct tdsysinfo_struct {
 		u8			reserved5[892];
 	};
 } __packed __aligned(TDSYSINFO_STRUCT_ALIGNMENT);
-
-struct tdx_td_page {
-	unsigned long va;
-	u64 pa;
-	bool added;
-};
 
 static __always_inline int pg_level_to_tdx_sept_level(enum pg_level level)
 {
@@ -829,7 +829,6 @@ static inline bool tdx_io_support(void) { return false; }
 static inline int tdx_reclaim_page(unsigned long va, u64 pa,
 				   enum pg_level level, bool do_wb,
 				   u16 hkid) { return -EOPNOTSUPP; }
-struct tdx_td_page;
 static inline int tdx_alloc_td_page(struct tdx_td_page *page) { return -ENOMEM; }
 static inline void tdx_mark_td_page_added(struct tdx_td_page *page) { }
 static inline void tdx_reclaim_td_page(struct tdx_td_page *page) { }
