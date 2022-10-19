@@ -1752,6 +1752,15 @@ static void iommu_disable_protect_mem_regions(struct intel_iommu *iommu)
 #define TDX_IO_BUFF_ORDER	4
 #define TDX_IO_BUFF_PG_NUM	16
 
+static void iommu_tdxio_reclaim_pages(unsigned long pages_pa)
+{
+	int i;
+
+	for (i = 0; i < (1 << TDX_IO_BUFF_ORDER); i++)
+		WARN_ON(tdx_reclaim_page(pages_pa + (i * PAGE_SIZE),
+					 PG_LEVEL_4K, false, 0));
+}
+
 static int iommu_tdxio_enable(struct intel_iommu *iommu)
 {
 	unsigned long va;
@@ -1762,19 +1771,17 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 		return 0;
 
 	/* TDX-IO mode initialization requires 16 free pages */
-	va = __get_free_pages(GFP_KERNEL_ACCOUNT, TDX_IO_BUFF_ORDER);
+	va = __get_free_pages(GFP_KERNEL_ACCOUNT | __GFP_ZERO, TDX_IO_BUFF_ORDER);
 	if (!va)
 		return -ENOMEM;
 
-	memset((void *)va, 0, TDX_IO_BUFF_PG_NUM * PAGE_SIZE);
+	iommu->tdxio_pages_pa = __pa(va);
 
 	cpu_vmxop_get();
 
 	ret = tdh_iommu_getreg(iommu->reg_phys, DMAR_IOMMU_ID_REG, &id);
-	if (ret) {
-		cpu_vmxop_put();
-		goto error;
-	}
+	if (ret)
+		goto error_vmxop_put;
 
 	tdh_iommu_setreg(id, DMAR_RTPAGE_REG,    __pa(va));
 	tdh_iommu_setreg(id, DMAR_STINFOPA0_REG, __pa(va) + (1 * PAGE_SIZE));
@@ -1799,20 +1806,25 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 	IOMMU_WAIT_OP(iommu, DMAR_ECRSP_REG, readq, !ecrsp_ip(v), v);
 
 	if (ecrsp_sc(v))
-		goto error;
+		goto error_clear_iommu_reg;
 
 	v = readq(iommu->reg + DMAR_ECSTS_REG);
 	if (!ecsts_tdx_mode(v))
-		goto error;
+		goto error_clear_iommu_reg;
 
 	iommu->id = id;
 	iommu->tdxio_enabled = true;
-	iommu->tdxio_config = va;
 
 	pr_info("%s: TDX mode initialized\n", iommu->name);
 	return 0;
 
-error:
+error_clear_iommu_reg:
+	cpu_vmxop_get();
+	tdh_iommu_setreg(iommu->id, DMAR_CLEAR_IOMMU_REG, 0);
+	iommu_tdxio_reclaim_pages(iommu->tdxio_pages_pa);
+error_vmxop_put:
+	cpu_vmxop_put();
+
 	free_pages(va, TDX_IO_BUFF_ORDER);
 	return retval;
 }
@@ -1820,12 +1832,14 @@ error:
 static int iommu_tdxio_disable(struct intel_iommu *iommu)
 {
 	if (iommu->tdxio_enabled) {
+		iommu->tdxio_enabled = 0;
+
 		cpu_vmxop_get();
 		tdh_iommu_setreg(iommu->id, DMAR_CLEAR_IOMMU_REG, 0);
+		iommu_tdxio_reclaim_pages(iommu->tdxio_pages_pa);
 		cpu_vmxop_put();
 
-		iommu->tdxio_enabled = 0;
-		free_pages(iommu->tdxio_config, TDX_IO_BUFF_ORDER);
+		free_pages((unsigned long)__va(iommu->tdxio_pages_pa), TDX_IO_BUFF_ORDER);
 
 		pr_info("%s: TDX mode de-initialized\n", iommu->name);
 	}
