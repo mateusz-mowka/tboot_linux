@@ -35,6 +35,7 @@
 #include <linux/bug.h>
 #include <linux/nmi.h>
 #include <linux/mm.h>
+#include <linux/sched/mm.h>
 #include <linux/smp.h>
 #include <linux/io.h>
 #include <linux/hardirq.h>
@@ -739,14 +740,14 @@ static bool try_fixup_enqcmd_gp(void)
 	if (!cpu_feature_enabled(X86_FEATURE_ENQCMD))
 		return false;
 
-	pasid = current->mm->pasid;
-
 	/*
 	 * If the mm has not been allocated a
 	 * PASID, the #GP can not be fixed up.
 	 */
-	if (!pasid_valid(pasid))
+	if (!mm_valid_pasid(current->mm))
 		return false;
+
+	pasid = current->mm->pasid;
 
 	/*
 	 * Did this thread already have its PASID activated?
