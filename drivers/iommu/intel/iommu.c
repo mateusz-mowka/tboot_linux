@@ -1711,9 +1711,17 @@ static void iommu_disable_protect_mem_regions(struct intel_iommu *iommu)
 #define TDX_IO_BUFF_ORDER	4
 #define TDX_IO_BUFF_PG_NUM	16
 
+static int iommu_tdx_add_page(u64 id, u64 reg, struct tdx_td_page *tpage)
+{
+	tdh_iommu_setreg(id, reg, tpage->pa);
+	tdx_mark_td_page_added(tpage);
+
+	return 0;
+}
+
 static int iommu_tdxio_enable(struct intel_iommu *iommu)
 {
-	unsigned long va;
+	struct tdx_td_page *tpages;
 	u64 id, ret, v;
 	int retval = -EFAULT;
 
@@ -1721,11 +1729,11 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 		return 0;
 
 	/* TDX-IO mode initialization requires 16 free pages */
-	va = __get_free_pages(GFP_KERNEL_ACCOUNT, TDX_IO_BUFF_ORDER);
-	if (!va)
-		return -ENOMEM;
+	tpages = tdx_alloc_td_pages(TDX_IO_BUFF_ORDER);
+	if (IS_ERR(tpages))
+		return PTR_ERR(tpages);
 
-	memset((void *)va, 0, TDX_IO_BUFF_PG_NUM * PAGE_SIZE);
+	memset((void *)tpages->va, 0, TDX_IO_BUFF_PG_NUM * PAGE_SIZE);
 
 	tdx_hw_enable(NULL);
 
@@ -1735,18 +1743,18 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 		goto error;
 	}
 
-	tdh_iommu_setreg(id, DMAR_RTPAGE_REG,    __pa(va));
-	tdh_iommu_setreg(id, DMAR_STINFOPA0_REG, __pa(va) + (1 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_STINFOPA1_REG, __pa(va) + (2 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_IQPAGE_REG,    __pa(va) + (3 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_IQPAGE_REG,    __pa(va) + (4 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_IQPAGE_REG,    __pa(va) + (5 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_IQPAGE_REG,    __pa(va) + (6 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_IQCTXPAGE_REG, __pa(va) + (7 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_IQCTXPAGE_REG, __pa(va) + (8 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_IQCTXPAGE_REG, __pa(va) + (9 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_IQCTXPAGE_REG, __pa(va) + (10 * PAGE_SIZE));
-	tdh_iommu_setreg(id, DMAR_SPDMDIRPA_REG, __pa(va) + (11 * PAGE_SIZE));
+	iommu_tdx_add_page(id, DMAR_RTPAGE_REG,    &tpages[0]);
+	iommu_tdx_add_page(id, DMAR_STINFOPA0_REG, &tpages[1]);
+	iommu_tdx_add_page(id, DMAR_STINFOPA1_REG, &tpages[2]);
+	iommu_tdx_add_page(id, DMAR_IQPAGE_REG,    &tpages[3]);
+	iommu_tdx_add_page(id, DMAR_IQPAGE_REG,    &tpages[4]);
+	iommu_tdx_add_page(id, DMAR_IQPAGE_REG,    &tpages[5]);
+	iommu_tdx_add_page(id, DMAR_IQPAGE_REG,    &tpages[6]);
+	iommu_tdx_add_page(id, DMAR_IQCTXPAGE_REG, &tpages[7]);
+	iommu_tdx_add_page(id, DMAR_IQCTXPAGE_REG, &tpages[8]);
+	iommu_tdx_add_page(id, DMAR_IQCTXPAGE_REG, &tpages[9]);
+	iommu_tdx_add_page(id, DMAR_IQCTXPAGE_REG, &tpages[10]);
+	iommu_tdx_add_page(id, DMAR_SPDMDIRPA_REG, &tpages[11]);
 
 	/*
 	 * set CONFIG_IOMMU to start ECMD to set TDX mode.
@@ -1766,13 +1774,13 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 
 	iommu->id = id;
 	iommu->tdxio_enabled = true;
-	iommu->tdxio_config = va;
+	iommu->tdxio_pages = tpages;
 
 	pr_info("%s: TDX mode initialized\n", iommu->name);
 	return 0;
 
 error:
-	free_pages(va, TDX_IO_BUFF_ORDER);
+	tdx_reclaim_td_pages(tpages, TDX_IO_BUFF_ORDER);
 	return retval;
 }
 
@@ -1784,8 +1792,7 @@ static int iommu_tdxio_disable(struct intel_iommu *iommu)
 		tdx_hw_disable(NULL);
 
 		iommu->tdxio_enabled = 0;
-		free_pages(iommu->tdxio_config, TDX_IO_BUFF_ORDER);
-
+		tdx_reclaim_td_pages(iommu->tdxio_pages, TDX_IO_BUFF_ORDER);
 		pr_info("%s: TDX mode de-initialized\n", iommu->name);
 	}
 
