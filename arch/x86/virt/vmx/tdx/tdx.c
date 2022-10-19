@@ -1914,6 +1914,51 @@ void tdx_reclaim_td_page(struct tdx_td_page *page)
 }
 EXPORT_SYMBOL_GPL(tdx_reclaim_td_page);
 
+struct tdx_td_page *tdx_alloc_td_pages(unsigned long order)
+{
+	size_t i, npages = (1 << order);
+	struct tdx_td_page *pages;
+	unsigned long va;
+
+	pages = kcalloc(npages, sizeof(*pages), GFP_KERNEL);
+	if (!pages)
+		return ERR_PTR(-ENOMEM);
+
+	va = __get_free_pages(GFP_KERNEL_ACCOUNT, order);
+	if (!va) {
+		kfree(pages);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	for (i = 0; i < npages; i++) {
+		pages[i].va = va + i * PAGE_SIZE;
+		pages[i].pa = __pa(pages[i].va);
+	}
+
+	return pages;
+}
+EXPORT_SYMBOL_GPL(tdx_alloc_td_pages);
+
+void tdx_reclaim_td_pages(struct tdx_td_page *pages,
+			  unsigned int order)
+{
+	size_t i, npages = (1 << order);
+
+	for (i = 0; i < npages; i++) {
+		if (pages[i].added) {
+			if (tdx_reclaim_page(pages[i].va, pages[i].pa,
+					     PG_LEVEL_4K, false, 0))
+				return;
+
+			pages[i].added = false;
+		}
+	}
+
+	free_pages(pages->va, order);
+	kfree(pages);
+}
+EXPORT_SYMBOL_GPL(tdx_reclaim_td_pages);
+
 #ifdef CONFIG_SYSFS
 
 struct kobject *tdx_kobj;

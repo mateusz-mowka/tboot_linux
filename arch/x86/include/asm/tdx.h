@@ -216,6 +216,9 @@ int tdx_reclaim_page(unsigned long va, u64 pa, enum pg_level level,
 int tdx_alloc_td_page(struct tdx_td_page *page);
 void tdx_mark_td_page_added(struct tdx_td_page *page);
 void tdx_reclaim_td_page(struct tdx_td_page *page);
+struct tdx_td_page *tdx_alloc_td_pages(unsigned long order);
+void tdx_reclaim_td_pages(struct tdx_td_page *pages,
+			  unsigned int order);
 
 u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9,
 	       struct tdx_module_output *out);
@@ -832,6 +835,11 @@ static inline int tdx_reclaim_page(unsigned long va, u64 pa,
 static inline int tdx_alloc_td_page(struct tdx_td_page *page) { return -ENOMEM; }
 static inline void tdx_mark_td_page_added(struct tdx_td_page *page) { }
 static inline void tdx_reclaim_td_page(struct tdx_td_page *page) { }
+static inline struct tdx_td_page *
+tdx_alloc_td_pages(unsigned long order) { return ERR_PTR(-EOPNOTSUPP); }
+static inline void tdx_reclaim_td_pages(struct tdx_td_page *pages,
+					unsigned int order) { }
+
 static inline u64 tdh_phymem_page_reclaim(u64 page,
 					  struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64 tdh_phymem_page_wbinvd(u64 page) { return -EOPNOTSUPP; }
