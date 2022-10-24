@@ -39,6 +39,19 @@ static __always_inline void stac(void)
 	alternative("", __ASM_STAC, X86_FEATURE_SMAP);
 }
 
+/* Deactivate/activate LASS via AC bit in EFLAGS register */
+static __always_inline void low_addr_access_begin(void)
+{
+	/* Note: a barrier is implicit in alternative() */
+	alternative("", __ASM_STAC, X86_FEATURE_LASS);
+}
+
+static __always_inline void low_addr_access_end(void)
+{
+	/* Note: a barrier is implicit in alternative() */
+	alternative("", __ASM_CLAC, X86_FEATURE_LASS);
+}
+
 static __always_inline unsigned long smap_save(void)
 {
 	unsigned long flags;
