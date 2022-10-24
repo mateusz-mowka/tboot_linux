@@ -1067,14 +1067,31 @@ __ro_after_init unsigned long poking_addr;
 
 static void text_poke_memcpy(void *dst, const void *src, size_t len)
 {
-	memcpy(dst, src, len);
+	const char *s = src;
+	char *d = dst;
+
+	/* The parameter dst ends up referencing to the global variable
+	 * poking_addr, which is mapped to the low half address space.
+	 * In kernel, accessing the low half address range is prevented
+	 * by LASS. So relax LASS prevention while accessing the memory
+	 * range.
+	 */
+	low_addr_access_begin();
+	while (len-- > 0)
+		*d++ = *s++;
+	low_addr_access_end();
 }
 
 static void text_poke_memset(void *dst, const void *src, size_t len)
 {
 	int c = *(const int *)src;
+	char *d = dst;
 
-	memset(dst, c, len);
+	/* The same comment as it is in function text_poke_memcpy */
+	low_addr_access_begin();
+	while (len-- > 0)
+		*d++ = c;
+	low_addr_access_end();
 }
 
 typedef void text_poke_f(void *dst, const void *src, size_t len);
