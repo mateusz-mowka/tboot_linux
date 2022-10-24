@@ -67,6 +67,21 @@
 #define LEVEL_MASK		(((u64)1 << LEVEL_STRIDE) - 1)
 
 DEFINE_SPINLOCK(device_domain_lock);
+#define DEFER_DEVICE_DOMAIN_INFO ((struct device_domain_info *)(-2))
+
+struct device_domain_info *get_domain_info(struct device *dev)
+{
+	struct device_domain_info *info;
+
+	if (!dev)
+		return NULL;
+
+	info = dev_iommu_priv_get(dev);
+	if (unlikely(info == DEFER_DEVICE_DOMAIN_INFO))
+		return NULL;
+
+	return info;
+}
 
 static inline int agaw_to_level(int agaw)
 {
@@ -4833,8 +4848,12 @@ static int intel_iommu_set_dirty_tracking(struct iommu_domain *domain,
 {
 	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
 	struct device_domain_info *info;
+	struct subdev_domain_info *sinfo;
 	unsigned long flags;
 	int ret = -EINVAL;
+
+	if (dmar_domain->use_first_level)
+		return 0;
 
 	spin_lock_irqsave(&device_domain_lock, flags);
 	if (list_empty(&dmar_domain->devices)) {
@@ -4843,13 +4862,32 @@ static int intel_iommu_set_dirty_tracking(struct iommu_domain *domain,
 	}
 
 	list_for_each_entry(info, &dmar_domain->devices, link) {
-		if (!info->dev || (info->domain != dmar_domain))
+		if (!info->dev)
 			continue;
 
 		/* Dirty tracking is second-stage level SM only */
-		if ((info->domain && dmar_domain->use_first_level) ||
-		    !ecap_slads(info->iommu->ecap) ||
-		    !sm_supported(info->iommu) || !intel_iommu_sm) {
+		if(!ecap_slads(info->iommu->ecap) ||
+		   !sm_supported(info->iommu) || !intel_iommu_sm) {
+			ret = -EOPNOTSUPP;
+			continue;
+		}
+
+		ret = intel_pasid_setup_dirty_tracking(info->iommu, info->domain,
+						     info->dev, PASID_RID2PASID,
+						     enable);
+		if (ret)
+			break;
+	}
+
+	list_for_each_entry(sinfo, &dmar_domain->subdevices, link_domain) {
+		if (!sinfo->pdev)
+			continue;
+
+		info = get_domain_info(sinfo->pdev);
+
+		/* Dirty tracking is second-stage level SM only */
+		if(!ecap_slads(info->iommu->ecap) ||
+		   !sm_supported(info->iommu) || !intel_iommu_sm) {
 			ret = -EOPNOTSUPP;
 			continue;
 		}
@@ -4880,13 +4918,12 @@ static int intel_iommu_get_dirty_tracking(struct iommu_domain *domain)
 
 	spin_lock_irqsave(&device_domain_lock, flags);
 	list_for_each_entry(info, &dmar_domain->devices, link) {
-		if (!info->dev || (info->domain != dmar_domain))
+		if (!info->dev)
 			continue;
 
 		/* Dirty tracking is second-stage level SM only */
-		if ((info->domain && dmar_domain->use_first_level) ||
-		    !ecap_slads(info->iommu->ecap) ||
-		    !sm_supported(info->iommu) || !intel_iommu_sm) {
+		if(!ecap_slads(info->iommu->ecap) ||
+		   !sm_supported(info->iommu) || !intel_iommu_sm) {
 			ret = -EOPNOTSUPP;
 			continue;
 		}
