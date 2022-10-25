@@ -46,6 +46,10 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v1.3
+===============
+1. EDAC: Add Intel Sierra Forest server support
+
 GNR PO bkc-v1.2
 ===============
 1. ACPI: Enable CONFIG_ACPI_PFRUT to support SMM error injection.
