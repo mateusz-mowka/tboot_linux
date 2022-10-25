@@ -1652,6 +1652,12 @@ sd_init(struct sched_domain_topology_level *tl,
 		atomic_set(&sd->shared->nr_busy_cpus, sd_weight);
 	}
 
+	/* The sched groups in a Die domain should not spread tasks. */
+	if ((sd->flags & SD_ASYM_PACKING) &&
+	    !(sd->flags & SD_SHARE_PKG_RESOURCES) &&
+	    sd->child)
+		sd->child->flags &= ~SD_PREFER_SIBLING;
+
 	sd->private = sdd;
 
 	return sd;
