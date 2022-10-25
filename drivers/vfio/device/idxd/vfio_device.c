@@ -617,7 +617,8 @@ static int idxd_vdcm_ioctl_device_get_region_info(struct vfio_device *vdev,
 	case VFIO_PCI_BAR2_REGION_INDEX:
 		info.offset = VFIO_PCI_INDEX_TO_OFFSET(info.index);
 		info.flags = VFIO_REGION_INFO_FLAG_CAPS | VFIO_REGION_INFO_FLAG_MMAP |
-			     VFIO_REGION_INFO_FLAG_READ | VFIO_REGION_INFO_FLAG_WRITE;
+			     VFIO_REGION_INFO_FLAG_READ | VFIO_REGION_INFO_FLAG_WRITE |
+			     VFIO_REGION_INFO_FLAG_DYNAMIC_TRAP;
 		info.size = vidxd->bar_size[1];
 
 		/*
