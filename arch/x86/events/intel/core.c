@@ -2455,6 +2455,11 @@ static void intel_pmu_disable_fixed(struct perf_event *event)
 	cpuc->fixed_ctrl_val &= ~mask;
 }
 
+static inline void __intel_pmu_disable_event(struct hw_perf_event *hwc)
+{
+	wrmsrl(hwc->config_base, hwc->config);
+}
+
 static void intel_pmu_disable_event(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
@@ -2471,7 +2476,7 @@ static void intel_pmu_disable_event(struct perf_event *event)
 	switch (idx) {
 	case 0 ... INTEL_PMC_IDX_FIXED - 1:
 		intel_clear_masks(event, idx);
-		x86_pmu_disable_event(event);
+		__intel_pmu_disable_event(hwc);
 		if (event->attr.reload)
 			wrmsrl(MSR_IA32_PMC0_RELOAD_CFG + event->hw.idx, 0);
 		break;
@@ -2863,6 +2868,13 @@ static void intel_pmu_enable_auto_reload(struct perf_event *event)
 				  (u64)(-hwc->sample_period) & x86_pmu.cntval_mask);
 }
 
+static inline void __intel_pmu_enable_event(struct hw_perf_event *hwc, u64 enable_mask)
+{
+	if (hwc->extra_reg.reg)
+		wrmsrl(hwc->extra_reg.reg, hwc->extra_reg.config);
+
+	wrmsrl(hwc->config_base, (hwc->config | enable_mask));
+}
 static void intel_pmu_enable_event(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
@@ -2883,7 +2895,7 @@ static void intel_pmu_enable_event(struct perf_event *event)
 		if (intel_pmu_disable_usr_rdpmc(event))
 			enable_mask |= ARCH_PERFMON_EVENTSEL_RDPMC_USR_DISABLE;
 		intel_pmu_enable_auto_reload(event);
-		__x86_pmu_enable_event(hwc, enable_mask);
+		__intel_pmu_enable_event(hwc, enable_mask);
 		break;
 	case INTEL_PMC_IDX_FIXED ... INTEL_PMC_IDX_FIXED_BTS - 1:
 		intel_pmu_enable_auto_reload(event);
