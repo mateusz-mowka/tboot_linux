@@ -125,6 +125,8 @@
 
 #define INTEL_FAM6_LUNARLAKE_M		0xBD	/* Lion Cove / Skymont */
 
+#define INTEL_FAM6_ARROWLAKE_S		0xC6	/* Lion Cove / Skymont / Crestmont */
+
 /* "Small Core" Processors (Atom/E-Core) */
 
 #define INTEL_FAM6_ATOM_BONNELL		0x1C /* Diamondville, Pineview */
