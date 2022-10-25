@@ -800,6 +800,7 @@ struct x86_pmu {
 	 */
 	int		attr_rdpmc_broken;
 	int		attr_rdpmc;
+	int		attr_perf_metrics_clear;
 	struct attribute **format_attrs;
 
 	ssize_t		(*events_sysfs_show)(char *page, u64 config);
