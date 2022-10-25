@@ -2883,10 +2883,12 @@ static void intel_pmu_enable_auto_reload(struct perf_event *event)
 				  (u64)(-hwc->sample_period) & x86_pmu.cntval_mask);
 }
 
+#define reg_get_msrlist_idx(idx)	(idx + INTEL_PERF_REG_RSP_0)
+
 static inline void __intel_pmu_enable_event(struct hw_perf_event *hwc, u64 enable_mask)
 {
 	if (hwc->extra_reg.reg)
-		wrmsrl(hwc->extra_reg.reg, hwc->extra_reg.config);
+		static_call(msrlist_wrmsrl)(hwc->extra_reg.idx, hwc->extra_reg.config);
 
 	static_call(msrlist_wrmsrl)(hwc->config_base, (hwc->config | enable_mask));
 }
@@ -6280,6 +6282,10 @@ static __init void init_perf_msrlist(void)
 {
 	int i;
 
+	x86_msrlist_msrs[INTEL_PERF_REG_RSP_0] = MSR_OFFCORE_RSP_0;
+	x86_msrlist_msrs[INTEL_PERF_REG_RSP_1] = MSR_OFFCORE_RSP_1;
+	x86_msrlist_msrs[INTEL_PERF_REG_LDLAT] = MSR_PEBS_LD_LAT_THRESHOLD;
+	x86_msrlist_msrs[INTEL_PERF_REG_FE] = MSR_PEBS_FRONTEND;
 	x86_msrlist_msrs[INTEL_PERF_PEBS_DATA_CFG] = MSR_PEBS_DATA_CFG;
 	x86_msrlist_msrs[INTEL_PERF_PEBS_ENABLE] = MSR_IA32_PEBS_ENABLE;
 	x86_msrlist_msrs[INTEL_PERF_METRICS] = MSR_PERF_METRICS;
