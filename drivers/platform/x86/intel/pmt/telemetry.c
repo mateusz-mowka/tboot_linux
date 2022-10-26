@@ -322,6 +322,20 @@ static int pmt_telem_add_endpoint(struct device *dev,
 	return 0;
 }
 
+static void pmt_telem_remove_entries(struct pmt_telem_priv *priv)
+{
+	struct intel_pmt_entry *entry;
+	int i;
+
+	pr_debug("%s\n", __func__);
+
+	for (i = 0, entry = priv->entry; i < priv->num_entries; i++, entry++) {
+		kref_put(&priv->entry[i].ep->kref, pmt_telem_ep_release);
+		pr_debug("kref count of ep #%d [%px] is %d\n", i, entry->ep, kref_read(&entry->ep->kref));
+		intel_pmt_dev_destroy(&priv->entry[i], &pmt_telem_ns);
+	}
+}
+
 static void pmt_telem_remove(struct auxiliary_device *auxdev)
 {
 	struct pmt_telem_priv *priv = auxiliary_get_drvdata(auxdev);
@@ -330,18 +344,12 @@ static void pmt_telem_remove(struct auxiliary_device *auxdev)
 
 	dev_dbg(&auxdev->dev, "%s\n", __func__);
 
-	// remove the auxdev list
-	xa_destroy(&auxdev_array);
-
-	for (i = 0, entry = priv->entry; i < priv->num_entries; i++, entry++) {
+	for (i = 0, entry = priv->entry; i < priv->num_entries; i++, entry++)
 		blocking_notifier_call_chain(&telem_notifier,
 					     PMT_TELEM_NOTIFY_REMOVE,
 					     &entry->devid);
-		kref_put(&priv->entry[i].ep->kref, pmt_telem_ep_release);
-		dev_dbg(&auxdev->dev, "kref count of ep #%d [%px] is %d\n", i, entry->ep, kref_read(&entry->ep->kref));
-		intel_pmt_dev_destroy(&priv->entry[i], &pmt_telem_ns);
-	}
-}
+	pmt_telem_remove_entries(priv);
+};
 
 static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxiliary_device_id *id)
 {
@@ -365,11 +373,8 @@ static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxilia
 		ret = intel_pmt_dev_create(entry, &pmt_telem_ns, intel_vsec_dev, i);
 		if (ret < 0)
 			goto abort_probe;
-		if (ret) {
-			/* Skipping this entry. */
-			--entry;
+		if (ret)
 			continue;
-		}
 
 		priv->num_entries++;
 
@@ -379,10 +384,10 @@ static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxilia
 
 		dev_dbg(&auxdev->dev, "kref count of ep #%d [%px] is %d\n", i, entry->ep, kref_read(&entry->ep->kref));
 	}
-	// store the auxdev here
+
 	ret = xa_alloc(&auxdev_array, &pmt_id, intel_vsec_dev, PMT_XA_LIMIT, GFP_KERNEL);
 	if (ret)
-		return ret;
+		goto abort_probe;
 
 	for (i = 0, entry = priv->entry; i < priv->num_entries; i++, entry++)
 		blocking_notifier_call_chain(&telem_notifier,
@@ -392,7 +397,7 @@ static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxilia
 	return 0;
 
 abort_probe:
-	/* pmt_telem_remove(auxdev); */
+	pmt_telem_remove_entries(priv);
 	return ret;
 }
 
@@ -418,6 +423,8 @@ static void __exit pmt_telem_exit(void)
 {
 	auxiliary_driver_unregister(&pmt_telem_aux_driver);
 	xa_destroy(&telem_array);
+	xa_destroy(&auxdev_array);
+
 }
 module_exit(pmt_telem_exit);
 
