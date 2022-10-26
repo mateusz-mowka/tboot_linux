@@ -1381,6 +1381,8 @@ again:
 				continue;
 			ptent = ptep_get_and_clear_full(mm, addr, pte,
 							tlb->fullmm);
+			VM_WARN_ON_ONCE(!(vma->vm_flags & VM_SHADOW_STACK) &&
+					pte_shstk(ptent));
 			tlb_remove_tlb_entry(tlb, pte, addr);
 			zap_install_uffd_wp_if_needed(vma, addr, pte, details,
 						      ptent);

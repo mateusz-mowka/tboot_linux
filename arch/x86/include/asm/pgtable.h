@@ -129,6 +129,7 @@ static inline bool pte_dirty(pte_t pte)
 	return pte_flags(pte) & _PAGE_DIRTY_BITS;
 }
 
+#define pte_shstk pte_shstk
 static inline bool pte_shstk(pte_t pte)
 {
 	if (!cpu_feature_enabled(X86_FEATURE_USER_SHSTK))
@@ -147,6 +148,7 @@ static inline bool pmd_dirty(pmd_t pmd)
 	return pmd_flags(pmd) & _PAGE_DIRTY_BITS;
 }
 
+#define pmd_shstk pmd_shstk
 static inline bool pmd_shstk(pmd_t pmd)
 {
 	if (!cpu_feature_enabled(X86_FEATURE_USER_SHSTK))

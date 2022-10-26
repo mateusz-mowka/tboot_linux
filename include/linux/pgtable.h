@@ -539,6 +539,20 @@ static inline pte_t pte_mkwrite_shstk(pte_t pte)
 }
 #endif
 
+#ifndef pte_shstk
+static inline bool pte_shstk(pte_t pte)
+{
+	return false;
+}
+#endif
+
+#ifndef pmd_shstk
+static inline bool pmd_shstk(pmd_t pte)
+{
+	return false;
+}
+#endif
+
 #ifndef pmd_mkwrite_shstk
 static inline pmd_t pmd_mkwrite_shstk(pmd_t pmd)
 {
