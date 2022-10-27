@@ -1019,6 +1019,7 @@ static const struct x86_cpu_id intel_pmc_core_ids[] = {
 	X86_MATCH_INTEL_FAM6_MODEL(COMETLAKE_L,		cnp_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(TIGERLAKE_L,		tgl_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(TIGERLAKE,		tgl_core_init),
+	X86_MATCH_INTEL_FAM6_MODEL(ATOM_TREMONT_D,	cnp_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(ATOM_TREMONT,	tgl_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(ATOM_TREMONT_L,	icl_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(ROCKETLAKE,		tgl_core_init),
