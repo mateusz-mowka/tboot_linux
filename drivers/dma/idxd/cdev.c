@@ -302,7 +302,7 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
 		mutex_unlock(&wq->uc_lock);
 		if (rc < 0) {
 			dev_err(dev, "PASID entry already exist in xarray.\n");
-			goto failed_xa_insert;
+//			goto failed_xa_insert;
 		}
 
 		if (wq_dedicated(wq)) {
@@ -354,7 +354,7 @@ static int idxd_cdev_open(struct inode *inode, struct file *filp)
  failed_set_pasid:
 	if (device_user_pasid_enabled(idxd))
 		idxd_xa_pasid_remove(ctx);
- failed_xa_insert:
+ //failed_xa_insert:
  failed_get_pasid:
 	if (device_user_pasid_enabled(idxd))
 		iommu_sva_unbind_device(sva);
