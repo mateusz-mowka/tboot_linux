@@ -76,8 +76,9 @@ static int debugfs_evl_show(struct seq_file *s, void *d)
 	seq_printf(s, "Event Log head %u tail %u interrupt pending %u\n\n",
 		   evl_status.head, evl_status.tail, evl_status.int_pending);
 
+	i = t;
 	while (1) {
-		i = (t + 1) % evl_size;
+		i = (i + 1) % evl_size;
 		if (i == t)
 			break;
 
