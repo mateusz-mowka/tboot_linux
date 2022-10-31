@@ -905,7 +905,6 @@ struct x86_pmu {
 	 */
 	int		num_topdown_events;
 	u64		(*update_topdown_event)(struct perf_event *event);
-	int		(*set_topdown_event_period)(struct perf_event *event);
 
 	/*
 	 * Intel Auto-reload
