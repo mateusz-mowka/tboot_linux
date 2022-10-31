@@ -319,6 +319,7 @@
 #define X86_FEATURE_LASS		(12*32+ 6) /* Linear address space separation */
 #define X86_FEATURE_CMPCCXADD           (12*32+ 7) /* "" CMPccXADD instructions */
 #define X86_FEATURE_ARCH_PERFMON_EXT	(12*32+ 8) /* "" Intel Architectural PerfMon Extension */
+#define X86_FEATURE_WRMSRNS		(12*32+19) /* WRMSRNS instruction */
 #define X86_FEATURE_AMX_FP16		(12*32+21) /* "" AMX fp16 Support */
 #define X86_FEATURE_AVX_IFMA            (12*32+23) /* "" Support for VPMADD52[H,L]UQ */
 #define X86_FEATURE_MSRLIST		(12*32+27) /* RD/WRMSRLIST instruction */
