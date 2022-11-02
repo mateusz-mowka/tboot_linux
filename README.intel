@@ -55,6 +55,11 @@ GNR PO bkc-v1.3
 	   https://hsdes.intel.com/appstore/article/#/14017832501
 	b. SOC watchtool not working due to LTM causing probe failure.
 	   https://hsdes.intel.com/appstore/article/#/16018199387)
+3. IDXD: Fix 2 issues (pull from https://github.com/intel-sandbox/idxd/commits/fyu/gnr.bkc)
+	a. Event log has random failure when running 1b and 6b tests
+	   (https://jira.devtools.intel.com/browse/LCK-11678 )
+	b. Kernel panic when try to cat /sys/kernel/debug/idxd/dsa0/event_l
+	   (https://jira.devtools.intel.com/browse/LFE-3775)
 
 GNR PO bkc-v1.2
 ===============
