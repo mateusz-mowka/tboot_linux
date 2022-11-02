@@ -49,6 +49,12 @@ README.intel_th:
 GNR PO bkc-v1.3
 ===============
 1. EDAC: Add Intel Sierra Forest server support
+2. PMT: Fix order of cleanup operations when probe fails. Mitigate two
+   issues:
+	a. Simics reporting bogus telemetry entries
+	   https://hsdes.intel.com/appstore/article/#/14017832501
+	b. SOC watchtool not working due to LTM causing probe failure.
+	   https://hsdes.intel.com/appstore/article/#/16018199387)
 
 GNR PO bkc-v1.2
 ===============
