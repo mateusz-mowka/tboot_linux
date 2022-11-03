@@ -23,6 +23,7 @@
 #include <linux/bits.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/pm_runtime.h>
 #include <linux/intel_tpmi.h>
 
 #include "uncore-frequency-common.h"
@@ -69,9 +70,15 @@ static int uncore_read_control_freq(struct uncore_data *data, unsigned int *min,
 {
 	struct tpmi_uncore_cluster_info *cluster_info;
 	u64 control;
+	int ret;
 
 	cluster_info = container_of(data, struct tpmi_uncore_cluster_info, uncore_data);
-	control = readq((u8 __iomem *)cluster_info->cluster_base + UNCORE_CONTROL_INDEX);
+	ret = intel_tpmi_readq(cluster_info->auxdev,
+			       (u8 __iomem *)cluster_info->cluster_base + UNCORE_CONTROL_INDEX,
+			       &control);
+	if (ret)
+		return ret;
+
 	*max = FIELD_GET(UNCORE_GENMASK_MAX_RATIO, control) * UNCORE_FREQ_KHZ_MULTIPLIER;
 	*min = FIELD_GET(UNCORE_GENMASK_MIN_RATIO, control) * UNCORE_FREQ_KHZ_MULTIPLIER;
 
@@ -85,13 +92,18 @@ static int uncore_write_control_freq(struct uncore_data *data, unsigned int inpu
 {
 	struct tpmi_uncore_cluster_info *cluster_info;
 	u64 control;
+	int ret;
 
 	input /= UNCORE_FREQ_KHZ_MULTIPLIER;
 	if (!input || input > UNCORE_MAX_RATIO)
 		return -EINVAL;
 
 	cluster_info = container_of(data, struct tpmi_uncore_cluster_info, uncore_data);
-	control = readq((u8 __iomem *)cluster_info->cluster_base + UNCORE_CONTROL_INDEX);
+	ret = intel_tpmi_readq(cluster_info->auxdev,
+			       (u8 __iomem *)cluster_info->cluster_base + UNCORE_CONTROL_INDEX,
+			       &control);
+	if (ret)
+		return ret;
 
 	if (min_max) {
 		control &= ~UNCORE_GENMASK_MAX_RATIO;
@@ -101,18 +113,25 @@ static int uncore_write_control_freq(struct uncore_data *data, unsigned int inpu
 		control |= FIELD_PREP(UNCORE_GENMASK_MIN_RATIO, input);
 	}
 
-	writeq(control, ((u8 __iomem *)cluster_info->cluster_base + UNCORE_CONTROL_INDEX));
+	ret = intel_tpmi_writeq(cluster_info->auxdev, control,
+				((u8 __iomem *)cluster_info->cluster_base + UNCORE_CONTROL_INDEX));
 
-	return 0;
+	return ret;
 }
 
 static int uncore_read_freq(struct uncore_data *data, unsigned int *freq)
 {
 	struct tpmi_uncore_cluster_info *cluster_info;
 	u64 status;
+	int ret;
 
 	cluster_info = container_of(data, struct tpmi_uncore_cluster_info, uncore_data);
-	status = readq((u8 __iomem *)cluster_info->cluster_base + UNCORE_STATUS_INDEX);
+	ret = intel_tpmi_readq(cluster_info->auxdev,
+			       (u8 __iomem *)cluster_info->cluster_base + UNCORE_STATUS_INDEX,
+			       &status);
+	if (ret)
+		return ret;
+
 	*freq = FIELD_GET(UNCORE_GENMASK_CURRENT_RATIO, status) * UNCORE_FREQ_KHZ_MULTIPLIER;
 
 	return 0;
@@ -159,6 +178,17 @@ static int tpmi_uncore_init(struct auxiliary_device *auxdev)
 	plat_info = dev_get_platdata(&auxdev->dev);
 	if (plat_info)
 		pkg = plat_info->package_id;
+
+	/*
+	 * Activate Runtime PM as some callbacks from calls to
+	 * uncore_freq_add_entry() will result in calling some
+	 * functions which are runtime PM managed
+	 */
+	pm_runtime_set_active(&auxdev->dev);
+	pm_runtime_set_autosuspend_delay(&auxdev->dev, UNCORE_AUTO_SUSPEND_DELAY_MS);
+	pm_runtime_use_autosuspend(&auxdev->dev);
+	pm_runtime_enable(&auxdev->dev);
+	pm_runtime_mark_last_busy(&auxdev->dev);
 
 	for (i = 0; i < num_resources; ++i) {
 		struct tpmi_uncore_power_domain_info *pd_info;
@@ -256,6 +286,7 @@ static int tpmi_uncore_init(struct auxiliary_device *auxdev)
 
 err_rem_common:
 	uncore_freq_common_exit();
+	pm_runtime_disable(&auxdev->dev);
 
 	return ret;
 }
@@ -280,6 +311,8 @@ static int tpmi_uncore_remove(struct auxiliary_device *auxdev)
 			uncore_freq_remove_die_entry(&cluster_info->uncore_data);
 		}
 	}
+
+	pm_runtime_disable(&auxdev->dev);
 
 	uncore_freq_common_exit();
 
