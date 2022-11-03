@@ -278,6 +278,7 @@ static struct tpmi_pem_instance_info *pem_get_instance(int cpu)
 static int pem_control_store(int cpu, u32 fet, u32 tm)
 {
 	struct tpmi_pem_instance_info *instance;
+	int ret = -EIO;
 	u64 val;
 
 	if (tm < PEM_VALID_TIME_WINDOW_MIN_MS || tm > PEM_VALID_TIME_WINDOW_MAX_MS)
@@ -299,7 +300,10 @@ static int pem_control_store(int cpu, u32 fet, u32 tm)
 	if (!instance)
 		goto control_store_unlock;
 
-	val = readq((u8 __iomem *)instance->pem_base + PEM_CONTROL_INDEX);
+	ret = intel_tpmi_readq(instance->auxdev, (u8 __iomem *)instance->pem_base +
+			       PEM_CONTROL_INDEX, &val);
+	if (ret)
+		goto control_store_unlock;
 
 	val &= ~PEM_GENMASK_FET;
 	val |= FIELD_PREP(PEM_GENMASK_FET, fet);
@@ -307,12 +311,13 @@ static int pem_control_store(int cpu, u32 fet, u32 tm)
 	val &= ~PEM_GENMASK_TW;
 	val |= FIELD_PREP(PEM_GENMASK_TW, tm);
 
-	writeq(val, (u8 __iomem *)instance->pem_base + PEM_CONTROL_INDEX);
+	ret = intel_tpmi_writeq(instance->auxdev, val, (u8 __iomem *)instance->pem_base +
+				PEM_CONTROL_INDEX);
 
 control_store_unlock:
 	rcu_read_unlock();
 
-	return 0;
+	return ret;
 }
 
 /* Function to clear a status bit for an event */
@@ -328,20 +333,25 @@ static int pem_status_clear(int cpu, u32 bit_index)
 	if (!instance)
 		goto status_store_unlock;
 
-	readq((u8 __iomem *)instance->pem_base + PEM_STATUS_INDEX);
+	ret = intel_tpmi_readq(instance->auxdev, (u8 __iomem *)instance->pem_base +
+			       PEM_STATUS_INDEX, &val);
+	if (ret)
+		goto status_store_unlock;
 
 	val &= ~BIT(bit_index);
-	writeq(val, (u8 __iomem *)instance->pem_base + PEM_STATUS_INDEX);
+	ret = intel_tpmi_writeq(instance->auxdev, val, (u8 __iomem *)instance->pem_base +
+				PEM_STATUS_INDEX);
 
 status_store_unlock:
 	rcu_read_unlock();
 
-	return 0;
+	return ret;
 }
 
 static int pem_feature_enable(int cpu, unsigned int enable)
 {
 	struct tpmi_pem_instance_info *instance;
+	int ret = -EIO;
 	u64 val;
 
 	rcu_read_lock();
@@ -350,19 +360,23 @@ static int pem_feature_enable(int cpu, unsigned int enable)
 	if (!instance)
 		goto enable_unlock;
 
-	val = readq((u8 __iomem *)instance->pem_base + PEM_CONTROL_INDEX);
+	ret = intel_tpmi_readq(instance->auxdev, (u8 __iomem *)instance->pem_base +
+			       PEM_CONTROL_INDEX, &val);
+	if (ret)
+		goto enable_unlock;
 
 	if (enable)
 		val |= BIT(PEM_ENABLE_PEM_BIT);
 	else
 		val &= ~BIT(PEM_ENABLE_PEM_BIT);
 
-	writeq(val, (u8 __iomem *)instance->pem_base + PEM_CONTROL_INDEX);
+	ret = intel_tpmi_writeq(instance->auxdev, val, (u8 __iomem *)instance->pem_base +
+				PEM_CONTROL_INDEX);
 
 enable_unlock:
 	rcu_read_unlock();
 
-	return 0;
+	return ret;
 }
 
 static struct attribute *attrs_empty[] = {
@@ -623,6 +637,7 @@ static inline u64 pem_pmu_read_counter(struct perf_event *event)
 {
 	struct tpmi_pem_instance_info *instance;
 	u64 counter = 0, val;
+	int ret;
 
 	rcu_read_lock();
 
@@ -630,7 +645,11 @@ static inline u64 pem_pmu_read_counter(struct perf_event *event)
 	if (!instance)
 		goto read_counter_unlock;
 
-	val = readq((u8 __iomem *)instance->pem_base + PEM_STATUS_INDEX);
+	ret = intel_tpmi_readq(instance->auxdev,
+			       (u8 __iomem *)instance->pem_base + PEM_STATUS_INDEX,
+			       &val);
+	if (ret)
+		goto read_counter_unlock;
 
 	if (val & BIT(event->hw.event_base))
 		counter += pem_read_pmt_counter(instance, event->hw.event_base);
