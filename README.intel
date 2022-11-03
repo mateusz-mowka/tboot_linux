@@ -60,6 +60,7 @@ GNR PO bkc-v1.3
 	   (https://jira.devtools.intel.com/browse/LCK-11678 )
 	b. Kernel panic when try to cat /sys/kernel/debug/idxd/dsa0/event_l
 	   (https://jira.devtools.intel.com/browse/LFE-3775)
+4.NETDEV NTB: Add GNR support for Intel PCIe gen5 NTB
 
 GNR PO bkc-v1.2
 ===============
