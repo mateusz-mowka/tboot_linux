@@ -36,7 +36,9 @@ static void __iomem *__devm_ioremap(struct device *dev, resource_size_t offset,
 
 	switch (type) {
 	case DEVM_IOREMAP:
-		if (trusted) {
+		if (!cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT)) {
+			addr = ioremap(offset, size);
+		} else if (trusted) {
 			dev_info(dev, "%s() calls ioremap_encrypted() for DEVM_IOREMAP\n", __func__);
 			addr = ioremap_encrypted(offset, size, _PAGE_CACHE_MODE_UC_MINUS);
 		} else {
@@ -45,7 +47,9 @@ static void __iomem *__devm_ioremap(struct device *dev, resource_size_t offset,
 		}
 		break;
 	case DEVM_IOREMAP_UC:
-		if (trusted) {
+		if (!cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT)) {
+			addr = ioremap_uc(offset, size);
+		} else if (trusted) {
 			dev_info(dev, "%s() calls ioremap_encrypted() for DEVM_IOREMAP_UC\n", __func__);
 			addr = ioremap_encrypted(offset, size, _PAGE_CACHE_MODE_UC);
 		} else {
@@ -54,7 +58,9 @@ static void __iomem *__devm_ioremap(struct device *dev, resource_size_t offset,
 		}
 		break;
 	case DEVM_IOREMAP_WC:
-		if (trusted) {
+		if (!cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT)) {
+			addr = ioremap_wc(offset, size);
+		} else if (trusted) {
 			dev_info(dev, "%s() calls ioremap_encrypted() for DEVM_IOREMAP_WC\n", __func__);
 			addr = ioremap_encrypted(offset, size, _PAGE_CACHE_MODE_WC);
 		} else {

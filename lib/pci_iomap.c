@@ -43,7 +43,9 @@ void __iomem *pci_iomap_range(struct pci_dev *dev,
 	if (flags & IORESOURCE_IO)
 		return __pci_ioport_map(dev, start, len);
 	if (flags & IORESOURCE_MEM) {
-		if (dev->dev.authorized == MODE_SECURE) {
+		if (!cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT)) {
+			return ioremap(start, len);
+		} else if (dev->dev.authorized == MODE_SECURE) {
 			pci_info(dev, "%s() calls ioremap_encrypted()\n", __func__);
 			return ioremap_encrypted(start, len, _PAGE_CACHE_MODE_UC_MINUS);
 		}
