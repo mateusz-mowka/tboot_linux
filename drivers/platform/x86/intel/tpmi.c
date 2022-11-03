@@ -146,6 +146,38 @@ enum intel_tpmi_id {
 /* Used during auxbus device creation */
 static DEFINE_IDA(intel_vsec_tpmi_ida);
 
+int intel_tpmi_readq(struct auxiliary_device *auxdev, const void __iomem *addr, u64 *val)
+{
+	int ret;
+
+	ret = pm_runtime_resume_and_get(&auxdev->dev);
+	if (ret < 0)
+		return ret;
+
+	*val = readq(addr);
+	pm_runtime_mark_last_busy(&auxdev->dev);
+	pm_runtime_put_autosuspend(&auxdev->dev);
+
+	return 0;
+}
+EXPORT_SYMBOL_NS_GPL(intel_tpmi_readq, INTEL_TPMI);
+
+int intel_tpmi_writeq(struct auxiliary_device *auxdev, u64 value, void __iomem *addr)
+{
+	int ret;
+
+	ret = pm_runtime_resume_and_get(&auxdev->dev);
+	if (ret < 0)
+		return ret;
+
+	writeq(value, addr);
+	pm_runtime_mark_last_busy(&auxdev->dev);
+	pm_runtime_put_autosuspend(&auxdev->dev);
+
+	return 0;
+}
+EXPORT_SYMBOL_NS_GPL(intel_tpmi_writeq, INTEL_TPMI);
+
 struct intel_tpmi_plat_info *tpmi_get_platform_data(struct auxiliary_device *auxdev)
 {
 	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
