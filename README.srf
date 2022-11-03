@@ -1,0 +1,9 @@
+INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
+------------------------------------------------------------------------
+
+SRF PO bkc-v0.1
+===============
+1. Branched off from https://github.com/intel-sandbox/os.linux.graniterapids.poweron.git spr-bkc-v1.3 (commit: c4effab13e4ba808f30309ab4e68c362b2e37d3a).
+2. Added README.srf and config-SRF (based on GNR config).
+
+------------------------------------------------------------------------
