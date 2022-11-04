@@ -5,5 +5,9 @@ SRF PO bkc-v0.1
 ===============
 1. Branched off from https://github.com/intel-sandbox/os.linux.graniterapids.poweron.git spr-bkc-v1.3 (commit: c4effab13e4ba808f30309ab4e68c362b2e37d3a).
 2. Added README.srf and config-SRF (based on GNR config).
+3. Merged architectural linear address masking (lam) and lam/svm feature patches.
+   repo: https://kernel.googlesource.com/pub/scm/linux/kernel/git/kas/linux.git lam
+   jira: https://jira.devtools.intel.com/browse/lfe-692
+         https://jira.devtools.intel.com/browse/lfe-700
 
 ------------------------------------------------------------------------
