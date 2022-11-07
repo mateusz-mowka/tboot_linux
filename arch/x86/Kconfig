@@ -1828,6 +1828,16 @@ config ARCH_RANDOM
 	  If supported, this is a high bandwidth, cryptographically
 	  secure hardware random number generator.
 
+config X86_LASS
+	def_bool y
+	prompt "Linear Address Space Separation"
+	depends on X86_64 && CPU_SUP_INTEL
+	help
+	  Linear Address Space Separation (LASS) is a processor
+	  feature that mitigates address space layout probes.
+
+	  if unsure, say Y.
+
 config X86_UMIP
 	def_bool y
 	prompt "User Mode Instruction Prevention" if EXPERT
