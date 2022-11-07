@@ -460,6 +460,23 @@ void hreset_reload(void)
 		wrmsrl(MSR_IA32_HW_HRESET_ENABLE, hardware_history_features);
 }
 
+static __always_inline void setup_lass(struct cpuinfo_x86 *c)
+{
+	if (cpu_feature_enabled(X86_FEATURE_LASS)) {
+		cr4_set_bits(X86_CR4_LASS);
+	} else {
+		/*
+		 * only clear the feature and cr4 bits when hardware
+		 * supports LASS, in case it was enabled in a previous
+		 * boot (e.g., via kexec)
+		 */
+		if (cpu_has(c, X86_FEATURE_LASS)) {
+			cr4_clear_bits(X86_CR4_LASS);
+			clear_cpu_cap(c, X86_FEATURE_LASS);
+		}
+	}
+}
+
 /* These bits should not change their value after CPU init is finished. */
 static const unsigned long cr4_pinned_mask =
 	X86_CR4_SMEP | X86_CR4_SMAP | X86_CR4_UMIP |
@@ -1871,6 +1888,7 @@ static void identify_cpu(struct cpuinfo_x86 *c)
 	setup_smap(c);
 	setup_umip(c);
 	setup_hreset(c);
+	setup_lass(c);
 
 	/* Enable FSGSBASE instructions if available. */
 	if (cpu_has(c, X86_FEATURE_FSGSBASE)) {
