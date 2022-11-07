@@ -256,12 +256,8 @@ static int iommu_pmu_validate_event(struct perf_event *event)
 {
 	struct iommu_pmu *iommu_pmu = iommu_event_to_pmu(event);
 	u32 event_group = iommu_event_group(event->attr.config);
-	u64 select = iommu_event_select(event->attr.config);
 
 	if (event_group >= iommu_pmu->num_eg)
-		return -EINVAL;
-
-	if (~iommu_pmu->evcap[event_group] & select)
 		return -EINVAL;
 
 	return 0;
@@ -790,14 +786,16 @@ int iommu_pmu_register(struct intel_iommu *iommu)
 		    !iommu_cntrcap_ios(cap))
 			iommu_pmu->num_cntr = i;
 
+		/* Clear the pre-defined events group */
+		for (j = 0; j < iommu_pmu->num_eg; j++)
+			iommu_pmu->cntr_evcap[i][j] = 0;
+
 		/* Override with per-counter event capabilities */
 		for (j = 0; j < iommu_cntrcap_egcnt(cap); j++) {
-			iommu_pmu->cntr_evcap[i][j] = ioread32(iommu_pmu->cfg + i * IOMMU_PMU_CFG_OFFSET +
-							       IOMMU_PMU_CFG_CNTREVCAP_OFFSET + (j * 4));
+			cap = ioread32(iommu_pmu->cfg + i * IOMMU_PMU_CFG_OFFSET +
+				       IOMMU_PMU_CFG_CNTREVCAP_OFFSET + (j * 4));
+			iommu_pmu->cntr_evcap[i][iommu_event_group(cap)] = iommu_event_select(cap);
 		}
-		/* Clear the unsupported events group */
-		for (; j < iommu_pmu->num_eg; j++)
-			iommu_pmu->cntr_evcap[i][j] = 0;
 	}
 
 	if (!i)
