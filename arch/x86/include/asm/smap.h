@@ -70,8 +70,6 @@ static __always_inline void kernel_lass_on(void)
 	alternative("", __ASM_CLAC, X86_FEATURE_LASS);
 }
 
-extern bool is_lass_enabled(void);
-
 /* These macros can be used in asm() statements */
 #define ASM_CLAC \
 	ALTERNATIVE("", __ASM_CLAC, X86_FEATURE_SMAP)
