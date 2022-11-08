@@ -909,7 +909,8 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 	dump_idpte(idxd, &idpte);
 
 	dev_dbg(dev, "IDPTE from create\n");
-	for (i = 0; i < IDPT_STRIDES; i++) {
+	/* Write allow_update bit in the last step. */
+	for (i = IDPT_STRIDES - 1; i >= 0; i--) {
 		iowrite64(idpte.bits[i], idxd->reg_base + offset + i * sizeof(u64));
 		dev_dbg(dev, "IDPTE[%#x][%u]: %#llx\n",
 			offset - idxd->idpt_offset , i, idpte.bits[i]);
