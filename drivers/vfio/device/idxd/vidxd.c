@@ -1227,7 +1227,7 @@ int vidxd_mmio_write(struct vdcm_idxd *vidxd, u64 pos, void *buf, unsigned int s
 		break;
 
 	case IDXD_INTCAUSE_OFFSET:
-		bar0[offset] &= ~(get_reg_val(buf, 1) & GENMASK(4, 0));
+		*(u32 *)&bar0[offset] &= ~(get_reg_val(buf, 4));
 		break;
 
 	case IDXD_CMD_OFFSET: {
