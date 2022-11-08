@@ -17,6 +17,7 @@
 #include <asm/fpu/xstate.h>
 #include <asm/intel_ds.h>
 #include <asm/cpu.h>
+#include <asm/msr-list.h>
 
 /* To enable MSR tracing please use the generic trace points. */
 
@@ -1563,6 +1564,36 @@ static inline int is_ht_workaround_enabled(void)
 {
 	return !!(x86_pmu.flags & PMU_FL_EXCL_ENABLED);
 }
+
+/*
+ * perf_msrlist[] = {
+ *	MSR_PEBS_DATA_CFG,
+ *	MSR_IA32_PEBS_ENABLE,
+ *	MSR_PERF_METRICS,
+ *	MSR_CORE_PERF_FIXED_CTR_CTRL,
+ *	MSR_CORE_PERF_FIXED_CTR0,
+ *	...
+ *	MSR_CORE_PERF_FIXED_CTR15,
+ *	MSR_IA32_PMC0,
+ *	MSR_ARCH_PERFMON_EVENTSEL0,
+ *	...
+ *     },
+ */
+
+enum {
+	INTEL_PERF_PEBS_DATA_CFG	= X86_MSRLIST_PERF_IDX,
+	INTEL_PERF_PEBS_ENABLE,
+	INTEL_PERF_METRICS,
+
+	INTEL_PERF_FIXED_CTRL		= INTEL_PERF_METRICS + 1,
+	INTEL_PERF_FIXED_CTR0		= INTEL_PERF_FIXED_CTRL + 1,
+	INTEL_PERF_SLOTS		= INTEL_PERF_FIXED_CTR0 + 3,
+
+	INTEL_PERF_PMC0			= INTEL_PERF_FIXED_CTR0 + INTEL_PMC_MAX_FIXED,
+	INTEL_PERF_EVENTSEL0		= INTEL_PERF_PMC0 + 1,
+
+	INTEL_PERF_MAX			= INTEL_PERF_PMC0 + 2 * INTEL_PMC_MAX_GENERIC
+};
 
 #else /* CONFIG_CPU_SUP_INTEL */
 

@@ -4,6 +4,10 @@
 #include <asm/perf_event.h>
 
 u64 x86_msrlist_msrs[X86_MSRLIST_MAX] __read_mostly = {
+	/*
+	 * The perf_event related MSRs are initialized in the perf_event subsystem.
+	 * See init_perf_msrlist().
+	 */
 };
 
 DEFINE_PER_CPU(u64, x86_msrlist_data[X86_MSRLIST_MAX]);

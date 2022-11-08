@@ -9,7 +9,10 @@
 #include <linux/static_call.h>
 
 #define X86_MSRLIST_SIZE	64
-#define X86_MSRLIST_NR		1
+#define X86_MSRLIST_PERF	0
+#define X86_MSRLIST_PERF_IDX	0
+#define X86_MSRLIST_PERF_NR	2
+#define X86_MSRLIST_NR		X86_MSRLIST_PERF_NR
 #define X86_MSRLIST_MAX		(X86_MSRLIST_NR * X86_MSRLIST_SIZE)
 
 extern u64 x86_msrlist_msrs[X86_MSRLIST_MAX] __read_mostly;

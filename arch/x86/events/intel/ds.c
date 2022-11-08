@@ -1338,7 +1338,7 @@ void intel_pmu_pebs_enable(struct perf_event *event)
 	if (x86_pmu.intel_cap.pebs_baseline) {
 		hwc->config |= ICL_EVENTSEL_ADAPTIVE;
 		if (cpuc->pebs_data_cfg != cpuc->active_pebs_data_cfg) {
-			wrmsrl(MSR_PEBS_DATA_CFG, cpuc->pebs_data_cfg);
+			static_call(msrlist_wrmsrl)(INTEL_PERF_PEBS_DATA_CFG, cpuc->pebs_data_cfg);
 			cpuc->active_pebs_data_cfg = cpuc->pebs_data_cfg;
 		}
 	}
@@ -1399,7 +1399,7 @@ void intel_pmu_pebs_disable(struct perf_event *event)
 	intel_pmu_pebs_via_pt_disable(event);
 
 	if (cpuc->enabled)
-		wrmsrl(MSR_IA32_PEBS_ENABLE, cpuc->pebs_enabled);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_PEBS_ENABLE, cpuc->pebs_enabled);
 
 	hwc->config |= ARCH_PERFMON_EVENTSEL_INT;
 }
@@ -1409,7 +1409,7 @@ void intel_pmu_pebs_enable_all(void)
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 
 	if (cpuc->pebs_enabled)
-		wrmsrl(MSR_IA32_PEBS_ENABLE, cpuc->pebs_enabled);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_PEBS_ENABLE, cpuc->pebs_enabled);
 }
 
 void intel_pmu_pebs_disable_all(void)
