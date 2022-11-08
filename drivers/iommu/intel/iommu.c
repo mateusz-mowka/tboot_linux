@@ -5161,7 +5161,7 @@ static int intel_iommu_set_dirty_tracking(struct iommu_domain *domain,
 	}
 
 	spin_lock_irqsave(&device_domain_lock, flags);
-	if (list_empty(&dmar_domain->devices)) {
+	if (list_empty(&dmar_domain->devices) && list_empty(&dmar_domain->subdevices)) {
 		spin_unlock_irqrestore(&device_domain_lock, flags);
 		return ret;
 	}
