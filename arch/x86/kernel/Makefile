@@ -67,6 +67,7 @@ obj-y			+= tsc.o tsc_msr.o io_delay.o rtc.o
 obj-y			+= resource.o
 obj-y			+= irqflags.o
 obj-y			+= static_call.o
+obj-y			+= msr_list.o
 obj-$(CONFIG_SVOS)	+= svos.o
 
 obj-y				+= process.o
