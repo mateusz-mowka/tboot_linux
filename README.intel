@@ -64,6 +64,7 @@ GNR PO bkc-v1.3
 5. PMT: Enhancement of fix in issue (2) above.
 6. IDXD: Fix inter-domain pasid opcode bug (https://hsdes.intel.com/appstore/article/#/14017868570)
 7. PMU/IOMMU Fix unsupported PW_OCCUPANCY (https://hsdes.intel.com/appstore/article/#/15012234453)
+8. TDX,TDX/IO: Various fixes
 
 GNR PO bkc-v1.2
 ===============
