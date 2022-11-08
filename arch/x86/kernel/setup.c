@@ -50,6 +50,7 @@
 #include <asm/thermal.h>
 #include <asm/unwind.h>
 #include <asm/vsyscall.h>
+#include <asm/msr-list.h>
 #include <linux/vmalloc.h>
 #ifdef CONFIG_SVOS
 #include <linux/svos.h>
@@ -1265,6 +1266,8 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 	unwind_init();
+
+	init_msrlist();
 }
 
 #ifdef CONFIG_X86_32
