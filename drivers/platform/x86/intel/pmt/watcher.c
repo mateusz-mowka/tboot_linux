@@ -17,7 +17,6 @@
 
 #include "class.h"
 
-#define DRV_NAME		"intel_extnd_cap_3"
 #define SMPLR_DEV_PREFIX	"sample"
 
 #define TYPE_SAMPLER		1
@@ -485,6 +484,7 @@ pmt_sample_repopulate_header(struct intel_pmt_entry *entry,
 	 * We are assuming "local" BAR to be BAR 0.
 	 */
 	header->base_offset = readl(watcher->cfg_base) + bir;
+	pr_debug("%s: Data Buffer Offset is 0x%x\n", __func__, header->base_offset);
 
 	/* Size is reported in DWORDs so multiply by 4 to get bytes */
 	pointer2 = readl(watcher->cfg_base + SMPLR_BUFFER_SIZE_OFFSET);
@@ -492,12 +492,16 @@ pmt_sample_repopulate_header(struct intel_pmt_entry *entry,
 	header->size = DATA_BUFFER_SIZE(pointer2) * 4;
 	sample_sets = SAMPLE_SETS(pointer2);
 
+	pr_debug("%s: Data Buffer Size (DWORDS) is 0x%x\n", __func__, header->size / 4);
+	pr_debug("%s: Number Sample Sets is %d\n", __func__, sample_sets);
+
 	/*
 	 * SMPLR_NUM_SAMPLES returns bytes divided by 8 to get number
 	 * of QWORDS which is the unit of sampling. Select_limit is
 	 * the maximum allowable hweight for the select vector
 	 */
 	sample_limit = SMPLR_NUM_SAMPLES(header->size / sample_sets, vector_sz_in_bytes);
+	pr_debug("%s: Sample Limit is %d\n", __func__, sample_limit);
 
 	if (sample_limit < watcher->config.select_limit)
 		watcher->config.select_limit = sample_limit;
@@ -536,6 +540,7 @@ pmt_watcher_create_entry(struct intel_pmt_entry *entry,
 	 * bit vector needed to select sample IDs.
 	 */
 	vector_sz_in_bytes = entry->size - watcher->vector_start;
+	pr_debug("%s: Vector/Select size in bytes is %ld\n", __func__, vector_sz_in_bytes);
 	if (vector_sz_in_bytes < 2 || vector_sz_in_bytes > entry->size)
 		return -EINVAL;
 
@@ -549,6 +554,7 @@ pmt_watcher_create_entry(struct intel_pmt_entry *entry,
 	res.start = entry->base_addr;
 	res.end = res.start + entry->size - 1;
 	res.flags = IORESOURCE_MEM;
+	pr_debug("%s: Mapping resource %pr\n", __func__, &res);
 
 	watcher->cfg_base = devm_ioremap_resource(dev, &res);
 	if (IS_ERR(watcher->cfg_base)) {
@@ -609,6 +615,11 @@ static int pmt_watcher_header_decode(struct intel_pmt_entry *entry,
 	/* Size is measured in DWORDS, but accessor returns bytes */
 	header->size = GET_SIZE(readl(disc_table));
 
+	pr_debug("%s:\tAccess type is %d\n"
+		    "\tGUID is        0x%x\n"
+		    "\tBase offset is 0x%x\n"
+		    "\tSize is        %d\n", __func__, header->access_type,
+		    header->guid, header->base_offset, header->size);
 	return pmt_watcher_create_entry(entry, dev, disc_res);
 }
 
@@ -643,14 +654,19 @@ static int pmt_watcher_probe(struct auxiliary_device *auxdev, const struct auxil
 
 	auxiliary_set_drvdata(auxdev, priv);
 
+	pr_debug("%s: Number of res %d\n", __func__, intel_vsec_dev->num_resources);
 	for (i = 0; i < intel_vsec_dev->num_resources; i++) {
 		struct intel_pmt_entry *entry = &priv->entry[priv->num_entries].entry;
 
+		pr_debug("%s: Creating dev for res %d\n", __func__, i);
 		ret = intel_pmt_dev_create(entry, &pmt_watcher_ns, intel_vsec_dev, i);
-		if (ret < 0)
+		if (ret < 0) {
+			pr_debug("%s: Failed to create dev, ret %d\n", __func__, ret);
 			goto abort_probe;
-		if (ret)
+		} if (ret) {
+			pr_debug("%s: Skipping res %d\n", __func__, i);
 			continue;
+		}
 
 		priv->num_entries++;
 	}
