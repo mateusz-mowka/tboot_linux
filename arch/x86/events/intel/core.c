@@ -2208,9 +2208,11 @@ static void __intel_pmu_enable_all(int added, bool pmi)
 	u64 intel_ctrl = hybrid(cpuc->pmu, intel_ctrl);
 
 	if (cpuc->fixed_ctrl_val != cpuc->active_fixed_ctrl_val) {
-		wrmsrl(MSR_ARCH_PERFMON_FIXED_CTR_CTRL, cpuc->fixed_ctrl_val);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_FIXED_CTRL, cpuc->fixed_ctrl_val);
 		cpuc->active_fixed_ctrl_val = cpuc->fixed_ctrl_val;
 	}
+
+	static_call_cond(msrlist_msrlist)(X86_MSRLIST_PERF, X86_MSRLIST_PERF + X86_MSRLIST_PERF_NR, true);
 
 	intel_pmu_lbr_enable_all(pmi);
 	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL,
@@ -2457,7 +2459,7 @@ static void intel_pmu_disable_fixed(struct perf_event *event)
 
 static inline void __intel_pmu_disable_event(struct hw_perf_event *hwc)
 {
-	wrmsrl(hwc->config_base, hwc->config);
+	static_call(msrlist_wrmsrl)(hwc->config_base, hwc->config);
 }
 
 static void intel_pmu_disable_event(struct perf_event *event)
@@ -2510,8 +2512,21 @@ static void intel_pmu_disable_event(struct perf_event *event)
 
 static void intel_pmu_assign_event(struct perf_event *event, int idx)
 {
-	if (x86_pmu.intel_cap.pebs_output_pt_available && is_pebs_pt(event))
+	struct hw_perf_event *hwc = &event->hw;
+
+	if (x86_pmu.intel_cap.pebs_output_pt_available && is_pebs_pt(event)) {
 		perf_report_aux_output_id(event, idx);
+		return;
+	}
+
+	if (idx < INTEL_PMC_IDX_FIXED) {
+		hwc->config_base = INTEL_PERF_EVENTSEL0 + idx * 2;
+		hwc->event_base = INTEL_PERF_PMC0 + idx * 2;
+	} else if (idx < INTEL_PMC_IDX_FIXED_BTS) {
+		hwc->config_base = INTEL_PERF_FIXED_CTRL;
+		hwc->event_base = INTEL_PERF_FIXED_CTR0 +
+				(idx - INTEL_PMC_IDX_FIXED);
+	}
 }
 
 static void intel_pmu_del_event(struct perf_event *event)
@@ -2536,15 +2551,15 @@ static int icl_set_topdown_event_period(struct perf_event *event)
 	 * Don't need to clear them again.
 	 */
 	if (left == x86_pmu.max_period) {
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, 0);
-		wrmsrl(MSR_PERF_METRICS, 0);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_SLOTS, 0);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_METRICS, 0);
 		hwc->saved_slots = 0;
 		hwc->saved_metric = 0;
 	}
 
 	if ((hwc->saved_slots) && is_slots_event(event)) {
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, hwc->saved_slots);
-		wrmsrl(MSR_PERF_METRICS, hwc->saved_metric);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_SLOTS, hwc->saved_slots);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_METRICS, hwc->saved_metric);
 	}
 
 	perf_event_update_userpage(event);
@@ -2689,8 +2704,8 @@ static u64 intel_update_topdown_event(struct perf_event *event, int metric_end)
 
 	if (reset) {
 		/* The fixed counter 3 has to be written before the PERF_METRICS. */
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, 0);
-		wrmsrl(MSR_PERF_METRICS, 0);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_SLOTS, 0);
+		static_call(msrlist_wrmsrl)(INTEL_PERF_METRICS, 0);
 		if (event)
 			update_saved_topdown_regs(event, 0, 0, metric_end);
 	}
@@ -2873,7 +2888,7 @@ static inline void __intel_pmu_enable_event(struct hw_perf_event *hwc, u64 enabl
 	if (hwc->extra_reg.reg)
 		wrmsrl(hwc->extra_reg.reg, hwc->extra_reg.config);
 
-	wrmsrl(hwc->config_base, (hwc->config | enable_mask));
+	static_call(msrlist_wrmsrl)(hwc->config_base, (hwc->config | enable_mask));
 }
 static void intel_pmu_enable_event(struct perf_event *event)
 {
@@ -2940,7 +2955,7 @@ int intel_pmu_save_and_restart(struct perf_event *event)
 	 */
 	if (unlikely(event_is_checkpointed(event))) {
 		/* No race with NMIs because the counter should not be armed */
-		wrmsrl(event->hw.event_base, 0);
+		static_call(msrlist_wrmsrl)(event->hw.event_base, 0);
 		local64_set(&event->hw.prev_count, 0);
 	}
 	return static_call(x86_pmu_set_period)(event);
@@ -2956,7 +2971,7 @@ static int intel_pmu_set_period(struct perf_event *event)
 
 	ret = __x86_perf_event_set_period(event, &value);
 
-	wrmsrl(event->hw.event_base, value);
+	static_call(msrlist_wrmsrl)(event->hw.event_base, value);
 
 	return ret;
 }
@@ -3201,6 +3216,13 @@ static int intel_pmu_handle_irq(struct pt_regs *regs)
 	status = intel_pmu_get_status();
 	if (!status)
 		goto done;
+
+	/* TODO:
+	 * It's possiable that a pending PMI is delievered after disable everything.
+	 * Check if it's possible that MSRLIST has been updated in non-NMI.
+	 * If yes, we may have to save/restore the MSRLIST in NMI
+	 */
+	WARN_ON_ONCE(!bitmap_empty(this_cpu_ptr(x86_msrlist_mask), X86_MSRLIST_SIZE));
 
 	loops = 0;
 again:
@@ -6254,6 +6276,26 @@ static inline int intel_pmu_addr_offset(int index, bool eventsel)
 	return 4 * index;
 }
 
+static __init void init_perf_msrlist(void)
+{
+	int i;
+
+	x86_msrlist_msrs[INTEL_PERF_PEBS_DATA_CFG] = MSR_PEBS_DATA_CFG;
+	x86_msrlist_msrs[INTEL_PERF_PEBS_ENABLE] = MSR_IA32_PEBS_ENABLE;
+	x86_msrlist_msrs[INTEL_PERF_METRICS] = MSR_PERF_METRICS;
+	x86_msrlist_msrs[INTEL_PERF_FIXED_CTRL] = MSR_CORE_PERF_FIXED_CTR_CTRL;
+
+	for (i = 0; i < INTEL_PMC_MAX_FIXED; i++)
+		x86_msrlist_msrs[INTEL_PERF_FIXED_CTR0 + i] = MSR_CORE_PERF_FIXED_CTR0 + i;
+
+	for (i = 0; i < INTEL_PMC_MAX_GENERIC; i++) {
+		x86_msrlist_msrs[INTEL_PERF_PMC0 + 2 * i] = x86_pmu.perfctr + i;
+		x86_msrlist_msrs[INTEL_PERF_PMC0 + 2 * i + 1] = x86_pmu.eventsel + i;
+	}
+
+	WARN_ON((INTEL_PERF_MAX - X86_MSRLIST_PERF_IDX) > X86_MSRLIST_PERF_NR * X86_MSRLIST_SIZE);
+}
+
 __init int intel_pmu_init(void)
 {
 	struct attribute **extra_skl_attr = &empty_attrs;
@@ -7297,6 +7339,10 @@ __init int intel_pmu_init(void)
 
 	if (x86_pmu.intel_cap.pebs_timing_info)
 		x86_pmu.flags |= PMU_FL_RETIRE_LATENCY;
+
+	/* Apply the MSRLIST for the intel_pmu */
+	if (x86_pmu.version >= 2)
+		init_perf_msrlist();
 
 	return 0;
 }
