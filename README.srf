@@ -12,5 +12,8 @@ SRF PO bkc-v0.1
 4. Merged KVM LAM feature patches.
    repo: https://github.com/intel-sandbox/lam-kvm.giti lam-kvm
    jira: https://jira.devtools.intel.com/browse/LFE-28
+5. Merged LASS feature patches.
+   repo: https://github.com/intel-sandbox/kernel-works.git lass
+   jira: https://jira.devtools.intel.com/browse/LFE-682
 
 ------------------------------------------------------------------------
