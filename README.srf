@@ -9,6 +9,13 @@ SRF PO bkc-v0.2
 3. Added support for KVM CMPccXADD/AVX instructions.
    jira: https://jira.devtools.intel.com/browse/LFE-24
    jira: https://jira.devtools.intel.com/browse/LFE-25
+4. Merged tools/perf related patches (PMU event counter,
+   LBR events, MSR list NI SW toolchain).
+   repo: https://github.com/kliang2/os.linux.sierraforest.poweron.git perf/user/kliang2/bkc-v0.1_perf
+   jira: https://jira.devtools.intel.com/browse/LFE-42
+   jira: https://jira.devtools.intel.com/browse/LFE-638
+   jira: https://jira.devtools.intel.com/browse/LFE-651
+   jira: https://jira.devtools.intel.com/browse/LFE-653
 
 SRF PO bkc-v0.1
 ===============
