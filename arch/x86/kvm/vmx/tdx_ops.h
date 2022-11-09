@@ -29,31 +29,6 @@ static inline void tdx_clflush_page(hpa_t addr, enum pg_level level)
 	clflush_cache_range(__va(addr), KVM_HPAGE_SIZE(level));
 }
 
-static inline uint64_t kvm_seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9,
-				    struct tdx_module_output *out)
-{
-	u64 err, retries = 0;
-
-	do {
-		err = __seamcall(op, rcx, rdx, r8, r9, out);
-
-		/*
-		 * On success, non-recoverable errors, or recoverable errors
-		 * that don't expect retries, hand it over to the caller.
-		 */
-		if (!err ||
-		    err == TDX_VCPU_ASSOCIATED ||
-		    err == TDX_VCPU_NOT_ASSOCIATED ||
-		    err == TDX_INTERRUPTED_RESUMABLE)
-			return err;
-
-		if (retries++ > TDX_SEAMCALL_RETRY_MAX)
-			break;
-	} while (TDX_SEAMCALL_ERR_RECOVERABLE(err));
-
-	return err;
-}
-
 static inline u64 tdh_mng_addcx(hpa_t tdr, hpa_t addr)
 {
 	tdx_clflush_page(addr, PG_LEVEL_4K);

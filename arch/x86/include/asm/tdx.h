@@ -273,15 +273,45 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_IQINV_PROC			162
 #define TDH_MEM_SHARED_SEPT_WR		163
 
+/* Temp solution, copied from tdx_error.h */
+#define TDX_INTERRUPTED_RESUMABLE		0x8000000300000000ULL
+#define TDX_VCPU_ASSOCIATED			0x8000070100000000ULL
+#define TDX_VCPU_NOT_ASSOCIATED			0x8000070200000000ULL
+
+static inline uint64_t kvm_seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9,
+				    struct tdx_module_output *out)
+{
+	u64 err, retries = 0;
+
+	do {
+		err = __seamcall(op, rcx, rdx, r8, r9, out);
+
+		/*
+		 * On success, non-recoverable errors, or recoverable errors
+		 * that don't expect retries, hand it over to the caller.
+		 */
+		if (!err ||
+		    err == TDX_VCPU_ASSOCIATED ||
+		    err == TDX_VCPU_NOT_ASSOCIATED ||
+		    err == TDX_INTERRUPTED_RESUMABLE)
+			return err;
+
+		if (retries++ > TDX_SEAMCALL_RETRY_MAX)
+			break;
+	} while (TDX_SEAMCALL_ERR_RECOVERABLE(err));
+
+	return err;
+}
+
 static inline u64 tdh_phymem_page_reclaim(u64 page,
 					  struct tdx_module_output *out)
 {
-	return __seamcall(TDH_PHYMEM_PAGE_RECLAIM, page, 0, 0, 0, out);
+	return kvm_seamcall(TDH_PHYMEM_PAGE_RECLAIM, page, 0, 0, 0, out);
 }
 
 static inline u64 tdh_phymem_page_wbinvd(u64 page)
 {
-	return __seamcall(TDH_PHYMEM_PAGE_WBINVD, page, 0, 0, 0, NULL);
+	return kvm_seamcall(TDH_PHYMEM_PAGE_WBINVD, page, 0, 0, 0, NULL);
 }
 
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
