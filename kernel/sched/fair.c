@@ -8774,13 +8774,11 @@ struct sg_lb_stats {
 	unsigned int nr_numa_running;
 	unsigned int nr_preferred_running;
 #endif
-#ifdef CONFIG_IPC_CLASSES
 	unsigned long min_score; /* Min(score(rq->curr->ipcc)) */
 	unsigned short min_ipcc; /* Class of the task with the minimum IPCC score in the rq */
 	unsigned long sum_score; /* Sum(score(rq->curr->ipcc)) */
 	long ipcc_score_after; /* Prospective IPCC score after load balancing */
 	unsigned long ipcc_score_before; /* IPCC score before load balancing */
-#endif
 };
 
 /*
