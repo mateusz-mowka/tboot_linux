@@ -1644,7 +1644,8 @@ static ssize_t event_log_size_store(struct device *dev,
 	if (idxd->hw.gen_cap.evl_support == 0)
 		return -EOPNOTSUPP;
 
-	if (val < IDXD_EVL_SIZE_MIN || val > IDXD_EVL_SIZE_MAX)
+	if (val < IDXD_EVL_SIZE_MIN || val > IDXD_EVL_SIZE_MAX ||
+	    (val * EVL_ENT_SIZE(idxd) > ULONG_MAX - idxd->evl->dma))
 		return -EINVAL;
 
 	idxd->evl->size = val;
