@@ -293,7 +293,9 @@ struct idxd_evl {
 	spinlock_t lock;
 	void *log;
 	dma_addr_t dma;
+	/* Total size of event log = number of entries * entry size. */
 	unsigned int log_size;
+	/* The number of entries in the event log. */
 	u16 size;
 	u16 head;
 	unsigned long *bmap;

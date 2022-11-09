@@ -917,7 +917,7 @@ static int idxd_device_evl_setup(struct idxd_device *idxd)
 
 	memset(&evlcfg, 0, sizeof(evlcfg));
 	evlcfg.bits[0] = dma_addr & GENMASK(63, 12);
-	evlcfg.size = size;
+	evlcfg.size = evl->size;
 
 	iowrite64(evlcfg.bits[0], idxd->reg_base + IDXD_EVLCFG_OFFSET);
 	iowrite64(evlcfg.bits[1], idxd->reg_base + IDXD_EVLCFG_OFFSET + 8);
