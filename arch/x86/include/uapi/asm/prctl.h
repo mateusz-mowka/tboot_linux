@@ -32,4 +32,8 @@
 #define ARCH_SHSTK_SHSTK		(1ULL <<  0)
 #define ARCH_SHSTK_WRSS			(1ULL <<  1)
 
+#define ARCH_GET_UNTAG_MASK		0x4001
+#define ARCH_ENABLE_TAGGED_ADDR		0x4002
+#define ARCH_GET_MAX_TAG_BITS		0x4003
+
 #endif /* _ASM_X86_PRCTL_H */
