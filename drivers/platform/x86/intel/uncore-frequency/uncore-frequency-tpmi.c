@@ -179,6 +179,17 @@ static int tpmi_uncore_init(struct auxiliary_device *auxdev)
 	if (plat_info)
 		pkg = plat_info->package_id;
 
+	/*
+	 * Activate Runtime PM as some callbacks from calls to
+	 * uncore_freq_add_entry() will result in calling some
+	 * functions which are runtime PM managed
+	 */
+	pm_runtime_set_active(&auxdev->dev);
+	pm_runtime_set_autosuspend_delay(&auxdev->dev, UNCORE_AUTO_SUSPEND_DELAY_MS);
+	pm_runtime_use_autosuspend(&auxdev->dev);
+	pm_runtime_enable(&auxdev->dev);
+	pm_runtime_mark_last_busy(&auxdev->dev);
+
 	for (i = 0; i < num_resources; ++i) {
 		struct tpmi_uncore_power_domain_info *pd_info;
 		struct resource *res;
@@ -271,16 +282,11 @@ static int tpmi_uncore_init(struct auxiliary_device *auxdev)
 
 	auxiliary_set_drvdata(auxdev, tpmi_uncore);
 
-	pm_runtime_set_active(&auxdev->dev);
-	pm_runtime_set_autosuspend_delay(&auxdev->dev, UNCORE_AUTO_SUSPEND_DELAY_MS);
-	pm_runtime_use_autosuspend(&auxdev->dev);
-	pm_runtime_enable(&auxdev->dev);
-	pm_runtime_mark_last_busy(&auxdev->dev);
-
 	return 0;
 
 err_rem_common:
 	uncore_freq_common_exit();
+	pm_runtime_disable(&auxdev->dev);
 
 	return ret;
 }
