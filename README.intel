@@ -50,6 +50,8 @@ GNR PO bkc-v1.4
 ===============
 1. IDXD-DSA: Fix initialization of event log size
    (Follow up to https://jira.devtools.intel.com/browse/LCK-11678)
+2. UFS: Early enable Runtime PM, fix uncore freq bug
+   (Fix for https://hsdes.intel.com/appstore/article/#/15012141935)
 
 GNR PO bkc-v1.3
 ===============
