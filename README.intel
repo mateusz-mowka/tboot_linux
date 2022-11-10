@@ -46,6 +46,11 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v1.4
+===============
+1. IDXD-DSA: Fix initialization of event log size
+   (Follow up to https://jira.devtools.intel.com/browse/LCK-11678)
+
 GNR PO bkc-v1.3
 ===============
 1. EDAC: Add Intel Sierra Forest server support
