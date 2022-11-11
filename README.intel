@@ -52,6 +52,7 @@ GNR PO bkc-v1.4
    (Follow up to https://jira.devtools.intel.com/browse/LCK-11678)
 2. UFS: Early enable Runtime PM, fix uncore freq bug
    (Fix for https://hsdes.intel.com/appstore/article/#/15012141935)
+3. IDXD: Fix crc_val field from 32bit to 64bit for completion record.
 
 GNR PO bkc-v1.3
 ===============
