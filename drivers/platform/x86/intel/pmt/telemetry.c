@@ -387,8 +387,11 @@ static int pmt_telem_probe(struct auxiliary_device *auxdev, const struct auxilia
 		ret = intel_pmt_dev_create(entry, &pmt_telem_ns, intel_vsec_dev, i);
 		if (ret < 0)
 			goto abort_probe;
-		if (ret)
+		if (ret) {
+			/* entry list must be contiguous for cleanup */
+			--entry;
 			continue;
+		}
 
 		priv->num_entries++;
 
