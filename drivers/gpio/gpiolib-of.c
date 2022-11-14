@@ -920,14 +920,15 @@ int of_mm_gpiochip_add_data(struct device_node *np,
 			    struct of_mm_gpio_chip *mm_gc,
 			    void *data)
 {
+	struct fwnode_handle *fwnode = of_fwnode_handle(np);
 	int ret = -ENOMEM;
 	struct gpio_chip *gc = &mm_gc->gc;
 
-	gc->label = kasprintf(GFP_KERNEL, "%pOF", np);
+	gc->label = kasprintf(GFP_KERNEL, "%pfw", fwnode);
 	if (!gc->label)
 		goto err0;
 
-	mm_gc->regs = of_iomap(np, 0);
+	mm_gc->regs = fwnode_iomap(fwnode, 0);
 	if (!mm_gc->regs)
 		goto err1;
 
@@ -937,7 +938,7 @@ int of_mm_gpiochip_add_data(struct device_node *np,
 		mm_gc->save_regs(mm_gc);
 
 	fwnode_handle_put(mm_gc->gc.fwnode);
-	mm_gc->gc.fwnode = fwnode_handle_get(of_fwnode_handle(np));
+	mm_gc->gc.fwnode = fwnode_handle_get(fwnode);
 
 	ret = gpiochip_add_data(gc, data);
 	if (ret)
@@ -945,12 +946,12 @@ int of_mm_gpiochip_add_data(struct device_node *np,
 
 	return 0;
 err2:
-	of_node_put(np);
+	fwnode_handle_put(fwnode);
 	iounmap(mm_gc->regs);
 err1:
 	kfree(gc->label);
 err0:
-	pr_err("%pOF: GPIO chip registration failed with status %d\n", np, ret);
+	pr_err("%pfw: GPIO chip registration failed with status %d\n", fwnode, ret);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(of_mm_gpiochip_add_data);
