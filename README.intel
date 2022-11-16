@@ -57,6 +57,7 @@ GNR PO bkc-v1.4
    (https://jira.devtools.intel.com/browse/LFE-4892)
 5. IDXD: Fix for KVA sparse mapping support
    (https://hsdes.intel.com/appstore/article/#/14017928408)
+6. PMT: maintain contiguous entry list
 
 GNR PO bkc-v1.3
 ===============
