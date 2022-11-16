@@ -336,9 +336,10 @@ struct idxd_idpt_entry_data {
 	u32 access_pasid;
 	struct iommu_sva *owner_sva;
 	struct mm_struct *owner_mm;
-	struct vm_struct *bitmap_vma;
+//	struct vm_struct *bitmap_vma;
 	void *bitmap;
-	void *page_bitmap;
+	dma_addr_t bitmap_dma;
+//	void *page_bitmap;
 	bool multi_user;
 };
 

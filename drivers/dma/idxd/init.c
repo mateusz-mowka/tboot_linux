@@ -629,6 +629,7 @@ static void idxd_setup_idbr(struct idxd_device *idxd)
 
 	if (!idxd->hw.gen_cap.inter_domain ||
 	    !(idxd->hw.id_cap.idpte_support_mask & BIT(1)) ||
+	    !device_user_pasid_enabled(idxd) ||
 	    !device_pasid_enabled(idxd))
 		return;
 
