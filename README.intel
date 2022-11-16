@@ -55,6 +55,8 @@ GNR PO bkc-v1.4
 3. IDXD: Fix crc_val field from 32bit to 64bit for completion record.
 4. TDX: Fix TDX guest failed to boot up with vcpu num larger than 1
    (https://jira.devtools.intel.com/browse/LFE-4892)
+5. IDXD: Fix for KVA sparse mapping support
+   (https://hsdes.intel.com/appstore/article/#/14017928408)
 
 GNR PO bkc-v1.3
 ===============
