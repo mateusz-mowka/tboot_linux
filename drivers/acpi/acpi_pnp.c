@@ -351,6 +351,17 @@ static bool acpi_pnp_match(const char *idstr, const struct acpi_device_id **matc
 static int acpi_pnp_attach(struct acpi_device *adev,
 			   const struct acpi_device_id *id)
 {
+	struct acpi_hardware_id *hwid;
+
+	if (!matching_id((char *)id->id, "PNP0C02"))
+		return 1;
+
+	list_for_each_entry(hwid, &adev->pnp.ids, list) {
+		if (matching_id(hwid->id, "INTC1080") || matching_id(hwid->id, "INTC1081")) {
+			printk("Block PNP0C02 PFRU device %s %s\n", acpi_device_name(adev), acpi_device_bid(adev));
+			return 0;
+		}
+	}
 	return 1;
 }
 
