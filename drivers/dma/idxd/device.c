@@ -1652,6 +1652,24 @@ void drv_disable_wq(struct idxd_wq *wq)
 }
 EXPORT_SYMBOL_GPL(drv_disable_wq);
 
+static void idxd_setup_idbr(struct idxd_device *idxd)
+{
+	union idbr_reg idbr = {};
+
+	if (!idxd->hw.gen_cap.inter_domain ||
+	    !(idxd->hw.id_cap.idpte_support_mask & BIT(1)) ||
+	    !device_user_pasid_enabled(idxd) ||
+	    !device_pasid_enabled(idxd))
+		return;
+
+	idbr.pasid_en = 1;
+	idbr.priv = 1;
+	idbr.bitmap_pasid = idxd->pasid;
+
+	iowrite32(idbr.bits, idxd->reg_base + IDXD_IDBR_OFFSET);
+	dev_dbg(&idxd->pdev->dev, "IDBR: %#x\n", ioread32(idxd->reg_base + IDXD_IDBR_OFFSET));
+}
+
 int idxd_device_drv_probe(struct idxd_dev *idxd_dev)
 {
 	struct idxd_device *idxd = idxd_dev_to_idxd(idxd_dev);
@@ -1680,6 +1698,8 @@ int idxd_device_drv_probe(struct idxd_dev *idxd_dev)
 		idxd->cmd_status = IDXD_SCMD_DEV_EVL_ERR;
 		return rc;
 	}
+
+	idxd_setup_idbr(idxd);
 
 	/* Start device */
 	rc = idxd_device_enable(idxd);
