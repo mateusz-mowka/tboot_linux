@@ -122,7 +122,7 @@ static void idxd_file_dev_release(struct device *dev)
 {
 	struct idxd_user_context *ctx = dev_to_uctx(dev);
 	struct idxd_wq *wq = ctx->wq;
-	struct idxd_cdev *idxd_cdev = wq->idxd_cdev;
+//	struct idxd_cdev *idxd_cdev = wq->idxd_cdev;
 	struct idxd_device *idxd = wq->idxd;
 	int rc;
 
@@ -480,12 +480,13 @@ static inline u32 idxd_idpte_offset(struct idxd_device *idxd, int index)
 
 static int idxd_idpte_set_bit(struct idxd_idpt_entry_data *idpte_data, u32 index)
 {
-	int pos, rc;
-	struct page *page;
-	struct page *pages[1];
-	u64 addr;
+//	int pos, rc;
+//	struct page *page;
+//	struct page *pages[1];
+//	u64 addr;
 
 	lockdep_assert_held(&idpte_data->lock);
+#if 0
 	pos = bitmap_pos(index);
 	if (!__test_and_set_bit(pos, idpte_data->page_bitmap)) {
 		page = alloc_page(GFP_KERNEL | __GFP_ZERO);
@@ -506,6 +507,7 @@ static int idxd_idpte_set_bit(struct idxd_idpt_entry_data *idpte_data, u32 index
 		idpte_data->bitmap_vma->pages[pos] = page;
 		idpte_data->bitmap_vma->nr_pages++;
 	}
+#endif
 
 	__set_bit(index, idpte_data->bitmap);
 	return 0;
@@ -513,28 +515,31 @@ static int idxd_idpte_set_bit(struct idxd_idpt_entry_data *idpte_data, u32 index
 
 static void idxd_idpte_clear_bit(struct idxd_idpt_entry_data *idpte_data, int index)
 {
-	int pos;
+//	int pos;
 
 	mutex_lock(&idpte_data->lock);
+#if 0
 	pos = index >> (PAGE_SHIFT + 3);
 	if (!test_bit(pos, idpte_data->page_bitmap)) {
 		mutex_unlock(&idpte_data->lock);
 		return;
 	}
+#endif
 	__clear_bit(index, idpte_data->bitmap);
 	mutex_unlock(&idpte_data->lock);
 }
 
 static int idxd_idpte_setup_bitmap(struct idxd_idpt_entry_data *idpte_data)
 {
-	struct vm_struct *vma;
-	unsigned long *page_bitmap;
-	struct page **pages;
+//	struct vm_struct *vma;
+//	unsigned long *page_bitmap;
+//	struct page **pages;
 	struct idxd_device *idxd = idpte_data->idxd;
 	struct device *dev = &idxd->pdev->dev;
-	int pages_num = SZ_128K / PAGE_SIZE;
-	int rc;
+//	int pages_num = SZ_128K / PAGE_SIZE;
+//	int rc;
 
+#if 0
 	vma = get_vm_area(SZ_128K, VM_MAP_PUT_PAGES);
 	if (!vma)
 		return -ENOMEM;
@@ -555,14 +560,23 @@ static int idxd_idpte_setup_bitmap(struct idxd_idpt_entry_data *idpte_data)
 	vma->pages = pages;
 	idpte_data->bitmap_vma = vma;
 	idpte_data->bitmap = vma->addr;
+#else
+
+#endif
+	idpte_data->bitmap = dma_alloc_coherent(dev, SZ_4K,
+						&idpte_data->bitmap_dma, GFP_KERNEL);
+	if (!idpte_data->bitmap)
+		return -ENOMEM;
 
 	return 0;
 
+#if 0
 err_pages_alloc:
 	bitmap_free(page_bitmap);
 err_bitmap_alloc:
 	free_vm_area(vma);
 	return rc;
+#endif
 }
 
 static void idxd_idpte_free_bitmap(struct idxd_idpt_entry_data *idpte_data)
@@ -571,11 +585,16 @@ static void idxd_idpte_free_bitmap(struct idxd_idpt_entry_data *idpte_data)
 	struct device *dev = &idxd->pdev->dev;
 
 	iommu_flush_iotlb_all_dev_pasid(dev, idxd->pasid);
+#if 0
 	vfree(idpte_data->bitmap);
 	kfree(idpte_data->page_bitmap);
 	idpte_data->bitmap_vma = NULL;
 	idpte_data->bitmap = NULL;
 	idpte_data->page_bitmap = NULL;
+#else
+	dma_free_coherent(dev, SZ_4K, idpte_data->bitmap,
+			  idpte_data->bitmap_dma);
+#endif
 }
 
 static void idxd_idpte_flush_submitter_node(struct idxd_submit_node *sn)
@@ -901,7 +920,7 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 		rc = idxd_idpte_setup_bitmap(idpte_data);
 		if (rc < 0)
 			goto bitmap_fail;
-		idpte.bmap_addr = (u64)idpte_data->bitmap;
+		idpte.bmap_addr = idpte_data->bitmap_dma;
 	}
 
 	/* non priviledged access */
@@ -988,8 +1007,10 @@ static bool idxd_submitter_exist(struct idxd_idpt_entry_data *idpte_data,
 		if (pasid == IOMMU_PASID_INVALID)
 			return false;
 
+#if 0
 		if (!test_bit(bitmap_pos(pasid), idpte_data->page_bitmap))
 			return false;
+#endif
 
 		if (!test_bit(pasid, idpte_data->bitmap))
 			return false;
