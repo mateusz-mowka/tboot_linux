@@ -62,6 +62,9 @@ GNR PO bkc-v1.4
 8. PMT: Revert "Ignore regions with all 0xF"
    Fixes slow reboot problem: https://hsdes.intel.com/resource/22016170922
 9. KVM: TDX: fixes local var retries initialization error
+10.DSA: Live migration feature, supports
+	IDXD VDEV migration for non-vIOMMU case.
+	Changes vdev name from vdevX to vdevN.M (where N is dsa number and M is index within dsa)
 
 GNR PO bkc-v1.3
 ===============
