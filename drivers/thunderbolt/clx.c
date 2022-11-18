@@ -274,6 +274,9 @@ int tb_switch_clx_enable(struct tb_switch *sw, unsigned int clx)
 	struct tb_port *up, *down;
 	int ret;
 
+	if (!clx)
+		return 0;
+
 	if (!validate_mask(clx))
 		return -EINVAL;
 
@@ -339,7 +342,8 @@ int tb_switch_clx_enable(struct tb_switch *sw, unsigned int clx)
  * Disables all CL states of the given router. Can be called on any
  * router and if the states were not enabled already does nothing.
  *
- * Returns %0 on success or an error code on failure.
+ * Returns the CL states that were disabled or negative errno in case of
+ * failure.
  */
 int tb_switch_clx_disable(struct tb_switch *sw)
 {
@@ -367,5 +371,5 @@ int tb_switch_clx_disable(struct tb_switch *sw)
 	sw->clx = 0;
 
 	tb_port_dbg(up, "%s disabled\n", clx_name(clx));
-	return 0;
+	return clx;
 }

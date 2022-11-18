@@ -556,8 +556,9 @@ static int margining_run_write(void *data, u64 val)
 	struct usb4_port *usb4 = port->usb4;
 	struct tb_switch *sw = port->sw;
 	struct tb_margining *margining;
+	struct tb_switch *down_sw;
 	struct tb *tb = sw->tb;
-	int ret;
+	int ret, clx;
 
 	if (val != 1)
 		return -EINVAL;
@@ -570,15 +571,16 @@ static int margining_run_write(void *data, u64 val)
 	}
 
 	/*
-	 * CL states may interfere with lane margining so inform the user know
-	 * and bail out.
+	 * CL states may interfere with lane margining so disable them
+	 * temporarily now.
 	 */
-	if (tb_port_clx_is_enabled(port, TB_CL1 | TB_CL2)) {
-		tb_port_warn(port,
-			     "CL states are enabled, Disable them with clx=0 and re-connect\n");
-		ret = -EINVAL;
+	down_sw = tb_is_upstream_port(port) ? sw : port->remote->sw;
+	ret = tb_switch_clx_disable(down_sw);
+	if (ret < 0) {
+		tb_sw_warn(down_sw, "failed to disable CL states\n");
 		goto out_unlock;
 	}
+	clx = ret;
 
 	margining = usb4->margining;
 
@@ -589,7 +591,7 @@ static int margining_run_write(void *data, u64 val)
 					  margining->right_high,
 					  USB4_MARGIN_SW_COUNTER_CLEAR);
 		if (ret)
-			goto out_unlock;
+			goto out_clx;
 
 		ret = usb4_port_sw_margin_errors(port, &margining->results[0]);
 	} else {
@@ -603,6 +605,8 @@ static int margining_run_write(void *data, u64 val)
 					  margining->right_high, margining->results);
 	}
 
+out_clx:
+	tb_switch_clx_enable(down_sw, clx);
 out_unlock:
 	mutex_unlock(&tb->lock);
 out_rpm_put:
