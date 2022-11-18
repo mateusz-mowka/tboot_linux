@@ -1,6 +1,12 @@
 INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 ------------------------------------------------------------------------
 
+SRF PO bkc-v0.2
+===============
+1. Rebased on top of GNR-PO-BKC-v1.4.2 kernel.
+2. Fixed different NUMA initiator/target enumeration issue.
+   HSD: https://hsdes.intel.com/resource/22015826573
+
 SRF PO bkc-v0.1
 ===============
 1. Branched off from https://github.com/intel-sandbox/os.linux.graniterapids.poweron.git spr-bkc-v1.3 (commit: c4effab13e4ba808f30309ab4e68c362b2e37d3a).
