@@ -1569,13 +1569,33 @@ static u64 get_data_src(struct perf_event *event, u64 aux)
 	return val;
 }
 
+static int pebs_get_synctime(struct system_counterval_t *system,
+			     void *ctx)
+{
+	*system = set_tsc_system_counterval(*(u64 *)ctx);
+	return 0;
+}
+
+static inline int pebs_clockid_time(clockid_t clk_id, u64 tsc, u64 *clk_id_time)
+{
+	/* Only support converting to clock monotonic */
+	if (clk_id != CLOCK_MONOTONIC)
+		return -EINVAL;
+
+	return get_mono_fast_from_given_time(pebs_get_synctime, &tsc, clk_id_time);
+}
+
 static void setup_pebs_time(struct perf_event *event,
 			    struct perf_sample_data *data,
 			    u64 tsc)
 {
-	/* Converting to a user-defined clock is not supported yet. */
-	if (event->attr.use_clockid != 0)
-		return;
+	u64 time;
+
+	if (event->attr.use_clockid != 0) {
+		if (pebs_clockid_time(event->attr.clockid, tsc, &time))
+			return;
+		goto done;
+	}
 
 	/*
 	 * Converting the TSC to perf time is only supported,
@@ -1586,8 +1606,10 @@ static void setup_pebs_time(struct perf_event *event,
 	 */
 	if (!using_native_sched_clock() || !sched_clock_stable())
 		return;
+	time = native_sched_clock_from_tsc(tsc) + __sched_clock_offset;
 
-	data->time = native_sched_clock_from_tsc(tsc) + __sched_clock_offset;
+done:
+	data->time = time;
 	data->sample_flags |= PERF_SAMPLE_TIME;
 }
 

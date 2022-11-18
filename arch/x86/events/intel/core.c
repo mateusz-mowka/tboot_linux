@@ -3800,7 +3800,7 @@ static unsigned long intel_pmu_large_pebs_flags(struct perf_event *event)
 {
 	unsigned long flags = x86_pmu.large_pebs_flags;
 
-	if (event->attr.use_clockid)
+	if (event->attr.use_clockid && (event->attr.clockid != CLOCK_MONOTONIC))
 		flags &= ~PERF_SAMPLE_TIME;
 	if (!event->attr.exclude_kernel)
 		flags &= ~PERF_SAMPLE_REGS_USER;
