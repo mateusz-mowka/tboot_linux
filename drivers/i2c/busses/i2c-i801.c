@@ -80,6 +80,7 @@
  * Meteor Lake-S (SOC)		0xae22	32	hard	yes	yes	yes
  * Meteor Point-S (PCH)		0x7f23	32	hard	yes	yes	yes
  * Birch Stream (SOC)		0x5796	32	hard	yes	yes	yes
+ * Lunar Lake-M (SOC)		0xa822	32	hard	yes	yes	yes
  *
  * Features supported by this driver:
  * Software PEC				no
@@ -256,6 +257,7 @@
 #define PCI_DEVICE_ID_INTEL_KABYLAKE_PCH_H_SMBUS	0xa2a3
 #define PCI_DEVICE_ID_INTEL_CANNONLAKE_H_SMBUS		0xa323
 #define PCI_DEVICE_ID_INTEL_COMETLAKE_V_SMBUS		0xa3a3
+#define PCI_DEVICE_ID_INTEL_LUNAR_LAKE_M_SMBUS		0xa822
 
 struct i801_mux_config {
 	char *gpio_chip;
@@ -1061,6 +1063,7 @@ static const struct pci_device_id i801_ids[] = {
 	{ PCI_DEVICE_DATA(INTEL, METEOR_LAKE_S_SMBUS,	FEATURES_ICH5 | FEATURE_TCO_CNL) },
 	{ PCI_DEVICE_DATA(INTEL, METEOR_POINT_S_SMBUS,	FEATURES_ICH5 | FEATURE_TCO_CNL) },
 	{ PCI_DEVICE_DATA(INTEL, BIRCH_STREAM_SMBUS,	FEATURES_ICH5 | FEATURE_TCO_CNL) },
+	{ PCI_DEVICE_DATA(INTEL, LUNAR_LAKE_M_SMBUS,	FEATURES_ICH5 | FEATURE_TCO_CNL) },
 	{ 0, }
 };
 
