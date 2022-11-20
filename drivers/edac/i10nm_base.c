@@ -525,6 +525,78 @@ static bool i10nm_mc_decode(struct decoded_addr *res, struct mce *mce)
 	return true;
 }
 
+static struct pci_dev *get_gnr_mdev(struct skx_dev *d, int logical_idx, int *physical_idx)
+{
+	struct pci_dev *mdev;
+	int i, logical = 0;
+
+	/* Detect present memory controllers from { device: 8-5, function 7-1 } */
+	for (i = 0; i < 28; i++) {
+		mdev = pci_get_dev_wrapper(d->seg,
+					   d->bus[res_cfg->ddr_mdev_bdf.bus],
+					   res_cfg->ddr_mdev_bdf.dev + i / 7,
+					   res_cfg->ddr_mdev_bdf.fun + i % 7);
+
+		if (mdev) {
+			if (logical == logical_idx) {
+				*physical_idx = i;
+				return mdev;
+			}
+
+			pci_dev_put(mdev);
+			logical++;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * Get the PCI device, the MMIO offset and size of the i-th memory controller
+ */
+static struct pci_dev *get_ddr_munit(struct skx_dev *d, int i, u32 *offset, unsigned long *size)
+{
+	struct pci_dev *mdev;
+	int physical_idx;
+	u32 reg;
+
+	switch (res_cfg->type) {
+	case GNR:
+		if (I10NM_GET_IMC_BAR(d, 0, reg)) {
+			i10nm_printk(KERN_ERR, "Failed to get mc0 bar\n");
+			return NULL;
+		}
+
+		mdev = get_gnr_mdev(d, i, &physical_idx);
+		if (!mdev)
+			return NULL;
+
+		*offset = I10NM_GET_IMC_MMIO_OFFSET(reg) +
+			  I10NM_GNR_IMC_MMIO_OFFSET +
+			  physical_idx * I10NM_GNR_IMC_MMIO_SIZE;
+		*size   = I10NM_GNR_IMC_MMIO_SIZE;
+
+		break;
+	default:
+		if (I10NM_GET_IMC_BAR(d, i, reg)) {
+			i10nm_printk(KERN_ERR, "Failed to get mc%d bar\n", i);
+			return NULL;
+		}
+
+		mdev = pci_get_dev_wrapper(d->seg,
+					   d->bus[res_cfg->ddr_mdev_bdf.bus],
+					   res_cfg->ddr_mdev_bdf.dev + i,
+					   res_cfg->ddr_mdev_bdf.fun);
+		if (!mdev)
+			return NULL;
+
+		*offset  = I10NM_GET_IMC_MMIO_OFFSET(reg);
+		*size    = I10NM_GET_IMC_MMIO_SIZE(reg);
+	}
+
+	return mdev;
+}
+
 static int i10nm_get_ddr_munits(void)
 {
 	struct pci_dev *mdev;
@@ -557,27 +629,8 @@ static int i10nm_get_ddr_munits(void)
 		edac_dbg(2, "socket%d mmio base 0x%llx (reg 0x%x)\n",
 			 j++, base, reg);
 
-		if (res_cfg->type == GNR) {
-			if (I10NM_GET_IMC_BAR(d, 0, reg)) {
-				i10nm_printk(KERN_ERR, "Failed to get mc0 bar\n");
-				return -ENODEV;
-			}
-
-			base += I10NM_GET_IMC_MMIO_OFFSET(reg) + I10NM_GNR_IMC_MMIO_OFFSET;
-			size  = I10NM_GNR_IMC_MMIO_SIZE;
-		}
-
 		for (i = 0; i < res_cfg->ddr_imc_num; i++) {
-			if (res_cfg->type == GNR)
-				mdev = pci_get_dev_wrapper(d->seg,
-							   d->bus[res_cfg->ddr_mdev_bdf.bus],
-							   res_cfg->ddr_mdev_bdf.dev + i / 7,
-							   res_cfg->ddr_mdev_bdf.fun + i % 7);
-			else
-				mdev = pci_get_dev_wrapper(d->seg,
-							   d->bus[res_cfg->ddr_mdev_bdf.bus],
-							   res_cfg->ddr_mdev_bdf.dev + i,
-							   res_cfg->ddr_mdev_bdf.fun);
+			mdev = get_ddr_munit(d, i, &off, &size);
 
 			if (i == 0 && !mdev) {
 				i10nm_printk(KERN_ERR, "No IMC found\n");
@@ -587,18 +640,6 @@ static int i10nm_get_ddr_munits(void)
 				continue;
 
 			d->imc[i].mdev = mdev;
-
-			if (res_cfg->type == GNR) {
-				off = i * I10NM_GNR_IMC_MMIO_SIZE;
-			} else {
-				if (I10NM_GET_IMC_BAR(d, i, reg)) {
-					i10nm_printk(KERN_ERR, "Failed to get mc%d bar\n", i);
-					return -ENODEV;
-				}
-
-				off  = I10NM_GET_IMC_MMIO_OFFSET(reg);
-				size = I10NM_GET_IMC_MMIO_SIZE(reg);
-			}
 
 			edac_dbg(2, "mc%d mmio base 0x%llx size 0x%lx (reg 0x%x)\n",
 				 i, base + off, size, reg);
