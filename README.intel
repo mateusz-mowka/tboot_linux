@@ -58,6 +58,7 @@ GNR PO bkc-v1.4
 5. IDXD: Fix for KVA sparse mapping support
    (https://hsdes.intel.com/appstore/article/#/14017928408)
 6. PMT: maintain contiguous entry list
+7. EDAC: Fix miscalculation of memory controller MMIO offsets.
 
 GNR PO bkc-v1.3
 ===============
