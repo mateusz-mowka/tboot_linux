@@ -1486,3 +1486,16 @@ void sgx_kvm_notifier_resume(void)
 	sgx_kvm_paused = false;
 	mutex_unlock(&sgx_kvm_notifier_lock);
 }
+
+static bool svnupdate;
+static int __init trace_svnupdate(char *s)
+{
+	pr_info("svnupdate sysfs enable!\n");
+	svnupdate = true;
+	return 1;
+}
+__setup("svnupdate", trace_svnupdate);
+
+bool sysfs_svnupdate_enabled(void) {
+	return svnupdate;
+}
