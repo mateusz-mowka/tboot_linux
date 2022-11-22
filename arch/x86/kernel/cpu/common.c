@@ -2314,8 +2314,12 @@ void microcode_check(void)
 	 * on the system and is affected by microcode updates. So, update SGX
 	 * attestation metric (called CPUSVN) to ensure enclaves attest to the
 	 * new version after microcode update.
+	 *
+	 * If add "svnupdate" to kernel boot parameter, the CPUSVN update procedure
+	 * could only be called by writing to sysfs.
 	 */
-	if (IS_ENABLED(CONFIG_X86_SGX) && (cpuid_eax(SGX_CPUID) & SGX_CPUID_EUPDATESVN))
+	if (!sysfs_svnupdate_enabled() && IS_ENABLED(CONFIG_X86_SGX) &&
+	    (cpuid_eax(SGX_CPUID) & SGX_CPUID_EUPDATESVN))
 		sgx_update_cpusvn_intel();
 
 	/* Reload CPUID max function as it might've changed. */

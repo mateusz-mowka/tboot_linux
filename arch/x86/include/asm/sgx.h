@@ -449,10 +449,12 @@ int sgx_set_attribute(unsigned long *allowed_attributes,
 extern void sgx_update_cpusvn_intel(void);
 void sgx_kvm_notifier_halt(void);
 void sgx_kvm_notifier_resume(void);
+extern bool sysfs_svnupdate_enabled(void);
 #else
 static inline void sgx_update_cpusvn_intel(void) {}
 static inline void sgx_kvm_notifier_halt(void) {}
 static inline void sgx_kvm_notifier_resume(void) {}
+static inline bool sysfs_svnupdate_enabled(void) { return false; }
 #endif
 
 #endif /* _ASM_X86_SGX_H */
