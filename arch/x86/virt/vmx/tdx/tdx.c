@@ -1056,7 +1056,7 @@ static unsigned long tdmr_get_pamt_sz(struct tdmr_info *tdmr,
 				      enum tdx_page_sz pgsz)
 {
 	unsigned long pamt_sz;
-	int pamt_entry_nr;
+	unsigned long pamt_entry_nr;
 
 	switch (pgsz) {
 	case TDX_PG_4K:
