@@ -14,7 +14,7 @@ struct thread_shstk {
 	u64	size;
 };
 
-long shstk_prctl(struct task_struct *task, int option, unsigned long features);
+long shstk_prctl(struct task_struct *task, int option, unsigned long arg2);
 void reset_thread_features(void);
 int shstk_alloc_thread_stack(struct task_struct *p, unsigned long clone_flags,
 			     unsigned long stack_size,
@@ -24,7 +24,7 @@ int setup_signal_shadow_stack(struct ksignal *ksig);
 int restore_signal_shadow_stack(void);
 #else
 static inline long shstk_prctl(struct task_struct *task, int option,
-			     unsigned long features) { return -EINVAL; }
+			     unsigned long arg2) { return -EINVAL; }
 static inline void reset_thread_features(void) {}
 static inline int shstk_alloc_thread_stack(struct task_struct *p,
 					   unsigned long clone_flags,
