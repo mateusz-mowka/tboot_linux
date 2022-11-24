@@ -693,4 +693,11 @@ config IMS_MSI_ARRAY
 	  Support for IMS Interrupt Message Store MSI controller
 	  with IMS slot storage in a slot array in device memory
 
+config PCI_INTEL_IDXD_IMS
+	tristate "Intel IDXD Interrupt Message Store controller"
+	depends on PCI_MSI
+	help
+	  Support for Intel IDXD Interrupt Message Store (IMS) controller
+	  with IMS slot storage in a slot array in device memory
+
 endmenu
