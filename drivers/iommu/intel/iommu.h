@@ -865,6 +865,10 @@ void qi_flush_pasid_cache(struct intel_iommu *iommu, u16 did, u64 granu,
 
 int qi_submit_sync(struct intel_iommu *iommu, struct qi_desc *desc,
 		   unsigned int count, unsigned long options);
+void add_info_to_devices(struct device_domain_info *info, struct dmar_domain *domain);
+void del_info_from_devices(struct device_domain_info *info);
+void device_block_translation(struct device *dev);
+
 /*
  * Options used in qi_submit_sync:
  * QI_OPT_WAIT_DRAIN - Wait for PRQ drain completion, spec 6.5.2.8.

@@ -53,6 +53,9 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 		return ret;
 	}
 
+	if (pasid == PASID_RID2PASID && info->domain)
+		device_block_translation(dev);
+
 	spin_lock(&iommu->lock);
 	ret = intel_pasid_setup_nested(iommu, dev, pasid,
 				       (pgd_t *)(uintptr_t)ndomain->s1_pgtbl,
@@ -61,10 +64,13 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 	if (ret)
 		return ret;
 
+	if (pasid == PASID_RID2PASID && !info->domain)
+		info->domain = dmar_domain;
+
 	mutex_lock(&ndomain->mutex);
 	if (++info->nested_users == 1) {
 		list_add(&info->nested, &ndomain->devices);
-		list_add(&info->link, &dmar_domain->devices);
+		add_info_to_devices(info, dmar_domain);
 	}
 	mutex_unlock(&ndomain->mutex);
 
@@ -86,7 +92,7 @@ static void intel_nested_detach_dev_pasid(struct iommu_domain *domain,
 	mutex_lock(&ndomain->mutex);
 	if (--info->nested_users == 0) {
 		list_del(&info->nested);
-		list_del(&info->link);
+		del_info_from_devices(info);
 	}
 	mutex_unlock(&ndomain->mutex);
 }
