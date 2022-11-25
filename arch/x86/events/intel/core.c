@@ -2211,9 +2211,11 @@ static void __intel_pmu_enable_all(int added, bool pmi)
 	intel_pmu_lbr_enable_all(pmi);
 
 	if (cpuc->fixed_ctrl_val != cpuc->active_fixed_ctrl_val) {
-		wrmsrl(MSR_ARCH_PERFMON_FIXED_CTR_CTRL, cpuc->fixed_ctrl_val);
+		wrmsrl_batch(MSR_ARCH_PERFMON_FIXED_CTR_CTRL, cpuc->fixed_ctrl_val);
 		cpuc->active_fixed_ctrl_val = cpuc->fixed_ctrl_val;
 	}
+
+	msrlist_writel();
 
 	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL,
 	       intel_ctrl & ~cpuc->intel_ctrl_guest_mask);
@@ -2457,7 +2459,7 @@ static void intel_pmu_disable_fixed(struct perf_event *event)
 
 static inline void __intel_pmu_disable_event(struct hw_perf_event *hwc)
 {
-	wrmsrl(hwc->config_base, hwc->config);
+	wrmsrl_batch(hwc->config_base, hwc->config);
 }
 
 static void intel_pmu_disable_event(struct perf_event *event)
@@ -2524,15 +2526,15 @@ static int icl_set_topdown_event_period(struct perf_event *event)
 	 * Don't need to clear them again.
 	 */
 	if (left == x86_pmu.max_period) {
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, 0);
-		wrmsrl(MSR_PERF_METRICS, 0);
+		wrmsrl_batch(MSR_CORE_PERF_FIXED_CTR3, 0);
+		wrmsrl_batch(MSR_PERF_METRICS, 0);
 		hwc->saved_slots = 0;
 		hwc->saved_metric = 0;
 	}
 
 	if ((hwc->saved_slots) && is_slots_event(event)) {
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, hwc->saved_slots);
-		wrmsrl(MSR_PERF_METRICS, hwc->saved_metric);
+		wrmsrl_batch(MSR_CORE_PERF_FIXED_CTR3, hwc->saved_slots);
+		wrmsrl_batch(MSR_PERF_METRICS, hwc->saved_metric);
 	}
 
 	perf_event_update_userpage(event);
@@ -2677,8 +2679,8 @@ static u64 intel_update_topdown_event(struct perf_event *event, int metric_end)
 
 	if (reset) {
 		/* The fixed counter 3 has to be written before the PERF_METRICS. */
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, 0);
-		wrmsrl(MSR_PERF_METRICS, 0);
+		wrmsrl_batch(MSR_CORE_PERF_FIXED_CTR3, 0);
+		wrmsrl_batch(MSR_PERF_METRICS, 0);
 		if (event)
 			update_saved_topdown_regs(event, 0, 0, metric_end);
 	}
@@ -2783,9 +2785,9 @@ static void intel_pmu_enable_fixed(struct perf_event *event)
 static inline void __intel_pmu_enable_event(struct hw_perf_event *hwc)
 {
 	if (hwc->extra_reg.reg)
-		wrmsrl(hwc->extra_reg.reg, hwc->extra_reg.config);
+		wrmsrl_batch(hwc->extra_reg.reg, hwc->extra_reg.config);
 
-	wrmsrl(hwc->config_base, (hwc->config | ARCH_PERFMON_EVENTSEL_ENABLE));
+	wrmsrl_batch(hwc->config_base, (hwc->config | ARCH_PERFMON_EVENTSEL_ENABLE));
 }
 static void intel_pmu_enable_event(struct perf_event *event)
 {
@@ -2841,7 +2843,7 @@ int intel_pmu_save_and_restart(struct perf_event *event)
 	 */
 	if (unlikely(event_is_checkpointed(event))) {
 		/* No race with NMIs because the counter should not be armed */
-		wrmsrl(event->hw.event_base, 0);
+		wrmsrl_batch(event->hw.event_base, 0);
 		local64_set(&event->hw.prev_count, 0);
 	}
 	return static_call(x86_pmu_set_period)(event);
@@ -2857,7 +2859,7 @@ static int intel_pmu_set_period(struct perf_event *event)
 
 	ret = __x86_perf_event_set_period(event, &value);
 
-	wrmsrl(event->hw.event_base, value);
+	wrmsrl_batch(event->hw.event_base, value);
 
 	return ret;
 }

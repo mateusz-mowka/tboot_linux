@@ -17,6 +17,7 @@
 #include <asm/fpu/xstate.h>
 #include <asm/intel_ds.h>
 #include <asm/cpu.h>
+#include <asm/msr-list.h>
 
 /* To enable MSR tracing please use the generic trace points. */
 
