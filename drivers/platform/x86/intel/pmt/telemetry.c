@@ -81,20 +81,6 @@ static int pmt_telem_header_decode(struct intel_pmt_entry *entry,
 		return 1;
 
 	header->access_type = TELEM_ACCESS(readl(disc_table));
-
-	/*
-	 * XXX: GNR workaround
-	 * Some discovery structures may be space holders for aggregators
-	 * that aren't present. In this case the entire header will contain
-	 * all 0xF's. Use access_type == 0xF (which is not currently defined)
-	 * to detect this.
-	 */
-	if (header->access_type == 0xF) {
-		pr_debug("%s: GNR WA: Skipping invalid telemetry region\n",
-			 __func__);
-		return 1;
-	}
-
 	header->guid = readl(disc_table + TELEM_GUID_OFFSET);
 	header->base_offset = readl(disc_table + TELEM_BASE_OFFSET);
 
