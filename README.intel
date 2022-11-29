@@ -59,6 +59,8 @@ GNR PO bkc-v1.4
    (https://hsdes.intel.com/appstore/article/#/14017928408)
 6. PMT: maintain contiguous entry list
 7. EDAC: Fix miscalculation of memory controller MMIO offsets.
+8. PMT: Revert "Ignore regions with all 0xF"
+   Fixes slow reboot problem: https://hsdes.intel.com/resource/22016170922
 
 GNR PO bkc-v1.3
 ===============
