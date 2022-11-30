@@ -61,6 +61,7 @@ GNR PO bkc-v1.4
 7. EDAC: Fix miscalculation of memory controller MMIO offsets.
 8. PMT: Revert "Ignore regions with all 0xF"
    Fixes slow reboot problem: https://hsdes.intel.com/resource/22016170922
+9. KVM: TDX: fixes local var retries initialization error
 
 GNR PO bkc-v1.3
 ===============
