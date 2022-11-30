@@ -67,6 +67,7 @@ GNR PO bkc-v1.4
 	Changes vdev name from vdevX to vdevN.M (where N is dsa number and M is index within dsa)
 11.Vt-d: Fix devices list corruption, causing host hang while boot up a guest with DSA PF passthrough
 	https://jira.devtools.intel.com/browse/LFE-6343
+12.Config: Add kernel config options to support hyperv
 
 GNR PO bkc-v1.3
 ===============
