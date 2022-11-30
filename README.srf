@@ -6,6 +6,9 @@ SRF PO bkc-v0.2
 1. Rebased on top of GNR-PO-BKC-v1.4.2 kernel.
 2. Fixed different NUMA initiator/target enumeration issue.
    HSD: https://hsdes.intel.com/resource/22015826573
+3. Added support for KVM CMPccXADD/AVX instructions.
+   jira: https://jira.devtools.intel.com/browse/LFE-24
+   jira: https://jira.devtools.intel.com/browse/LFE-25
 
 SRF PO bkc-v0.1
 ===============
