@@ -65,6 +65,8 @@ GNR PO bkc-v1.4
 10.DSA: Live migration feature, supports
 	IDXD VDEV migration for non-vIOMMU case.
 	Changes vdev name from vdevX to vdevN.M (where N is dsa number and M is index within dsa)
+11.Vt-d: Fix devices list corruption, causing host hang while boot up a guest with DSA PF passthrough
+	https://jira.devtools.intel.com/browse/LFE-6343
 
 GNR PO bkc-v1.3
 ===============
