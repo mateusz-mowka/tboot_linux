@@ -974,7 +974,14 @@ static struct syscore_ops mc_syscore_ops = {
 
 static int mc_cpu_starting(unsigned int cpu)
 {
-	enum ucode_state err = microcode_ops->apply_microcode(cpu);
+	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
+	enum ucode_state err;
+
+	memset(uci, 0, sizeof(*uci));
+
+	microcode_ops->collect_cpu_info(cpu, &uci->cpu_sig);
+
+	err = microcode_ops->apply_microcode(cpu);
 
 	pr_debug("%s: CPU%d, err: %d\n", __func__, cpu, err);
 
