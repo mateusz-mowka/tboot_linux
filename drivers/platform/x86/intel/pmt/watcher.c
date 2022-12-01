@@ -522,6 +522,12 @@ pmt_watcher_create_entry(struct intel_pmt_entry *entry,
 	if (!pmt_watcher_is_sampler(watcher))
 		return 1;
 
+	/* XXX: W/O for incorrect size of 2nd sampler */
+	if (header->guid == 0x1a067000) {
+		entry->size = 48;
+		pr_debug("%s: Changed header size to %lu\n", __func__, entry->size);
+	}
+
 	watcher->ctrl_offset = SMPLR_CONTROL_OFFSET;
 	watcher->vector_start = SMPLR_VECTOR_OFFSET;
 
