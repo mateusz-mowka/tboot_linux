@@ -68,6 +68,10 @@ GNR PO bkc-v1.4
 11.Vt-d: Fix devices list corruption, causing host hang while boot up a guest with DSA PF passthrough
 	https://jira.devtools.intel.com/browse/LFE-6343
 12.Config: Add kernel config options to support hyperv
+13.IDXD-DSA: Add workaround for ENQ latency problem.
+	https://hsdes.intel.com/appstore/article/#/14014470913
+	https://hsdes.intel.com/appstore/article/#/14014513672
+
 
 GNR PO bkc-v1.3
 ===============
