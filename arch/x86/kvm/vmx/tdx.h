@@ -456,7 +456,7 @@ void tdx_reclaim_td_page(struct tdx_td_page *page);
 void tdx_track(struct kvm_tdx *kvm_tdx);
 
 #else
-static inline int tdx_module_setup(void) { return -ENODEV; };
+static inline int tdx_module_setup(void) { return -ENODEV; }
 
 struct kvm_tdx {
 	struct kvm kvm;
@@ -472,5 +472,13 @@ static inline bool is_debug_td(struct kvm_vcpu *vcpu) { return false; }
 static inline struct kvm_tdx *to_kvm_tdx(struct kvm *kvm) { return NULL; }
 static inline struct vcpu_tdx *to_tdx(struct kvm_vcpu *vcpu) { return NULL; }
 #endif /* CONFIG_INTEL_TDX_HOST */
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+int kvm_tdx_module_update(void);
+
+#else /* !CONFIG_INTEL_TDX_MODULE_UPDATE */
+static inline int kvm_tdx_module_update(void) { return -ENODEV; }
+
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
 
 #endif /* __KVM_X86_TDX_H */

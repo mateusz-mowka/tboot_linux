@@ -5057,7 +5057,7 @@ void tdx_hardware_unsetup(void)
 }
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
-static int kvm_tdx_module_update(void)
+int kvm_tdx_module_update(void)
 {
 	int ret;
 	unsigned int num_tds;

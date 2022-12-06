@@ -63,7 +63,9 @@ static __init int vt_hardware_setup(void)
 
 static int __init vt_post_hardware_enable_setup(void)
 {
-	enable_tdx = enable_tdx && !tdx_module_setup();
+	if (enable_tdx && kvm_tdx_module_update() && tdx_module_setup())
+		enable_tdx = false;
+
 	/*
 	 * Even if it failed to initialize TDX module, conventional VMX is
 	 * available.  Keep VMX usable.
