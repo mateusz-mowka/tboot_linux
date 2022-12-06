@@ -5057,13 +5057,25 @@ void tdx_hardware_unsetup(void)
 }
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
-static int kvm_tdx_module_update(const void *module, size_t module_size,
-				 const void *sigstruct, size_t sigstruct_size)
+static int kvm_tdx_module_update(void)
 {
 	int ret;
 	unsigned int num_tds;
 	struct tmu_req req;
 	bool recoverable = false;
+	const struct firmware *module, *sigstruct;
+
+	ret = request_firmware_direct(&module, "intel-seam/libtdx.bin",
+				      &tdx_pdev->dev);
+	if (ret)
+		return ret;
+
+	ret = request_firmware_direct(&sigstruct,
+				      "intel-seam/libtdx.bin.sigstruct",
+				      &tdx_pdev->dev);
+	if (ret) {
+		goto release_module;
+	}
 
 	num_tds = td_creation_block();
 
@@ -5073,10 +5085,10 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 		goto unblock;
 
 	req.preserving = !!num_tds;
-	req.module = module;
-	req.signature = sigstruct;
-	req.module_size = module_size;
-	req.signature_size = sigstruct_size;
+	req.module = module->data;
+	req.signature = sigstruct->data;
+	req.module_size = module->size;
+	req.signature_size = sigstruct->size;
 
 	if (req.preserving) {
 		/* Block TDX module APIs */
@@ -5121,13 +5133,19 @@ static int kvm_tdx_module_update(const void *module, size_t module_size,
 		ret = tdx_module_setup();
 		enable_tdx = !ret;
 	} else if (!recoverable) {
+		pr_info("Fail to update TDX module and old TDX module is unrecoverable");
 		enable_tdx = false;
+	} else {
+		pr_info("Fail to update TDX module but old TDX module still works");
 	}
 
 hardware_disable:
 	kvm_hardware_disable_all();
 unblock:
 	td_creation_unblock();
+	release_firmware(sigstruct);
+release_module:
+	release_firmware(module);
 	return ret;
 }
 
@@ -5135,33 +5153,10 @@ static ssize_t reload_store(struct device *dev,
 			    struct device_attribute *attr,
 			    const char *buf, size_t size)
 {
-	int ret;
-	const struct firmware *module, *sigstruct;
-
 	if (!sysfs_streq(buf, "update"))
 		return -EINVAL;
 
-	ret = request_firmware_direct(&module, "intel-seam/libtdx.bin",
-				      &tdx_pdev->dev);
-	if (ret)
-		return ret;
-
-	ret = request_firmware_direct(&sigstruct,
-				      "intel-seam/libtdx.bin.sigstruct",
-				      &tdx_pdev->dev);
-	if (ret) {
-		release_firmware(module);
-		return ret;
-	}
-
-	ret = kvm_tdx_module_update(module->data, module->size,
-				    sigstruct->data, sigstruct->size);
-	if (!ret)
-		ret = size;
-
-	release_firmware(sigstruct);
-	release_firmware(module);
-	return ret;
+	return kvm_tdx_module_update() ? : size;
 }
 static DEVICE_ATTR_WO(reload);
 
