@@ -16,6 +16,9 @@ SRF PO bkc-v0.2
    jira: https://jira.devtools.intel.com/browse/LFE-638
    jira: https://jira.devtools.intel.com/browse/LFE-651
    jira: https://jira.devtools.intel.com/browse/LFE-653
+5. Added support for KVM LASS.
+   repo: https://github.com/intel-plai/kvm_lass.git
+   jira: https://jira.devtools.intel.com/browse/LFE-684
 
 SRF PO bkc-v0.1
 ===============
