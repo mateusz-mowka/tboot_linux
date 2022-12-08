@@ -119,8 +119,10 @@ sdsi_memcpy64_toio(u64 __iomem *to, const u64 *from, size_t count_bytes)
 	size_t count = count_bytes / sizeof(*to);
 	int i;
 
-	for (i = 0; i < count; i++)
+	for (i = 0; i < count; i++) {
+		pr_debug("%s:\t0x%08llx\n", __func__, from[i]);
 		writeq(from[i], &to[i]);
+	}
 }
 
 static __always_inline void
@@ -131,6 +133,33 @@ sdsi_memcpy64_fromio(u64 *to, const u64 __iomem *from, size_t count_bytes)
 
 	for (i = 0; i < count; i++)
 		to[i] = readq(&from[i]);
+}
+
+static void print_control(u64 control)
+{
+	pr_debug("\n"
+		"SDSi CONTROL REGISTER:\n"
+		"\tRUN_BUSY:      %lu\n"
+		"\tREAD_WRITE:    %lu\n"
+		"\tSOM:           %lu\n"
+		"\tEOM:           %lu\n"
+		"\tOWNER:         0x%lx\n"
+		"\tCOMPLETE:      %lu\n"
+		"\tREADY:         %lu\n"
+		"\tSTATUS:        0x%lx\n"
+		"\tPACKET_SIZE:   %lu\n"
+		"\tMSG_SIZE:      %lu\n"
+		"\n",
+		FIELD_GET(CTRL_RUN_BUSY, control),
+		FIELD_GET(CTRL_READ_WRITE, control),
+		FIELD_GET(CTRL_SOM, control),
+		FIELD_GET(CTRL_EOM, control),
+		FIELD_GET(CTRL_OWNER, control),
+		FIELD_GET(CTRL_COMPLETE, control),
+		FIELD_GET(CTRL_READY, control),
+		FIELD_GET(CTRL_STATUS, control),
+		FIELD_GET(CTRL_PACKET_SIZE, control),
+		FIELD_GET(CTRL_MSG_SIZE, control));
 }
 
 static inline void sdsi_complete_transaction(struct sdsi_priv *priv)
@@ -168,6 +197,10 @@ static int sdsi_mbox_poll(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
 		  FIELD_PREP(CTRL_SOM, 1) |
 		  FIELD_PREP(CTRL_RUN_BUSY, 1) |
 		  FIELD_PREP(CTRL_PACKET_SIZE, info->size);
+
+	dev_dbg(priv->dev, "Writing to control register:\n");
+	print_control(control);
+
 	writeq(control, priv->control_addr);
 
 	/* For reads, data sizes that are larger than the mailbox size are read in packets. */
@@ -181,8 +214,11 @@ static int sdsi_mbox_poll(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
 					 control & CTRL_READY,
 					 MBOX_POLLING_PERIOD_US,
 					 timeout_us);
-		if (ret)
+		if (ret) {
+			dev_dbg(priv->dev, "%s: Polling ready bit timed out, error %d\n", __func__, ret);
+			print_control(control);
 			break;
+		}
 
 		eom = FIELD_GET(CTRL_EOM, control);
 		status = FIELD_GET(CTRL_STATUS, control);
@@ -257,13 +293,14 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 
 	lockdep_assert_held(&priv->mb_lock);
 
-	dev_dbg(priv->dev, "%s\n", __func__);
-
 	/* Format and send the read command */
 	control = FIELD_PREP(CTRL_EOM, 1) |
 		  FIELD_PREP(CTRL_SOM, 1) |
 		  FIELD_PREP(CTRL_RUN_BUSY, 1) |
 		  FIELD_PREP(CTRL_PACKET_SIZE, info->packet_size);
+
+	dev_dbg(priv->dev, "%s: Writing to control register:\n", __func__);
+	print_control(control);
 
 	writeq(control, priv->control_addr);
 
@@ -277,6 +314,9 @@ static int sdsi_mbox_cmd_write(struct sdsi_priv *priv, struct sdsi_mbox_info *in
 
 	lockdep_assert_held(&priv->mb_lock);
 
+	dev_dbg(priv->dev, "%s: Copying %ld more bytes:\n", __func__,
+		info->size - SDSI_SIZE_CMD);
+
 	/* Write rest of the payload */
 	sdsi_memcpy64_toio(priv->mbox_addr + SDSI_SIZE_CMD, info->payload + 1,
 			   info->size - SDSI_SIZE_CMD);
@@ -288,6 +328,9 @@ static int sdsi_mbox_cmd_write(struct sdsi_priv *priv, struct sdsi_mbox_info *in
 		  FIELD_PREP(CTRL_READ_WRITE, 1) |
 		  FIELD_PREP(CTRL_PACKET_SIZE, info->packet_size) |
 		  FIELD_PREP(CTRL_MSG_SIZE, info->packet_size);
+
+	dev_dbg(priv->dev, "Writing to control register:\n");
+	print_control(control);
 
 	writeq(control, priv->control_addr);
 
@@ -419,11 +462,19 @@ static ssize_t provision_akc_write(struct file *filp, struct kobject *kobj,
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct sdsi_priv *priv = dev_get_drvdata(dev);
+	int ret;
 
+	dev_dbg(priv->dev, "****** Start %s ******\n", __func__);
+
+	dev_dbg(priv->dev, "loff: %lld, count:	%ld\n", off, count);
 	if (off)
 		return -ESPIPE;
 
-	return sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_AKC);
+	ret = sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_AKC);
+
+	dev_dbg(priv->dev, "****** End %s ******\n\n", __func__);
+
+	return ret;
 }
 static BIN_ATTR_WO(provision_akc, SDSI_SIZE_WRITE_MSG);
 
@@ -433,11 +484,19 @@ static ssize_t provision_cap_write(struct file *filp, struct kobject *kobj,
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct sdsi_priv *priv = dev_get_drvdata(dev);
+	int ret;
 
+	dev_dbg(priv->dev, "****** Start %s ******\n", __func__);
+
+	dev_dbg(priv->dev, "loff: %lld, count: %ld\n", off, count);
 	if (off)
 		return -ESPIPE;
 
-	return sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_CAP);
+	ret = sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_CAP);
+
+	dev_dbg(priv->dev, "****** End %s ******\n\n", __func__);
+
+	return ret;
 }
 static BIN_ATTR_WO(provision_cap, SDSI_SIZE_WRITE_MSG);
 
