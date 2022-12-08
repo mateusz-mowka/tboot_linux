@@ -46,6 +46,11 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v1.5
+===============
+1. RAS: Add error handling for copy on write fault for uncorrectable error
+   Fixes https://hsdes.intel.com/resource/14018142780
+
 GNR PO bkc-v1.4
 ===============
 1. IDXD-DSA: Fix initialization of event log size
