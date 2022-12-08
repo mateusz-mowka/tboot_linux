@@ -10,33 +10,55 @@
 
 #include "ifs.h"
 
+enum test_types {
+	IFS_SAF,
+	IFS_ARRAY,
+};
+
 #define X86_MATCH(model)				\
 	X86_MATCH_VENDOR_FAM_MODEL_FEATURE(INTEL, 6,	\
 		INTEL_FAM6_##model, X86_FEATURE_CORE_CAPABILITIES, NULL)
 
 static const struct x86_cpu_id ifs_cpu_ids[] __initconst = {
 	X86_MATCH(SAPPHIRERAPIDS_X),
+	X86_MATCH(EMERALDRAPIDS_X),
 	{}
 };
 MODULE_DEVICE_TABLE(x86cpu, ifs_cpu_ids);
 
-static struct ifs_device ifs_device = {
-	.data = {
-		.integrity_cap_bit = MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT,
-		.test_num = 0,
+static struct ifs_device ifs_devices[] = {
+	[IFS_SAF] = {
+		.data = {
+			.integrity_cap_bit = MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT,
+			.test_num = IFS_SAF,
+		},
+		.misc = {
+			.name = "intel_ifs_0",
+			.nodename = "intel_ifs/0",
+			.minor = MISC_DYNAMIC_MINOR,
+		},
 	},
-	.misc = {
-		.name = "intel_ifs_0",
-		.nodename = "intel_ifs/0",
-		.minor = MISC_DYNAMIC_MINOR,
+	[IFS_ARRAY] = {
+		.data = {
+			.integrity_cap_bit = MSR_INTEGRITY_CAPS_ARRAY_BIST_BIT,
+			.test_num = IFS_ARRAY,
+		},
+		.misc = {
+			.name = "intel_ifs_1",
+			.nodename = "intel_ifs/1",
+			.minor = MISC_DYNAMIC_MINOR,
+		},
 	},
 };
+
+#define IFS_NUMTESTS ARRAY_SIZE(ifs_devices)
 
 static int __init ifs_init(void)
 {
 	const struct x86_cpu_id *m;
+	int ndevices = 0;
 	u64 msrval;
-	int ret;
+	int i;
 
 	m = x86_match_cpu(ifs_cpu_ids);
 	if (!m)
@@ -51,28 +73,42 @@ static int __init ifs_init(void)
 	if (rdmsrl_safe(MSR_INTEGRITY_CAPS, &msrval))
 		return -ENODEV;
 
-	ifs_device.misc.groups = ifs_get_groups();
+	for (i = 0; i < IFS_NUMTESTS; i++) {
+		if (!(msrval & BIT(ifs_devices[i].data.integrity_cap_bit)))
+			continue;
 
-	if (!(msrval & BIT(ifs_device.data.integrity_cap_bit)))
-		return -ENODEV;
+		ifs_devices[i].data.pkg_auth = kmalloc_array(topology_max_packages(),
+							     sizeof(bool), GFP_KERNEL);
+		if (!ifs_devices[i].data.pkg_auth)
+			continue;
 
-	ifs_device.data.pkg_auth = kmalloc_array(topology_max_packages(), sizeof(bool), GFP_KERNEL);
-	if (!ifs_device.data.pkg_auth)
-		return -ENOMEM;
+		switch (ifs_devices[i].data.test_num) {
+		case IFS_SAF:
+			ifs_devices[i].misc.groups = ifs_get_groups();
+			break;
+		case IFS_ARRAY:
+			ifs_devices[i].misc.groups = ifs_get_array_groups();
+		}
 
-	ret = misc_register(&ifs_device.misc);
-	if (ret) {
-		kfree(ifs_device.data.pkg_auth);
-		return ret;
+		if (misc_register(&ifs_devices[i].misc))
+			kfree(ifs_devices[i].data.pkg_auth);
+		else
+			ndevices++;
 	}
 
-	return 0;
+	return ndevices ? 0 : -ENODEV;
 }
 
 static void __exit ifs_exit(void)
 {
-	misc_deregister(&ifs_device.misc);
-	kfree(ifs_device.data.pkg_auth);
+	int i;
+
+	for (i = 0; i < IFS_NUMTESTS; i++) {
+		if (ifs_devices[i].misc.this_device) {
+			misc_deregister(&ifs_devices[i].misc);
+			kfree(ifs_devices[i].data.pkg_auth);
+		}
+	}
 }
 
 module_init(ifs_init);
