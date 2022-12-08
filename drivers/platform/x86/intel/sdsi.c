@@ -116,8 +116,10 @@ sdsi_memcpy64_toio(u64 __iomem *to, const u64 *from, size_t count_bytes)
 	size_t count = count_bytes / sizeof(*to);
 	int i;
 
-	for (i = 0; i < count; i++)
+	for (i = 0; i < count; i++) {
+		pr_debug("%s:\t0x%08llx\n", __func__, from[i]);
 		writeq(from[i], &to[i]);
+	}
 }
 
 static __always_inline void
@@ -134,16 +136,16 @@ static void print_control(u64 control)
 {
 	pr_debug("\n"
 		"SDSi CONTROL REGISTER:\n"
-		"RUN_BUSY:      %lu\n"
-		"READ_WRITE:    %lu\n"
-		"SOM:           %lu\n"
-		"EOM:           %lu\n"
-		"OWNER:         0x%lx\n"
-		"COMPLETE:      %lu\n"
-		"READY:         %lu\n"
-		"STATUS:        0x%lx\n"
-		"PACKET_SIZE:   %lu\n"
-		"MSG_SIZE:      %lu\n"
+		"\tRUN_BUSY:      %lu\n"
+		"\tREAD_WRITE:    %lu\n"
+		"\tSOM:           %lu\n"
+		"\tEOM:           %lu\n"
+		"\tOWNER:         0x%lx\n"
+		"\tCOMPLETE:      %lu\n"
+		"\tREADY:         %lu\n"
+		"\tSTATUS:        0x%lx\n"
+		"\tPACKET_SIZE:   %lu\n"
+		"\tMSG_SIZE:      %lu\n"
 		"\n",
 		FIELD_GET(CTRL_RUN_BUSY, control),
 		FIELD_GET(CTRL_READ_WRITE, control),
@@ -192,13 +194,15 @@ static int sdsi_mbox_poll(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
 
 	lockdep_assert_held(&priv->mb_lock);
 
-	dev_dbg(priv->dev, "%s\n", __func__);
-
 	/* Format and send the read command */
 	control = FIELD_PREP(CTRL_EOM, 1) |
 		  FIELD_PREP(CTRL_SOM, 1) |
 		  FIELD_PREP(CTRL_RUN_BUSY, 1) |
 		  FIELD_PREP(CTRL_PACKET_SIZE, info->size);
+
+	dev_dbg(priv->dev, "Writing to control register:\n");
+	print_control(control);
+
 	writeq(control, priv->control_addr);
 
 	/* For reads, data sizes that are larger than the mailbox size are read in packets. */
@@ -216,6 +220,7 @@ static int sdsi_mbox_poll(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
 					 timeout_us);
 		if (ret) {
 			dev_dbg(priv->dev, "%s: Polling ready bit timed out, error %d\n", __func__, ret);
+			print_control(control);
 			break;
 		}
 
@@ -293,13 +298,14 @@ static int sdsi_mbox_cmd_read(struct sdsi_priv *priv, struct sdsi_mbox_info *inf
 
 	lockdep_assert_held(&priv->mb_lock);
 
-	dev_dbg(priv->dev, "%s\n", __func__);
-
 	/* Format and send the read command */
 	control = FIELD_PREP(CTRL_EOM, 1) |
 		  FIELD_PREP(CTRL_SOM, 1) |
 		  FIELD_PREP(CTRL_RUN_BUSY, 1) |
 		  FIELD_PREP(CTRL_PACKET_SIZE, info->packet_size);
+
+	dev_dbg(priv->dev, "%s: Writing to control register:\n", __func__);
+	print_control(control);
 
 	writeq(control, priv->control_addr);
 
@@ -313,18 +319,23 @@ static int sdsi_mbox_cmd_write(struct sdsi_priv *priv, struct sdsi_mbox_info *in
 
 	lockdep_assert_held(&priv->mb_lock);
 
-	dev_dbg(priv->dev, "%s\n", __func__);
+	dev_dbg(priv->dev, "%s: Copying %ld more bytes:\n", __func__,
+		info->size - SDSI_SIZE_CMD);
 
+	/* Format and send the write command */
 	/* Write rest of the payload */
 	sdsi_memcpy64_toio(priv->mbox_addr + SDSI_SIZE_CMD, info->payload + 1,
 			   info->size - SDSI_SIZE_CMD);
-	/* Format and send the write command */
+
 	control = FIELD_PREP(CTRL_EOM, 1) |
 		  FIELD_PREP(CTRL_SOM, 1) |
 		  FIELD_PREP(CTRL_RUN_BUSY, 1) |
 		  FIELD_PREP(CTRL_READ_WRITE, 1) |
 		  FIELD_PREP(CTRL_PACKET_SIZE, info->packet_size) |
 		  FIELD_PREP(CTRL_MSG_SIZE, info->packet_size);
+
+	dev_dbg(priv->dev, "Writing to control register:\n");
+	print_control(control);
 
 	writeq(control, priv->control_addr);
 
@@ -471,16 +482,13 @@ static ssize_t provision_akc_write(struct file *filp, struct kobject *kobj,
 
 	dev_dbg(priv->dev, "****** Start %s ******\n", __func__);
 
-	dev_dbg(priv->dev, "loff:	%lld\n"
-		"count:	%ld\n",
-		off, count);
+	dev_dbg(priv->dev, "loff: %lld, count:	%ld\n", off, count);
 	if (off)
 		return -ESPIPE;
 
 	ret = sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_AKC);
 
-	dev_dbg(priv->dev, "****** End %s ******\n"
-		"\n", __func__);
+	dev_dbg(priv->dev, "****** End %s ******\n\n", __func__);
 
 	return ret;
 }
@@ -496,16 +504,13 @@ static ssize_t provision_cap_write(struct file *filp, struct kobject *kobj,
 
 	dev_dbg(priv->dev, "****** Start %s ******\n", __func__);
 
-	dev_dbg(priv->dev, "loff:	%lld\n"
-		"count:	%ld\n",
-		off, count);
+	dev_dbg(priv->dev, "loff: %lld, count: %ld\n", off, count);
 	if (off)
 		return -ESPIPE;
 
 	ret = sdsi_provision(priv, buf, count, SDSI_CMD_PROVISION_CAP);
 
-	dev_dbg(priv->dev, "****** End %s ******\n"
-		"\n", __func__);
+	dev_dbg(priv->dev, "****** End %s ******\n\n", __func__);
 
 	return ret;
 }
