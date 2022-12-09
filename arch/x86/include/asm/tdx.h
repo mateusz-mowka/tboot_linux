@@ -299,6 +299,45 @@ static inline u64 tdh_phymem_page_wbinvd(u64 page)
 			    page, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
+static inline u64
+seamcall_io_retry(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
+		  u64 r12, u64 r13, u64 r14, u64 r15,
+		  struct tdx_module_output *out)
+{
+	u64 err, retries = 0;
+
+	do {
+		err = __seamcall_io(op, rcx, rdx, r8, r9, r10, r11,
+				    r12, r13, r14, r15, out);
+
+		/*
+		 * If seamcall happens after VMXOFF during reboot,
+		 * the instruction is ignored.
+		 */
+		if (err == TDX_SEAMCALL_UD) {
+			#if 0
+			kvm_spurious_fault();
+			#endif
+			pr_warn("%s err 0x%llx TDX_SEAMCALL_UD\n", __func__, err);
+			return 0;
+		}
+		/*
+		 * On success, non-recoverable errors, or recoverable errors
+		 * that don't expect retries, hand it over to the caller.
+		 */
+		if (!err ||
+		    err == TDX_VCPU_ASSOCIATED ||
+		    err == TDX_VCPU_NOT_ASSOCIATED ||
+		    err == TDX_INTERRUPTED_RESUMABLE)
+			return err;
+
+		if (retries++ > TDX_SEAMCALL_RETRY_MAX)
+			break;
+	} while (TDX_SEAMCALL_ERR_RECOVERABLE(err));
+
+	return err;
+}
+
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
 {
 	u64 ret;
@@ -308,8 +347,8 @@ static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val)
          * Input: RDX: register id
          * Input: R8:  register value
          */
-	ret = __seamcall_io(TDH_IOMMU_SETREG, iommu_id, reg, val,
-			    0, 0, 0, 0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_IOMMU_SETREG, iommu_id, reg, val,
+				0, 0, 0, 0, 0, 0, 0, NULL);
 
 	pr_info("%s: iommu_id 0x%llx reg 0x%llx val 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, reg, val, ret);
@@ -327,8 +366,8 @@ static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val)
          * Input: RDX: register id
          * Output: R8: register value
 	 */
-	ret = __seamcall_io(TDH_IOMMU_GETREG, iommu_id, reg,
-			    0, 0, 0, 0, 0, 0, 0, 0, &out);
+	ret = seamcall_io_retry(TDH_IOMMU_GETREG, iommu_id, reg,
+				0, 0, 0, 0, 0, 0, 0, 0, &out);
 
 	pr_info("%s: iommu_id 0x%llx reg 0x%llx val 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, reg, out.r8, ret);
@@ -355,8 +394,8 @@ static inline u64 tdh_spdm_create(u64 iommu_id, u64 spdm_session_idx, u64 spdm_i
 	 * Output: RAX - SEAMCALL instruction return code
 	 */
 
-	ret = __seamcall_io(TDH_SPDM_CREATE, iommu_id, spdm_session_idx,
-			    spdm_info_pa, 0, 0, 0, 0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_SPDM_CREATE, iommu_id, spdm_session_idx,
+				spdm_info_pa, 0, 0, 0, 0, 0, 0, 0, NULL);
 	pr_info("%s: iommu_id 0x%llx spdm_session_idx 0x%llx spdm_info_pa 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, spdm_session_idx, spdm_info_pa, ret);
 
@@ -379,8 +418,8 @@ static inline u64 tdh_spdm_delete(u64 iommu_id, u64 spdm_session_idx, u64 *spdm_
 	 * Output: RCX - Physical address of the freed SPDM session information page
 	 */
 
-	ret = __seamcall_io(TDH_SPDM_DELETE, iommu_id, spdm_session_idx,
-			    0, 0, 0, 0, 0, 0, 0, 0, &out);
+	ret = seamcall_io_retry(TDH_SPDM_DELETE, iommu_id, spdm_session_idx,
+				0, 0, 0, 0, 0, 0, 0, 0, &out);
 	pr_info("%s: iommu_id 0x%llx spdm_session_idx 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, spdm_session_idx, ret);
 
@@ -422,10 +461,10 @@ static inline u64 tdh_ide_stream_create(u64 iommu_id,
 	 * Output: RAX - SEAMCALL instruction return code
 	 */
 
-	ret = __seamcall_io(TDH_IDE_STREAM_CREATE, iommu_id, spdm_session_idx,
-			    stream_cfg_reg, stream_ctrl_reg, rid_assoc1_reg,
-			    rid_assoc2_reg, addr_assoc1_reg, addr_assoc2_reg,
-			    addr_assoc3_reg, stream_exinfo_pa, NULL);
+	ret = seamcall_io_retry(TDH_IDE_STREAM_CREATE, iommu_id, spdm_session_idx,
+				stream_cfg_reg, stream_ctrl_reg, rid_assoc1_reg,
+				rid_assoc2_reg, addr_assoc1_reg, addr_assoc2_reg,
+				addr_assoc3_reg, stream_exinfo_pa, NULL);
 	pr_info("%s: iommu_id 0x%llx spdm_session_idx 0x%llx stream_cfg 0x%llx stream_ctrl_reg 0x%llx rid_assoc1_reg 0x%llx rid_assoc2_reg 0x%llx addr_assoc1_reg 0x%llx addr_assoc2_reg 0x%llx addr_assoc3_reg 0x%llx stream_exinfo_pa 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, spdm_session_idx, stream_cfg_reg, stream_ctrl_reg,
 		rid_assoc1_reg, rid_assoc2_reg, addr_assoc1_reg, addr_assoc2_reg,
@@ -448,8 +487,8 @@ static inline u64 tdh_ide_stream_block(u64 iommu_id, u64 stream_id)
 	 * Output: RAX - SEAMCALL instruction return code
 	 */
 
-	ret = __seamcall_io(TDH_IDE_STREAM_BLOCK, iommu_id, stream_id,
-			    0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_IDE_STREAM_BLOCK, iommu_id, stream_id,
+				0, 0, 0, 0, 0, 0, 0, 0, NULL);
 	pr_info("%s: iommu_id 0x%llx stream_id 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, stream_id, ret);
 
@@ -470,8 +509,8 @@ static inline u64 tdh_ide_stream_delete(u64 iommu_id, u64 stream_id)
 	 * Output: RAX - SEAMCALL instruction return code
 	 */
 
-	ret = __seamcall_io(TDH_IDE_STREAM_DELETE, iommu_id, stream_id,
-			    0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_IDE_STREAM_DELETE, iommu_id, stream_id,
+				0, 0, 0, 0, 0, 0, 0, 0, NULL);
 
 	pr_info("%s: iommu_id 0x%llx stream_id 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, stream_id, ret);
@@ -503,9 +542,9 @@ static inline u64 tdh_ide_stream_idekmreq(u64 iommu_id,
 	 * Output: RAX - SEAMCALL instruction return code
 	 */
 
-	ret = __seamcall_io(TDH_IDE_STREAM_IDEKMREQ, iommu_id, stream_id,
-			    object_id, ide_km_param, slot_id, message_pa,
-			    0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_IDE_STREAM_IDEKMREQ, iommu_id, stream_id,
+				object_id, ide_km_param, slot_id, message_pa,
+				0, 0, 0, 0, NULL);
 
 	pr_info("%s: iommu_id 0x%llx stream_id 0x%llx object_id 0x%llx ide_km_param 0x%llx slot_id 0x%llx message_pa 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, stream_id, object_id,
@@ -535,8 +574,8 @@ static inline u64 tdh_ide_stream_idekmrsp(u64 iommu_id,
 	 * if authentication successful
 	 */
 
-	ret = __seamcall_io(TDH_IDE_STREAM_IDEKMRSP, iommu_id, stream_id,
-			    message_pa, 0, 0, 0, 0, 0, 0, 0, &out);
+	ret = seamcall_io_retry(TDH_IDE_STREAM_IDEKMRSP, iommu_id, stream_id,
+				message_pa, 0, 0, 0, 0, 0, 0, 0, &out);
 	pr_info("%s: iommu_id 0x%llx stream_id 0x%llx message_pa 0x%llx ret 0x%llx\n",
 		__func__, iommu_id, stream_id, message_pa, ret);
 
@@ -557,8 +596,8 @@ static inline u64 tdh_mmiomt_add(u64 mmiomt_idx, u64 mmiomt_pa)
 	 * Input: RDX - MMIOMT PA of new page
 	 *
 	 */
-	ret =  __seamcall_io(TDH_MMIOMT_ADD, mmiomt_idx, mmiomt_pa,
-			     0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_MMIOMT_ADD, mmiomt_idx, mmiomt_pa,
+				0, 0, 0, 0, 0, 0, 0, 0, NULL);
 	pr_debug("%s: ret %llx, mmiomt_idx %llx, mmiomt_pa %llx\n",
 		 __func__, ret, mmiomt_idx, mmiomt_pa);
 
@@ -576,8 +615,8 @@ static inline u64 tdh_mmiomt_set(u64 mmiomt_idx, u64 mmiomt_info)
 	 * Input: RDX - MMIOMT INFO: devifcs PA and DATA type
 	 *
 	 */
-	ret = __seamcall_io(TDH_MMIOMT_SET, mmiomt_idx, mmiomt_info,
-			    0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_MMIOMT_SET, mmiomt_idx, mmiomt_info,
+				0, 0, 0, 0, 0, 0, 0, 0, NULL);
 
 	pr_debug("%s: ret %llx, mmiomt_idx %llx, mmiomt_info %llx\n",
 		 __func__, ret, mmiomt_idx, mmiomt_info);
@@ -595,8 +634,8 @@ static inline u64 tdh_mmiomt_read(u64 mmiomt_idx, struct tdx_module_output *out)
 	 *
 	 * Output: Entry Value - RCX, RDX, R8, R9
 	 */
-	return __seamcall_io(TDH_MMIOMT_RD, mmiomt_idx,
-			     0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+	return seamcall_io_retry(TDH_MMIOMT_RD, mmiomt_idx,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, out);
 }
 
 static inline u64 tdh_mmiomt_remove(u64 mmiomt_idx)
@@ -609,8 +648,8 @@ static inline u64 tdh_mmiomt_remove(u64 mmiomt_idx)
 	 * Input: RCX -  MMIOMT index
 	 *
 	 */
-	ret = __seamcall_io(TDH_MMIOMT_REMOVE, mmiomt_idx,
-			    0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_MMIOMT_REMOVE, mmiomt_idx,
+				0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 
 	pr_debug("%s: ret %llx, mmiomt_idx %llx\n",
 		 __func__, ret, mmiomt_idx);
@@ -628,8 +667,8 @@ static inline u64 tdh_mmio_map(u64 gpa_page_info, u64 tdr_pa, u64 mmio_pa)
 	 * Input: RDX - TDR PA
 	 * Input: R8 - MMIO PA
 	 */
-	return __seamcall_io(TDH_MMIO_MAP, gpa_page_info, tdr_pa, mmio_pa,
-			     0, 0, 0, 0, 0, 0, 0, NULL);
+	return seamcall_io_retry(TDH_MMIO_MAP, gpa_page_info, tdr_pa, mmio_pa,
+				 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
 static inline u64 tdh_mmio_block(u64 gpa_page_info, u64 tdr_pa)
@@ -641,8 +680,8 @@ static inline u64 tdh_mmio_block(u64 gpa_page_info, u64 tdr_pa)
 	 * Input: RCX -  GPA PAGE INFO
 	 * Input: RDX - TDR PA
 	 */
-	return __seamcall_io(TDH_MMIO_BLOCK, gpa_page_info, tdr_pa,
-			     0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	return seamcall_io_retry(TDH_MMIO_BLOCK, gpa_page_info, tdr_pa,
+				 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
 static inline u64 tdh_mmio_unmap(u64 gpa_page_info, u64 tdr_pa)
@@ -654,8 +693,8 @@ static inline u64 tdh_mmio_unmap(u64 gpa_page_info, u64 tdr_pa)
 	 * Input: RCX -  GPA PAGE INFO
 	 * Input: RDX - TDR PA
 	 */
-	return __seamcall_io(TDH_MMIO_UNMAP, gpa_page_info, tdr_pa,
-			     0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	return seamcall_io_retry(TDH_MMIO_UNMAP, gpa_page_info, tdr_pa,
+				 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
 static inline u64 tdh_dmar_add(u64 index, u64 tdr_pa, u64 entry0, u64 entry1,
@@ -676,9 +715,9 @@ static inline u64 tdh_dmar_add(u64 index, u64 tdr_pa, u64 entry0, u64 entry1,
 	 *
 	 * Output: RAX - SEAMCALL return code
 	 */
-	return __seamcall_io(TDH_DMAR_ADD, index, tdr_pa,
-			     entry0, entry1, entry2, entry3,
-			     entry4, entry5, entry6, entry7, NULL);
+	return seamcall_io_retry(TDH_DMAR_ADD, index, tdr_pa,
+				 entry0, entry1, entry2, entry3,
+				 entry4, entry5, entry6, entry7, NULL);
 }
 
 static inline u64 tdh_dmar_block(u64 index)
@@ -691,8 +730,8 @@ static inline u64 tdh_dmar_block(u64 index)
 	 *
 	 * Output: RAX - SEAMCALL return code
 	 */
-	return __seamcall_io(TDH_DMAR_BLOCK, index,
-			     0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	return seamcall_io_retry(TDH_DMAR_BLOCK, index,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
 static inline u64 tdh_dmar_read(u64 index, struct tdx_module_output *out)
@@ -706,8 +745,8 @@ static inline u64 tdh_dmar_read(u64 index, struct tdx_module_output *out)
 	 * Output: RAX - SEAMCALL return code
 	 * Output: R8-R15
 	 */
-	return __seamcall_io(TDH_DMAR_READ, index,
-			     0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+	return seamcall_io_retry(TDH_DMAR_READ, index,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, out);
 }
 
 static inline u64 tdh_dmar_remove(u64 index)
@@ -720,8 +759,8 @@ static inline u64 tdh_dmar_remove(u64 index)
 	 *
 	 * Output: RAX - SEAMCALL return code
 	 */
-	return __seamcall_io(TDH_DMAR_REMOVE, index,
-			     0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	return seamcall_io_retry(TDH_DMAR_REMOVE, index,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
 static inline u64 tdh_iqinv_req(u64 iommu_id, u64 inv_type, u64 inv_target,
@@ -737,8 +776,8 @@ static inline u64 tdh_iqinv_req(u64 iommu_id, u64 inv_type, u64 inv_target,
 	 * Input: R9 - Invalidation Wait Descriptor bits 63:0
 	 * Input: R10 - Invalidation Wait Descriptor bits 127:64
 	 */
-	return __seamcall_io(TDH_IQINV_REQ, iommu_id, inv_type, inv_target,
-			     wait_desc_1, wait_desc_2, 0, 0, 0, 0, 0, NULL);
+	return seamcall_io_retry(TDH_IQINV_REQ, iommu_id, inv_type, inv_target,
+				 wait_desc_1, wait_desc_2, 0, 0, 0, 0, 0, NULL);
 }
 
 static inline u64 tdh_iqinv_process(u64 iommu_id)
@@ -749,8 +788,8 @@ static inline u64 tdh_iqinv_process(u64 iommu_id)
 	 * Input: RAX - SEAMCALL instruction leaf number
 	 * Input: RCX - IOMMU ID
 	 */
-	return __seamcall_io(TDH_IQINV_PROC, iommu_id,
-			     0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	return seamcall_io_retry(TDH_IQINV_PROC, iommu_id,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
 }
 
 static inline u64 tdh_mem_shared_sept_wr(u64 gpa_info, u64 tdr_pa, u64 entry,
@@ -767,8 +806,8 @@ static inline u64 tdh_mem_shared_sept_wr(u64 gpa_info, u64 tdr_pa, u64 entry,
 	 * Output: RAX - SEAMCALL instruction return code
 	 * Output: RCX - Secure EPT entry architectural content
 	 */
-	return __seamcall_io(TDH_MEM_SHARED_SEPT_WR, gpa_info, tdr_pa, entry,
-			     0, 0, 0, 0, 0, 0, 0, out);
+	return seamcall_io_retry(TDH_MEM_SHARED_SEPT_WR, gpa_info, tdr_pa, entry,
+				 0, 0, 0, 0, 0, 0, 0, out);
 }
 
 static inline u64
@@ -788,9 +827,9 @@ tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 	 * Output: RAX - SEAMCALL return code
 	 * Output: RCX - devif handle
 	 */
-	return __seamcall_io(TDH_DEVIF_CREATE, devifcs_pa, tdr_pa,
-			     tdisp_msg_pa, devif_info, devif_id,
-			     0, 0, 0, 0, 0, out);
+	return seamcall_io_retry(TDH_DEVIF_CREATE, devifcs_pa, tdr_pa,
+				 tdisp_msg_pa, devif_info, devif_id,
+				 0, 0, 0, 0, 0, out);
 }
 
 static inline u64
@@ -805,8 +844,8 @@ tdh_devif_remove(u64 devifcs_pa, struct tdx_module_output *out)
 	 * Output: RAX - SEAMCALL return code
 	 * Output: RCX - tdisp msg pa
 	 */
-	return __seamcall_io(TDH_DEVIF_REMOVE, devifcs_pa,
-			     0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+	return seamcall_io_retry(TDH_DEVIF_REMOVE, devifcs_pa,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, out);
 }
 
 static inline u64
@@ -823,8 +862,8 @@ tdh_devif_request(u64 devifcs_pa, u64 req_parm, u64 req_info, u64 req_pa)
 	 *
 	 * Output: RAX - SEAMCALL return code
 	 */
-	return __seamcall_io(TDH_DEVIF_REQUEST, devifcs_pa, req_parm, req_info,
-			     req_pa, 0, 0, 0, 0, 0, 0, NULL);
+	return seamcall_io_retry(TDH_DEVIF_REQUEST, devifcs_pa, req_parm, req_info,
+				 req_pa, 0, 0, 0, 0, 0, 0, NULL);
 }
 
 static inline u64
@@ -841,8 +880,8 @@ tdh_devif_response(u64 devifcs_pa, u64 tdisp_input_pa,
 	 * Output: RAX - SEAMCALL return code
 	 * Output: RCX - TDISP msg type
 	 */
-	return __seamcall_io(TDH_DEVIF_RESPONSE, devifcs_pa, tdisp_input_pa,
-			     0, 0, 0, 0, 0, 0, 0, 0, out);
+	return seamcall_io_retry(TDH_DEVIF_RESPONSE, devifcs_pa, tdisp_input_pa,
+				 0, 0, 0, 0, 0, 0, 0, 0, out);
 }
 
 #else	/* !CONFIG_INTEL_TDX_HOST */
