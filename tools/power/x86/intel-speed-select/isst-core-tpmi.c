@@ -236,6 +236,7 @@ static int tpmi_get_tdp_info(struct isst_id *id, int config_index,
 
 	ctdp_level->uncore_p0 = info.p0_fabric_freq_mhz;
 	ctdp_level->uncore_p1 = info.p1_fabric_freq_mhz;
+	ctdp_level->uncore_pm = info.pm_fabric_freq_mhz;
 
 	debug_printf
 	    ("cpu:%d ctdp:%d CONFIG_TDP_GET_TDP_INFO tdp_ratio:%d pkg_tdp:%d ctdp_level->t_proc_hot:%d\n",
