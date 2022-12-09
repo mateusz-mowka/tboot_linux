@@ -49,6 +49,7 @@
 #define CONFIG_TDP_GET_UNCORE_P0_P1_INFO	0X09
 #define CONFIG_TDP_GET_P1_INFO			0x0a
 #define CONFIG_TDP_GET_MEM_FREQ			0x0b
+#define	CONFIG_TDP_GET_RATIO_INFO		0x0c
 
 #define CONFIG_TDP_GET_FACT_HP_TURBO_LIMIT_NUMCORES	0x10
 #define CONFIG_TDP_GET_FACT_HP_TURBO_LIMIT_RATIOS	0x11
@@ -145,6 +146,7 @@ struct isst_pkg_ctdp_level_info {
 	int cooling_type;
 	int uncore_p0;
 	int uncore_p1;
+	int uncore_pm;
 	int sse_p1;
 	int avx2_p1;
 	int avx512_p1;
