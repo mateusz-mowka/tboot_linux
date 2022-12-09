@@ -348,6 +348,8 @@ static void ifs_array_test_core(int cpu, struct device *dev)
 
 		trace_ifs_array(cpu, activate, status);
 
+		trace_ifs_array(cpu, activate, status);
+
 		if (status.passfail)
 			break;
 
