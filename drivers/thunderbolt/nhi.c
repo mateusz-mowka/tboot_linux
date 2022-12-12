@@ -45,6 +45,7 @@
 /* Host interface quirks */
 #define QUIRK_AUTO_CLEAR_INT	BIT(0)
 #define QUIRK_E2E		BIT(1)
+#define QUIRK_NO_RPM		BIT(2)
 
 static int ring_interrupt_index(struct tb_ring *ring)
 {
@@ -1136,6 +1137,11 @@ static void nhi_check_quirks(struct tb_nhi *nhi)
 			 */
 			nhi->quirks |= QUIRK_E2E;
 			break;
+
+		case PCI_DEVICE_ID_INTEL_BARLOW_RIDGE_4C_NHI:
+			/* HACK: Disable temporarily PM from BR */
+			nhi->quirks |= QUIRK_NO_RPM;
+			break;
 		}
 	}
 }
@@ -1361,7 +1367,8 @@ static int nhi_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	device_wakeup_enable(&pdev->dev);
 
-	pm_runtime_allow(&pdev->dev);
+	if (!(nhi->quirks & QUIRK_NO_RPM))
+		pm_runtime_allow(&pdev->dev);
 	pm_runtime_set_autosuspend_delay(&pdev->dev, TB_AUTOSUSPEND_DELAY);
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_put_autosuspend(&pdev->dev);
