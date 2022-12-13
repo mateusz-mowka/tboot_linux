@@ -73,6 +73,26 @@ phys_addr_t swiotlb_unencrypted_base;
 
 static unsigned long default_nslabs = IO_TLB_DEFAULT_SIZE >> IO_TLB_SHIFT;
 
+/*
+ * When the number of areas is equal to the number of CPUs, lockless mode
+ * can be opted-in by kernel command line. In lockless mode, each CPU
+ * owns its dedicated area and can only use slabs from that area. This
+ * makes lockless allocation (or free) possible at the cost of losing some
+ * flexibility (e.g., the maximum memory available to a CPU would be much
+ * smaller).
+ *
+ * Lockless mode eliminates lock on fast-path (see below) while slow-path
+ * still needs a lock.
+ *
+ * Fast path: memory allocation. and memory free on its owner CPU. They
+ * are processed without holding any lock.
+ *
+ * Slow path: free a slab on a CPU other than its owner CPU. This slabs
+ * is inserted into a list (protected by a lock) first and is reclaimed
+ * in batches by the owner CPU when the owner CPU runs out of slabs.
+ */
+static __read_mostly bool swiotlb_lockless_mode;
+
 static __read_mostly unsigned int area_index_shift;
 static __read_mostly unsigned int area_bits;
 static __read_mostly int num_areas = NUM_AREAS_DEFAULT;
@@ -130,10 +150,17 @@ setup_io_tlb_npages(char *str)
 		ret = setup_areas(simple_strtoul(str, &str, 0));
 	if (*str == ',')
 		++str;
-	if (!strcmp(str, "force"))
+	if (!strncmp(str, "force", strlen("force"))) {
 		swiotlb_force_bounce = true;
-	else if (!strcmp(str, "noforce"))
+		str += strlen("force");
+	} else if (!strncmp(str, "noforce", strlen("noforce"))) {
 		swiotlb_force_disable = true;
+		str += strlen("noforce");
+	}
+	if (*str == ',')
+		++str;
+	if (!strcmp(str, "lockless"))
+		swiotlb_lockless_mode = true;
 
 	return ret;
 }
@@ -256,6 +283,7 @@ static void swiotlb_init_io_tlb_mem(struct io_tlb_mem *mem, phys_addr_t start,
 
 	for (i = 0; i < num_areas; i++) {
 		INIT_LIST_HEAD(&mem->areas[i].free_slots);
+		INIT_LIST_HEAD(&mem->areas[i].free_slots_from_other_cpu);
 		spin_lock_init(&mem->areas[i].lock);
 	}
 	for (i = 0; i < mem->nslabs; i++) {
@@ -296,6 +324,12 @@ void __init swiotlb_init_remap(bool addressing_limit, unsigned int flags,
 		return;
 	if (swiotlb_force_disable)
 		return;
+
+	if (num_areas != num_processors)
+		swiotlb_lockless_mode = false;
+
+	if (swiotlb_lockless_mode)
+		pr_info("lockless mode enabled\n");
 
 	/*
 	 * By default allocate the bounce buffer memory from low memory, but
@@ -571,6 +605,22 @@ static inline unsigned int area_end(struct io_tlb_mem *mem, int aindex)
 	return area_start(aindex) + area_nslabs(mem);
 }
 
+static inline void swiotlb_lock(spinlock_t *lock, unsigned long *flags)
+{
+	if (swiotlb_lockless_mode)
+		local_irq_save(*flags);
+	else
+		spin_lock_irqsave(lock, *flags);
+}
+
+static inline void swiotlb_unlock(spinlock_t *lock, unsigned long *flags)
+{
+	if (swiotlb_lockless_mode)
+		local_irq_restore(*flags);
+	else
+		spin_unlock_irqrestore(lock, *flags);
+}
+
 /*
  * Find a suitable number of IO TLB entries size that will fit this request and
  * allocate a buffer from that IO TLB pool.
@@ -596,7 +646,8 @@ static int swiotlb_do_find_slots(struct io_tlb_mem *mem,
 
 	BUG_ON(!nslots);
 
-	spin_lock_irqsave(&area->lock, flags);
+	swiotlb_lock(&area->lock, &flags);
+
 	if (unlikely(nslots > area_nslabs(mem) - area->used))
 		goto not_found;
 
@@ -637,7 +688,7 @@ static int swiotlb_do_find_slots(struct io_tlb_mem *mem,
 	}
 
 not_found:
-	spin_unlock_irqrestore(&area->lock, flags);
+	swiotlb_unlock(&area->lock, &flags);
 	return -1;
 
 found:
@@ -650,7 +701,47 @@ found:
 
 	area->used += nslots;
 
+	swiotlb_unlock(&area->lock, &flags);
+	return index;
+}
+
+static int swiotlb_find_slots_lockless(struct device *dev,
+				       phys_addr_t orig_addr,
+				       size_t alloc_size,
+				       unsigned int alloc_align_mask)
+{
+	struct io_tlb_mem *mem = dev->dma_io_tlb_mem;
+	int area_index;
+	struct io_tlb_area *area;
+	struct io_tlb_slot *slot, *tmp;
+	unsigned long flags;
+	int i, index, cpu;
+
+	cpu = get_cpu();
+	area_index = cpu & ((1U << area_bits) - 1);
+	area = mem->areas + area_index;
+	index = swiotlb_do_find_slots(mem, area, dev, orig_addr,
+				      alloc_size, alloc_align_mask);
+	if (index >=  0)
+		goto out;
+
+	/* Hold area lock and reclaim all free slots queued by other CPUs */
+	spin_lock_irqsave(&area->lock, flags);
+	list_for_each_entry_safe(slot, tmp, &area->free_slots_from_other_cpu, node) {
+		i = slot - mem->slots;
+		__set_bit(i, mem->bitmap);
+		mem->slots[i].orig_addr = INVALID_PHYS_ADDR;
+		mem->slots[i].alloc_size = 0;
+		list_del(&mem->slots[i].node);
+		list_add(&mem->slots[i].node, &area->free_slots);
+		area->used--;
+	}
 	spin_unlock_irqrestore(&area->lock, flags);
+
+	index = swiotlb_do_find_slots(mem, area, dev, orig_addr,
+				      alloc_size, alloc_align_mask);
+out:
+	put_cpu();
 	return index;
 }
 
@@ -660,6 +751,10 @@ static int swiotlb_find_slots(struct device *dev, phys_addr_t orig_addr,
 	struct io_tlb_mem *mem = dev->dma_io_tlb_mem;
 	int start = raw_smp_processor_id() & ((1U << area_bits) - 1);
 	int i, index;
+
+	if (swiotlb_lockless_mode)
+		return swiotlb_find_slots_lockless(dev, orig_addr, alloc_size,
+						   alloc_align_mask);
 
 	i = start;
 	do {
@@ -745,12 +840,26 @@ static void swiotlb_release_slots(struct device *dev, phys_addr_t tlb_addr)
 	int index = (tlb_addr - offset - mem->start) >> IO_TLB_SHIFT;
 	int nslots = nr_slots(mem->slots[index].alloc_size + offset);
 	int aindex = area_index_shift ? index >> area_index_shift : 0;
+	int ncpu = raw_smp_processor_id() & ((1U << area_bits) - 1);
 	struct io_tlb_area *area = mem->areas + aindex;
 	int i;
 
 	WARN_ON(aindex >= num_areas);
 
-	spin_lock_irqsave(&area->lock, flags);
+	swiotlb_lock(&area->lock, &flags);
+	if (swiotlb_lockless_mode && unlikely(aindex != ncpu)) {
+		/*
+		 * in lockless mode, swiotlb_lock just disables irq.
+		 * Hold area lock incrementally to prevent free slots
+		 * reclamation on owner CPU.
+		 */
+		spin_lock(&area->lock);
+		for (i = index + nslots - 1; i >= index; i--)
+			list_add(&mem->slots[i].node, &area->free_slots_from_other_cpu);
+		spin_unlock(&area->lock);
+		swiotlb_unlock(&area->lock, &flags);
+		return;
+	}
 
 	/*
 	 * Return the slots to swiotlb, updating bitmap to indicate
@@ -764,7 +873,7 @@ static void swiotlb_release_slots(struct device *dev, phys_addr_t tlb_addr)
 	}
 
 	area->used -= nslots;
-	spin_unlock_irqrestore(&area->lock, flags);
+	swiotlb_unlock(&area->lock, &flags);
 }
 
 /*

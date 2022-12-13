@@ -88,6 +88,7 @@ struct io_tlb_slot {
 struct io_tlb_area {
 	unsigned long used;
 	struct list_head free_slots;
+	struct list_head free_slots_from_other_cpu;
 	spinlock_t lock;
 };
 
