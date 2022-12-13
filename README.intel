@@ -50,6 +50,8 @@ GNR PO bkc-v1.5
 ===============
 1. RAS: Add error handling for copy on write fault for uncorrectable error
    Fixes https://hsdes.intel.com/resource/14018142780
+2. PFRU: Fix PFRU device unsupported problem on GNR
+   https://hsdes.intel.com/resource/16019132988
 
 GNR PO bkc-v1.4
 ===============
