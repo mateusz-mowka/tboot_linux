@@ -52,6 +52,8 @@ GNR PO bkc-v1.5
    Fixes https://hsdes.intel.com/resource/14018142780
 2. PFRU: Fix PFRU device unsupported problem on GNR
    https://hsdes.intel.com/resource/16019132988
+3. MDEV: Fix mdev device release bug
+   https://hsdes.intel.com/appstore/article/#/15012302820
 
 GNR PO bkc-v1.4
 ===============
