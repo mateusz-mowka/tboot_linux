@@ -4578,9 +4578,18 @@ static int intel_iommu_attach_device(struct iommu_domain *domain,
 	/* normally dev is not mapped */
 	if (unlikely(domain_context_mapped(dev))) {
 		struct device_domain_info *info = dev_iommu_priv_get(dev);
-
-		if (info->domain)
-			device_block_translation(dev);
+		if (info->domain) {
+			if (domain_is_trusted(info->domain)) {
+				/*
+				 * FIXME: currently leave tdx code cleanup trusted IO page
+				 * tables directly, to be moved to iommu driver.
+				 */
+				info->domain = NULL;
+				dev_dbg(dev, "trusted domain cleared\n");
+			} else {
+				device_block_translation(dev);
+			}
+		}
 	}
 
 	if (domain_is_trusted(to_dmar_domain(domain))) {
