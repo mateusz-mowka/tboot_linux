@@ -1293,8 +1293,7 @@ static int tdx_ide_stream_create(struct pci_dev *pdev, struct pci_ide_stream *st
 			       FIELD_PREP(STREAM_CFG_TYPE, stm->type);
 
 	if (stm->type == PCI_IDE_STREAM_TYPE_SEL) {
-		param.ide_stream_ctrl = FIELD_PREP(PCI_IDE_SEL_CTRL_ENABLE, 1) |
-					FIELD_PREP(PCI_IDE_SEL_CTRL_ALGO, stm->algo) |
+		param.ide_stream_ctrl = FIELD_PREP(PCI_IDE_SEL_CTRL_ALGO, stm->algo) |
 					FIELD_PREP(PCI_IDE_SEL_CTRL_STREAM_ID, stm->stream_id);
 
 		param.rid_assoc1 = FIELD_PREP(PCI_IDE_RID_ASSOC1_LIMIT, pci_dev_id(pdev) + 1);
