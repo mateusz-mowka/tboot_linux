@@ -14,6 +14,10 @@
 static int force_upper_vector = 1;
 module_param(force_upper_vector, int, 0644);
 
+#define DEFAULT_TRUST_BIT	1000
+static int trust_bit = DEFAULT_TRUST_BIT;
+module_param(trust_bit, int, 0644);
+
 static LIST_HEAD(dev_list);
 static spinlock_t list_lock;
 
@@ -1884,6 +1888,10 @@ static int rpb_initialize(struct rpb_device *rdev)
 	/* VM stop when read data mismatch */
 	data |= FIELD_PREP(VMX_SM, 1);
 	data |= FIELD_PREP(VMX_ENABLE, 1);
+	if (trust_bit == 0)
+		data &= ~VMX_TRUST;
+	else if (trust_bit == 1)
+		data |= FIELD_PREP(VMX_TRUST, 1);
 	writel(data, vm_reg_addr(rdev, MMR));
 
 	return 0;
