@@ -434,7 +434,7 @@ exit:
 	free_page(fake_req.response_va);
 }
 
-static int rpb_ti_mgr_create(struct pci_dev *pdev, u8 stream_id)
+static int rpb_ti_mgr_create(struct pci_dev *pdev, int ide_id, u8 stream_id)
 {
 	struct rpb_ti_mgr *ti_mgr;
 	int ret;
@@ -443,7 +443,7 @@ static int rpb_ti_mgr_create(struct pci_dev *pdev, u8 stream_id)
 	if (!ti_mgr)
 		return -ENOMEM;
 
-	ti_mgr->ide = rpb_ide_init(pdev, stream_id);
+	ti_mgr->ide = rpb_ide_init(pdev, ide_id, stream_id);
 	if (IS_ERR(ti_mgr->ide)) {
 		dev_err(&pdev->dev, "%s: Failed to initialize RPB IDE\n",
 			__func__);
@@ -1594,7 +1594,7 @@ static int ide_stream_setup(struct pci_dev *pdev, struct pci_ide_stream *stm)
 		goto exit_stream_release;
 
 	if (is_rpb_device(pdev)) {
-		ret = rpb_ti_mgr_create(pdev, stm->stream_id);
+		ret = rpb_ti_mgr_create(pdev, stm->ide_id, stm->stream_id);
 		if (ret)
 			goto exit_stream_release;
 	}

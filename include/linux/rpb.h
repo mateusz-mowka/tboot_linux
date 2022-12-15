@@ -19,11 +19,15 @@ struct rpb_ide {
 	 * Currently, RPB only supports enabling an Selective IDE stream
 	 * on Stream Control Block A
 	 */
+	int ide_id;
 	u8 ctrl_blk_id;
 	bool sel_stream_enabled;
 	u8 sel_stream_id;
 	u32 key_slot_offset[PCI_IDE_SUB_STREAM_NUM][PCI_IDE_SUB_STREAM_DIRECTION_NUM];
 	u32 ifv_slot_offset[PCI_IDE_SUB_STREAM_NUM][PCI_IDE_SUB_STREAM_DIRECTION_NUM];
+
+	u32 keys[PCI_IDE_SUB_STREAM_NUM][PCI_IDE_SUB_STREAM_DIRECTION_NUM][8];
+	u32 ifv[PCI_IDE_SUB_STREAM_NUM][PCI_IDE_SUB_STREAM_DIRECTION_NUM][2];
 
 	struct pci_dev *pdev;
 };
@@ -44,17 +48,17 @@ static inline bool is_vtc_device(struct pci_dev *pdev)
 	return is_rpb_device(pdev) && val == 0x1;
 }
 
-struct rpb_ide *_rpb_ide_init(struct pci_dev *pdev, u8 stream_id);
+struct rpb_ide *_rpb_ide_init(struct pci_dev *pdev, int ide_id,
+			      u8 stream_id);
 void _rpb_ide_release(struct rpb_ide *ide);
 int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust);
-void _rpb_ide_key_prog(struct rpb_ide *ide, u32 sub_stream,
-		       u8 direction, u32 *key, u32 *iv_key);
 void _rpb_disable_sel_stream(struct rpb_ide *ide);
 int _rpb_enable_sel_stream(struct rpb_ide *ide);
 
-static inline struct rpb_ide *rpb_ide_init(struct pci_dev *pdev, u8 stream_id)
+static inline struct rpb_ide *rpb_ide_init(struct pci_dev *pdev, int ide_id,
+					   u8 stream_id)
 {
-	struct rpb_ide *(*fn)(struct pci_dev *pdev, u8 stream_id);
+	struct rpb_ide *(*fn)(struct pci_dev *pdev, int ide_id, u8 stream_id);
 	struct rpb_ide *ide;
 
 	if (!pdev)
@@ -65,7 +69,7 @@ static inline struct rpb_ide *rpb_ide_init(struct pci_dev *pdev, u8 stream_id)
 	fn = symbol_get(_rpb_ide_init);
 	if (!fn)
 		return ERR_PTR(-ENOENT);
-	ide = fn(pdev, stream_id);
+	ide = fn(pdev, ide_id, stream_id);
 	symbol_put(_rpb_ide_init);
 
 	return ide;
@@ -110,11 +114,8 @@ static inline void rpb_disable_sel_stream(struct rpb_ide *ide)
 }
 
 static inline int rpb_ide_key_prog(struct rpb_ide *ide, u32 sub_stream,
-				   u8 direction, u32 *key, u32 *iv_key)
+				   u8 direction, u32 *key, u32 *ifv)
 {
-	void (*fn)(struct rpb_ide *ide, u32 sub_stream, u8 direction,
-		   u32 *key, u32 *iv_key);
-
 	if (!ide)
 		return -EINVAL;
 	if (sub_stream >= PCI_IDE_SUB_STREAM_NUM)
@@ -122,11 +123,8 @@ static inline int rpb_ide_key_prog(struct rpb_ide *ide, u32 sub_stream,
 	if (direction >= PCI_IDE_SUB_STREAM_DIRECTION_NUM)
 		return -EINVAL;
 
-	fn = symbol_get(_rpb_ide_key_prog);
-	if (!fn)
-		return -ENOENT;
-	fn(ide, sub_stream, direction, key, iv_key);
-	symbol_put(_rpb_ide_key_prog);
+	memcpy(ide->keys[sub_stream][direction], key, sizeof(u32) * 8);
+	memcpy(ide->ifv[sub_stream][direction], ifv, sizeof(u32) * 2);
 
 	return 0;
 }

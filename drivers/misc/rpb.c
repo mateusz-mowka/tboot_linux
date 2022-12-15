@@ -177,6 +177,16 @@ enum vm_register_offset {
 	ABORT_CNT		= 0x74,
 };
 
+enum sub_stream_slot_index {
+	PR_KS0_SLOT_IDX		= 0,
+	NPR_KS0_SLOT_IDX	= 1,
+	CPL_KS0_SLOT_IDX	= 2,
+	PR_KS1_SLOT_IDX		= 3,
+	NPR_KS1_SLOT_IDX	= 4,
+	CPL_KS1_SLOT_IDX	= 5,
+	SLOT_PER_SUB_STREAM	= 6,
+};
+
 /* Selective IDE Registers in CONFIG_OFFSET of BAR0 */
 enum sel_ide_registers_offset {
 	/* RPB KEY SLOT */
@@ -578,9 +588,86 @@ void _rpb_disable_sel_stream(struct rpb_ide *ide)
 }
 EXPORT_SYMBOL_GPL(_rpb_disable_sel_stream);
 
-static int vtc_enable_sel_stream(struct rpb_ide *ide)
+static int vtc_set_sel_stream_id(struct rpb_ide *ide)
 {
 	u32 val;
+
+	if (pci_read_config_dword(ide->pdev, VTC_SEL_IDE_STREAM_CTRL_OFFSET, &val))
+		return -ENODEV;
+	val &= ~STREAM_ID;
+	val |= FIELD_PREP(STREAM_ID, ide->sel_stream_id);
+	if (pci_write_config_dword(ide->pdev, VTC_SEL_IDE_STREAM_CTRL_OFFSET, val))
+		return -ENODEV;
+
+	return 0;
+}
+
+static void rpb_set_sel_stream_id(struct rpb_ide *ide)
+{
+	u32 val;
+
+	val = readl(ide->bar0_base + PCIE_EP_IDE_OFFSET +
+		    STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+		    STREAM_CTRL_OFFSET);
+	val &= ~STREAM_ID;
+	val |= FIELD_PREP(STREAM_ID, ide->sel_stream_id);
+	writel(val, ide->bar0_base + PCIE_EP_IDE_OFFSET +
+	       STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+	       STREAM_CTRL_OFFSET);
+}
+
+static void rpb_ide_program_key(struct rpb_ide *ide, u32 sub_stream,
+				u8 direction)
+{
+	u32 __iomem *key_slot_addr;
+	u32 __iomem *ifv_slot_addr;
+	u32 *key;
+	u32 *ifv;
+	int i;
+
+	key_slot_addr = ide->bar0_base +
+			ide->key_slot_offset[sub_stream][direction];
+	ifv_slot_addr = ide->bar0_base +
+			ide->ifv_slot_offset[sub_stream][direction];
+	key = ide->keys[sub_stream][direction];
+	ifv = ide->ifv[sub_stream][direction];
+
+	dev_dbg(&ide->pdev->dev, "Program key to sub stream %d dir %d\n",
+		sub_stream, direction);
+	for (i = 0; i < 8; i++)
+		dev_dbg(&ide->pdev->dev, "Offset 0x%x Key %d: 0x%08x\n",
+			ide->key_slot_offset[sub_stream][direction] + i * 4,
+			i, key[i]);
+	for (i = 0; i < 2; i++)
+		dev_dbg(&ide->pdev->dev, "Offset 0x%x IFV Key %d: 0x%08x\n",
+			ide->ifv_slot_offset[sub_stream][direction] + i * 4,
+			i, ifv[i]);
+
+	if (is_vtc_device(ide->pdev)) {
+		for (i = 0; i < 4; i++)
+			writel(((u64 *)key)[i], &((u64 __iomem *)key_slot_addr)[i]);
+		writeq(*(u64 *)ifv, ifv_slot_addr);
+	} else {
+		for (i = 0; i < 8; i++)
+			writel(key[i], &key_slot_addr[i]);
+		for (i = 0; i < 2; i++)
+			writel(ifv[i], &ifv_slot_addr[i]);
+	}
+}
+
+static int vtc_enable_sel_stream(struct rpb_ide *ide)
+{
+	u32 sub_stream;
+	u32 val;
+	u8 dir;
+
+	if (vtc_set_sel_stream_id(ide))
+		return -ENODEV;
+
+	for (sub_stream = 0; sub_stream < PCI_IDE_SUB_STREAM_NUM; sub_stream++) {
+		for (dir = 0; dir < PCI_IDE_SUB_STREAM_DIRECTION_NUM; dir++)
+			rpb_ide_program_key(ide, sub_stream, dir);
+	}
 
 	if (pci_read_config_dword(ide->pdev, VTC_SEL_IDE_STREAM_CTRL_OFFSET, &val))
 		return -ENODEV;
@@ -596,55 +683,56 @@ static int vtc_enable_sel_stream(struct rpb_ide *ide)
 static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 {
 	u32 __iomem *pos;
-	int ret = 0;
+	u32 sub_stream;
 	u32 val;
+	u8 dir;
+
+	/* Print Stream Tx Status */
+	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
+	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+	      STREAM_TX_STS_OFFSET;
+	val = readl(pos);
+	dev_dbg(&ide->pdev->dev, "%s Stream Tx Status 0x%x\n",
+		__func__, val);
+
+	/* Print Stream Rx Status */
+	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
+	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+	      STREAM_RX_STS_OFFSET;
+	val = readl(pos);
+	dev_dbg(&ide->pdev->dev, "%s: Stream Rx Status 0x%x\n",
+		__func__, val);
+
+	/* Set Stream ID */
+	rpb_set_sel_stream_id(ide);
+
+	/* Set Keys and IFIV into slots */
+	for (sub_stream = 0; sub_stream < PCI_IDE_SUB_STREAM_NUM; sub_stream++) {
+		for (dir = 0; dir < PCI_IDE_SUB_STREAM_DIRECTION_NUM; dir++)
+			rpb_ide_program_key(ide, sub_stream, dir);
+	}
 
 	/* Set Tx Key Slot of Key Set 0 */
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_TX_KS_0_IDX_OFFSET;
-	val = FIELD_PREP(TX_PR_SET_0_KS_INDEX, 0) |
-	      FIELD_PREP(TX_NPR_SET_0_KS_INDEX, 1) |
-	      FIELD_PREP(TX_CPL_SET_0_KS_INDEX, 2);
+	val = FIELD_PREP(TX_PR_SET_0_KS_INDEX, PR_KS0_SLOT_IDX) |
+	      FIELD_PREP(TX_NPR_SET_0_KS_INDEX, NPR_KS0_SLOT_IDX) |
+	      FIELD_PREP(TX_CPL_SET_0_KS_INDEX, CPL_KS0_SLOT_IDX);
 	writel(val, pos);
+	dev_dbg(&ide->pdev->dev, "%s: STRMTXKS0IDX 0x%x\n",
+		__func__, val);
 
 	/* Set Rx Key Slot of Key Set 0 */
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_RX_KS_0_IDX_OFFSET;
-	val = FIELD_PREP(RX_PR_SET_0_KS_INDEX, 0) |
-	      FIELD_PREP(RX_NPR_SET_0_KS_INDEX, 1) |
-	      FIELD_PREP(RX_CPL_SET_0_KS_INDEX, 2);
+	val = FIELD_PREP(RX_PR_SET_0_KS_INDEX, PR_KS0_SLOT_IDX) |
+	      FIELD_PREP(RX_NPR_SET_0_KS_INDEX, NPR_KS0_SLOT_IDX) |
+	      FIELD_PREP(RX_CPL_SET_0_KS_INDEX, CPL_KS0_SLOT_IDX);
 	writel(val, pos);
-
-	/* Enable Rx Key Set 0 */
-	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
-	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
-	      STREAM_RX_CTRL_OFFSET;
-	val = FIELD_PREP(RX_PRIME_KEY_SET_0, 1);
-	writel(val, pos);
-
-	/* Stream Enable */
-	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
-	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
-	      STREAM_CTRL_OFFSET;
-	val = readl(pos);
-	val |= FIELD_PREP(STREAM_ENABLE, 1);
-	writel(val, pos);
-
-	ide->sel_stream_enabled = true;
-
-	/* Check Rx Key Set 0 status */
-	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
-	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
-	      STREAM_RX_STS_OFFSET;
-	val = readl(pos);
-	if (!FIELD_GET(RX_READY_KEY_SET_0, val)) {
-		dev_err(&ide->pdev->dev, "%s: Stream Rx Key Set 0 is not ready\n",
-			__func__);
-		ret = -EFAULT;
-		goto exit_disable_stream;
-	}
+	dev_dbg(&ide->pdev->dev, "%s: STRMRXKS0IDX 0x%x\n",
+		__func__, val);
 
 	/* Enable Tx Key Set 0 */
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
@@ -653,24 +741,47 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	val = FIELD_PREP(TX_PRIME_KEY_SET_0, 1) |
 	      FIELD_PREP(TX_KEY_SET_SELECT, 1);
 	writel(val, pos);
+	dev_dbg(&ide->pdev->dev, "%s: STRMTXCTL.TXPKEYS0 0x%x\n",
+		__func__, val);
+
+	/* Enable Rx Key Set 0 */
+	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
+	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+	      STREAM_RX_CTRL_OFFSET;
+	val = FIELD_PREP(RX_PRIME_KEY_SET_0, 1);
+	writel(val, pos);
+	dev_dbg(&ide->pdev->dev, "%s: STRMTXCTL.RXPKEYS0 0x%x\n",
+		__func__, val);
+
+	/* Stream Enable */
+	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
+	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+	      STREAM_CTRL_OFFSET;
+	val = readl(pos);
+	val |= FIELD_PREP(STREAM_ENABLE, 1);
+	writel(val, pos);
+	dev_dbg(&ide->pdev->dev, "%s: STREAM CTRL 0x%x\n",
+		__func__, val);
+
+	ide->sel_stream_enabled = true;
+
+	/* Check Rx Key Set 0 status */
+	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
+	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+	      STREAM_RX_STS_OFFSET;
+	val = readl(pos);
+	dev_info(&ide->pdev->dev, "%s: Stream Rx Status 0x%x\n",
+		 __func__, val);
 
 	/* Check Tx Key Set 0 status */
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_TX_STS_OFFSET;
 	val = readl(pos);
-	if (!FIELD_GET(TX_READY_KEY_SET_0, val)) {
-		dev_err(&ide->pdev->dev, "%s: Stream Tx Key Set 0 is not ready\n",
-			__func__);
-		ret = -EFAULT;
-		goto exit_disable_stream;
-	}
+	dev_info(&ide->pdev->dev, "%s: Stream Tx Status 0x%x\n",
+		 __func__, val);
 
 	return 0;
-
-exit_disable_stream:
-	_rpb_disable_sel_stream(ide);
-	return ret;
 }
 
 int _rpb_enable_sel_stream(struct rpb_ide *ide)
@@ -681,70 +792,6 @@ int _rpb_enable_sel_stream(struct rpb_ide *ide)
 		return __rpb_enable_sel_stream(ide);
 }
 EXPORT_SYMBOL_GPL(_rpb_enable_sel_stream);
-
-static int vtc_set_sel_stream_id(struct rpb_ide *ide)
-{
-	u32 val;
-
-	if (pci_read_config_dword(ide->pdev, VTC_SEL_IDE_STREAM_CTRL_OFFSET, &val))
-		return -ENODEV;
-	val &= ~STREAM_ID;
-	val |= FIELD_PREP(STREAM_ID, ide->sel_stream_id);
-	if (pci_write_config_dword(ide->pdev, VTC_SEL_IDE_STREAM_CTRL_OFFSET, val))
-		return -ENODEV;
-
-	return 0;
-}
-
-static int rpb_set_sel_stream_id(struct rpb_ide *ide)
-{
-	u32 val;
-
-	val = readl(ide->bar0_base + PCIE_EP_IDE_OFFSET +
-		    STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
-		    STREAM_CTRL_OFFSET);
-	val &= ~STREAM_ID;
-	val |= FIELD_PREP(STREAM_ID, ide->sel_stream_id);
-	writel(val, ide->bar0_base + PCIE_EP_IDE_OFFSET +
-	       STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
-	       STREAM_CTRL_OFFSET);
-
-	return 0;
-}
-
-void _rpb_ide_key_prog(struct rpb_ide *ide, u32 sub_stream,
-		       u8 direction, u32 *key, u32 *ifv)
-{
-	u32 __iomem *key_slot_addr;
-	u32 __iomem *ifv_slot_addr;
-	int i;
-
-	key_slot_addr = ide->bar0_base +
-			ide->key_slot_offset[sub_stream][direction];
-	ifv_slot_addr = ide->bar0_base +
-			ide->ifv_slot_offset[sub_stream][direction];
-
-	dev_dbg(&ide->pdev->dev, "Program key to sub stream %d dir %d\n",
-		sub_stream, direction);
-	for (i = 0; i < 8; i++)
-		dev_dbg(&ide->pdev->dev, "Key %d: 0x%08x\n",
-			i, key[i]);
-	for (i = 0; i < 2; i++)
-		dev_dbg(&ide->pdev->dev, "IFV Key %d: 0x%08x\n",
-			i, ifv[i]);
-
-	if (is_vtc_device(ide->pdev)) {
-		for (i = 0; i < 4; i++)
-			writel(((u64 *)key)[i], &((u64 __iomem *)key_slot_addr)[i]);
-		writeq(*(u64 *)ifv, ifv_slot_addr);
-	} else {
-		for (i = 0; i < 8; i++)
-			writel(key[i], &key_slot_addr[i]);
-		for (i = 0; i < 2; i++)
-			writel(ifv[i], &ifv_slot_addr[i]);
-	}
-}
-EXPORT_SYMBOL_GPL(_rpb_ide_key_prog);
 
 int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust)
 {
@@ -765,7 +812,8 @@ int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust)
 }
 EXPORT_SYMBOL_GPL(_rpb_set_trust_bit);
 
-struct rpb_ide *_rpb_ide_init(struct pci_dev *pdev, u8 stream_id)
+struct rpb_ide *_rpb_ide_init(struct pci_dev *pdev, int ide_id,
+			      u8 stream_id)
 {
 	struct rpb_ide *ide;
 
@@ -781,16 +829,15 @@ struct rpb_ide *_rpb_ide_init(struct pci_dev *pdev, u8 stream_id)
 	}
 
 	ide->ctrl_blk_id = DEFAULT_STREAM_CTRL_BLK;
+	ide->ide_id = ide_id;
 	ide->sel_stream_id = stream_id;
 	ide->pdev = pdev;
 	if (is_vtc_device(pdev)) {
-		vtc_set_sel_stream_id(ide);
 		memcpy(ide->key_slot_offset, vtc_key_slot_offset,
 		       sizeof(ide->key_slot_offset));
 		memcpy(ide->ifv_slot_offset, vtc_ifv_slot_offset,
 		       sizeof(ide->ifv_slot_offset));
 	} else {
-		rpb_set_sel_stream_id(ide);
 		memcpy(ide->key_slot_offset, rpb_key_slot_offset,
 		       sizeof(ide->key_slot_offset));
 		memcpy(ide->ifv_slot_offset, rpb_ifv_slot_offset,
