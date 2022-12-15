@@ -57,12 +57,13 @@ static int idxd_vdcm_set_irqs(struct vdcm_idxd *vidxd, uint32_t flags,
 static void idxd_vdcm_close(struct vfio_device *vdev)
 {
 	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
+	struct vfio_ims *ims = &vdev->ims;
 
 	mutex_lock(&vidxd->dev_lock);
 	vidxd_shutdown(vidxd);
 	vfio_device_set_pasid(vdev, IOMMU_PASID_INVALID);
-	/* Disable MSIX if it was set up. */
-	if  (vidxd_dev(vidxd)->msi.data) {
+	/* Disable IMS if it was enabled. */
+	if  (ims->ims_en) {
 		idxd_vdcm_set_irqs(vidxd,
 				   VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
 				   VFIO_PCI_MSIX_IRQ_INDEX, 0, 0, NULL);
