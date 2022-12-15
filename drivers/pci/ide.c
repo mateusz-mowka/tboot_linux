@@ -314,6 +314,12 @@ static int ide_init(struct pci_dev *dev, int pos)
 			 */
 			if (dev->vendor == 0x8086 && dev->device == 0x0b25)
 				break;
+			/*
+			 * REVERTME:
+			 * RPB does not support IDE_KM
+			 */
+			if (is_rpb_device(dev))
+				break;
 			if (!(cap & PCI_IDE_CAP_KM))
 				return -EFAULT;
 			break;
