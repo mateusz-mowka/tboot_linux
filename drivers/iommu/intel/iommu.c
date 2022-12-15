@@ -4404,6 +4404,7 @@ static void __dmar_remove_one_dev_info(struct device_domain_info *info)
 
 	spin_lock_irqsave(&iommu->lock, flags);
 	domain_detach_iommu(domain, iommu);
+	info->domain = NULL;
 	spin_unlock_irqrestore(&iommu->lock, flags);
 }
 
