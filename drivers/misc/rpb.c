@@ -808,7 +808,7 @@ int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust)
 	if (trust)
 		val |= FIELD_PREP(VMX_TRUST, 1);
 	else
-		val &= ~FIELD_PREP(VMX_TRUST, 0);
+		val &= ~VMX_TRUST;
 	writel(val, ide->bar0_base + offset);
 	ide->trust_bit_enabled = trust;
 
