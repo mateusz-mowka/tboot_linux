@@ -1248,7 +1248,7 @@ static int rpb_vm_verify_mem_write_result(struct rpb_device *rdev, int size)
 			if (expect_data != actual_data) {
 				dev_err(&rdev->pdev->dev, "%s: dma_addr=0x%llx, virt_addr=0x%llx, expect_data=0x%08x, actual_data=0x%08x\n",
 					__func__, pattern_gen_addr,
-					(u64)*((u32 *)rvec->virt_addr + len),
+					(u64)((u32 *)rvec->virt_addr + len),
 					expect_data, actual_data);
 			} else {
 				hit++;
