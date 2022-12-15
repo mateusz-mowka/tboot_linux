@@ -1155,7 +1155,8 @@ static int ide_set_target_device(struct pci_dev *dev, struct pci_ide_stream *stm
 	dev_info(&dev->dev, "ADR_ASS3 %x\n", reg);
 
 	reg = FIELD_PREP(PCI_IDE_SEL_CTRL_STREAM_ID, stm->stream_id) |
-	      FIELD_PREP(PCI_IDE_SEL_CTRL_ALGO, stm->algo);
+	      FIELD_PREP(PCI_IDE_SEL_CTRL_ALGO, stm->algo) |
+	      FIELD_PREP(PCI_IDE_SEL_CTRL_DEFAULT, 1);
 	pci_write_config_dword(dev, pos + PCI_IDE_SEL_CTRL, reg);
 	dev_info(&dev->dev, "CTRL %x\n", reg);
 
