@@ -54,6 +54,8 @@ GNR PO bkc-v1.5
    https://hsdes.intel.com/resource/16019132988
 3. MDEV: Fix mdev device release bug
    https://hsdes.intel.com/appstore/article/#/15012302820
+4. DSA: Fix DSA vdev device removal bug
+   https://hsdes.intel.com/resource/15012455341
 
 GNR PO bkc-v1.4
 ===============
