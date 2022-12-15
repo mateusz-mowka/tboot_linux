@@ -1089,6 +1089,30 @@ int pci_arch_ide_dev_tee_exit(struct pci_dev *dev)
 	return 0;
 }
 
+static void ide_target_device_stream_ctrl(struct pci_dev *dev,
+					  int ide_id,
+					  bool enable)
+{
+	int pos = dev->ide_pos;
+	u32 reg;
+	u32 i;
+
+	pos += PCI_IDE_CTRL + 4 + dev->ide_lnk_num * PCI_IDE_LNK_REG_BLOCK_SIZE;
+	for (i = dev->ide_lnk_num; i < ide_id; i++) {
+		pci_read_config_dword(dev, pos, &reg);
+		pos += PCI_IDE_ADDR_ASSOC_REG_BLOCK_OFFSET;
+		pos += PCI_IDE_ADDR_ASSOC_REG_BLOCK_SIZE *
+		       FIELD_GET(PCI_IDE_SEL_CAP_NUM_ASSOC_BLK, reg);
+	}
+
+	pci_read_config_dword(dev, pos + PCI_IDE_SEL_CTRL, &reg);
+	if (enable)
+		reg |= FIELD_PREP(PCI_IDE_SEL_CTRL_ENABLE, 1);
+	else
+		reg &= ~PCI_IDE_SEL_CTRL_ENABLE;
+	pci_write_config_dword(dev, pos + PCI_IDE_SEL_CTRL, reg);
+}
+
 static int ide_set_target_device(struct pci_dev *dev, struct pci_ide_stream *stm)
 {
 	int pos = dev->ide_pos;
@@ -1131,30 +1155,11 @@ static int ide_set_target_device(struct pci_dev *dev, struct pci_ide_stream *stm
 	dev_info(&dev->dev, "ADR_ASS3 %x\n", reg);
 
 	reg = FIELD_PREP(PCI_IDE_SEL_CTRL_STREAM_ID, stm->stream_id) |
-	      FIELD_PREP(PCI_IDE_SEL_CTRL_ALGO, stm->algo) |
-	      FIELD_PREP(PCI_IDE_SEL_CTRL_ENABLE, 1);
+	      FIELD_PREP(PCI_IDE_SEL_CTRL_ALGO, stm->algo);
 	pci_write_config_dword(dev, pos + PCI_IDE_SEL_CTRL, reg);
 	dev_info(&dev->dev, "CTRL %x\n", reg);
 
 	return 0;
-}
-
-static void ide_clear_target_device(struct pci_dev *dev, struct pci_ide_stream *stm)
-{
-	int pos = dev->ide_pos;
-	u32 reg;
-	u32 i;
-
-	pos += PCI_IDE_CTRL + 4 + dev->ide_lnk_num * PCI_IDE_LNK_REG_BLOCK_SIZE;
-	for (i = dev->ide_lnk_num; i < stm->ide_id; i++) {
-		pci_read_config_dword(dev, pos, &reg);
-		pos += PCI_IDE_ADDR_ASSOC_REG_BLOCK_OFFSET;
-		pos += PCI_IDE_ADDR_ASSOC_REG_BLOCK_SIZE *
-		       FIELD_GET(PCI_IDE_SEL_CAP_NUM_ASSOC_BLK, reg);
-	}
-
-	reg = FIELD_PREP(PCI_IDE_SEL_CTRL_ENABLE, 0);
-	pci_write_config_dword(dev, pos + PCI_IDE_SEL_CTRL, reg);
 }
 
 static int get_mem_range(struct pci_dev *pdev, resource_size_t *start, resource_size_t *end)
@@ -1653,13 +1658,11 @@ int pci_arch_ide_stream_setup(struct pci_ide_stream *stm)
 
 		ret = ide_stream_setup(stm->dev, stm);
 		if (ret)
-			goto err_clear_target_dev;
+			goto err_clear_key_config;
+		ide_target_device_stream_ctrl(stm->dev, stm->ide_id, true);
 	}
 
 	return 0;
-
-err_clear_target_dev:
-	ide_clear_target_device(stm->dev, stm);
 
 err_clear_key_config:
 	ide_key_config_cleanup(stm);
@@ -1676,6 +1679,6 @@ void pci_arch_ide_stream_remove(struct pci_ide_stream *stm)
 		return;
 	}
 
-	ide_clear_target_device(stm->dev, stm);
+	ide_target_device_stream_ctrl(stm->dev, stm->ide_id, false);
 	ide_key_config_cleanup(stm);
 }
