@@ -4572,7 +4572,7 @@ static void tdx_tdisp_mmiomt_remove(struct tdx_tdisp_dev *ttdev, u64 mmio_pa, in
 	struct mmiomt_node *mt;
 	int plvl;
 
-	pr_info("%s: mmio_pa=%llx, req_lvl=%d\n", __func__, mmio_pa, req_lvl);
+	pr_debug("%s: mmio_pa=%llx, req_lvl=%d\n", __func__, mmio_pa, req_lvl);
 
 	tdx_mmiomt_set(mmio_pa, req_lvl, ttdev->devifcs.pa, false);
 
