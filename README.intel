@@ -57,6 +57,10 @@ GNR PO bkc-v1.5
 4. DSA: Fix DSA vdev device removal bug
    https://hsdes.intel.com/resource/15012455341
 5. SDSi: Debug code for SDSi provisioning
+6. TDXIO/IOMMU/IDE: Various fixes:
+	i. IDE fixes for RPB card.
+	ii. TDXIO related seamcall retry for recoverable errors
+	iii. IOMMU driver changes for trusted domain been detach/replaced.
 
 GNR PO bkc-v1.4
 ===============
