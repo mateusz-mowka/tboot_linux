@@ -56,6 +56,7 @@ GNR PO bkc-v1.5
    https://hsdes.intel.com/appstore/article/#/15012302820
 4. DSA: Fix DSA vdev device removal bug
    https://hsdes.intel.com/resource/15012455341
+5. SDSi: Debug code for SDSi provisioning
 
 GNR PO bkc-v1.4
 ===============
