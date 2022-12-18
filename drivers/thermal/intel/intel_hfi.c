@@ -259,6 +259,10 @@ static bool classification_is_accurate(u8 hfi_class, bool smt_siblings_idle)
 
 		return false;
 
+	case INTEL_FAM6_METEORLAKE:
+	case INTEL_FAM6_METEORLAKE_L:
+		return smt_siblings_idle;
+
 	default:
 		return true;
 	}
