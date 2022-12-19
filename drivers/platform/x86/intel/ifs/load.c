@@ -83,14 +83,6 @@ static struct metadata_header *find_meta_data(void *ucode, unsigned int meta_typ
 	return NULL;
 }
 
-static void hashcopy_err_message(struct device *dev, u32 err_code)
-{
-	if (err_code >= ARRAY_SIZE(scan_hash_status))
-		dev_err(dev, "invalid error code 0x%x for hash copy\n", err_code);
-	else
-		dev_err(dev, "Hash copy error : %s\n", scan_hash_status[err_code]);
-}
-
 static void auth_err_message(struct device *dev, u32 err_code)
 {
 	if (err_code >= ARRAY_SIZE(scan_authentication_status))
@@ -98,6 +90,14 @@ static void auth_err_message(struct device *dev, u32 err_code)
 	else
 		dev_err(dev, "Chunk authentication error : %s\n",
 			scan_authentication_status[err_code]);
+}
+
+static void hashcopy_err_message(struct device *dev, u32 err_code)
+{
+	if (err_code >= ARRAY_SIZE(scan_hash_status))
+		dev_err(dev, "invalid error code 0x%x for hash copy\n", err_code);
+	else
+		dev_err(dev, "Hash copy error : %s\n", scan_hash_status[err_code]);
 }
 
 /*
@@ -157,21 +157,6 @@ done:
 	complete(&ifs_done);
 }
 
-static void chunk_mismatch_warn(struct device *dev, int total_chunks, int chunks_per_stride)
-{
-	union meta_data *ifs_meta;
-
-	ifs_meta = (union meta_data *)find_meta_data(ifs_header_ptr, META_TYPE_IFS);
-
-	if (total_chunks != ifs_meta->total_chunks)
-		dev_warn(dev, "total chunks mismatch - metadata: %d MSR value: %d\n",
-			 ifs_meta->total_chunks, total_chunks);
-
-	if (chunks_per_stride && chunks_per_stride != ifs_meta->chunks_per_stride)
-		dev_warn(dev, "chunks_per_stride mismatch - metadata: %d MSR value: %d\n",
-			 ifs_meta->chunks_per_stride, chunks_per_stride);
-}
-
 static int copy_hashes_authenticate_chunks_gen2(struct device *dev)
 {
 	union ifs_scan_hashes_status_gen2 hashes_status;
@@ -186,53 +171,27 @@ static int copy_hashes_authenticate_chunks_gen2(struct device *dev)
 
 	ifsd = ifs_get_data(dev);
 
-	if (!ifsd->loaded || ifsd->loaded_version != ifs_header_ptr->rev) {
-		dev_info(dev, "Copying hashes - 0x%x\n", ifs_header_ptr->rev);
-		/* run scan hash copy */
-		wrmsrl(MSR_COPY_SCAN_HASHES, ifs_hash_ptr);
-		rdmsrl(MSR_SCAN_HASHES_STATUS, hashes_status.data);
+	/* run scan hash copy */
+	wrmsrl(MSR_COPY_SCAN_HASHES, ifs_hash_ptr);
+	rdmsrl(MSR_SCAN_HASHES_STATUS, hashes_status.data);
 
-			/* enumerate the scan image information */
-		chunk_size = hashes_status.chunk_size * 1024;
-		err_code = hashes_status.error_code;
+	/* enumerate the scan image information */
+	chunk_size = hashes_status.chunk_size * 1024;
+	err_code = hashes_status.error_code;
 
-		if (ifsd->test_gen > 1) // GNR B0
-			num_chunks = hashes_status.chunks_in_stride;
-		else // GNR A0
-			num_chunks = hashes_status.num_chunks;
+	if (ifsd->test_gen > 1) // GNR B0
+		num_chunks = hashes_status.chunks_in_stride;
+	else // GNR A0
+		num_chunks = hashes_status.num_chunks;
 
-		if (!hashes_status.valid) {
-			hashcopy_err_message(dev, err_code);
-			return -EIO;
-		}
-		ifsd->loaded_version = ifs_header_ptr->rev;
-		ifsd->chunk_size = chunk_size;
-
-		chunk_mismatch_warn(dev, hashes_status.num_chunks,
-				    hashes_status.chunks_in_stride);
-	} else {
-		dev_info(dev, "skipped copying hashes loaded version 0x%x\n",
-			 ifsd->loaded_version);
-		num_chunks = ifsd->valid_chunks;
-		chunk_size = ifsd->chunk_size;
-	}
-
-	if (ifsd->test_gen > 1) {
-		wrmsrl(MSR_SAF_CTRL, INVALIDATE_STRIDE);
-		rdmsrl(MSR_CHUNKS_AUTHENTICATION_STATUS, chunk_status.data);
-		if (chunk_status.valid_chunks != 0) {
-			dev_err(dev, "Couldn't invalidate installed stride - %d\n",
-				chunk_status.valid_chunks);
-		}
+	if (!hashes_status.valid) {
+		hashcopy_err_message(dev, err_code);
 		return -EIO;
 	}
 
 	base = ifs_test_image_ptr;
 	ifs_meta = (union meta_data *)find_meta_data(ifs_header_ptr, META_TYPE_IFS);
 	starting_chunk_nr = ifs_meta->starting_chunk;
-
-	dev_info(dev, "authenticating and copying chunk ver 0x%x , starting chunk %d\n",
-		 ifs_header_ptr->rev, starting_chunk_nr);
 
 	/* scan data authentication and copy chunks to secured memory */
 	for (i = 0; i < num_chunks; i++) {
@@ -332,6 +291,11 @@ static int scan_chunks_sanity_check(struct device *dev)
 
 	// gen0 (SPR and EMR flow below). GNR A0(gen1) and GNR B0(gen2) returns from above line.
 
+	if (ifsd->test_gen > 0)
+		return copy_hashes_authenticate_chunks_gen2(dev);
+
+	// gen0 (SPR and EMR flow below). GNR A0(gen1) and GNR B0(gen2) returns from above line.
+
 	/* copy the scan hash and authenticate per package */
 	cpus_read_lock();
 	for_each_online_cpu(cpu) {
@@ -394,6 +358,8 @@ int ifs_load_firmware(struct device *dev)
 	const struct firmware *fw;
 	char scan_path[64];
 	int ret = -EINVAL;
+
+	dev_info(dev, "gen_rev is %d\n", ifsd->test_gen);
 
 	dev_info(dev, "gen_rev is %d\n", ifsd->test_gen);
 
