@@ -62,14 +62,22 @@ enum ucode_state {
 	UCODE_NEW,
 	UCODE_UPDATED,
 	UCODE_NFOUND,
+	UCODE_UPDATED_PART,
+	UCODE_UPDATED_AUTH,
 	UCODE_ERROR,
+};
+
+enum ucode_load_scope {
+	CORE_SCOPE = 1,
+	PACKAGE_SCOPE,
+	PLATFORM_SCOPE,
+	NO_LATE_UPDATE,
 };
 
 struct microcode_ops {
 	bool safe_late_load;
-
+	enum ucode_load_scope (*get_load_scope) (void);
 	enum ucode_state (*request_microcode_fw) (int cpu, struct device *);
-
 	void (*microcode_fini_cpu) (int cpu);
 
 	/*
