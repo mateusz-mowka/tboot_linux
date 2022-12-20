@@ -39,9 +39,7 @@
 #include <asm/tlbflush.h>
 #include <asm/setup.h>
 #include <asm/msr.h>
-
-/* TBD Should this move to some other header file */
-#include "../cpu.h"
+#include <asm/cpu.h>
 
 static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 
@@ -86,15 +84,26 @@ union mcu_status {
 
 static union mcu_enumeration mcu_cap;
 
+static struct microcode_ops microcode_intel_ops;
+
 static void setup_mcu_enumeration(void)
 {
 	u64 arch_cap;
+
+	microcode_intel_ops.need_nmi_lateload = true;
 
 	arch_cap = x86_read_arch_cap_msr();
 	if (!(arch_cap & ARCH_CAP_MCU_ENUM))
 		return;
 
 	rdmsrl(MSR_MCU_ENUM, mcu_cap.data);
+
+	if (mcu_cap.valid) {
+		microcode_intel_ops.need_nmi_lateload = false;
+		pr_info_once("Uniform Loading: Required: %s Configured: %s\n",
+			     mcu_cap.required ? "Yes" : "No",
+			     mcu_cap.cfg_done ? "Yes" : "No");
+	}
 }
 
 static enum ucode_load_scope get_load_scope(void)
@@ -103,21 +112,30 @@ static enum ucode_load_scope get_load_scope(void)
 	/*
 	 * If no capability is found, default to CORE scope
 	 */
-	if (!mcu_cap.valid)
+	if (!mcu_cap.valid) {
+		microcode_intel_ops.need_nmi_lateload = true;
 		return CORE_SCOPE;
+	}
+	pr_info_once("Uniform Loading Capability detected\n");
 
 	/*
 	 * If enumeration requires UNIFORM and the platform configuration
 	 * is not complete, disable any further attempt to late loading.
 	 */
-	if (mcu_cap.required && !mcu_cap.cfg_done)
+	if (mcu_cap.required && !mcu_cap.cfg_done) {
+		pr_info_once("Late loading disabled, check uniform config with BIOS vendor\n");
 		return NO_LATE_UPDATE;
+	}
 
-	if (mcu_cap.scope == UNIFORM_PLATFORM)
+	if (mcu_cap.scope == UNIFORM_PLATFORM) {
+		pr_info_once("Platform Scope\n");
 		return PLATFORM_SCOPE;
+	}
 
-	if(mcu_cap.scope == UNIFORM_PACKAGE)
+	if(mcu_cap.scope == UNIFORM_PACKAGE) {
+		pr_info_once("Package Scope\n");
 		return PACKAGE_SCOPE;
+	}
 
 	return CORE_SCOPE;
 }

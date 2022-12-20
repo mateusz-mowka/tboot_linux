@@ -77,6 +77,7 @@ enum ucode_load_scope {
 struct microcode_ops {
 	bool safe_late_load;
 	enum ucode_load_scope (*get_load_scope) (void);
+	bool need_nmi_lateload;
 	enum ucode_state (*request_microcode_fw) (int cpu, struct device *);
 	void (*microcode_fini_cpu) (int cpu);
 

@@ -475,8 +475,10 @@ static int prepare_for_update(void)
 	int ret, cpu, first_cpu;
 	struct core_rendez *pcpu_core;
 
-	ret = register_nmi_handler(NMI_LOCAL, ucode_nmi_cb, NMI_FLAG_FIRST,
-				   "ucode_nmi");
+	if (!microcode_ops->need_nmi_lateload)
+		return 0;
+
+	ret = register_nmi_handler(NMI_LOCAL, ucode_nmi_cb, NMI_FLAG_FIRST, "ucode_nmi");
 	if (ret) {
 		pr_err("Unable to register NMI handler\n");
 		return -ENOSPC;
@@ -541,7 +543,9 @@ static int __reload_late(void *info)
 		 * Wait for all siblings to enter
 		 * NMI before performing the update
 		 */
-		ret = __wait_for_core_siblings(pcpu_core);
+		if (microcode_ops->need_nmi_lateload)
+			ret = __wait_for_core_siblings(pcpu_core);
+
 		if (ret || atomic_read(&pcpu_core->failed)) {
 			pr_err("CPU %d core lead timeout waiting for siblings\n", cpu);
 			ret = -1;
@@ -560,8 +564,11 @@ static int __reload_late(void *info)
 		 *     indicated its complete the update.
 		 * Now send the secondary CPU to NMI handler to wait.
 		 */
-		this_cpu_write(nmi_primary_ptr, pcpu_core);
-		apic->send_IPI_self(NMI_VECTOR);
+		if (microcode_ops->need_nmi_lateload) {
+			this_cpu_write(nmi_primary_ptr, pcpu_core);
+			apic->send_IPI_self(NMI_VECTOR);
+		}
+
 		goto wait_for_siblings;
 	}
 
@@ -597,7 +604,8 @@ wait_for_siblings:
 
 static void cleanup_after_update(void)
 {
-	unregister_nmi_handler(NMI_LOCAL, "ucode_nmi");
+	if (microcode_ops->need_nmi_lateload)
+		unregister_nmi_handler(NMI_LOCAL, "ucode_nmi");
 }
 
 static int do_load_microcode(void)
