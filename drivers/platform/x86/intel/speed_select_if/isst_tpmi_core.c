@@ -82,6 +82,7 @@ struct cp_header {
  * @ratio_unit:		Frequency ratio unit. 00: 100MHz. All others are reserved
  * @block_size:		Size of PP block in Qword unit (8 bytes)
  * @dynamic_switch:	If set (1), dynamic switching of SST PP is supported
+ * @memory_ratio_unit: Memory Controller frequency ratio unit. 00: 100MHz, others reserved
  * @resd1:		Reserved for future use
  *
  * This structure is used store SST-PP header. This is packed to the same
@@ -96,7 +97,8 @@ struct pp_header {
 	u64 ratio_unit :2;
 	u64 block_size :8;
 	u64 dynamic_switch :1;
-	u64 resd1 :21;
+	u64 memory_ratio_unit :2;
+	u64 reserved1 :19;
 };
 
 /**
@@ -923,10 +925,10 @@ static int isst_if_set_perf_feature(void __user *argp)
 #define SST_PP_T_PROCHOT_WIDTH	8
 
 #define SST_PP_MAX_MEMORY_FREQ_START	55
-#define SST_PP_MAX_MEMORY_FREQ_WIDTH	5
+#define SST_PP_MAX_MEMORY_FREQ_WIDTH	7
 
-#define SST_PP_COOLING_TYPE_START	60
-#define SST_PP_COOLING_TYPE_WIDTH	3
+#define SST_PP_COOLING_TYPE_START	62
+#define SST_PP_COOLING_TYPE_WIDTH	2
 
 #define SST_PP_TRL_0_RATIO_0_START	0
 #define SST_PP_TRL_0_RATIO_0_WIDTH	8
