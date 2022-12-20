@@ -334,6 +334,19 @@ static struct platform_device	*microcode_pdev;
 static atomic_t ucode_updating;
 static atomic_t mce_in_progress;
 
+static enum ucode_load_scope load_scope;
+
+static enum ucode_load_scope get_load_scope(void)
+{
+	if (!load_scope) {
+		load_scope = microcode_ops->get_load_scope ?
+				microcode_ops->get_load_scope() : CORE_SCOPE;
+		pr_info_once("Load Scope: 0x%x", load_scope);
+	}
+
+	return load_scope;
+}
+
 /*
  * Late loading dance. Why the heavy-handed stomp_machine effort?
  *
@@ -399,6 +412,34 @@ static int ucode_nmi_cb(unsigned int val, struct pt_regs *regs)
 	return NMI_HANDLED;
 }
 
+static int get_target_cpu(int cpu)
+{
+	switch (load_scope) {
+		case CORE_SCOPE:
+			return cpumask_first(topology_sibling_cpumask(cpu));
+		case PACKAGE_SCOPE:
+			return cpumask_first(topology_core_cpumask(cpu));
+		case PLATFORM_SCOPE:
+			return cpumask_first(cpu_online_mask);
+		default:
+			return 0;
+	}
+}
+
+static int get_target_num_cpus(int cpu)
+{
+	switch (load_scope) {
+		case CORE_SCOPE:
+			return cpumask_weight(topology_sibling_cpumask(cpu));
+		case PACKAGE_SCOPE:
+			return cpumask_weight(topology_core_cpumask(cpu));
+		case PLATFORM_SCOPE:
+			return cpumask_weight(cpu_online_mask);
+		default:
+			return 0;
+	}
+}
+
 /*
  * Primary thread waits for all siblings to report that they have entered
  * the NMI handler
@@ -442,13 +483,13 @@ static int prepare_for_update(void)
 	}
 
 	for_each_online_cpu(cpu) {
-		first_cpu = cpumask_first(topology_sibling_cpumask(cpu));
+		first_cpu = get_target_cpu(cpu);
 		if (cpu != first_cpu)
 			continue;
 
 		pcpu_core = &per_cpu(core_sync, first_cpu);
 		atomic_set(&pcpu_core->siblings_left,
-			   cpumask_weight(topology_sibling_cpumask(cpu)) - 1);
+			   get_target_num_cpus(cpu) - 1);
 		atomic_set(&pcpu_core->core_done, 0);
 		atomic_set(&pcpu_core->failed, 0);
 	}
@@ -488,7 +529,7 @@ static int __reload_late(void *info)
 	 * loading attempts happen on multiple threads of an SMT core. See
 	 * below.
 	 */
-	first_cpu = cpumask_first(topology_sibling_cpumask(cpu));
+	first_cpu = get_target_cpu(cpu);
 	pcpu_core = &per_cpu(core_sync, first_cpu);
 
 	/*
@@ -625,8 +666,9 @@ static ssize_t reload_store(struct device *dev,
 {
 	enum ucode_state tmp_ret = UCODE_OK;
 	int bsp = boot_cpu_data.cpu_index;
-	bool safe_late_load = false;
+	enum ucode_load_scope load_scope;
 	unsigned long val;
+	bool safe_late_load = false;
 	ssize_t ret;
 
 	ret = kstrtoul(buf, 0, &val);
@@ -645,6 +687,13 @@ static ssize_t reload_store(struct device *dev,
 			return size;
 
 		pr_info("Force loading ucode\n");
+	}
+
+	load_scope = get_load_scope();
+	if (load_scope == NO_LATE_UPDATE) {
+		pr_err_once("Platform doesn't support late loading\n");
+		pr_err_once("Please contact your BIOS vendor\n");
+		return size;
 	}
 
 	cpus_read_lock();

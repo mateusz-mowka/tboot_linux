@@ -131,6 +131,10 @@ Any other instruction that's being patched and gets concurrently
 executed by the other SMT sibling, can also result in similar,
 unpredictable behavior.
 
+CPUs that enumerate Uniform Microcode Update capability are immune to this
+behavior. Since these processors will ensure the update is done only at the
+end of the instruction.
+
 To eliminate this case, a stop_machine()-based CPU synchronization was
 introduced as a way to guarantee that all logical CPUs will not execute
 any code but just wait in a spin loop, polling an atomic variable.

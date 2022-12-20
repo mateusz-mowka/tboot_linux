@@ -34,10 +34,14 @@
 
 #include <asm/microcode_intel.h>
 #include <asm/intel-family.h>
+#include <asm/msr-index.h>
 #include <asm/processor.h>
 #include <asm/tlbflush.h>
 #include <asm/setup.h>
 #include <asm/msr.h>
+
+/* TBD Should this move to some other header file */
+#include "../cpu.h"
 
 static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 
@@ -47,6 +51,76 @@ static int ucode_size;
 
 /* last level cache size per core */
 static int llc_size_per_core;
+
+enum scope {
+	UNIFORM_CORE     = 0x02, // Core Scope
+	UNIFORM_PACKAGE  = 0x80, // Package Scope
+	UNIFORM_PLATFORM = 0xC0, // Platform Scope
+};
+
+union mcu_enumeration {
+	u64	data;
+	struct {
+		u64	valid:1;
+		u64	required:1;
+		u64	cfg_done:1;
+		u64	reserved:5;
+		u64	scope:8;
+	};
+};
+
+union mcu_status {
+	u64	data;
+	struct {
+		u64	partial:1;
+		u64	auth_fail:1;
+		u64	rsvd:1;
+		u64	post_bios_mcu:1;
+	};
+};
+
+#define MSR_MCU_ENUM		(0x7b)
+#define MSR_MCU_STATUS		(0x7c)
+
+#define META_TYPE_ROLLBACK	(0x2)
+
+static union mcu_enumeration mcu_cap;
+
+static void setup_mcu_enumeration(void)
+{
+	u64 arch_cap;
+
+	arch_cap = x86_read_arch_cap_msr();
+	if (!(arch_cap & ARCH_CAP_MCU_ENUM))
+		return;
+
+	rdmsrl(MSR_MCU_ENUM, mcu_cap.data);
+}
+
+static enum ucode_load_scope get_load_scope(void)
+{
+
+	/*
+	 * If no capability is found, default to CORE scope
+	 */
+	if (!mcu_cap.valid)
+		return CORE_SCOPE;
+
+	/*
+	 * If enumeration requires UNIFORM and the platform configuration
+	 * is not complete, disable any further attempt to late loading.
+	 */
+	if (mcu_cap.required && !mcu_cap.cfg_done)
+		return NO_LATE_UPDATE;
+
+	if (mcu_cap.scope == UNIFORM_PLATFORM)
+		return PLATFORM_SCOPE;
+
+	if(mcu_cap.scope == UNIFORM_PACKAGE)
+		return PACKAGE_SCOPE;
+
+	return CORE_SCOPE;
+}
 
 /*
  * Returns 1 if update has been found, 0 otherwise.
@@ -556,6 +630,29 @@ static int collect_cpu_info(int cpu_num, struct cpu_signature *csig)
 	return 0;
 }
 
+static enum ucode_state get_apply_status(void)
+{
+	enum ucode_state ret = UCODE_OK;
+	union mcu_status status;
+
+	if (!mcu_cap.data)
+		return UCODE_UPDATED;
+
+	status.data = 0;
+	rdmsrl(MSR_MCU_STATUS, status.data);
+
+	/*
+	 * AUTH_FAIL is evil, best to trigger reset
+	 * PARTIAL update is ok, but OS policy is TBD.
+	 */
+	if (status.auth_fail)
+		ret = UCODE_UPDATED_AUTH;
+	else if (status.partial)
+		ret = UCODE_UPDATED_PART;
+
+	return ret;
+}
+
 static enum ucode_state apply_microcode_intel(int cpu)
 {
 	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
@@ -618,6 +715,8 @@ out:
 	/* Update boot_cpu_data's revision too, if we're on the BSP: */
 	if (bsp)
 		boot_cpu_data.microcode = rev;
+
+	ret = get_apply_status();
 
 	return ret;
 }
@@ -766,6 +865,7 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device)
 
 static struct microcode_ops microcode_intel_ops = {
 	.safe_late_load			  = true,
+	.get_load_scope			  = get_load_scope,
 	.request_microcode_fw             = request_microcode_fw,
 	.collect_cpu_info                 = collect_cpu_info,
 	.apply_microcode                  = apply_microcode_intel,
@@ -791,6 +891,7 @@ struct microcode_ops * __init init_intel_microcode(void)
 	}
 
 	llc_size_per_core = calc_llc_size_per_core(c);
+	setup_mcu_enumeration();
 
 	return &microcode_intel_ops;
 }
