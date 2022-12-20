@@ -98,6 +98,9 @@ enum unit_type {
 	TIME_UNIT,
 };
 
+static int tolerate_zero_counters;
+module_param(tolerate_zero_counters, int, 0644);
+
 /* per domain data, some are optional */
 #define NR_RAW_PRIMITIVES (NR_RAPL_PRIMITIVES - 2)
 
@@ -1380,8 +1383,16 @@ static int rapl_check_domain(int cpu, int domain, struct rapl_package *rp)
 	 */
 
 	ra.mask = ENERGY_STATUS_MASK;
-	if (rp->priv->read_raw(cpu, &ra) || !ra.value)
+
+	if (rp->priv->read_raw(cpu, &ra))
 		return -ENODEV;
+
+	if (!ra.value) {
+		if (tolerate_zero_counters)
+			pr_debug("Read domain %d energy status 0, ignore failure\n", domain);
+		else
+			return -ENODEV;
+	}
 
 	return 0;
 }
