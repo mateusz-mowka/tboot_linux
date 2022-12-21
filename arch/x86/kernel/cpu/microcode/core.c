@@ -668,6 +668,25 @@ done:
 	return ret;
 }
 
+static ssize_t reload_nc_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t size)
+{
+	unsigned long val;
+	ssize_t ret = 0;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val != 1)
+		return size;
+
+	pr_err("In reload_nc\n");
+
+	return size;
+}
+
 static ssize_t reload_store(struct device *dev,
 			    struct device_attribute *attr,
 			    const char *buf, size_t size)
@@ -750,7 +769,34 @@ unlock:
 	return ret;
 }
 
+static ssize_t commit_show(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n",1);
+}
+
+static ssize_t commit_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t size)
+{
+	unsigned long val;
+	ssize_t ret = 0;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val != 1)
+		return size;
+
+	pr_err("In commit\n");
+
+	return size;
+}
+
 static DEVICE_ATTR_WO(reload);
+static DEVICE_ATTR_WO(reload_nc);
+static DEVICE_ATTR_RW(commit);
 #endif
 
 static ssize_t version_show(struct device *dev,
@@ -889,6 +935,8 @@ static DEVICE_ATTR_WO(svnupdate);
 static struct attribute *cpu_root_microcode_attrs[] = {
 #ifdef CONFIG_MICROCODE_LATE_LOADING
 	&dev_attr_reload.attr,
+	&dev_attr_reload_nc.attr,
+	&dev_attr_commit.attr,
 #endif
 	NULL
 };
