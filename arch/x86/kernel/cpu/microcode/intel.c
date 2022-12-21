@@ -17,9 +17,9 @@
  *
  *#define DEBUG
  */
+#define DEBUG
 #define pr_fmt(fmt) "microcode: " fmt
 
-#define DEBUG
 
 #include <linux/earlycpio.h>
 #include <linux/firmware.h>
@@ -95,6 +95,35 @@ static union mcu_enumeration mcu_cap;
 #define NUM_ROLLBACK_MSRS	(16)
 #define MSR_ROLLBACK_SIGN_BASE	(0x7b0)
 #define MSR_ROLLBACK_SIGN_ID(x)	(MSR_ROLLBACK_SIGN_BASE+(x))
+
+struct rb_svn_info {
+	u32	rb_min_svn:16;
+	u32	rb_mcu_svn:16;
+};
+
+#define NUM_RB_INFO	16
+struct ucode_meta {
+	struct	metadata_header	rb_hdr;
+	struct  rb_svn_info svn_info;
+	u32	rollback_id[NUM_RB_INFO];
+	u16	rollback_svn[NUM_RB_INFO];
+};
+
+static void dump_rollback_meta(struct ucode_meta *rb)
+{
+	int i;
+
+	pr_debug("Type    : 0x%x\n", rb->rb_hdr.type);
+	pr_debug("Block SZ: 0x%x\n", rb->rb_hdr.blk_size);
+	pr_debug("Min SVN : 0x%x\n", rb->svn_info.rb_min_svn);
+	pr_debug("MCU SVN : 0x%x\n", rb->svn_info.rb_mcu_svn);
+
+	for (i = 0; i < NUM_RB_INFO; i++) {
+		if (!rb->rollback_id[i])
+			break;
+		pr_debug("Rollback[%d]: ID: 0x%x SVN 0x%x\n", i, rb->rollback_id[i], rb->rollback_svn[i]);
+	}
+}
 
 static struct microcode_ops microcode_intel_ops;
 
@@ -251,6 +280,7 @@ scan_microcode(void *data, size_t size, struct ucode_cpu_info *uci, bool save)
 {
 	struct microcode_header_intel *mc_header;
 	struct microcode_intel *patch = NULL;
+	struct ucode_meta *rb_meta;
 	unsigned int mc_size;
 
 	while (size) {
@@ -272,6 +302,10 @@ scan_microcode(void *data, size_t size, struct ucode_cpu_info *uci, bool save)
 			data += mc_size;
 			continue;
 		}
+
+		rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(data, META_TYPE_ROLLBACK);
+		if (rb_meta)
+			dump_rollback_meta(rb_meta);
 
 		if (save) {
 			save_microcode_patch(&intel_ucode_patch, &intel_ucode_size, uci, data, mc_size);
