@@ -6,6 +6,7 @@
 #include <linux/earlycpio.h>
 #include <linux/initrd.h>
 
+extern const struct attribute_group cpu_root_microcode_group;
 /*
  * Although this is a per-cpu structure, both the primary and siblings use
  * only the primary structure to communicate.

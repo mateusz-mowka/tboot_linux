@@ -893,7 +893,7 @@ static struct attribute *cpu_root_microcode_attrs[] = {
 	NULL
 };
 
-static const struct attribute_group cpu_root_microcode_group = {
+const struct attribute_group cpu_root_microcode_group = {
 	.name  = "microcode",
 	.attrs = cpu_root_microcode_attrs,
 };
