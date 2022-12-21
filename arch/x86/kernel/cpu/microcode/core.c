@@ -727,7 +727,13 @@ static ssize_t reload_store(struct device *dev,
 	}
 
 	mutex_lock(&microcode_mutex);
-	ret = microcode_reload_late();
+
+	if (microcode_ops->prepare_to_apply)
+		ret = microcode_ops->prepare_to_apply(RELOAD_COMMIT);
+
+	if (!ret)
+		ret = microcode_reload_late();
+
 	mutex_unlock(&microcode_mutex);
 
 	if (ret == 0) {
