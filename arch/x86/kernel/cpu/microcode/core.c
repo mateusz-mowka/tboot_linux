@@ -668,28 +668,10 @@ done:
 	return ret;
 }
 
-static ssize_t reload_nc_store(struct device *dev,
+static ssize_t reload_store_common(struct device *dev,
 			    struct device_attribute *attr,
-			    const char *buf, size_t size)
-{
-	unsigned long val;
-	ssize_t ret = 0;
-
-	ret = kstrtoul(buf, 0, &val);
-	if (ret)
-		return ret;
-
-	if (val != 1)
-		return size;
-
-	pr_err("In reload_nc\n");
-
-	return size;
-}
-
-static ssize_t reload_store(struct device *dev,
-			    struct device_attribute *attr,
-			    const char *buf, size_t size)
+			    const char *buf, size_t size,
+			    enum reload_type type)
 {
 	enum ucode_state tmp_ret = UCODE_OK;
 	int bsp = boot_cpu_data.cpu_index;
@@ -697,6 +679,9 @@ static ssize_t reload_store(struct device *dev,
 	unsigned long val;
 	bool safe_late_load = false;
 	ssize_t ret;
+
+	if (type != RELOAD_COMMIT && type != RELOAD_NO_COMMIT)
+		return -EINVAL;
 
 	ret = kstrtoul(buf, 0, &val);
 	if (ret)
@@ -748,7 +733,7 @@ static ssize_t reload_store(struct device *dev,
 	mutex_lock(&microcode_mutex);
 
 	if (microcode_ops->prepare_to_apply)
-		ret = microcode_ops->prepare_to_apply(RELOAD_COMMIT);
+		ret = microcode_ops->prepare_to_apply(type);
 
 	if (!ret)
 		ret = microcode_reload_late();
@@ -769,13 +754,7 @@ unlock:
 	return ret;
 }
 
-static ssize_t commit_show(struct device *dev,
-			   struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n",1);
-}
-
-static ssize_t commit_store(struct device *dev,
+static ssize_t reload_nc_store(struct device *dev,
 			    struct device_attribute *attr,
 			    const char *buf, size_t size)
 {
@@ -789,7 +768,72 @@ static ssize_t commit_store(struct device *dev,
 	if (val != 1)
 		return size;
 
-	pr_err("In commit\n");
+	return reload_store_common(dev, attr, buf, size, RELOAD_NO_COMMIT);
+}
+
+static ssize_t reload_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t size)
+{
+	unsigned long val;
+	ssize_t ret;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val != 1)
+		return size;
+
+	return reload_store_common(dev, attr, buf, size, RELOAD_COMMIT);
+}
+
+static bool check_pending_commits(void)
+{
+	if (microcode_ops->check_pending_commits)
+		return microcode_ops->check_pending_commits();
+	else
+		return false;
+}
+
+static ssize_t commit_show(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	bool rv;
+
+	rv = check_pending_commits();
+	return sprintf(buf, "%d\n", rv ? 1 : 0);
+}
+
+static int microcode_commit(void)
+{
+	if (microcode_ops->perform_commit)
+		return microcode_ops->perform_commit();
+	return 0;
+}
+
+static ssize_t commit_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t size)
+{
+	unsigned long val;
+	ssize_t ret = 0;
+	int rv;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val != 1)
+		return size;
+
+	mutex_lock(&microcode_mutex);
+	cpus_read_lock();
+
+	rv = microcode_commit();
+
+	cpus_read_unlock();
+	mutex_unlock(&microcode_mutex);
 
 	return size;
 }

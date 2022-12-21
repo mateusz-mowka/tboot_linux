@@ -144,6 +144,7 @@ static void dump_rollback_meta(struct ucode_meta *rb)
 
 static struct microcode_ops microcode_intel_ops;
 static atomic_t pending_commits;
+static atomic_t commit_status;
 
 static void read_commit_status(struct work_struct *work)
 {
@@ -174,10 +175,47 @@ static int check_pending(void)
 	if (!rv && atomic_read(&pending_commits))
 		rv = -EBUSY;
 
-	if (rv)
-		pr_err("Please commit before proceeding\n");
-
 	return rv;
+}
+
+static bool check_pending_commits(void)
+{
+	int rv = check_pending();
+
+	return (rv == 0 ? false : true);
+}
+
+static void do_commit(struct work_struct *work)
+{
+	union	svn_commit commit;
+	int	cpu = smp_processor_id();
+
+	if (!mcu_cap.rollback)
+		return;
+
+	commit.data = 0;
+	commit.commit_svn = 1;
+
+	wrmsrl(MSR_MCU_COMMIT, commit.data);
+
+	commit.data = 0;
+	rdmsrl(MSR_MCU_COMMIT, commit.data);
+
+	if (commit.commit_svn) {
+		atomic_inc(&commit_status);
+		pr_debug("CPU%d pending commit\n", cpu);
+	}
+}
+static int perform_commit(void)
+{
+	int rv;
+
+	rv = schedule_on_each_cpu(do_commit);
+
+	if (!rv && !atomic_read(&commit_status))
+		return rv;
+
+	return -EBUSY;
 }
 
 static void write_auto_commit(struct work_struct *work)
@@ -195,8 +233,11 @@ static int switch_to_auto_commit(void)
 
 	rv = check_pending();
 
-	if (rv)
+	if (rv) {
+		pr_err("Pending commit, Please commit before proceeding\n");
 		return rv;
+	}
+
 
 	/*
 	 * We know this is per-core MSR, but its enough to check just this
@@ -212,8 +253,8 @@ static int switch_to_auto_commit(void)
 		return 0;
 
 	/*
-	 * Admin has locked wth manual commit, its not a preferre
-	 * setting since booting a new kernel via kexec() will not
+	 * Admin has locked with manual commit, its not a preferred
+	 * setting since booting a legacy kernel via kexec() will not
 	 * know how to deal with manual commit.
 	 */
 	if (cfg.lock && cfg.defer_svn) {
@@ -248,8 +289,10 @@ static int switch_to_manual_commit(void)
 	 */
 	rv = check_pending();
 
-	if (rv)
+	if (rv) {
+		pr_err("Pending commit, Please commit before proceeding\n");
 		return rv;
+	}
 
 	/*
 	 * We know this is per-core MSR, but its enough to check just this
@@ -932,7 +975,7 @@ out:
 	return ret;
 }
 
-static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter)
+static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter, enum reload_type type)
 {
 	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
 	unsigned int curr_mc_size = 0, new_mc_size = 0;
@@ -1046,20 +1089,28 @@ static bool is_blacklisted(unsigned int cpu)
 
 static int prepare_to_apply_intel(enum reload_type type)
 {
-	int rv;
+	int rv = -EINVAL;
 
-	if (!mcu_cap.rollback)
-		return 0;
-
-	if (type == RELOAD_COMMIT)
+	if (type == RELOAD_COMMIT) {
+		/*
+		 * This is a legacy CPU so nothing to prepare. Otherwise
+		 * check if the configuration is currently in manual commit
+		 * then switch to auto-commit.
+		 */
+		if (!mcu_cap.rollback)
+			return 0;
 		rv = switch_to_auto_commit();
-	else
+	}
+	else if (type == RELOAD_NO_COMMIT) {
+		if (!mcu_cap.rollback)
+			return rv;
 		rv = switch_to_manual_commit();
+	}
 
 	return rv;
 }
 
-static enum ucode_state request_microcode_fw(int cpu, struct device *device)
+static enum ucode_state request_microcode_fw(int cpu, struct device *device, enum reload_type type)
 {
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
 	const struct firmware *firmware;
@@ -1081,8 +1132,9 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device)
 
 	kvec.iov_base = (void *)firmware->data;
 	kvec.iov_len = firmware->size;
-	iov_iter_kvec(&iter, ITER_SOURCE, &kvec, 1, firmware->size);
-	ret = generic_load_microcode(cpu, &iter);
+	iov_iter_kvec(&iter, WRITE, &kvec, 1, firmware->size);
+
+	ret = generic_load_microcode(cpu, &iter, type);
 
 	release_firmware(firmware);
 
@@ -1092,6 +1144,8 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device)
 static struct microcode_ops microcode_intel_ops = {
 	.safe_late_load			  = true,
 	.get_load_scope			  = get_load_scope,
+	.check_pending_commits		  = check_pending_commits,
+	.perform_commit			  = perform_commit,
 	.request_microcode_fw             = request_microcode_fw,
 	.collect_cpu_info                 = collect_cpu_info,
 	.prepare_to_apply		  = prepare_to_apply_intel,
