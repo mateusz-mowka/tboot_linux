@@ -101,6 +101,23 @@ struct rb_svn_info {
 	u32	rb_mcu_svn:16;
 };
 
+/* MSR_MCU_CONFIG */
+union svn_config {
+	u64	data;
+	struct {
+		u64	defer_svn:1;
+		u64	lock:1;
+	};
+};
+
+/* MSR_MCU_COMMIT */
+union svn_commit {
+	u64	data;
+	struct {
+		u64	commit_svn:1;
+	};
+};
+
 #define NUM_RB_INFO	16
 struct ucode_meta {
 	struct	metadata_header	rb_hdr;
@@ -126,14 +143,144 @@ static void dump_rollback_meta(struct ucode_meta *rb)
 }
 
 static struct microcode_ops microcode_intel_ops;
+static atomic_t pending_commits;
+
+static void read_commit_status(struct work_struct *work)
+{
+	union	svn_commit commit;
+	int	cpu = smp_processor_id();
+
+	if (!mcu_cap.rollback)
+		return;
+
+	rdmsrl(MSR_MCU_COMMIT, commit.data);
+	if (commit.commit_svn) {
+		atomic_inc(&pending_commits);
+		pr_debug("CPU%d pending commit\n", cpu);
+	}
+}
+
+static int check_pending(void)
+{
+	int rv = 0;
+
+	if (!mcu_cap.rollback)
+		return rv;
+
+	atomic_set(&pending_commits, 0);
+
+	rv = schedule_on_each_cpu(read_commit_status);
+
+	if (!rv && atomic_read(&pending_commits))
+		rv = -EBUSY;
+
+	if (rv)
+		pr_err("Please commit before proceeding\n");
+
+	return rv;
+}
+
+static void write_auto_commit(struct work_struct *work)
+{
+	union svn_config cfg;
+
+	cfg.data = 0;
+	wrmsrl(MSR_MCU_CONFIG, cfg.data);
+}
+
+static int switch_to_auto_commit(void)
+{
+	union	svn_config cfg;
+	int	rv;
+
+	rv = check_pending();
+
+	if (rv)
+		return rv;
+
+	/*
+	 * We know this is per-core MSR, but its enough to check just this
+	 * CPU, since we expect the system to be consistent with this
+	 * value across all cores.
+	 */
+	rdmsrl(MSR_MCU_CONFIG, cfg.data);
+
+	/*
+	 * Already with auto-commit
+	 */
+	if (!cfg.defer_svn)
+		return 0;
+
+	/*
+	 * Admin has locked wth manual commit, its not a preferre
+	 * setting since booting a new kernel via kexec() will not
+	 * know how to deal with manual commit.
+	 */
+	if (cfg.lock && cfg.defer_svn) {
+		pr_err_once("Manual commit locked, can't switch to auto commit\n");
+		return -EBUSY;
+	}
+
+	rv = schedule_on_each_cpu(write_auto_commit);
+
+	pr_info("Switching to auto commit %s\n", rv ? "Failed" : "Succeeded");
+
+	return rv;
+}
+
+static void write_manual_commit(struct work_struct *work)
+{
+	union svn_config cfg;
+
+	cfg.data = 0;
+	cfg.defer_svn = 1;
+	wrmsrl(MSR_MCU_CONFIG, cfg.data);
+}
+
+static int switch_to_manual_commit(void)
+{
+	union	svn_config cfg;
+	int	rv;
+
+	/*
+	 * If there are any pending commits, inform user to commit before
+	 * proceeding.
+	 */
+	rv = check_pending();
+
+	if (rv)
+		return rv;
+
+	/*
+	 * We know this is per-core MSR, but its enough to check just this
+	 * CPU, since we expect the system to be consistent with this
+	 * value across all cores.
+	 */
+	rdmsrl(MSR_MCU_CONFIG, cfg.data);
+
+	/* Already manual commit is default */
+	if (cfg.defer_svn)
+		return 0;
+
+	if (cfg.lock) {
+		pr_info_once("SVN config locked with auto commit\n");
+		return -EBUSY;
+	}
+
+	rv = schedule_on_each_cpu(write_manual_commit);
+
+	pr_info("Switching to manual commit %s\n", rv ? "Failed" : "Succeeded");
+
+	return rv;
+}
 
 static void setup_mcu_enumeration(void)
 {
 	u64 arch_cap;
 
 	microcode_intel_ops.need_nmi_lateload = true;
-
 	arch_cap = x86_read_arch_cap_msr();
+
 	if (!(arch_cap & ARCH_CAP_MCU_ENUM))
 		return;
 
@@ -156,11 +303,8 @@ static enum ucode_load_scope get_load_scope(void)
 	/*
 	 * If no capability is found, default to CORE scope
 	 */
-	if (!mcu_cap.valid) {
-		microcode_intel_ops.need_nmi_lateload = true;
+	if (!mcu_cap.valid)
 		return CORE_SCOPE;
-	}
-	pr_info_once("Uniform Loading Capability detected\n");
 
 	/*
 	 * If enumeration requires UNIFORM and the platform configuration
@@ -900,6 +1044,21 @@ static bool is_blacklisted(unsigned int cpu)
 	return false;
 }
 
+static int prepare_to_apply_intel(enum reload_type type)
+{
+	int rv;
+
+	if (!mcu_cap.rollback)
+		return 0;
+
+	if (type == RELOAD_COMMIT)
+		rv = switch_to_auto_commit();
+	else
+		rv = switch_to_manual_commit();
+
+	return rv;
+}
+
 static enum ucode_state request_microcode_fw(int cpu, struct device *device)
 {
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
@@ -935,6 +1094,7 @@ static struct microcode_ops microcode_intel_ops = {
 	.get_load_scope			  = get_load_scope,
 	.request_microcode_fw             = request_microcode_fw,
 	.collect_cpu_info                 = collect_cpu_info,
+	.prepare_to_apply		  = prepare_to_apply_intel,
 	.apply_microcode                  = apply_microcode_intel,
 };
 
