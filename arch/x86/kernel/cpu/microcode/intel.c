@@ -62,7 +62,8 @@ union mcu_enumeration {
 		u64	valid:1;
 		u64	required:1;
 		u64	cfg_done:1;
-		u64	reserved:5;
+		u64	rollback:1;
+		u64	reserved:4;
 		u64	scope:8;
 	};
 };
@@ -84,6 +85,17 @@ union mcu_status {
 
 static union mcu_enumeration mcu_cap;
 
+/*
+ * MSR's related to deferred commit architecture
+ */
+#define MSR_MCU_CONFIG		(0x7a0)
+#define MSR_MCU_COMMIT		(0x7a1)
+#define MSR_MCU_INFO		(0x7a2)
+
+#define NUM_ROLLBACK_MSRS	(16)
+#define MSR_ROLLBACK_SIGN_BASE	(0x7b0)
+#define MSR_ROLLBACK_SIGN_ID(x)	(MSR_ROLLBACK_SIGN_BASE+(x))
+
 static struct microcode_ops microcode_intel_ops;
 
 static void setup_mcu_enumeration(void)
@@ -104,6 +116,9 @@ static void setup_mcu_enumeration(void)
 			     mcu_cap.required ? "Yes" : "No",
 			     mcu_cap.cfg_done ? "Yes" : "No");
 	}
+
+	if (mcu_cap.rollback)
+		pr_info_once("Microcode Rollback Capability detected\n");
 }
 
 static enum ucode_load_scope get_load_scope(void)
