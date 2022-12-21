@@ -51,38 +51,6 @@ static const char * const scan_authentication_status[] = {
 	[5] = "Interrupted"
 };
 
-#define MC_HEADER_META_TYPE_END		(0)
-
-struct metadata_header {
-	unsigned int		type;
-	unsigned int		blk_size;
-};
-
-static struct metadata_header *find_meta_data(void *ucode, unsigned int meta_type)
-{
-	struct metadata_header *meta_header;
-	unsigned long data_size, total_meta;
-	unsigned long meta_size = 0;
-
-	data_size = get_datasize(ucode);
-	total_meta = ((struct microcode_intel *)ucode)->hdr.metasize;
-	if (!total_meta)
-		return NULL;
-
-	meta_header = (ucode + MC_HEADER_SIZE + data_size) - total_meta;
-
-	while (meta_header->type != MC_HEADER_META_TYPE_END &&
-	       meta_header->blk_size &&
-	       meta_size < total_meta) {
-		meta_size += meta_header->blk_size;
-		if (meta_header->type == meta_type)
-			return meta_header;
-
-		meta_header = (void *)meta_header + meta_header->blk_size;
-	}
-	return NULL;
-}
-
 static void auth_err_message(struct device *dev, u32 err_code)
 {
 	if (err_code >= ARRAY_SIZE(scan_authentication_status))
@@ -180,7 +148,7 @@ static void chunk_mismatch_warn(struct device *dev, int total_chunks, int chunks
 {
 	union meta_data *ifs_meta;
 
-	ifs_meta = (union meta_data *)find_meta_data(ifs_header_ptr, META_TYPE_IFS);
+	ifs_meta = (union meta_data *)intel_microcode_find_meta_data(ifs_header_ptr, META_TYPE_IFS);
 
 	if (total_chunks != ifs_meta->total_chunks)
 		dev_warn(dev, "total chunks mismatch - metadata: %d MSR value: %d\n",
@@ -237,7 +205,7 @@ static int copy_hashes_authenticate_chunks_gen2(struct device *dev)
 	}
 
 	base = ifs_test_image_ptr;
-	ifs_meta = (union meta_data *)find_meta_data(ifs_header_ptr, META_TYPE_IFS);
+	ifs_meta = (union meta_data *)intel_microcode_find_meta_data(ifs_header_ptr, META_TYPE_IFS);
 	starting_chunk_nr = ifs_meta->starting_chunk;
 
 	dev_info(dev, "authenticating and copying chunk ver 0x%x , starting chunk %d\n",
@@ -383,7 +351,7 @@ static int validate_ifs_metadata(struct device *dev)
 		 boot_cpu_data.x86, boot_cpu_data.x86_model,
 		 boot_cpu_data.x86_stepping, ifsd->cur_batch);
 
-	ifs_meta = (union meta_data *)find_meta_data(ifs_header_ptr, META_TYPE_IFS);
+	ifs_meta = (union meta_data *)intel_microcode_find_meta_data(ifs_header_ptr, META_TYPE_IFS);
 	if (!ifs_meta) {
 		dev_err(dev, "IFS Metadata missing in file %s\n", test_file);
 		return ret;
