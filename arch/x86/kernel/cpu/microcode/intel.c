@@ -126,6 +126,29 @@ struct ucode_meta {
 	u16	rollback_svn[NUM_RB_INFO];
 };
 
+union min_svn {
+	u64	data;
+	struct {
+		u64	mcu_svn:16;
+		u64	pending_mcu_svn:16;
+	};
+};
+
+union rb_sign_id {
+	u64	data;
+	struct {
+		u64	rb_id:32;
+		u64	rb_mcu_svn:16;
+	};
+};
+
+struct rb_info {
+	union	min_svn min_svn;
+	union	rb_sign_id rb_sign_id[NUM_RB_INFO];
+};
+
+static struct rb_info bsp_rb_info;
+
 static void dump_rollback_meta(struct ucode_meta *rb)
 {
 	int i;
@@ -317,6 +340,34 @@ static int switch_to_manual_commit(void)
 	return rv;
 }
 
+static void save_bsp_rollback_info(void)
+{
+	int i;
+
+	/*
+	 * Always clear everything since a new MCU can have more entries
+	 * populated in RB_INFO.
+	 */
+	memset(&bsp_rb_info, 0, sizeof(struct rb_info));
+
+	rdmsrl(MSR_MCU_INFO, bsp_rb_info.min_svn.data);
+	pr_debug("mcu_min_svn: 0x%x pending_svn: 0x%x\n",
+		 bsp_rb_info.min_svn.mcu_svn, bsp_rb_info.min_svn.pending_mcu_svn);
+	for (i = 0; i < NUM_RB_INFO; i++) {
+		rdmsrl(MSR_ROLLBACK_SIGN_ID(i), bsp_rb_info.rb_sign_id[i].data);
+
+		/*
+		 * If this entry is clear, stop looking further.
+		 */
+		if (!bsp_rb_info.rb_sign_id[i].data)
+			break;
+
+		pr_debug("rollback_sign_id[%d]: patch Id: 0x%x mcu_svn: 0x%x\n",
+			 i, bsp_rb_info.rb_sign_id[i].rb_id,
+			 bsp_rb_info.rb_sign_id[i].rb_mcu_svn);
+	}
+}
+
 static void setup_mcu_enumeration(void)
 {
 	u64 arch_cap;
@@ -336,8 +387,10 @@ static void setup_mcu_enumeration(void)
 			     mcu_cap.cfg_done ? "Yes" : "No");
 	}
 
-	if (mcu_cap.rollback)
+	if (mcu_cap.rollback) {
 		pr_info_once("Microcode Rollback Capability detected\n");
+		save_bsp_rollback_info();
+	}
 }
 
 static enum ucode_load_scope get_load_scope(void)
