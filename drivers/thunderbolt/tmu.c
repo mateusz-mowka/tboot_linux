@@ -91,11 +91,19 @@ static int tb_switch_set_tmu_mode_params(struct tb_switch *sw,
 		if (ret)
 			return ret;
 
-		val &= ~TMU_RTR_CS_18_DELTA_AVG_CONST_MASK;
-		val |= FIELD_PREP(TMU_RTR_CS_18_DELTA_AVG_CONST_MASK, delta_avg);
+		/*
+		 * Do not touch the register if the value the same. At least
+		 * Barlow Ridge starts timeouting if this register is written.
+		 */
+		if (FIELD_GET(TMU_RTR_CS_18_DELTA_AVG_CONST_MASK, val) !=
+		    delta_avg) {
+			val &= ~TMU_RTR_CS_18_DELTA_AVG_CONST_MASK;
+			val |= FIELD_PREP(TMU_RTR_CS_18_DELTA_AVG_CONST_MASK,
+					  delta_avg);
 
-		ret = tb_sw_write(sw, &val, TB_CFG_SWITCH,
-				  sw->tmu.cap + TMU_RTR_CS_18, 1);
+			ret = tb_sw_write(sw, &val, TB_CFG_SWITCH,
+					  sw->tmu.cap + TMU_RTR_CS_18, 1);
+		}
 	}
 
 	return ret;
