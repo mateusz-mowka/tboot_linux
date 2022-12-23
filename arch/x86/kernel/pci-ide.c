@@ -275,8 +275,8 @@ static void rpb_ide_key_set_stop(struct rpb_ti_mgr *ti_mgr,
 	if (ti_mgr->key_set_go[sub_stream][direction] == true) {
 		ti_mgr->key_set_go[sub_stream][direction] = false;
 		ti_mgr->kset_go_cnt--;
-		if (ti_mgr->kset_go_cnt == 0)
-			rpb_disable_sel_stream(ti_mgr->ide);
+//		if (ti_mgr->kset_go_cnt == 0)
+//			rpb_disable_sel_stream(ti_mgr->ide);
 	}
 }
 
@@ -470,6 +470,7 @@ static void rpb_ti_mgr_release(struct pci_dev *pdev)
 
 	ti_mgr = xa_erase(&rpb_ti_mgrs_xa, pci_dev_id(pdev));
 	if (ti_mgr) {
+		rpb_disable_sel_stream(ti_mgr->ide);
 		rpb_ide_release(ti_mgr->ide);
 		kfree(ti_mgr);
 	}
@@ -1671,6 +1672,8 @@ err_clear_key_config:
 
 void pci_arch_ide_stream_remove(struct pci_ide_stream *stm)
 {
+	ide_target_device_stream_ctrl(stm->dev, stm->ide_id, false);
+
 	if (ide_stream_release(stm)) {
 		WARN(true, "%s(): Cannot release stream ID %d of %s-%s\n",
 		     __func__, stm->stream_id, dev_name(&stm->rp_dev->dev),
@@ -1679,6 +1682,5 @@ void pci_arch_ide_stream_remove(struct pci_ide_stream *stm)
 		return;
 	}
 
-	ide_target_device_stream_ctrl(stm->dev, stm->ide_id, false);
 	ide_key_config_cleanup(stm);
 }
