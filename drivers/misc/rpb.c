@@ -1601,12 +1601,21 @@ static void rpb_reset_vm(struct rpb_device *rdev)
 		FIELD_PREP(VMX_CLR_MWBC2, 1) | FIELD_PREP(VMX_CLR_MWBC3, 1);
 	writel(data, vm_reg_addr(rdev, ERR_CTRL));
 	data = readl(vm_reg_addr(rdev, MMR));
-	data &= ~VMX_ARAM_P_CLR;
 	data |= FIELD_PREP(VMX_ARAM_P_CLR, 1);
+	data |= FIELD_PREP(VMX_END_STS, 1);
 
 	writel(data, vm_reg_addr(rdev, MMR));
 
 	memset(rdev->vectors, 0, sizeof(*rdev->vectors) * MAX_VECTOR_NUM);
+}
+
+static void rpb_stop_vm(struct rpb_device *rdev)
+{
+	u32 data;
+
+	data = readl(vm_reg_addr(rdev, MMR));
+	data &= ~VMX_ENABLE;
+	writel(data, vm_reg_addr(rdev, MMR));
 }
 
 static int rpb_run_vm(struct rpb_device *rdev)
@@ -1625,9 +1634,15 @@ static int rpb_run_vm(struct rpb_device *rdev)
 
 static int rpb_start_mem_wl(struct rpb_device *rdev, bool write)
 {
+	u32 data;
 	int ret;
 
 	rpb_reset_vm(rdev);
+	data = readl(vm_reg_addr(rdev, MMR));
+	if (FIELD_GET(VMX_END_STS, data)) {
+		dev_err(&rdev->pdev->dev, "Cannot start Workload, END_STS is set\n");
+		return -EBUSY;
+	}
 	generate_mem_vectors(rdev, write);
 
 	ret = rpb_run_vm(rdev);
@@ -1681,11 +1696,12 @@ static int rpb_vm_mem_ops(struct rpb_device *rdev, int mem_size,
 
 	rpb_vm_data_pattern_generate(rdev, write);
 
-	rpb_start_mem_wl(rdev, write);
+	ret = rpb_start_mem_wl(rdev, write);
 
 	rpb_vm_dma_buffer_unmap(rdev, dir);
 
-	ret = rpb_vm_verify_result(rdev, mem_size, write);
+	if (!ret)
+		ret = rpb_vm_verify_result(rdev, mem_size, write);
 
 	rpb_vm_dma_buffer_free(rdev);
 
@@ -1768,11 +1784,12 @@ static int rpb_vm_p2p_mmio_ops(struct rpb_device *rdev, phys_addr_t mmio_addr,
 
 	rpb_vm_data_pattern_generate(rdev, write);
 
-	rpb_start_mem_wl(rdev, write);
+	ret = rpb_start_mem_wl(rdev, write);
 
 	dma_unmap_resource(dev, dma_addr, mmio_size, dir, 0);
 
-	ret = rpb_vm_verify_result(rdev, rvec->len, write);
+	if (!ret)
+		ret = rpb_vm_verify_result(rdev, rvec->len, write);
 
 	iounmap(virt_addr);
 
@@ -1878,15 +1895,13 @@ static int rpb_initialize(struct rpb_device *rdev)
 	u32 data;
 
 	data = readl(vm_reg_addr(rdev, MMR));
-	if (FIELD_GET(VMX_END_STS, data)) {
-		dev_err(&rdev->pdev->dev, "ES bit was set, cannot initialize VM\n");
-		return -EFAULT;
-	}
+
 	/* VM uses default mode */
 	data &= ~VMX_MODE;
 	data |= FIELD_PREP(VMX_MODE, 0);
 	/* VM stop when read data mismatch */
 	data |= FIELD_PREP(VMX_SM, 1);
+	data |= FIELD_PREP(VMX_END_STS, 1);
 	data |= FIELD_PREP(VMX_ENABLE, 1);
 	if (trust_bit == 0)
 		data &= ~VMX_TRUST;
@@ -1973,6 +1988,7 @@ static void rpb_remove(struct pci_dev *pdev)
 	spin_unlock(&list_lock);
 
 	rpb_reset_vm(rdev);
+	rpb_stop_vm(rdev);
 }
 
 static pci_ers_result_t rpb_error_detected(struct pci_dev *pdev,
