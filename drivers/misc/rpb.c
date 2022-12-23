@@ -491,6 +491,34 @@ struct rpb_mem_test {
 
 #define RPB_MEM_SIZE_MAX		VM_MAX_TRANSFER_SIZE
 
+static inline u32 rpb_readl(void __iomem *addr)
+{
+	u32 v = readl(addr);
+
+	pr_debug("%s: addr: 0x%llx v: 0x%x\n", __func__, (unsigned long long)addr, v);
+	return v;
+}
+
+static inline void rpb_writel(u32 data, void __iomem *addr)
+{
+	writel(data, addr);
+	pr_debug("%s: addr: 0x%llx v: 0x%x\n", __func__, (unsigned long long)addr, data);
+}
+
+static inline u64 rpb_readq(void __iomem *addr)
+{
+	u64 v = readq(addr);
+
+	pr_debug("%s: addr: 0x%llx v: 0x%llx\n", __func__, (unsigned long long)addr, v);
+	return v;
+}
+
+static inline void rpb_writeq(u64 data, void __iomem *addr)
+{
+	writeq(data, addr);
+	pr_debug("%s: addr: 0x%llx v: 0x%llx\n", __func__, (unsigned long long)addr, data);
+}
+
 static inline void __iomem *vm_reg_addr(struct rpb_device *rdev, u32 reg)
 {
 	return rdev->vm_regs + reg;
@@ -563,23 +591,23 @@ static void __rpb_disable_sel_stream(struct rpb_ide *ide)
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_CTRL_OFFSET;
-	val = readl(pos);
+	val = rpb_readl(pos);
 	val &= ~STREAM_ENABLE;
-	writel(val, pos);
+	rpb_writel(val, pos);
 
 	/* Disable Rx Key Set 0 */
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_RX_CTRL_OFFSET;
 	val = 0;
-	writel(val, pos);
+	rpb_writel(val, pos);
 
 	/* Disable Tx Key Set 0 */
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_TX_CTRL_OFFSET;
 	val &= ~(TX_PRIME_KEY_SET_0 | TX_KEY_SET_SELECT);
-	writel(val, pos);
+	rpb_writel(val, pos);
 }
 
 void _rpb_disable_sel_stream(struct rpb_ide *ide)
@@ -610,14 +638,14 @@ static void rpb_set_sel_stream_id(struct rpb_ide *ide)
 {
 	u32 val;
 
-	val = readl(ide->bar0_base + PCIE_EP_IDE_OFFSET +
-		    STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
-		    STREAM_CTRL_OFFSET);
+	val = rpb_readl(ide->bar0_base + PCIE_EP_IDE_OFFSET +
+			STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+			STREAM_CTRL_OFFSET);
 	val &= ~STREAM_ID;
 	val |= FIELD_PREP(STREAM_ID, ide->sel_stream_id);
-	writel(val, ide->bar0_base + PCIE_EP_IDE_OFFSET +
-	       STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
-	       STREAM_CTRL_OFFSET);
+	rpb_writel(val, ide->bar0_base + PCIE_EP_IDE_OFFSET +
+		   STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
+		   STREAM_CTRL_OFFSET);
 }
 
 static void rpb_ide_program_key(struct rpb_ide *ide, u32 sub_stream,
@@ -649,13 +677,13 @@ static void rpb_ide_program_key(struct rpb_ide *ide, u32 sub_stream,
 
 	if (is_vtc_device(ide->pdev)) {
 		for (i = 0; i < 4; i++)
-			writel(((u64 *)key)[i], &((u64 __iomem *)key_slot_addr)[i]);
-		writeq(*(u64 *)ifv, ifv_slot_addr);
+			rpb_writel(((u64 *)key)[i], &((u64 __iomem *)key_slot_addr)[i]);
+		rpb_writeq(*(u64 *)ifv, ifv_slot_addr);
 	} else {
 		for (i = 0; i < 8; i++)
-			writel(key[i], &key_slot_addr[i]);
+			rpb_writel(key[i], &key_slot_addr[i]);
 		for (i = 0; i < 2; i++)
-			writel(ifv[i], &ifv_slot_addr[i]);
+			rpb_writel(ifv[i], &ifv_slot_addr[i]);
 	}
 }
 
@@ -695,7 +723,7 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_TX_STS_OFFSET;
-	val = readl(pos);
+	val = rpb_readl(pos);
 	dev_dbg(&ide->pdev->dev, "%s Stream Tx Status 0x%x\n",
 		__func__, val);
 
@@ -703,7 +731,7 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_RX_STS_OFFSET;
-	val = readl(pos);
+	val = rpb_readl(pos);
 	dev_dbg(&ide->pdev->dev, "%s: Stream Rx Status 0x%x\n",
 		__func__, val);
 
@@ -723,7 +751,7 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	val = FIELD_PREP(TX_PR_SET_0_KS_INDEX, PR_KS0_SLOT_IDX) |
 	      FIELD_PREP(TX_NPR_SET_0_KS_INDEX, NPR_KS0_SLOT_IDX) |
 	      FIELD_PREP(TX_CPL_SET_0_KS_INDEX, CPL_KS0_SLOT_IDX);
-	writel(val, pos);
+	rpb_writel(val, pos);
 	dev_dbg(&ide->pdev->dev, "%s: STRMTXKS0IDX 0x%x\n",
 		__func__, val);
 
@@ -734,7 +762,7 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	val = FIELD_PREP(RX_PR_SET_0_KS_INDEX, PR_KS0_SLOT_IDX) |
 	      FIELD_PREP(RX_NPR_SET_0_KS_INDEX, NPR_KS0_SLOT_IDX) |
 	      FIELD_PREP(RX_CPL_SET_0_KS_INDEX, CPL_KS0_SLOT_IDX);
-	writel(val, pos);
+	rpb_writel(val, pos);
 	dev_dbg(&ide->pdev->dev, "%s: STRMRXKS0IDX 0x%x\n",
 		__func__, val);
 
@@ -744,7 +772,7 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	      STREAM_TX_CTRL_OFFSET;
 	val = FIELD_PREP(TX_PRIME_KEY_SET_0, 1) |
 	      FIELD_PREP(TX_KEY_SET_SELECT, 1);
-	writel(val, pos);
+	rpb_writel(val, pos);
 	dev_dbg(&ide->pdev->dev, "%s: STRMTXCTL.TXPKEYS0 0x%x\n",
 		__func__, val);
 
@@ -753,7 +781,7 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_RX_CTRL_OFFSET;
 	val = FIELD_PREP(RX_PRIME_KEY_SET_0, 1);
-	writel(val, pos);
+	rpb_writel(val, pos);
 	dev_dbg(&ide->pdev->dev, "%s: STRMTXCTL.RXPKEYS0 0x%x\n",
 		__func__, val);
 
@@ -761,9 +789,9 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_CTRL_OFFSET;
-	val = readl(pos);
+	val = rpb_readl(pos);
 	val |= FIELD_PREP(STREAM_ENABLE, 1);
-	writel(val, pos);
+	rpb_writel(val, pos);
 	dev_dbg(&ide->pdev->dev, "%s: STREAM CTRL 0x%x\n",
 		__func__, val);
 
@@ -773,7 +801,7 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_RX_STS_OFFSET;
-	val = readl(pos);
+	val = rpb_readl(pos);
 	dev_info(&ide->pdev->dev, "%s: Stream Rx Status 0x%x\n",
 		 __func__, val);
 
@@ -781,7 +809,7 @@ static int __rpb_enable_sel_stream(struct rpb_ide *ide)
 	pos = ide->bar0_base + PCIE_EP_IDE_OFFSET +
 	      STREAM_CTRL_BLK_OFFSET(ide->ctrl_blk_id) +
 	      STREAM_TX_STS_OFFSET;
-	val = readl(pos);
+	val = rpb_readl(pos);
 	dev_info(&ide->pdev->dev, "%s: Stream Tx Status 0x%x\n",
 		 __func__, val);
 
@@ -804,12 +832,12 @@ int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust)
 
 	dev_dbg(&ide->pdev->dev, "Set trust bit to %d\n", !!trust);
 	offset = get_vm_reg_block_offset(ide->pdev, DEFAULT_VM_ID) + MMR;
-	val = readl(ide->bar0_base + offset);
+	val = rpb_readl(ide->bar0_base + offset);
 	if (trust)
 		val |= FIELD_PREP(VMX_TRUST, 1);
 	else
 		val &= ~VMX_TRUST;
-	writel(val, ide->bar0_base + offset);
+	rpb_writel(val, ide->bar0_base + offset);
 	ide->trust_bit_enabled = trust;
 
 	return 0;
@@ -1155,7 +1183,7 @@ static int check_error_regs(struct rpb_device *rdev)
 	int i;
 
 	/* Check VMx Error Control Register */
-	data = readl(vm_reg_addr(rdev, ERR_CTRL));
+	data = rpb_readl(vm_reg_addr(rdev, ERR_CTRL));
 	if (FIELD_GET(VMX_VALID_STRM_ID, data)) {
 		stream_id = FIELD_GET(VMX_STRM_ID, data);
 		if (!(data & (1 << (16 + stream_id))))
@@ -1164,15 +1192,15 @@ static int check_error_regs(struct rpb_device *rdev)
 		err = -EFAULT;
 		dev_err(&rdev->pdev->dev, "%s: stream %d has error\n",
 			__func__, stream_id);
-		data = readl(vm_reg_addr(rdev, ERR_LOWER_ADDR));
+		data = rpb_readl(vm_reg_addr(rdev, ERR_LOWER_ADDR));
 		err_addr = FIELD_GET(VMX_LOWER_ADDR, data) << 2;
 		if (FIELD_GET(VMX_UPPER_ADDR_NOZERO, data)) {
-			data = readl(vm_reg_addr(rdev, ERR_UPPER_ADDR));
+			data = rpb_readl(vm_reg_addr(rdev, ERR_UPPER_ADDR));
 			err_addr |= FIELD_GET(VMX_UPPER_ADDR, data) << 32;
 		}
 
 		dev_err(&rdev->pdev->dev, "%s: Error address: 0x%llx\n", __func__, err_addr);
-		data = readl(vm_reg_addr(rdev, ERR_CTRL));
+		data = rpb_readl(vm_reg_addr(rdev, ERR_CTRL));
 		data &= ~VMX_ERROR_IDX;
 		data &= ~(VMX_ERR_VALID_STRM0 | VMX_ERR_VALID_STRM1 | VMX_ERR_VALID_STRM2 |
 			  VMX_ERR_VALID_STRM3 | VMX_CLR_MWBC0 | VMX_CLR_MWBC1 | VMX_CLR_MWBC2 |
@@ -1180,15 +1208,15 @@ static int check_error_regs(struct rpb_device *rdev)
 		for (i = 0; i < MAX_ERROR_COUNT; i++) {
 			tmp_data = data & ~VMX_ERROR_IDX;
 			tmp_data |= FIELD_PREP(VMX_ERROR_IDX, i);
-			writel(tmp_data, vm_reg_addr(rdev, ERR_CTRL));
-			actual_data[i] = readl(vm_reg_addr(rdev, ERR_ACTUAL_DATA));
-			expect_data[i] = readl(vm_reg_addr(rdev, ERR_EXPECT_DATA));
+			rpb_writel(tmp_data, vm_reg_addr(rdev, ERR_CTRL));
+			actual_data[i] = rpb_readl(vm_reg_addr(rdev, ERR_ACTUAL_DATA));
+			expect_data[i] = rpb_readl(vm_reg_addr(rdev, ERR_EXPECT_DATA));
 			dev_err(&rdev->pdev->dev, "%s: IDX: %d Actual data: 0x%08x, expected data: 0x%08x\n",
 				__func__, i, actual_data[i], expect_data[i]);
 		}
 	}
 	/* Check VMx Abort/Unsupport Counter Register */
-	data = readl(vm_reg_addr(rdev, ABORT_CNT));
+	data = rpb_readl(vm_reg_addr(rdev, ABORT_CNT));
 	if (data) {
 		dev_err(&rdev->pdev->dev, "%s: VM Abort/Unsupport Counter: 0x%x",
 			__func__, data);
@@ -1287,8 +1315,17 @@ static int rpb_vm_verify_result(struct rpb_device *rdev, int size, bool write)
 
 static inline void copy_to_vm_vector(struct vm_vector *vmvec, struct vm_vector *hvec)
 {
-	vmvec->data[0] = cpu_to_le64(hvec->data[0]);
-	vmvec->data[1] = cpu_to_le64(hvec->data[1]);
+	rpb_writeq(hvec->data[0], &vmvec->data[0]);
+	rpb_writeq(hvec->data[1], &vmvec->data[1]);
+}
+
+static inline void mark_end_vector(struct vm_vector *vmvec)
+{
+	struct vm_vector tmp;
+
+	tmp.data[0] = rpb_readq(&vmvec->data[0]);
+	tmp.end = 1;
+	rpb_writeq(tmp.data[0], &vmvec->data[0]);
 }
 
 static int install_vectors(struct rpb_device *rdev)
@@ -1325,7 +1362,7 @@ static int install_vectors(struct rpb_device *rdev)
 
 	if (pos == 0)
 		return 0;
-	rdev->vectors[pos - 1].end = 1;
+	mark_end_vector(&rdev->vectors[pos - 1]);
 	dev_dbg(&rdev->pdev->dev, "%s: Set pos %d as the last vector\n",
 		__func__, pos - 1);
 
@@ -1565,11 +1602,11 @@ static int generate_mem_vectors(struct rpb_device *rdev, bool write)
 
 static void rpb_start_vm(struct rpb_device *rdev)
 {
-	u32 data = readl(vm_reg_addr(rdev, MMR));
+	u32 data = rpb_readl(vm_reg_addr(rdev, MMR));
 
 	data &= ~(VMX_START | VMX_END_STS);
 	data |= FIELD_PREP(VMX_START, 1);
-	writel(data, vm_reg_addr(rdev, MMR));
+	rpb_writel(data, vm_reg_addr(rdev, MMR));
 	dev_info(&rdev->pdev->dev, "VM - Trust bit %d\n",
 		 !!FIELD_GET(VMX_TRUST, data));
 }
@@ -1580,11 +1617,11 @@ static bool rpb_check_done(struct rpb_device *rdev)
 	u32 data;
 
 	do {
-		data = readl(vm_reg_addr(rdev, MMR));
+		data = rpb_readl(vm_reg_addr(rdev, MMR));
 		if (data & VMX_END_STS)
 			return true;
 		dev_dbg(&rdev->pdev->dev, "%s: MMR=0x%08x\n", __func__, data);
-		data = readl(vm_reg_addr(rdev, ERR_CTRL));
+		data = rpb_readl(vm_reg_addr(rdev, ERR_CTRL));
 		msleep(20);
 	} while (timeout_limited-- > 0);
 
@@ -1595,17 +1632,20 @@ static void rpb_reset_vm(struct rpb_device *rdev)
 {
 	u32 data;
 
-	writel(0, vm_reg_addr(rdev, ABORT_CNT));
-	data = readl(vm_reg_addr(rdev, ERR_CTRL));
+	rpb_writel(0, vm_reg_addr(rdev, ABORT_CNT));
+	data = rpb_readl(vm_reg_addr(rdev, ERR_CTRL));
 	data |= FIELD_PREP(VMX_CLR_MWBC0, 1) | FIELD_PREP(VMX_CLR_MWBC1, 1) |
 		FIELD_PREP(VMX_CLR_MWBC2, 1) | FIELD_PREP(VMX_CLR_MWBC3, 1);
-	writel(data, vm_reg_addr(rdev, ERR_CTRL));
-	data = readl(vm_reg_addr(rdev, MMR));
+	rpb_writel(data, vm_reg_addr(rdev, ERR_CTRL));
+	data = rpb_readl(vm_reg_addr(rdev, MMR));
 	data |= FIELD_PREP(VMX_ARAM_P_CLR, 1);
 	data |= FIELD_PREP(VMX_END_STS, 1);
 
-	writel(data, vm_reg_addr(rdev, MMR));
+	rpb_writel(data, vm_reg_addr(rdev, MMR));
 
+	pr_debug("%s: memset VM0 vector area, addr=0x%llx, size=0x%lx\n",
+		__func__, (unsigned long long)rdev->vectors,
+		sizeof(*rdev->vectors) * MAX_VECTOR_NUM);
 	memset(rdev->vectors, 0, sizeof(*rdev->vectors) * MAX_VECTOR_NUM);
 }
 
@@ -1613,9 +1653,9 @@ static void rpb_stop_vm(struct rpb_device *rdev)
 {
 	u32 data;
 
-	data = readl(vm_reg_addr(rdev, MMR));
+	data = rpb_readl(vm_reg_addr(rdev, MMR));
 	data &= ~VMX_ENABLE;
-	writel(data, vm_reg_addr(rdev, MMR));
+	rpb_writel(data, vm_reg_addr(rdev, MMR));
 }
 
 static int rpb_run_vm(struct rpb_device *rdev)
@@ -1638,7 +1678,7 @@ static int rpb_start_mem_wl(struct rpb_device *rdev, bool write)
 	int ret;
 
 	rpb_reset_vm(rdev);
-	data = readl(vm_reg_addr(rdev, MMR));
+	data = rpb_readl(vm_reg_addr(rdev, MMR));
 	if (FIELD_GET(VMX_END_STS, data)) {
 		dev_err(&rdev->pdev->dev, "Cannot start Workload, END_STS is set\n");
 		return -EBUSY;
@@ -1776,7 +1816,7 @@ static int rpb_vm_p2p_mmio_ops(struct rpb_device *rdev, phys_addr_t mmio_addr,
 		return -EFAULT;
 	}
 
-	writel(0, virt_addr);
+	rpb_writel(0, virt_addr);
 
 	rvec->virt_addr = (unsigned long)virt_addr;
 	rvec->dma_addr = dma_addr;
@@ -1894,7 +1934,7 @@ static int rpb_initialize(struct rpb_device *rdev)
 {
 	u32 data;
 
-	data = readl(vm_reg_addr(rdev, MMR));
+	data = rpb_readl(vm_reg_addr(rdev, MMR));
 
 	/* VM uses default mode */
 	data &= ~VMX_MODE;
@@ -1907,7 +1947,7 @@ static int rpb_initialize(struct rpb_device *rdev)
 		data &= ~VMX_TRUST;
 	else if (trust_bit == 1)
 		data |= FIELD_PREP(VMX_TRUST, 1);
-	writel(data, vm_reg_addr(rdev, MMR));
+	rpb_writel(data, vm_reg_addr(rdev, MMR));
 
 	return 0;
 }
@@ -1928,6 +1968,8 @@ static int rpb_map_bars(struct rpb_device *rdev)
 	}
 
 	rdev->bar0_base = pcim_iomap_table(pdev)[0];
+	pr_info("%s: bar0_base = 0x%llx\n", __func__,
+		(unsigned long long)rdev->bar0_base);
 	return 0;
 }
 
