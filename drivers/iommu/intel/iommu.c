@@ -1778,10 +1778,8 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 	tdx_hw_enable(NULL);
 
 	ret = tdh_iommu_getreg(iommu->reg_phys, DMAR_IOMMU_ID_REG, &id);
-	if (ret) {
-		tdx_hw_disable(NULL);
+	if (ret)
 		goto error;
-	}
 
 	iommu_tdx_add_page(id, DMAR_RTPAGE_REG,    &tpages[0]);
 	iommu_tdx_add_page(id, DMAR_STINFOPA0_REG, &tpages[1]);
@@ -1806,11 +1804,11 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 	IOMMU_WAIT_OP(iommu, DMAR_ECRSP_REG, readq, !ecrsp_ip(v), v);
 
 	if (ecrsp_sc(v))
-		goto error;
+		goto error_tdx_en;
 
 	v = readq(iommu->reg + DMAR_ECSTS_REG);
 	if (!ecsts_tdx_mode(v))
-		goto error;
+		goto error_tdx_en;
 
 	iommu->id = id;
 	iommu->tdxio_enabled = true;
@@ -1819,8 +1817,12 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 	pr_info("%s: TDX mode initialized\n", iommu->name);
 	return 0;
 
+error_tdx_en:
+	tdx_hw_enable(NULL);
 error:
 	tdx_reclaim_td_pages(tpages, TDX_IO_BUFF_ORDER);
+	tdx_hw_disable(NULL);
+
 	return retval;
 }
 
@@ -1829,10 +1831,10 @@ static int iommu_tdxio_disable(struct intel_iommu *iommu)
 	if (iommu->tdxio_enabled) {
 		tdx_hw_enable(NULL);
 		tdh_iommu_setreg(iommu->id, DMAR_CLEAR_IOMMU_REG, 0);
-		tdx_hw_disable(NULL);
 
 		iommu->tdxio_enabled = 0;
 		tdx_reclaim_td_pages(iommu->tdxio_pages, TDX_IO_BUFF_ORDER);
+		tdx_hw_disable(NULL);
 		pr_info("%s: TDX mode de-initialized\n", iommu->name);
 	}
 
