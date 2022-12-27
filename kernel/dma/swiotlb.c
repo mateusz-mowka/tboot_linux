@@ -343,7 +343,7 @@ void __init swiotlb_init_remap(bool addressing_limit, unsigned int flags,
 retry:
 	bytes = PAGE_ALIGN(nslabs << IO_TLB_SHIFT);
 	if (cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT)) {
-		tlb = memblock_alloc_raw_unaccepted(bytes, PAGE_SIZE);
+		tlb = memblock_alloc_raw_unaccepted(bytes, PMD_SIZE);
 		if (tlb)
 			default_mem_unaccepted = true;
 	}
