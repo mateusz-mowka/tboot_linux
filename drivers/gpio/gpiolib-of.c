@@ -757,16 +757,18 @@ static int of_gpiochip_add_hog(struct gpio_chip *chip, struct device_node *hog)
  */
 static int of_gpiochip_scan_gpios(struct gpio_chip *chip)
 {
-	struct device_node *np;
+	struct fwnode_handle *child;
 	int ret;
 
-	for_each_available_child_of_node(dev_of_node(&chip->gpiodev->dev), np) {
-		if (!of_property_read_bool(np, "gpio-hog"))
+	fwnode_for_each_available_child_node(dev_fwnode(&chip->gpiodev->dev), child) {
+		struct device_node *np = to_of_node(child);
+
+		if (!fwnode_property_read_bool(child, "gpio-hog"))
 			continue;
 
 		ret = of_gpiochip_add_hog(chip, np);
 		if (ret < 0) {
-			of_node_put(np);
+			fwnode_handle_put(child);
 			return ret;
 		}
 
