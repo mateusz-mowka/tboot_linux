@@ -20,6 +20,12 @@
 #define MTL_P_GPI_IS		0x200
 #define MTL_P_GPI_IE		0x210
 
+#define MTL_S_PAD_OWN		0x0b0
+#define MTL_S_PADCFGLOCK	0x0f0
+#define MTL_S_HOSTSW_OWN	0x110
+#define MTL_S_GPI_IS		0x200
+#define MTL_S_GPI_IE		0x210
+
 #define MTL_GPP(r, s, e, g)				\
 	{						\
 		.reg_num = (r),				\
@@ -28,8 +34,11 @@
 		.gpio_base = (g),			\
 	}
 
-#define MTL_COMMUNITY(b, s, e, g)			\
+#define MTL_P_COMMUNITY(b, s, e, g)			\
 	INTEL_COMMUNITY_GPPS(b, s, e, g, MTL_P)
+
+#define MTL_S_COMMUNITY(b, s, e, g)			\
+	INTEL_COMMUNITY_GPPS(b, s, e, g, MTL_S)
 
 /* Meteor Lake-P */
 static const struct pinctrl_pin_desc mtlp_pins[] = {
@@ -369,11 +378,11 @@ static const struct intel_padgroup mtlp_community5_gpps[] = {
 };
 
 static const struct intel_community mtlp_communities[] = {
-	MTL_COMMUNITY(0, 0, 52, mtlp_community0_gpps),
-	MTL_COMMUNITY(1, 53, 102, mtlp_community1_gpps),
-	MTL_COMMUNITY(2, 103, 183, mtlp_community3_gpps),
-	MTL_COMMUNITY(3, 184, 203, mtlp_community4_gpps),
-	MTL_COMMUNITY(4, 204, 288, mtlp_community5_gpps),
+	MTL_P_COMMUNITY(0, 0, 52, mtlp_community0_gpps),
+	MTL_P_COMMUNITY(1, 53, 102, mtlp_community1_gpps),
+	MTL_P_COMMUNITY(2, 103, 183, mtlp_community3_gpps),
+	MTL_P_COMMUNITY(3, 184, 203, mtlp_community4_gpps),
+	MTL_P_COMMUNITY(4, 204, 288, mtlp_community5_gpps),
 };
 
 static const struct intel_pinctrl_soc_data mtlp_soc_data = {
@@ -561,9 +570,9 @@ static const struct intel_padgroup mtls_community3_gpps[] = {
 };
 
 static const struct intel_community mtls_communities[] = {
-	MTL_COMMUNITY(0, 0, 73, mtls_community0_gpps),
-	MTL_COMMUNITY(1, 74, 119, mtls_community1_gpps),
-	MTL_COMMUNITY(2, 120, 147, mtls_community3_gpps),
+	MTL_S_COMMUNITY(0, 0, 73, mtls_community0_gpps),
+	MTL_S_COMMUNITY(1, 74, 119, mtls_community1_gpps),
+	MTL_S_COMMUNITY(2, 120, 147, mtls_community3_gpps),
 };
 
 static const struct intel_pinctrl_soc_data mtls_soc_data = {
