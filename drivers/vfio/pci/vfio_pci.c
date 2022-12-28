@@ -139,8 +139,10 @@ static int vfio_pci_open_device(struct vfio_device *core_vdev)
 
 static void vfio_pci_close_device(struct vfio_device *core_vdev)
 {
-	if (core_vdev->tdev)
+	if (core_vdev->tdev) {
 		pci_tdisp_uinit(core_vdev->tdev);
+		core_vdev->tdev = NULL;
+	}
 
 	vfio_pci_core_close_device(core_vdev);
 }
