@@ -2233,10 +2233,13 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 	int ret = 1;
 	unsigned long tdvmcall_ret = TDG_VP_VMCALL_INVALID_OPERAND;
 
-	if ((nvector > 0 && nvector < 32) || nvector > 255)  {
-		pr_warn("%s: interrupt not supported, nvector %lld\n",
-			__func__, nvector);
-		goto err_cmd;
+	/*
+	 * WA: currently interrupt is not supported, so forward all
+	 * tdx services request to userspace for handling as short
+	 * term workaround
+	 */
+	if (nvector) {
+		return tdx_vp_vmcall_to_user(vcpu);
 	}
 
 	cmd_buf = tdvmcall_servbuf_alloc(vcpu, cmd_gpa);
