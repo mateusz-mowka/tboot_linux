@@ -1937,7 +1937,7 @@ static int check_modifier(char *str)
 	char *p = str;
 
 	/* The sizeof includes 0 byte as well. */
-	if (strlen(str) > (sizeof("ukhGHpppPSDIWeb") - 1))
+	if (strlen(str) > (sizeof("ukhGHpppPSDIWebB") - 1))
 		return -1;
 
 	while (*p) {
@@ -1974,12 +1974,12 @@ int parse_events__modifier_event(struct list_head *list, char *str, bool add)
 		evsel->core.attr.exclude_host   = mod.eH;
 		evsel->core.attr.exclude_guest  = mod.eG;
 		evsel->core.attr.exclude_idle   = mod.eI;
+		evsel->core.attr.branch_events  = mod.branch_events;
 		evsel->exclude_GH          = mod.exclude_GH;
 		evsel->sample_read         = mod.sample_read;
 		evsel->precise_max         = mod.precise_max;
 		evsel->weak_group	   = mod.weak;
 		evsel->bpf_counter	   = mod.bpf_counter;
-		evsel->branch_events	   = mod.branch_events;
 
 		if (evsel__is_group_leader(evsel)) {
 			evsel->core.attr.pinned = mod.pinned;

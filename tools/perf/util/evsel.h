@@ -94,7 +94,6 @@ struct evsel {
 		bool			auto_merge_stats;
 		bool			collect_stat;
 		bool			weak_group;
-		bool			branch_events;
 		bool			bpf_counter;
 		bool			use_config_name;
 		int			bpf_fd;
