@@ -1337,7 +1337,8 @@ union perf_mem_data_src {
 #define PERF_MEM_LVLNUM_L2	0x02 /* L2 */
 #define PERF_MEM_LVLNUM_L3	0x03 /* L3 */
 #define PERF_MEM_LVLNUM_L4	0x04 /* L4 */
-/* 5-0x7 available */
+/* 5-0x6 available */
+#define PERF_MEM_LVLNUM_HBM	0x07 /* HBM */
 #define PERF_MEM_LVLNUM_MMIO	0x08 /* MMIO */
 #define PERF_MEM_LVLNUM_CXL	0x09 /* CXL */
 #define PERF_MEM_LVLNUM_IO	0x0a /* I/O */
