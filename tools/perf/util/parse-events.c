@@ -1820,6 +1820,7 @@ struct event_modifier {
 	int weak;
 	int exclusive;
 	int bpf_counter;
+	int branch_events;
 };
 
 static int get_event_modifier(struct event_modifier *mod, char *str,
@@ -1841,6 +1842,7 @@ static int get_event_modifier(struct event_modifier *mod, char *str,
 	int exclude_GH = evsel ? evsel->exclude_GH : 0;
 	int weak = 0;
 	int bpf_counter = 0;
+	int branch_events = 0;
 
 	memset(mod, 0, sizeof(*mod));
 
@@ -1886,6 +1888,8 @@ static int get_event_modifier(struct event_modifier *mod, char *str,
 			weak = 1;
 		} else if (*str == 'b') {
 			bpf_counter = 1;
+		} else if (*str == 'B') {
+			branch_events = 1;
 		} else
 			break;
 
@@ -1919,6 +1923,7 @@ static int get_event_modifier(struct event_modifier *mod, char *str,
 	mod->weak = weak;
 	mod->bpf_counter = bpf_counter;
 	mod->exclusive = exclusive;
+	mod->branch_events = branch_events;
 
 	return 0;
 }
@@ -1974,6 +1979,7 @@ int parse_events__modifier_event(struct list_head *list, char *str, bool add)
 		evsel->precise_max         = mod.precise_max;
 		evsel->weak_group	   = mod.weak;
 		evsel->bpf_counter	   = mod.bpf_counter;
+		evsel->branch_events	   = mod.branch_events;
 
 		if (evsel__is_group_leader(evsel)) {
 			evsel->core.attr.pinned = mod.pinned;

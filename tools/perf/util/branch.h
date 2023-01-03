@@ -24,8 +24,9 @@ struct branch_flags {
 			u64 type:4;
 			u64 spec:2;
 			u64 new_type:4;
+			u64 events:8;
 			u64 priv:3;
-			u64 reserved:31;
+			u64 reserved:23;
 		};
 	};
 };
