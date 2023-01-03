@@ -523,6 +523,8 @@
 #define MSR_RELOAD_PMC0			0x000014c1
 #define MSR_RELOAD_FIXED_CTR0		0x00001309
 
+#define MSR_IA32_PMC0_RELOAD_CFG	0x00002528
+#define MSR_IA32_FIXED0_RELOAD_CFG	0x00002464
 /*
  * AMD64 MSRs. Not complete. See the architecture manual for a more
  * complete list.

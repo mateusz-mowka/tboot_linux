@@ -2477,14 +2477,26 @@ static void intel_pmu_disable_event(struct perf_event *event)
 	struct hw_perf_event *hwc = &event->hw;
 	int idx = hwc->idx;
 
+	/*
+	 * TODO
+	 * May optimize it a little bit later. E.g., coherent_counter_mask doesn't
+	 * change in the next sched in. We don't need to clear the mask and MSRs.
+	 */
+	if (event->attr.reload && (event == event->group_leader))
+		event->hw.coherent_counter_mask = 0;
+
 	switch (idx) {
 	case 0 ... INTEL_PMC_IDX_FIXED - 1:
 		intel_clear_masks(event, idx);
 		__intel_pmu_disable_event(hwc);
+		if (event->attr.reload)
+			wrmsrl(MSR_IA32_PMC0_RELOAD_CFG + event->hw.idx, 0);
 		break;
 	case INTEL_PMC_IDX_FIXED ... INTEL_PMC_IDX_FIXED_BTS - 1:
 	case INTEL_PMC_IDX_METRIC_BASE ... INTEL_PMC_IDX_METRIC_END:
 		intel_pmu_disable_fixed(event);
+		if (event->attr.reload && (idx < INTEL_PMC_IDX_METRIC_BASE))
+			wrmsrl(MSR_IA32_FIXED0_RELOAD_CFG + event->hw.idx - INTEL_PMC_IDX_FIXED, 0);
 		break;
 	case INTEL_PMC_IDX_FIXED_BTS:
 		intel_pmu_disable_bts();
@@ -2814,6 +2826,57 @@ static void intel_pmu_enable_fixed(struct perf_event *event)
 	cpuc->fixed_ctrl_val |= bits;
 }
 
+static inline void intel_pmu_event_msr_write(unsigned int gp_msr,
+					     unsigned int fixed_msr,
+					     unsigned int idx, u64 val)
+{
+	if (idx < INTEL_PMC_IDX_FIXED)
+		wrmsrl(gp_msr + idx, val);
+	else
+		wrmsrl(fixed_msr + idx - INTEL_PMC_IDX_FIXED, val);
+}
+
+static void intel_pmu_enable_auto_reload(struct perf_event *event)
+{
+	struct perf_event *leader, *sibling;
+	struct hw_perf_event *hwc;
+	unsigned long mask;
+
+	if (!x86_pmu.num_auto_reload || !event->attr.reload)
+		return;
+
+	leader = event->group_leader;
+	hwc = &event->hw;
+
+	/*
+	 * The coherent_counter_mask only be stroed in the Leader event.
+	 * It's generated once.
+	 */
+	if (!leader->hw.coherent_counter_mask) {
+		for_each_sibling_event(sibling, leader) {
+			if (sibling->attr.reload)
+				set_bit(sibling->hw.idx, (unsigned long *)&leader->hw.coherent_counter_mask);
+		}
+	}
+
+	/*
+	 * Leader: Reload on overflow of the member counters
+	 * Members: Reload on overflow of all counters
+	 */
+	mask = leader->hw.coherent_counter_mask;
+	if (event != leader)
+		mask = leader->hw.coherent_counter_mask | (1ULL << leader->hw.idx);
+
+	intel_pmu_event_msr_write(MSR_IA32_PMC0_RELOAD_CFG,
+				  MSR_IA32_FIXED0_RELOAD_CFG,
+				  hwc->idx, mask);
+
+	intel_pmu_event_msr_write(MSR_RELOAD_PMC0,
+				  MSR_RELOAD_FIXED_CTR0,
+				  hwc->idx,
+				  (u64)(-hwc->sample_period) & x86_pmu.cntval_mask);
+}
+
 static inline void __intel_pmu_enable_event(struct hw_perf_event *hwc,
 					    u64 enable_mask)
 {
@@ -2841,9 +2904,12 @@ static void intel_pmu_enable_event(struct perf_event *event)
 		intel_set_masks(event, idx);
 		if (intel_pmu_disable_usr_rdpmc(event))
 			enable_mask |= ARCH_PERFMON_EVENTSEL_RDPMC_USR_DISABLE;
+		intel_pmu_enable_auto_reload(event);
 		__intel_pmu_enable_event(hwc, enable_mask);
 		break;
 	case INTEL_PMC_IDX_FIXED ... INTEL_PMC_IDX_FIXED_BTS - 1:
+		intel_pmu_enable_auto_reload(event);
+		fallthrough;
 	case INTEL_PMC_IDX_METRIC_BASE ... INTEL_PMC_IDX_METRIC_END:
 		intel_pmu_enable_fixed(event);
 		break;
@@ -3671,6 +3737,14 @@ intel_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
 		return c1;
 	}
 
+	if (event->attr.reload) {
+		c1 = &cpuc->constraint_list[idx];
+		*c1 = *c2;
+		c1->idxmsk64 &= x86_pmu.mask_auto_reload;
+		c1->weight = hweight64(c1->idxmsk64);
+		return c1;
+	}
+
 	if (cpuc->excl_cntrs)
 		return intel_get_excl_constraints(cpuc, event, idx, c2);
 
@@ -4007,6 +4081,34 @@ static int intel_pmu_hw_config(struct perf_event *event)
 			return -EINVAL;
 
 		event->hw.flags |= PERF_X86_EVENT_PEBS_VIA_PT;
+	}
+
+	if (event->attr.reload) {
+		struct perf_event *leader = event->group_leader;
+		struct perf_event *sibling;
+		int num = 1;
+
+		/*
+		 * Leader must support auto reload as well
+		 * Limit the leader to a PEBS event.
+		 * Only sample the leader.
+		 */
+		if (!leader->attr.reload ||
+		    !leader->attr.precise_ip ||
+		    !(leader->attr.sample_type & PERF_SAMPLE_READ))
+			return -EINVAL;
+
+		/* An auto reload event must has fixed period. */
+		if (event->attr.freq || !event->attr.sample_period)
+			return -EINVAL;
+
+		for_each_sibling_event(sibling, leader) {
+			if (sibling->attr.reload)
+				num++;
+		}
+
+		if (num > x86_pmu.num_auto_reload)
+			return -EINVAL;
 	}
 
 	if ((event->attr.type == PERF_TYPE_HARDWARE) ||
@@ -4653,7 +4755,7 @@ int intel_cpuc_prepare(struct cpu_hw_events *cpuc, int cpu)
 			goto err;
 	}
 
-	if (x86_pmu.flags & (PMU_FL_EXCL_CNTRS | PMU_FL_TFA) || !!x86_pmu.lbr_events) {
+	if (x86_pmu.flags & (PMU_FL_EXCL_CNTRS | PMU_FL_TFA) || !!x86_pmu.lbr_events || x86_pmu.num_auto_reload) {
 		size_t sz = X86_PMC_IDX_MAX * sizeof(struct event_constraint);
 
 		cpuc->constraint_list = kzalloc_node(sz, GFP_KERNEL, cpu_to_node(cpu));
@@ -6071,6 +6173,11 @@ __init int intel_pmu_init(void)
 	if (version >= 6) {
 		cpuid(33, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
 		x86_pmu.rdpmc_usr = cpuid33_eax & 1;
+		if (cpuid33_edx >= 2) {
+			cpuid_count(33, 2, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
+			x86_pmu.mask_auto_reload = cpuid33_eax | ((u64)cpuid33_ebx << 32);
+			x86_pmu.num_auto_reload = fls(cpuid33_eax) + fls(cpuid33_ebx);
+		}
 		if (cpuid33_edx > 0) {
 			cpuid_count(33, 1, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
 			x86_pmu.num_counters = fls(cpuid33_eax);

@@ -904,6 +904,12 @@ struct x86_pmu {
 	int		num_topdown_events;
 
 	/*
+	 * Intel Auto-reload
+	 */
+	int		num_auto_reload;
+	u64		mask_auto_reload;
+
+	/*
 	 * perf task context (i.e. struct perf_event_pmu_context::task_ctx_data)
 	 * switch helper to bridge calls from perf/core to perf/x86.
 	 * See struct pmu::swap_task_ctx() usage for examples;

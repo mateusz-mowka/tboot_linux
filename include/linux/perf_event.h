@@ -159,6 +159,7 @@ struct hw_perf_event {
 			int		idx;
 			int		last_cpu;
 			int		flags;
+			u64		coherent_counter_mask;
 
 			struct hw_perf_event_extra extra_reg;
 			struct hw_perf_event_extra branch_reg;
