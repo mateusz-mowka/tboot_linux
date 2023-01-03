@@ -457,7 +457,8 @@ struct perf_event_attr {
 				remove_on_exec :  1, /* event is removed from task on exec */
 				sigtrap        :  1, /* send synchronous SIGTRAP on event */
 				branch_events  :  1, /* include branch events */
-				__reserved_1   : 25;
+				reload         :  1, /* auto counter reload */
+				__reserved_1   : 24;
 
 	union {
 		__u32		wakeup_events;	  /* wakeup every n events */
@@ -1338,7 +1339,8 @@ union perf_mem_data_src {
 #define PERF_MEM_LVLNUM_L2	0x02 /* L2 */
 #define PERF_MEM_LVLNUM_L3	0x03 /* L3 */
 #define PERF_MEM_LVLNUM_L4	0x04 /* L4 */
-/* 5-0x7 available */
+/* 5-0x6 available */
+#define PERF_MEM_LVLNUM_HBM	0x07 /* HBM */
 #define PERF_MEM_LVLNUM_MMIO	0x08 /* MMIO */
 #define PERF_MEM_LVLNUM_CXL	0x09 /* CXL */
 #define PERF_MEM_LVLNUM_IO	0x0a /* I/O */
@@ -1423,8 +1425,8 @@ struct perf_branch_entry {
 		type:4,     /* branch type */
 		spec:2,     /* branch speculation info */
 		new_type:4, /* additional branch type */
-		events:8,   /* TODO: */
 		priv:3,     /* privilege level */
+		events:8,   /* TODO */
 		reserved:23;
 };
 
