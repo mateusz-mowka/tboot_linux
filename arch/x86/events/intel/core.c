@@ -2782,25 +2782,32 @@ static void intel_pmu_enable_fixed(struct perf_event *event)
 	cpuc->fixed_ctrl_val |= bits;
 }
 
-static inline void __intel_pmu_enable_event(struct hw_perf_event *hwc)
+static inline void __intel_pmu_enable_event(struct hw_perf_event *hwc,
+					    u64 enable_mask)
 {
 	if (hwc->extra_reg.reg)
 		wrmsrl_batch(hwc->extra_reg.reg, hwc->extra_reg.config);
 
-	wrmsrl_batch(hwc->config_base, (hwc->config | ARCH_PERFMON_EVENTSEL_ENABLE));
+	wrmsrl_batch(hwc->config_base, (hwc->config | enable_mask));
 }
 static void intel_pmu_enable_event(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
+	u64 enable_mask = ARCH_PERFMON_EVENTSEL_ENABLE;
 	int idx = hwc->idx;
 
 	if (unlikely(event->attr.precise_ip))
 		intel_pmu_pebs_enable(event);
 
 	switch (idx) {
-	case 0 ... INTEL_PMC_IDX_FIXED - 1:
+	case 0 ... 3:
+		if (event->attr.branch_events &&
+		    this_cpu_ptr(&cpu_hw_events)->lbr_users)
+			enable_mask |= ARCH_PERFMON_EVENTSEL_LBR_LOG;
+		fallthrough;
+	case 4 ... INTEL_PMC_IDX_FIXED - 1:
 		intel_set_masks(event, idx);
-		__intel_pmu_enable_event(hwc);
+		__intel_pmu_enable_event(hwc, enable_mask);
 		break;
 	case INTEL_PMC_IDX_FIXED ... INTEL_PMC_IDX_FIXED_BTS - 1:
 	case INTEL_PMC_IDX_METRIC_BASE ... INTEL_PMC_IDX_METRIC_END:
@@ -3622,6 +3629,14 @@ intel_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
 		c2 = c1;
 	}
 
+	if (event->attr.branch_events) {
+		c1 = &cpuc->constraint_list[idx];
+		*c1 = *c2;
+		c1->idxmsk64 &= x86_pmu.lbr_events;
+		c1->weight = hweight64(c1->idxmsk64);
+		return c1;
+	}
+
 	if (cpuc->excl_cntrs)
 		return intel_get_excl_constraints(cpuc, event, idx, c2);
 
@@ -3908,6 +3923,31 @@ static int intel_pmu_hw_config(struct perf_event *event)
 		}
 		if (x86_pmu.pebs_aliases)
 			x86_pmu.pebs_aliases(event);
+	}
+
+	if (event->attr.branch_events) {
+		struct perf_event *leader, *sibling;
+		int num_branch_events = 0;
+
+		if (!static_cpu_has(X86_FEATURE_ARCH_LBR) ||
+		    !event->attr.precise_ip ||
+		    !x86_pmu.lbr_events ||
+		    (event->attr.config & ~INTEL_ARCH_EVENT_MASK))
+			return -EINVAL;
+
+		/*
+		 * The number of group members with branch_events attribute
+		 * cannot exceed the number of the supported counters.
+		 */
+		leader = event->group_leader;
+		if (leader->attr.branch_events)
+			num_branch_events++;
+		for_each_sibling_event(sibling, leader) {
+			if (sibling->attr.branch_events)
+				num_branch_events++;
+		}
+		if (num_branch_events > PERF_MAX_BRANCH_EVENTS)
+			return -EINVAL;
 	}
 
 	if (needs_branch_stack(event)) {
@@ -4561,7 +4601,7 @@ int intel_cpuc_prepare(struct cpu_hw_events *cpuc, int cpu)
 			goto err;
 	}
 
-	if (x86_pmu.flags & (PMU_FL_EXCL_CNTRS | PMU_FL_TFA)) {
+	if (x86_pmu.flags & (PMU_FL_EXCL_CNTRS | PMU_FL_TFA) || !!x86_pmu.lbr_events) {
 		size_t sz = X86_PMC_IDX_MAX * sizeof(struct event_constraint);
 
 		cpuc->constraint_list = kzalloc_node(sz, GFP_KERNEL, cpu_to_node(cpu));
