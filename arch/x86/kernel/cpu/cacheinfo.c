@@ -18,6 +18,7 @@
 #include <linux/pci.h>
 #include <linux/stop_machine.h>
 
+#include <asm/intel-family.h>
 #include <asm/cpufeature.h>
 #include <asm/cacheinfo.h>
 #include <asm/amd_nb.h>
@@ -744,6 +745,17 @@ void init_hygon_cacheinfo(struct cpuinfo_x86 *c)
 	set_num_cache_leaves(find_num_cache_leaves(c), c->cpu_index);
 }
 
+static bool intel_has_asym_num_cache_leaves(void)
+{
+	switch (boot_cpu_data.x86_model) {
+	case INTEL_FAM6_METEORLAKE:
+	case INTEL_FAM6_METEORLAKE_L:
+		return true;
+	default:
+		return false;
+	}
+}
+
 void init_intel_cacheinfo(struct cpuinfo_x86 *c)
 {
 	/* Cache sizes */
@@ -754,12 +766,24 @@ void init_intel_cacheinfo(struct cpuinfo_x86 *c)
 	unsigned int cpu = c->cpu_index;
 
 	if (c->cpuid_level > 3) {
+		int leaves = get_num_cache_leaves(cpu);
+
 		/*
 		 * There should be at least one leaf. A non-zero value means
 		 * that the number of leaves has been initialized.
 		 */
-		if (!get_num_cache_leaves(cpu))
-			set_num_cache_leaves(find_num_cache_leaves(c), cpu);
+		if (!leaves) {
+			/*
+			 * Most CPUs enumerate the same number of cache leaves.
+			 * Use the boot CPU data in those cases.
+			 */
+			if (intel_has_asym_num_cache_leaves() || c == &boot_cpu_data)
+				leaves = find_num_cache_leaves(c);
+			else
+				leaves = get_num_cache_leaves(boot_cpu_data.cpu_index);
+
+			set_num_cache_leaves(leaves, cpu);
+		}
 
 		/*
 		 * Whenever possible use cpuid(4), deterministic cache
