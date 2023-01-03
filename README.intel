@@ -64,6 +64,7 @@ GNR PO bkc-v1.5
 7. CXL: Update CXL XOR Interleave Math (CXIMS)
    revert original implementation in commit 1771feaff
    and replace with new one.
+8. ISST: Fix uncore min frequency display
 
 GNR PO bkc-v1.4
 ===============
