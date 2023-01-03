@@ -61,6 +61,9 @@ GNR PO bkc-v1.5
 	i. IDE fixes for RPB card.
 	ii. TDXIO related seamcall retry for recoverable errors
 	iii. IOMMU driver changes for trusted domain been detach/replaced.
+7. CXL: Update CXL XOR Interleave Math (CXIMS)
+   revert original implementation in commit 1771feaff
+   and replace with new one.
 
 GNR PO bkc-v1.4
 ===============
