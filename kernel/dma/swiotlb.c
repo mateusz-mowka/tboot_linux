@@ -341,7 +341,7 @@ void __init swiotlb_init_remap(bool addressing_limit, unsigned int flags,
 	 * memory encryption.
 	 */
 retry:
-	bytes = PAGE_ALIGN(nslabs << IO_TLB_SHIFT);
+	bytes = ALIGN(nslabs << IO_TLB_SHIFT, PMD_SIZE);
 	if (cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT)) {
 		tlb = memblock_alloc_raw_unaccepted(bytes, PMD_SIZE);
 		if (tlb)
