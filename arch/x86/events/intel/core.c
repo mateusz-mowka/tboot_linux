@@ -2740,6 +2740,20 @@ static void intel_pmu_read_event(struct perf_event *event)
 		x86_perf_event_update(event);
 }
 
+static inline bool intel_pmu_disable_usr_rdpmc(struct perf_event *event)
+{
+	/*
+	 * RDPMC_USR_DISABLE bit is supported in V6 and up
+	 *
+	 * Disable ring 3 RDPMC for the below cases,
+	 * - System wide events
+	 * - !PERF_EVENT_FLAG_USER_READ_CNT
+	 */
+	return (x86_pmu.version >= 6) &&
+	       (!(event->attach_state & PERF_ATTACH_TASK) ||
+	       !(event->hw.flags & PERF_EVENT_FLAG_USER_READ_CNT));
+}
+
 static void intel_pmu_enable_fixed(struct perf_event *event)
 {
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
@@ -2788,6 +2802,14 @@ static void intel_pmu_enable_fixed(struct perf_event *event)
 		mask |= ICL_FIXED_0_ADAPTIVE << (idx * 4);
 	}
 
+	/*
+	 * RDPMC_USR_DISABLE bit
+	 */
+	if (intel_pmu_disable_usr_rdpmc(event)) {
+		bits |= FIXED_0_RDPMC_USR_DISABLE << (idx * 4);
+		mask |= FIXED_0_RDPMC_USR_DISABLE << (idx * 4);
+	}
+
 	cpuc->fixed_ctrl_val &= ~mask;
 	cpuc->fixed_ctrl_val |= bits;
 }
@@ -2817,6 +2839,8 @@ static void intel_pmu_enable_event(struct perf_event *event)
 		fallthrough;
 	case 4 ... INTEL_PMC_IDX_FIXED - 1:
 		intel_set_masks(event, idx);
+		if (intel_pmu_disable_usr_rdpmc(event))
+			enable_mask |= ARCH_PERFMON_EVENTSEL_RDPMC_USR_DISABLE;
 		__intel_pmu_enable_event(hwc, enable_mask);
 		break;
 	case INTEL_PMC_IDX_FIXED ... INTEL_PMC_IDX_FIXED_BTS - 1:
@@ -6041,6 +6065,7 @@ __init int intel_pmu_init(void)
 	 */
 	if (version >= 6) {
 		cpuid(33, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
+		x86_pmu.rdpmc_usr = cpuid33_eax & 1;
 		if (cpuid33_edx > 0) {
 			cpuid_count(33, 1, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
 			x86_pmu.num_counters = fls(cpuid33_eax);
