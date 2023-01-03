@@ -65,6 +65,7 @@ GNR PO bkc-v1.5
    revert original implementation in commit 1771feaff
    and replace with new one.
 8. ISST: Fix uncore min frequency display
+9. ISST: Update memory frequency read method
 
 GNR PO bkc-v1.4
 ===============
