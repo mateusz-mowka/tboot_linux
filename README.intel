@@ -66,6 +66,12 @@ GNR PO bkc-v1.5
    and replace with new one.
 8. ISST: Fix uncore min frequency display
 9. ISST: Update memory frequency read method
+10. TDXIO: Various fixes
+	i.   RPB: fixes RPB device cannot be shared passthrough to TD for multiple times, https://jira.devtools.intel.com/browse/LFE-6588
+	ii.  IDE: Workaround for avoiding MCA in IDE cleanup flow, https://jira.devtools.intel.com/browse/LFE-6497
+	iii. Fix panic when tdxio capable dmar is disabled, https://jira.devtools.intel.com/browse/LFE-6587
+	iv.  change SPTE_MMU_PRESENT_MASK to bit 61, https://jira.devtools.intel.com/browse/LFE-6655
+	v.   set tdev to NULL when closing device, https://jira.devtools.intel.com/browse/LFE-6662
 
 GNR PO bkc-v1.4
 ===============
