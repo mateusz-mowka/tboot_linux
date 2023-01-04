@@ -1,6 +1,10 @@
 INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 ------------------------------------------------------------------------
 
+SRF PO bkc-v0.3
+===============
+1. Rebased on top of GNR-PO-BKC-v1.5 kernel.
+
 SRF PO bkc-v0.2
 ===============
 1. Rebased on top of GNR-PO-BKC-v1.4.2 kernel.
