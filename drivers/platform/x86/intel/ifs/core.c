@@ -12,7 +12,6 @@
 enum test_types {
 	IFS_SAF,
 	IFS_ARRAY,
-	IFS_SBFT
 };
 
 #define X86_MATCH(model, test_gen)				\
@@ -30,7 +29,6 @@ static struct ifs_device ifs_devices[] = {
 	[IFS_SAF] = {
 		.data = {
 			.integrity_cap_bit = MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT,
-			.test_name = "SCAN",
 		},
 		.misc = {
 			.name = "intel_ifs_0",
@@ -41,22 +39,10 @@ static struct ifs_device ifs_devices[] = {
 	[IFS_ARRAY] = {
 		.data = {
 			.integrity_cap_bit = MSR_INTEGRITY_CAPS_ARRAY_BIST_BIT,
-			.test_name = "ARRAY",
 		},
 		.misc = {
 			.name = "intel_ifs_1",
 			.nodename = "intel_ifs/1",
-			.minor = MISC_DYNAMIC_MINOR,
-		},
-	},
-	[IFS_SBFT] = {
-		.data = {
-			.integrity_cap_bit = MSR_INTEGRITY_CAPS_SBFT_AT_FIELD,
-			.test_name = "SBFT",
-		},
-		.misc = {
-			.name = "intel_ifs_2",
-			.nodename = "intel_ifs/2",
 			.minor = MISC_DYNAMIC_MINOR,
 		},
 	},
