@@ -1670,10 +1670,6 @@ static int init_tdx_module(void)
 
 static void shutdown_tdx_module(void)
 {
-	struct seamcall_ctx sc = { .fn = TDH_SYS_LP_SHUTDOWN };
-
-	seamcall_on_each_cpu(&sc);
-
 	tdx_module_status = TDX_MODULE_SHUTDOWN;
 	tdx_module_sysfs_deinit();
 }
