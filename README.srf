@@ -4,6 +4,8 @@ INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 SRF PO bkc-v0.3
 ===============
 1. Rebased on top of GNR-PO-BKC-v1.5 kernel.
+2. Add RAS Scan @ Field with SBFT (Structural Based Functional Testing) support.
+   jira: https://jira.devtools.intel.com/browse/LFE-718
 
 SRF PO bkc-v0.2
 ===============
