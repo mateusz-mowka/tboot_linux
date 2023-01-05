@@ -8,6 +8,7 @@
 #include <asm/nospec-branch.h>
 #include <asm/percpu.h>
 #include <asm/segment.h>
+#include <asm/tdx.h>
 #include "run_flags.h"
 
 #define WORD_SIZE (BITS_PER_LONG / 8)
@@ -428,6 +429,14 @@ SYM_FUNC_START(__tdx_vcpu_run)
 
 	/* Skip to the exit path if TDENTER failed. */
 7:	nop
+	/*
+	 * Use same return value convention to tdxcall.S.
+	 * TDX_SEAMCALL_VMFAILINVALID doesn't conflict with any TDX status code.
+	 */
+9:	jnc 8f
+	mov $TDX_SEAMCALL_VMFAILINVALID, %rax
+	jmp 4f
+
 8:	bt $TDENTER_ERROR_BIT, %rax
 	jc 4f
 
@@ -495,11 +504,12 @@ SYM_FUNC_START(__tdx_vcpu_run)
 
 5:	cmpb $0, kvm_rebooting
 	je 6f
-	mov $-EFAULT, %rax
+	mov $TDX_SW_ERROR, %r12
+	orq %r12, %rax
 	jmp 4b
 6:	ud2
-	_ASM_EXTABLE(2b, 5b)
-	_ASM_EXTABLE_FIX_MC(7b, 8b)
+	_ASM_EXTABLE_FAULT(2b, 5b)
+	_ASM_EXTABLE_FIX_MC(7b, 9b)
 
 SYM_FUNC_END(__tdx_vcpu_run)
 
