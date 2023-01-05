@@ -88,6 +88,9 @@ static int __init ifs_init(void)
 		ifs_devices[i].data.test_gen = (msrval & MSR_INTEGRITY_CAPS_SAF_GEN_REV_MASK)
 							>> MSR_INTEGRITY_CAPS_SAF_GEN_REV_SHIFT;
 
+		pr_info("intel_ifs device: %d gen_rev: %d integrity caps: %llx\n",
+			i, ifs_devices[i].data.test_gen, msrval);
+
 		ifs_devices[i].data.pkg_auth = kmalloc_array(topology_max_packages(),
 							     sizeof(bool), GFP_KERNEL);
 		if (!ifs_devices[i].data.pkg_auth)
