@@ -265,6 +265,7 @@ int intel_microcode_sanity_check(void *mc, bool print_err, int hdr_type)
 	struct extended_sigtable *ext_header = NULL;
 	u32 sum, orig_sum, ext_sigcount = 0, i;
 	struct extended_signature *ext_sig;
+	struct ucode_cpu_info uci;
 
 	total_size = get_totalsize(mc_header);
 	data_size = get_datasize(mc_header);
@@ -336,6 +337,23 @@ int intel_microcode_sanity_check(void *mc, bool print_err, int hdr_type)
 		return -EINVAL;
 	}
 
+	/*
+	 * Enforce for late-load that min_req_id is specified in the header.
+	 * Otherwise its an old format microcode, reject it.
+	 */
+	if (print_err && hdr_type != MC_HEADER_TYPE_IFS) {
+		if (!mc_header->min_req_id) {
+			pr_warn("Header MUST specify min version for late-load\n");
+			return -EINVAL;
+		}
+
+		intel_cpu_collect_info(&uci);
+		if (uci.cpu_sig.rev < mc_header->min_req_id) {
+			pr_warn("Current revision 0x%x is too old to update must be at 0x%x version or higher\n",
+				uci.cpu_sig.rev, mc_header->min_req_id);
+			return -EINVAL;
+		}
+	}
 	if (!ext_table_size)
 		return 0;
 
