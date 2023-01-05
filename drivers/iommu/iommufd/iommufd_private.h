@@ -9,6 +9,8 @@
 #include <linux/refcount.h>
 #include <linux/uaccess.h>
 
+#include "iommufd_test.h"
+
 struct iommu_domain;
 struct iommu_group;
 struct iommu_option;
@@ -85,6 +87,21 @@ int iopt_cut_iova(struct io_pagetable *iopt, unsigned long *iovas,
 		  size_t num_iovas);
 void iopt_enable_large_pages(struct io_pagetable *iopt);
 int iopt_disable_large_pages(struct io_pagetable *iopt);
+
+union ucmd_buffer {
+	struct iommu_destroy destroy;
+	struct iommu_ioas_alloc alloc;
+	struct iommu_ioas_allow_iovas allow_iovas;
+	struct iommu_ioas_iova_ranges iova_ranges;
+	struct iommu_device_info info;
+	struct iommu_ioas_map map;
+	struct iommu_ioas_unmap unmap;
+	struct iommu_hwpt_alloc hwpt_alloc;
+	struct iommu_hwpt_invalidate hwpt_invalidate;
+#ifdef CONFIG_IOMMUFD_TEST
+	struct iommu_test_cmd test;
+#endif
+};
 
 struct iommufd_ucmd {
 	struct iommufd_ctx *ictx;
@@ -230,6 +247,24 @@ int iommufd_option_rlimit_mode(struct iommu_option *cmd,
 			       struct iommufd_ctx *ictx);
 
 int iommufd_vfio_ioas(struct iommufd_ucmd *ucmd);
+
+/*
+ * A iommufd_device object represents the binding relationship between a
+ * consuming driver and the iommufd. These objects are created/destroyed by
+ * external drivers, not by userspace.
+ */
+struct iommufd_device {
+	struct iommufd_object obj;
+	struct iommufd_ctx *ictx;
+	struct iommufd_hw_pagetable *hwpt;
+	/* Head at iommufd_hw_pagetable::devices */
+	struct list_head devices_item;
+	/* always the physical device */
+	struct device *dev;
+	struct iommu_group *group;
+	bool enforce_cache_coherency;
+};
+
 int iommufd_device_get_info(struct iommufd_ucmd *ucmd);
 
 /*
@@ -255,12 +290,30 @@ struct iommufd_hw_pagetable {
 	struct mutex *devices_lock;
 	refcount_t *devices_users;
 	struct list_head devices;
+	/*
+	 * If hwpt->parent is valid, this buffer is pre-allocated to store
+	 * the cache invaliation data from user as cache invalidation is
+	 * normally supposed to be fast-path, needs to avoid memory allocation
+	 * in such path.
+	 */
+	void *cache;
 };
 
 struct iommufd_hw_pagetable *
 iommufd_hw_pagetable_alloc(struct iommufd_ctx *ictx, struct iommufd_ioas *ioas,
 			   struct device *dev);
 void iommufd_hw_pagetable_destroy(struct iommufd_object *obj);
+
+static inline struct iommufd_hw_pagetable *
+iommufd_get_hwpt(struct iommufd_ucmd *ucmd, u32 id)
+{
+	return container_of(iommufd_get_object(ucmd->ictx, id,
+					       IOMMUFD_OBJ_HW_PAGETABLE),
+			    struct iommufd_hw_pagetable, obj);
+}
+
+int iommufd_hwpt_alloc(struct iommufd_ucmd *ucmd);
+int iommufd_hwpt_invalidate(struct iommufd_ucmd *ucmd);
 
 void iommufd_device_destroy(struct iommufd_object *obj);
 
@@ -278,6 +331,9 @@ int iopt_add_access(struct io_pagetable *iopt, struct iommufd_access *access);
 void iopt_remove_access(struct io_pagetable *iopt,
 			struct iommufd_access *access);
 void iommufd_access_destroy_object(struct iommufd_object *obj);
+
+struct iommufd_device *
+iommufd_device_get_by_id(struct iommufd_ctx *ictx, u32 dev_id);
 
 #ifdef CONFIG_IOMMUFD_TEST
 struct iommufd_hw_pagetable *
