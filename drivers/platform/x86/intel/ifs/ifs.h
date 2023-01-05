@@ -228,7 +228,6 @@ struct ifs_data {
 	bool	loading_error;
 	int	valid_chunks;
 	int	status;
-	u32	test_gen;
 	u64	scan_details;
 };
 
