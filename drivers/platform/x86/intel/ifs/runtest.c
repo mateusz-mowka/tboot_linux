@@ -285,7 +285,8 @@ static void ifs_array_test_core(int cpu, struct device *dev)
 		stop_core_cpuslocked(cpu, do_array_test, msrvals);
 		status.data = msrvals[1];
 
-		trace_ifs_array(cpu, activate, status);
+		//TODO add trace
+		//trace_ifs_status(cpu, activate, status);
 
 		if (status.passfail)
 			break;
