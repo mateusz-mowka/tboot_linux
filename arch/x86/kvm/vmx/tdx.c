@@ -1413,8 +1413,9 @@ void tdx_handle_exit_irqoff(struct kvm_vcpu *vcpu)
 		 tdx->exit_reason.error)) {
 		/*
 		 * The only reason it gets EXIT_REASON_OTHER_SMI is there is an
-		 * #MSMI(Machine Check System Management Interrupt) in TD
-		 * guest. The #MSMI is delivered right after SEAMCALL returns,
+		 * #MSMI(Machine Check System Management Interrupt) with
+		 * exit_qualification bit 0 set in TD guest.
+		 * The #MSMI is delivered right after SEAMCALL returns,
 		 * and an #MC is delivered to host kernel after SMI handler
 		 * returns.
 		 *
@@ -1424,8 +1425,14 @@ void tdx_handle_exit_irqoff(struct kvm_vcpu *vcpu)
 		 *
 		 * Call KVM's machine check handler explicitly here.
 		 */
-		if (tdx->exit_reason.basic == EXIT_REASON_OTHER_SMI)
-			kvm_machine_check();
+		if (tdx->exit_reason.basic == EXIT_REASON_OTHER_SMI) {
+			#define TD_EXIT_OTHER_SMI_IS_MSMI 0x1
+			unsigned long exit_qual;
+
+			exit_qual = tdexit_exit_qual(vcpu);
+			if (exit_qual & TD_EXIT_OTHER_SMI_IS_MSMI)
+				kvm_machine_check();
+		}
 	}
 }
 
