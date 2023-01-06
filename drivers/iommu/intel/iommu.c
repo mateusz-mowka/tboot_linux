@@ -4218,7 +4218,7 @@ int prepare_domain_attach_device(struct iommu_domain *domain,
 	int addr_width;
 
 	iommu = device_to_iommu(dev, NULL, NULL);
-	if (!iommu)
+	if (!iommu || IS_ERR(iommu))
 		return -ENODEV;
 
 	if (dmar_domain->force_snooping && !ecap_sc_support(iommu->ecap))
@@ -4771,7 +4771,7 @@ static int intel_iommu_hw_info(struct device *dev, void *data, size_t length)
 {
 	struct device_domain_info *info = dev_iommu_priv_get(dev);
 	struct iommu_device_info_vtd *vtd = data;
-	struct intel_iommu *iommu;
+	struct intel_iommu *iommu = device_to_iommu(dev, NULL, NULL);
 
 	if (!info)
 		return -ENODEV;
