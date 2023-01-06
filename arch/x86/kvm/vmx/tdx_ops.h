@@ -14,6 +14,7 @@
 
 #include "tdx_errno.h"
 #include "tdx_arch.h"
+#include "x86.h"
 
 #ifdef CONFIG_INTEL_TDX_HOST
 
@@ -50,6 +51,10 @@ static inline uint64_t kvm_seamcall(u64 op, u64 rcx, u64 rdx, u64 r8,
 		    err == TDX_VCPU_NOT_ASSOCIATED ||
 		    err == TDX_INTERRUPTED_RESUMABLE)
 			return err;
+		else if (unlikely(err == TDX_SEAMCALL_UD)) {
+			kvm_spurious_fault();
+			return 0;
+		}
 
 		if (retries++ > TDX_SEAMCALL_RETRY_MAX)
 			break;
