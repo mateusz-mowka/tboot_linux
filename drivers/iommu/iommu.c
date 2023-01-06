@@ -3474,7 +3474,9 @@ struct iommu_domain *iommu_domain_alloc_user(struct device *dev,
 		return ERR_PTR(-EOPNOTSUPP);
 
 	/* IOMMU_DEVICE_DATA_NONE and user_data are exclusive. */
-	if (!((type == IOMMU_DEVICE_DATA_NONE) ^ (user_data != NULL)))
+	//if (!((type == IOMMU_DEVICE_DATA_NONE) ^ (user_data != NULL)))
+	/* Qemu requests to alloc s2 hwpt will use INTEL_VTD and user_data NULL */
+	if (type == IOMMU_DEVICE_DATA_NONE && user_data != NULL)
 		return ERR_PTR(-EINVAL);
 
 	if (type != IOMMU_DEVICE_DATA_NONE && type != ops->driver_type)
