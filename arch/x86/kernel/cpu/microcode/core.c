@@ -671,7 +671,7 @@ done:
 		microcode_check(&prev_info);
 	} else {
 		pr_info("Reload failed, current microcode revision: 0x%x\n",
-		boot_cpu_data.microcode);
+			boot_cpu_data.microcode);
 	}
 
 	return ret;
