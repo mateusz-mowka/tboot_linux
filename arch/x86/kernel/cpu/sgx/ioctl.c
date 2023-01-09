@@ -768,12 +768,19 @@ sgx_enclave_restrict_permissions(struct sgx_encl *encl,
 	unsigned long addr;
 	unsigned long c;
 	void *epc_virt;
+	int srcu_idx;
 	int ret;
 
 	memset(&secinfo, 0, sizeof(secinfo));
 	secinfo.flags = modp->permissions & SGX_SECINFO_PERMISSION_MASK;
 
 	for (c = 0 ; c < modp->length; c += PAGE_SIZE) {
+		srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+		if (sgx_epc_is_locked()) {
+			srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+			return -EBUSY;
+		}
+
 		addr = encl->base + modp->offset + c;
 
 		sgx_reclaim_direct();
@@ -834,6 +841,7 @@ sgx_enclave_restrict_permissions(struct sgx_encl *encl,
 		}
 
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 	}
 
 	ret = 0;
@@ -841,6 +849,7 @@ sgx_enclave_restrict_permissions(struct sgx_encl *encl,
 
 out_unlock:
 	mutex_unlock(&encl->lock);
+	srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 out:
 	modp->count = c;
 
@@ -926,6 +935,7 @@ static long sgx_enclave_modify_types(struct sgx_encl *encl,
 	unsigned long addr;
 	unsigned long c;
 	void *epc_virt;
+	int srcu_idx;
 	int ret;
 
 	page_type = modt->page_type & SGX_PAGE_TYPE_MASK;
@@ -941,6 +951,12 @@ static long sgx_enclave_modify_types(struct sgx_encl *encl,
 	secinfo.flags = page_type << 8;
 
 	for (c = 0 ; c < modt->length; c += PAGE_SIZE) {
+		srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+		if (sgx_epc_is_locked()) {
+			srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+			return -EBUSY;
+		}
+
 		addr = encl->base + modt->offset + c;
 
 		sgx_reclaim_direct();
@@ -1038,6 +1054,7 @@ static long sgx_enclave_modify_types(struct sgx_encl *encl,
 		entry->type = page_type;
 
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 	}
 
 	ret = 0;
@@ -1047,6 +1064,7 @@ out_entry_changed:
 	entry->vm_max_prot_bits = max_prot_restore;
 out_unlock:
 	mutex_unlock(&encl->lock);
+	srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 out:
 	modt->count = c;
 
@@ -1123,12 +1141,19 @@ static long sgx_encl_remove_pages(struct sgx_encl *encl,
 	unsigned long addr;
 	unsigned long c;
 	void *epc_virt;
+	int srcu_idx;
 	int ret;
 
 	memset(&secinfo, 0, sizeof(secinfo));
 	secinfo.flags = SGX_SECINFO_R | SGX_SECINFO_W | SGX_SECINFO_X;
 
 	for (c = 0 ; c < params->length; c += PAGE_SIZE) {
+		srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+		if (sgx_epc_is_locked()) {
+			srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+			return -EBUSY;
+		}
+
 		addr = encl->base + params->offset + c;
 
 		sgx_reclaim_direct();
@@ -1184,6 +1209,7 @@ static long sgx_encl_remove_pages(struct sgx_encl *encl,
 		kfree(entry);
 
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 	}
 
 	ret = 0;
@@ -1191,6 +1217,7 @@ static long sgx_encl_remove_pages(struct sgx_encl *encl,
 
 out_unlock:
 	mutex_unlock(&encl->lock);
+	srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 out:
 	params->count = c;
 
