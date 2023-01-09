@@ -1952,7 +1952,11 @@ extern void pagefault_out_of_memory(void);
 #define SHOW_MEM_FILTER_NODES		(0x0001u)	/* disallowed nodes */
 
 extern void __show_free_areas(unsigned int flags, nodemask_t *nodemask, int max_zone_idx);
+#ifdef CONFIG_SVOS
+static inline void show_free_areas(unsigned int flags, nodemask_t *nodemask)
+#else
 static void __maybe_unused show_free_areas(unsigned int flags, nodemask_t *nodemask)
+#endif
 {
 	__show_free_areas(flags, nodemask, MAX_NR_ZONES - 1);
 }
