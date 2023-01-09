@@ -647,6 +647,12 @@ static int microcode_reload_late(enum reload_type type)
 	if (ret)
 		goto done;
 
+	/*
+	 * Take a snapshot before the microcode update in order to compare and
+	 * check whether any bits changed after an update.
+	 */
+	store_cpu_caps(&prev_info);
+
 	atomic_set(&ucode_updating, 1);
 	ret = do_load_microcode(type);
 	atomic_set(&ucode_updating, 0);

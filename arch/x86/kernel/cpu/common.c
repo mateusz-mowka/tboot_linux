@@ -2392,6 +2392,25 @@ void cpu_init_secondary(void)
 
 #ifdef CONFIG_MICROCODE_LATE_LOADING
 /**
+ * store_cpu_caps() - Store a snapshot of CPU capabilities
+ * @curr_info: Pointer where to store it
+ *
+ * Returns: None
+ */
+void store_cpu_caps(struct cpuinfo_x86 *curr_info)
+{
+	/* Reload CPUID max function as it might've changed. */
+	curr_info->cpuid_level = cpuid_eax(0);
+
+	/* Copy all capability leafs and pick up the synthetic ones. */
+	memcpy(&curr_info->x86_capability, &boot_cpu_data.x86_capability,
+	       sizeof(curr_info->x86_capability));
+
+	/* Get the hardware CPUID leafs */
+	get_cpu_cap(curr_info);
+}
+
+/**
  * microcode_check() - Check if any CPU capabilities changed after an update.
  * @prev_info:	CPU capabilities stored before an update.
  *
@@ -2403,35 +2422,13 @@ void cpu_init_secondary(void)
  */
 void microcode_check(struct cpuinfo_x86 *prev_info)
 {
+	struct cpuinfo_x86 curr_info;
+
 	perf_check_microcode();
 
-	/*
-	 * SGX attestation incorporates the microcode versions of all processors
-	 * on the system and is affected by microcode updates. So, update SGX
-	 * attestation metric (called CPUSVN) to ensure enclaves attest to the
-	 * new version after microcode update.
-	 *
-	 * If add "svnupdate" to kernel boot parameter, the CPUSVN update procedure
-	 * could only be called by writing to sysfs.
-	 */
-	if (!sysfs_svnupdate_enabled() && IS_ENABLED(CONFIG_X86_SGX) &&
-	    (cpuid_eax(SGX_CPUID) & SGX_CPUID_EUPDATESVN))
-		sgx_update_cpusvn_intel();
+	store_cpu_caps(&curr_info);
 
-	/* Reload CPUID max function as it might've changed. */
-	prev_info->cpuid_level = cpuid_eax(0);
-
-	/*
-	 * Copy all capability leafs to pick up the synthetic ones so that
-	 * memcmp() below doesn't fail on that. The ones coming from CPUID will
-	 * get overwritten in get_cpu_cap().
-	 */
-	memcpy(&prev_info->x86_capability, &boot_cpu_data.x86_capability,
-	       sizeof(prev_info->x86_capability));
-
-	get_cpu_cap(prev_info);
-
-	if (!memcmp(&prev_info->x86_capability, &boot_cpu_data.x86_capability,
+	if (!memcmp(&prev_info->x86_capability, &curr_info.x86_capability,
 		    sizeof(prev_info->x86_capability)))
 		return;
 
