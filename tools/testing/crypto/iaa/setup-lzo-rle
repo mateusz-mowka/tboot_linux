@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+echo 0 > /sys/module/zswap/parameters/by_n
+echo "by_n:"
+cat /sys/module/zswap/parameters/by_n
+
+echo 0 > /sys/module/zswap/parameters/by_n_threshold
+echo "by_n_threshold:"
+cat /sys/module/zswap/parameters/by_n_threshold
+
+#
+# enable zswap
+#
+echo 0 > /sys/module/zswap/parameters/enabled
+
+echo 50 > /sys/module/zswap/parameters/max_pool_percent
+echo "zswap max_pool_percent:"
+cat /sys/module/zswap/parameters/max_pool_percent
+
+echo lzo-rle > /sys/module/zswap/parameters/compressor
+echo "zswap compressor:"
+cat /sys/module/zswap/parameters/compressor
+
+echo zsmalloc > /sys/module/zswap/parameters/zpool
+echo "zswap zpool:"
+cat /sys/module/zswap/parameters/zpool
+
+echo 1 > /sys/module/zswap/parameters/enabled
+echo "zswap enabled:"
+cat /sys/module/zswap/parameters/enabled
+
+echo 0 > /sys/module/zswap/parameters/same_filled_pages_enabled
+echo "zswap same_filled_pages_enabled:"
+cat /sys/module/zswap/parameters/same_filled_pages_enabled
+
+#
+# configure vm
+#
+echo 100 > /proc/sys/vm/swappiness
+echo "vm swappiness:"
+cat /proc/sys/vm/swappiness
+
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+echo "mm transparent_hugepage enabled:"
+cat /sys/kernel/mm/transparent_hugepage/enabled
+
+echo 1 > /proc/sys/vm/overcommit_memory
+echo "vm overcommit_memory:"
+cat /proc/sys/vm/overcommit_memory
+
+dmesg -k | tail -n20
+

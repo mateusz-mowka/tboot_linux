@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+
+echo "Removing zswap hists"
+
+# zswap_store_lat_async
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_async/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_async/trigger
+# zswap_store_lat_by_n
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_by_n/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_by_n/trigger
+# zswap_store_lat_sync
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_sync/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_sync/trigger
+# zswap_load_lat_async
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_async/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_async/trigger
+# zswap_load_lat_by_n
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_by_n/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_by_n/trigger
+# zswap_load_lat_sync
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_sync/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_sync/trigger
+# zswap_store_reject
+echo '!hist:keys=ret:size=8192' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_reject/trigger
+# zswap_writeback_lat_async
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_async/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_async/trigger
+# zswap_writeback_lat_by_n
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_by_n/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_by_n/trigger
+# zswap_writeback_lat_sync
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_sync/trigger
+echo '!hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_sync/trigger
+
+echo "Enabling zswap hists"
+
+# zswap_store_lat_async
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_async/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_async/trigger
+# zswap_store_lat_by_n
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_by_n/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_by_n/trigger
+# zswap_store_lat_sync
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_sync/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_sync/trigger
+# zswap_load_lat_async
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_async/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_async/trigger
+# zswap_load_lat_by_n
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_by_n/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_by_n/trigger
+# zswap_load_lat_sync
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_sync/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_sync/trigger
+# zswap_store_reject
+echo 'hist:keys=ret:size=8192' >> /sys/kernel/debug/tracing/events/zswap/zswap_store_reject/trigger
+# zswap_writeback_lat_async
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_async/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_async/trigger
+# zswap_writeback_lat_by_n
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_by_n/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_by_n/trigger
+# zswap_writeback_lat_sync
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret == 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_sync/trigger
+echo 'hist:keys=lat.buckets=10:sort=lat:size=8192 if ret != 0' >> /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_sync/trigger
+

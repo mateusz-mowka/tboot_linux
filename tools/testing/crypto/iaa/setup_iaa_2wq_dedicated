@@ -1,0 +1,104 @@
+#!/bin/bash
+
+IAX_CONFIG_PATH=/sys/bus/dsa/devices
+
+IAX_BIND_PATH=/sys/bus/dsa/drivers/idxd/bind
+IAX_BIND_WQ_PATH=/sys/bus/dsa/drivers/crypto/bind
+
+IAX_UNBIND_PATH=/sys/bus/dsa/drivers/idxd/unbind
+IAX_UNBIND_WQ_PATH=/sys/bus/dsa/drivers/crypto/unbind
+
+echo "IAX devices:"
+lspci -d:0cfe
+echo "# IAX devices:"
+lspci -d:0cfe | wc -l
+
+#
+# count iax instances
+#
+iax_dev_id="0cfe"
+num_iax=$(lspci -d:${iax_dev_id} | wc -l)
+echo "Found ${num_iax} IAX instances"
+
+#
+# disable iax wqs and devices
+#
+echo "Disable IAX"
+
+for ((i = 1; i < ${num_iax} * 2; i += 2)); do
+    echo disable wq iax${i}/wq${i}.0
+    echo wq${i}.0 > $IAX_UNBIND_WQ_PATH
+    echo disable wq iax${i}/wq${i}.1
+    echo wq${i}.1 > $IAX_UNBIND_WQ_PATH
+    echo disable iax iax${i}
+    echo iax${i} > $IAX_UNBIND_PATH    
+done
+
+echo "End Disable IAX"
+
+#
+# configure iax wqs and devices
+#
+echo "Configure IAX"
+
+for ((i = 1; i < ${num_iax} * 2; i += 2)); do
+    echo dedicated > $IAX_CONFIG_PATH/iax${i}/wq${i}.0/mode
+    echo 64 > $IAX_CONFIG_PATH/iax${i}/wq${i}.0/size
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/wq${i}.0/group_id
+    echo 10 > $IAX_CONFIG_PATH/iax${i}/wq${i}.0/priority
+    echo "kernel" > $IAX_CONFIG_PATH/iax${i}/wq${i}.0/type
+    echo set name $IAX_CONFIG_PATH/iax${i}/wq${i}.0/name
+    echo "iaa_crypto" > $IAX_CONFIG_PATH/iax${i}/wq${i}.0/name
+    cat $IAX_CONFIG_PATH/iax${i}/wq${i}.0/name
+    echo set name $IAX_CONFIG_PATH/iax${i}/wq${i}.0/driver_name
+    echo "crypto" > $IAX_CONFIG_PATH/iax${i}/wq${i}.0/driver_name
+    cat $IAX_CONFIG_PATH/iax${i}/wq${i}.0/driver_name
+
+    echo dedicated > $IAX_CONFIG_PATH/iax${i}/wq${i}.1/mode
+    echo 64 > $IAX_CONFIG_PATH/iax${i}/wq${i}.1/size
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/wq${i}.1/group_id
+    echo 10 > $IAX_CONFIG_PATH/iax${i}/wq${i}.1/priority
+    echo "kernel" > $IAX_CONFIG_PATH/iax${i}/wq${i}.1/type
+    echo set name $IAX_CONFIG_PATH/iax${i}/wq${i}.1/name
+    echo "iaa_crypto" > $IAX_CONFIG_PATH/iax${i}/wq${i}.1/name
+    cat $IAX_CONFIG_PATH/iax${i}/wq${i}.1/name
+    echo set name $IAX_CONFIG_PATH/iax${i}/wq${i}.1/driver_name
+    echo "crypto" > $IAX_CONFIG_PATH/iax${i}/wq${i}.1/driver_name
+    cat $IAX_CONFIG_PATH/iax${i}/wq${i}.1/driver_name
+
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/engine${i}.0/group_id
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/engine${i}.1/group_id
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/engine${i}.2/group_id
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/engine${i}.3/group_id
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/engine${i}.4/group_id
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/engine${i}.5/group_id
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/engine${i}.6/group_id
+    echo 0 > $IAX_CONFIG_PATH/iax${i}/engine${i}.7/group_id
+done
+
+echo "End Configure IAX"
+
+#
+# enable iax wqs and devices
+#
+echo "Enable IAX"
+
+for ((i = 1; i < ${num_iax} * 2; i += 2)); do
+    echo enable iax iax${i}
+    echo iax${i} > $IAX_BIND_PATH    
+    echo enable wq iax${i}/wq${i}.0
+    echo wq${i}.0 > $IAX_BIND_WQ_PATH
+    echo enable wq iax${i}/wq${i}.1
+    echo wq${i}.1 > $IAX_BIND_WQ_PATH
+done
+
+echo "End Enable IAX"
+
+for ((i = 1; i < ${num_iax} * 2; i += 2)); do
+    echo "Engines for group ${i}.0"
+    cat $IAX_CONFIG_PATH/iax${i}/group${i}.0/engines
+    echo "Work queues for group ${i}.0"
+    cat $IAX_CONFIG_PATH/iax${i}/group${i}.0/work_queues
+done
+
+# cat /sys/bus/dsa/devices/iax3/group3.0/engines

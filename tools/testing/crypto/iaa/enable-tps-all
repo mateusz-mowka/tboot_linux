@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+echo > /sys/kernel/debug/tracing/trace
+
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_async/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_sync/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_by_n/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_async/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_sync/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_by_n/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_store_reject/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_async/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_sync/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/zswap_writeback_lat_by_n/enable

@@ -1,0 +1,63 @@
+The file hist-tests.txt contains all the tests that I run, I do this
+manually at this point, but could be +x and act as a script I guess.
+
+NOTE: in order to run these tests, you need to copy the 4300 SPEC
+files into subset_4300/ and concat them all into 4300_all as well.
+
+You also need to build the test program:
+
+  $ gcc -o memory_madvise_readpages memory_madvise_readpages.c
+
+Here's how to run the first test as an illustration:
+
+# first cd into the test dir
+
+sudo -i
+cd <kernel location>/tools/testing/crypto/iaa
+
+# then teardown everything to start from scratch
+
+./teardown-zswap
+
+# run the test and capture the output:
+
+./test-sync-canned-dedicated > test-sync-canned-dedicated.out
+./dump-zswap-hists-all >> test-sync-canned-dedicated.out
+
+Then I also save the detailed trace in a .trace file for other
+postprocessing:
+
+cat /sys/kernel/debug/tracing/trace > test-sync-canned-dedicated.trace
+
+Once I've run through all the tests, I move the .out and .trace files
+into a directory named e.g. data/.  I then run the following
+postprocessing scripts on that directory, which will create .csv files
+containing the latency data and compression ratios and .html files for
+each run, which when you view them in a browser will show the
+50/75/98/99 percentile latencies:
+
+./trace_to_lat_csv.py -d data -e load
+./trace_to_lat_csv.py -d data -e store
+./trace_to_comp_avg.py -d data
+./gen_cdf_v1.py -d data/
+
+Alternatively, you can run a suite of tests using run_suite.sh.  For
+example (the first argument specifies the suite to run, the second
+argument specifies the location to store the results):
+
+./run_suite.sh testsuite-default.txt ~/results/subject/01
+
+And then you can summarize the results with summarize.sh.
+For example:
+
+./summarize.sh ~/results/subject/01
+
+Notes:
+
+The current kernel config is in ./config
+
+The current kernel will only work with dedicated wqs and
+intel_iommu=off.  Kernel commandline:
+
+$ cat /proc/cmdline
+BOOT_IMAGE=/boot/vmlinuz-6.1.0-rc4-iaa-rfc+ root=UUID=1629eeae-4ab5-43f8-b0ea-ff784a286325 ro intel_iommu=off console=ttyS0,115200 quiet splash nopti vt.handoff=7
