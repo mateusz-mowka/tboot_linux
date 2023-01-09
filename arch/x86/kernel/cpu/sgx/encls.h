@@ -238,6 +238,8 @@ static inline int __emodt(struct sgx_secinfo *secinfo, void *addr)
 /* Zero a page of EPC memory and add it to an initialized enclave. */
 static inline int __eaug(struct sgx_pageinfo *pginfo, void *addr)
 {
+	lockdep_assert_held(&sgx_lock_epc_srcu);
+
 	return __encls_2(EAUG, pginfo, addr);
 }
 
