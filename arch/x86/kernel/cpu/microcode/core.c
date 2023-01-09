@@ -640,6 +640,7 @@ void noinstr inform_ucode_mce_in_progress(void)
 static int microcode_reload_late(enum reload_type type)
 {
 	int old = boot_cpu_data.microcode, ret;
+	struct cpuinfo_x86 prev_info;
 
 	ret = prepare_for_update();
 
@@ -661,7 +662,7 @@ done:
 	if (ret == 0) {
 		pr_info("Reload completed, microcode revision: 0x%x -> 0x%x\n",
 			old, boot_cpu_data.microcode);
-		microcode_check();
+		microcode_check(&prev_info);
 	} else {
 		pr_info("Reload failed, current microcode revision: 0x%x\n",
 		boot_cpu_data.microcode);
