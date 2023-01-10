@@ -29,7 +29,7 @@ static void init_levels(void)
 
 	for (i = 0; i < MAX_PACKAGE_COUNT; ++i)
 		for (j = 0; j < MAX_DIE_PER_PACKAGE; ++j)
-			for (k = 0; k > MAX_PUNIT_PER_DIE; ++k)
+			for (k = 0; k < MAX_PUNIT_PER_DIE; ++k)
 				per_package_levels_info[i][j][k] = -1;
 }
 
