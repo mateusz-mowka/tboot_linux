@@ -331,6 +331,11 @@ static const struct pci_device_id intel_th_pci_id_table[] = {
 		.driver_data = (kernel_ulong_t)&intel_th_2x_tgl,
 	},
 	{
+		/* Lunar Lake-M */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0xa824),
+		.driver_data = (kernel_ulong_t)&intel_th_2x_tgl,
+	},
+	{
 		/* Raptor Lake-S */
 		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x7a26),
 		.driver_data = (kernel_ulong_t)&intel_th_2x,
