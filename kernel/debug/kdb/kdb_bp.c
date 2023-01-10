@@ -589,3 +589,25 @@ void __init kdb_initbptab(void)
 	if (arch_kgdb_ops.flags & KGDB_HW_BREAKPOINT)
 		kdb_register_table(&bphcmd, 1);
 }
+#ifdef CONFIG_SVOS
+int sv_kdb_bp(int argc, const char **argv);
+int sv_kdb_bc(int argc, const char **argv);
+int sv_kdb_ss(int argc, const char **argv);
+//
+// Entry points added for svos calls
+// one set of code at end of module allows for
+// easier patching on subsequent rebase.
+//
+int sv_kdb_bp(int argc, const char **argv)
+{
+	return kdb_bp(argc, argv);
+}
+int sv_kdb_bc(int argc, const char **argv)
+{
+	return kdb_bc(argc, argv);
+}
+int sv_kdb_ss(int argc, const char **argv)
+{
+	return kdb_ss( argc, argv );
+}
+#endif

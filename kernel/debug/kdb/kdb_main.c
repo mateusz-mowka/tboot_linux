@@ -47,6 +47,16 @@
 #include <linux/security.h>
 #include "kdb_private.h"
 
+#ifdef CONFIG_SVOS
+extern void kdb_id1(unsigned long);
+extern void svos_cmds_init(void);
+extern int sv_kdb_go(int argc, const char **argv);
+#ifdef CONFIG_X86
+typedef unsigned long kdb_machreg_t;
+extern int kdba_getregcontents(const char *, struct pt_regs *,  kdb_machreg_t *);
+#endif
+#endif
+
 #undef	MODULE_PARAM_PREFIX
 #define	MODULE_PARAM_PREFIX "kdb."
 
@@ -151,6 +161,9 @@ static char *__env[31] = {
 	KDB_PLATFORM_ENV,
 	"DTABCOUNT=30",
 	"NOSECT=1",
+#ifdef CONFIG_SVOS
+	"IDCOUNT=20",
+#endif
 };
 
 static const int __nenv = ARRAY_SIZE(__env);
@@ -596,10 +609,16 @@ int kdbgetaddrarg(int argc, const char **argv, int *nextarg,
 		diag = kdb_check_regs();
 		if (diag)
 			return diag;
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+		diag = kdba_getregcontents(&symname[1], kdb_current_regs, &addr);
+		if (diag)
+			return diag;
+#else
 		/* Implement register values with % at a later time as it is
 		 * arch optional.
 		 */
 		return KDB_NOTIMP;
+#endif
 	} else {
 		found = kdbgetsymval(symname, &symtab);
 		if (found) {
@@ -1310,6 +1329,9 @@ static int kdb_local(kdb_reason_t reason, int error, struct pt_regs *regs,
 		kdb_printf("due to %s @ " kdb_machreg_fmt "\n",
 			   reason == KDB_REASON_BREAK ?
 			   "Breakpoint" : "SS trap", instruction_pointer(regs));
+#ifdef CONFIG_SVOS
+		kdb_id1(instruction_pointer(regs));
+#endif
 		/*
 		 * Determine if this breakpoint is one that we
 		 * are interested in.
@@ -2898,6 +2920,9 @@ static void __init kdb_inittab(void)
 	kdb_register_table(maintab, ARRAY_SIZE(maintab));
 	if (arch_kgdb_ops.enable_nmi)
 		kdb_register_table(&nmicmd, 1);
+#ifdef CONFIG_SVOS
+	svos_cmds_init();
+#endif
 }
 
 /* Execute any commands defined in kdb_cmds.  */
@@ -2937,3 +2962,10 @@ void __init kdb_init(int lvl)
 	}
 	kdb_init_lvl = lvl;
 }
+
+#ifdef CONFIG_SVOS
+int sv_kdb_go(int argc, const char **argv)
+{
+	return kdb_go(argc, argv);
+}
+#endif

@@ -8,6 +8,9 @@
 #include <linux/poison.h>
 #include <linux/ratelimit.h>
 #include <linux/kasan.h>
+#ifdef CONFIG_SVOS
+#include <linux/svos.h>
+#endif
 
 bool _page_poisoning_enabled_early;
 EXPORT_SYMBOL(_page_poisoning_enabled_early);
@@ -35,6 +38,11 @@ void __kernel_poison_pages(struct page *page, int n)
 {
 	int i;
 
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+	if (!svos_enable_ras_errorcorrect) {
+		return;
+	}
+#endif
 	for (i = 0; i < n; i++)
 		poison_page(page + i);
 }
@@ -94,6 +102,11 @@ void __kernel_unpoison_pages(struct page *page, int n)
 {
 	int i;
 
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+	if (!svos_enable_ras_errorcorrect) {
+		return;
+	}
+#endif
 	for (i = 0; i < n; i++)
 		unpoison_page(page + i);
 }
