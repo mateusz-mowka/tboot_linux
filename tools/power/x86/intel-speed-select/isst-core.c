@@ -443,6 +443,8 @@ int isst_get_process_ctdp(struct isst_id *id, int tdp_level, struct isst_pkg_ctd
 			return ret;
 
 		ret = isst_get_get_trls(id, i, ctdp_level);
+		if (ret)
+			return ret;
 	}
 
 	if (!valid)
