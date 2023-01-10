@@ -62,7 +62,7 @@ int tpmi_process_ioctl(int ioctl_no, void *info)
 		return -1;
 
 	if (ioctl(fd, ioctl_no, info) == -1) {
-		debug_printf("IOCTL Failed\n", ioctl);
+		debug_printf("IOCTL %d Failed\n", ioctl_no);
 		close(fd);
 		return -1;
 	}
