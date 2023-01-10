@@ -1510,6 +1510,7 @@ static int set_cpufreq_scaling_min_max_from_cpuinfo(int cpu, int cpuinfo_max, in
 	if (fd < 0)
 		return fd;
 
+	min_freq[15] = '\0';
 	len = strlen(min_freq);
 	ret = write(fd, min_freq, len);
 	if (ret == -1) {
@@ -1957,6 +1958,7 @@ static void set_fact_enable(int arg)
 			if (len < 0)
 				continue;
 
+			sibling_list[127] = '\0';
 			cpu_str = strtok(sibling_list, ",");
 			while (cpu_str != NULL) {
 				int cpu;
