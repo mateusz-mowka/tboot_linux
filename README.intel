@@ -46,6 +46,12 @@ README.intel_th:
 # Public subset: intel_th-pub
 # Fixes subset: intel_th-fixes
 
+GNR PO bkc-v1.6
+===============
+1. ISST: fixes for below HSD
+	https://hsdes.intel.com/resource/16019322179
+	https://hsdes.intel.com/resource/16019270446
+
 GNR PO bkc-v1.5
 ===============
 1. RAS: Add error handling for copy on write fault for uncorrectable error
