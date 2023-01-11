@@ -95,21 +95,18 @@ union tdx_mig_gpa_list_info {
 union tdx_mig_gpa_list_entry {
 	uint64_t val;
 	struct{
-		uint64_t r		: 1;   // Bit 0, same as SEPT
-		uint64_t w		: 1;   // Bit 1, same as SEPT
-		uint64_t xs		: 1;   // Bit 2, same as SEPT
-		#define GPA_LIST_OP_EXPORT	1
-		#define GPA_LIST_OP_REEXPORT	3
-		uint64_t operation	: 2;   // Bits 4:3
-		uint64_t reserved0	: 2;   // Bits 6:5
-		uint64_t mig_type 	: 3;   // Bits 9:7
-		uint64_t xu       	: 1;   // Bit 10, same as SEPT
-		uint64_t pending  	: 1;   // Bit 11
-		uint64_t gfn      	: 40;  // Bits 51:12
-		uint64_t status   	: 5;   // Bits 56:52
-		uint64_t reserved1	: 3;   // Bit 59:57
-		uint64_t sss      	: 1;   // Bit 60, same as SEPT
-		uint64_t reserved2	: 3;   // Bits 63:61
+		uint64_t level          : 2;   // Bits 1:0  :  Mapping level
+		uint64_t pending        : 1;   // Bit 2     :  Page is pending
+		uint64_t reserved_0     : 4;   // Bits 6:3
+		uint64_t l2_map         : 3;   // Bits 9:7  :  L2 mapping flags
+		uint64_t mig_type       : 2;   // Bits 11:10:  Migration type
+		uint64_t gfn            : 40;  // Bits 51:12
+#define GPA_LIST_OP_EXPORT	1
+#define GPA_LIST_OP_REEXPORT	3
+		uint64_t operation      : 2;   // Bits 53:52
+		uint64_t reserved_1     : 2;   // Bits 55:54
+		uint64_t status         : 5;   // Bits 56:52
+		uint64_t reserved_2     : 3;   // Bits 63:61
 	};
 };
 
