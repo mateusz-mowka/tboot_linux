@@ -105,7 +105,7 @@ iommufd_hw_pagetable_alloc(struct iommufd_ctx *ictx, struct iommufd_ioas *ioas,
 }
 
 union iommufd_invalidate_buffer {
-	struct iommu_hwpt_intel_vtd vtd;
+	struct iommu_hwpt_invalidate_intel_vtd vtd;
 };
 
 int iommufd_hwpt_alloc(struct iommufd_ucmd *ucmd)
