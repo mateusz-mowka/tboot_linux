@@ -1387,9 +1387,6 @@ int __x86_perf_event_set_period(struct perf_event *event, u64 *value)
 	s64 period = hwc->sample_period;
 	int ret = 0;
 
-	if (unlikely(!hwc->event_base))
-		return 0;
-
 	/*
 	 * If we are way outside a reasonable range then just skip forward:
 	 */
@@ -1441,6 +1438,9 @@ int x86_perf_event_set_period(struct perf_event *event)
 	struct hw_perf_event *hwc = &event->hw;
 	u64 value;
 	int ret;
+
+	if (unlikely(!hwc->event_base))
+		return 0;
 
 	ret = __x86_perf_event_set_period(event, &value);
 
