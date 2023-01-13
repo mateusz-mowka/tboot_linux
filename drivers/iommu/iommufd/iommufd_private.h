@@ -98,6 +98,7 @@ union ucmd_buffer {
 	struct iommu_ioas_unmap unmap;
 	struct iommu_hwpt_alloc hwpt_alloc;
 	struct iommu_hwpt_invalidate hwpt_invalidate;
+	struct iommu_hwpt_page_response resp;
 #ifdef CONFIG_IOMMUFD_TEST
 	struct iommu_test_cmd test;
 #endif
@@ -267,6 +268,16 @@ struct iommufd_device {
 
 int iommufd_device_get_info(struct iommufd_ucmd *ucmd);
 
+struct iommufd_fault {
+	struct file *fault_file;
+	int fault_fd;
+	struct mutex fault_queue_lock;
+	u8 *fault_pages;
+	size_t fault_region_size;
+	struct mutex notify_gate;
+	struct eventfd_ctx *trigger;
+};
+
 /*
  * A HW pagetable is called an iommu_domain inside the kernel. This user object
  * allows directly creating and inspecting the domains. Domains that have kernel
@@ -297,6 +308,7 @@ struct iommufd_hw_pagetable {
 	 * in such path.
 	 */
 	void *cache;
+	struct iommufd_fault *fault;
 };
 
 struct iommufd_hw_pagetable *
@@ -314,6 +326,8 @@ iommufd_get_hwpt(struct iommufd_ucmd *ucmd, u32 id)
 
 int iommufd_hwpt_alloc(struct iommufd_ucmd *ucmd);
 int iommufd_hwpt_invalidate(struct iommufd_ucmd *ucmd);
+
+int iommufd_hwpt_page_response(struct iommufd_ucmd *ucmd);
 
 void iommufd_device_destroy(struct iommufd_object *obj);
 
