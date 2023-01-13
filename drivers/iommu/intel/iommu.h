@@ -911,17 +911,6 @@ static inline int iommu_calculate_max_sagaw(struct intel_iommu *iommu)
 	return 0;
 }
 
-static inline int ecmd_submit_sync(struct intel_iommu *iommu, u8 ecmd,
-				   u64 oa, bool has_ob, u64 ob)
-{
-	return -EOPNOTSUPP;
-}
-
-static inline bool ecmd_has_pmu_essential(struct intel_iommu *iommu)
-{
-	return false;
-}
-
 #define dmar_disabled	(1)
 #define intel_iommu_enabled (0)
 #define intel_iommu_sm (0)
