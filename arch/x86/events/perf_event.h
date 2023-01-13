@@ -43,6 +43,8 @@ enum extra_reg_type {
 	EXTRA_REG_LBR   = 2,	/* lbr_select */
 	EXTRA_REG_LDLAT = 3,	/* ld_lat_threshold */
 	EXTRA_REG_FE    = 4,    /* fe_* */
+	EXTRA_REG_SNOOP_0 = 5,  /* snoop response 0 */
+	EXTRA_REG_SNOOP_1 = 6,  /* snoop response 1 */
 
 	EXTRA_REG_MAX		/* number of entries needed */
 };
