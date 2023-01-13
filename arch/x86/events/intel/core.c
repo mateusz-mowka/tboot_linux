@@ -6618,6 +6618,7 @@ __init int intel_pmu_init(void)
 		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
 		x86_pmu.get_event_constraints = cmt_get_event_constraints;
 		td_attr = cmt_events_attrs;
+		mem_attr = grt_mem_attrs;
 		extra_attr = nhm_format_attr;
 		intel_pmu_pebs_data_source_cmt();
 		pr_cont("Crestmont events, ");
