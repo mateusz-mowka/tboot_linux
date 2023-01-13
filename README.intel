@@ -51,6 +51,9 @@ GNR PO bkc-v1.6
 1. ISST: fixes for below HSD
 	https://hsdes.intel.com/resource/16019322179
 	https://hsdes.intel.com/resource/16019270446
+2. HMAT: ACPI HMAT fixes
+	Add a couple of HMAT initiator registration fixes as requested in:
+	https://hsdes.intel.com/appstore/article/#/22015826573
 
 GNR PO bkc-v1.5
 ===============
