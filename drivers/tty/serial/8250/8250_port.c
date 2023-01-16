@@ -2000,17 +2000,19 @@ static unsigned int serial8250_tx_empty(struct uart_port *port)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
 	unsigned long flags;
+	bool dma_tx_running;
 	u16 lsr;
 
 	serial8250_rpm_get(up);
 
 	spin_lock_irqsave(&port->lock, flags);
 	lsr = serial_lsr_in(up);
+	dma_tx_running = serial8250_tx_dma_running(up);
 	spin_unlock_irqrestore(&port->lock, flags);
 
 	serial8250_rpm_put(up);
 
-	return uart_lsr_tx_empty(lsr) ? TIOCSER_TEMT : 0;
+	return uart_lsr_tx_empty(lsr) && !dma_tx_running ? TIOCSER_TEMT : 0;
 }
 
 unsigned int serial8250_do_get_mctrl(struct uart_port *port)
