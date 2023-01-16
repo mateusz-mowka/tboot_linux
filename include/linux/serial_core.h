@@ -642,6 +642,15 @@ static inline void uart_xmit_advance(struct uart_port *up, unsigned int chars)
 	up->icount.tx += chars;
 }
 
+struct dma_chan;
+struct scatterlist;
+
+struct dma_async_tx_descriptor *uart_xmit_sg_prep(struct uart_port *up, struct dma_chan *chan,
+						  struct device *dev,
+						  struct scatterlist *sgl, int *nents,
+						  unsigned long prep_flags);
+void uart_xmit_sg_complete(struct uart_port *up, struct scatterlist *sgl, int nents);
+
 struct module;
 struct tty_driver;
 
