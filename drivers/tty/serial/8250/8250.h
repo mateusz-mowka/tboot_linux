@@ -45,6 +45,9 @@ struct uart_8250_dma {
 
 	void			*rx_buf;
 
+	struct scatterlist	tx_sgl[2];
+	int			tx_nents;
+
 	size_t			rx_size;
 	size_t			tx_size;
 
