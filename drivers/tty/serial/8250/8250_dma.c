@@ -14,28 +14,27 @@
 static void __dma_tx_complete(void *param)
 {
 	struct uart_8250_port	*p = param;
+	struct uart_port	*up = &p->port;
 	struct uart_8250_dma	*dma = p->dma;
-	struct circ_buf		*xmit = &p->port.state->xmit;
+	struct circ_buf		*xmit = &up->state->xmit;
+	struct scatterlist	*sgl = dma->tx_sgl;
 	unsigned long	flags;
 	int		ret;
 
-	dma_sync_single_for_cpu(dma->txchan->device->dev, dma->tx_addr,
-				UART_XMIT_SIZE, DMA_TO_DEVICE);
+	spin_lock_irqsave(&up->lock, flags);
 
-	spin_lock_irqsave(&p->port.lock, flags);
-
+	uart_xmit_sg_complete(up, sgl, dma->tx_nents);
+	dma_unmap_sg(dma->txchan->device->dev, sgl, dma->tx_nents, DMA_TO_DEVICE);
 	dma->tx_running = 0;
 
-	uart_xmit_advance(&p->port, dma->tx_size);
-
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_write_wakeup(&p->port);
+		uart_write_wakeup(up);
 
 	ret = serial8250_tx_dma(p);
 	if (ret || !dma->tx_running)
 		serial8250_set_THRI(p);
 
-	spin_unlock_irqrestore(&p->port.lock, flags);
+	spin_unlock_irqrestore(&up->lock, flags);
 }
 
 static void __dma_rx_complete(struct uart_8250_port *p)
@@ -87,6 +86,7 @@ int serial8250_tx_dma(struct uart_8250_port *p)
 {
 	struct uart_8250_dma		*dma = p->dma;
 	struct circ_buf			*xmit = &p->port.state->xmit;
+	struct scatterlist		*sgl = dma->tx_sgl;
 	struct dma_async_tx_descriptor	*desc;
 	struct uart_port		*up = &p->port;
 	int ret;
@@ -107,16 +107,13 @@ int serial8250_tx_dma(struct uart_8250_port *p)
 		return 0;
 	}
 
-	dma->tx_size = CIRC_CNT_TO_END(xmit->head, xmit->tail, UART_XMIT_SIZE);
-
+	dma->tx_nents = ARRAY_SIZE(dma->tx_sgl);
+	dma->tx_size = CIRC_CNT(xmit->head, xmit->tail, UART_XMIT_SIZE);
 	serial8250_do_prepare_tx_dma(p);
-
-	desc = dmaengine_prep_slave_single(dma->txchan,
-					   dma->tx_addr + xmit->tail,
-					   dma->tx_size, DMA_MEM_TO_DEV,
-					   DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
-	if (!desc) {
-		ret = -EBUSY;
+	desc = uart_xmit_sg_prep(up, dma->txchan, NULL, sgl, &dma->tx_nents,
+				 DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+	if (IS_ERR(desc)) {
+		ret = PTR_ERR(desc);
 		goto err;
 	}
 

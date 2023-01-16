@@ -268,7 +268,6 @@ struct lpuart_port {
 	struct dma_async_tx_descriptor  *dma_rx_desc;
 	dma_cookie_t		dma_tx_cookie;
 	dma_cookie_t		dma_rx_cookie;
-	unsigned int		dma_tx_bytes;
 	unsigned int		dma_rx_bytes;
 	bool			dma_tx_in_progress;
 	unsigned int		dma_rx_timeout;
@@ -444,45 +443,24 @@ static void lpuart32_stop_rx(struct uart_port *port)
 
 static void lpuart_dma_tx(struct lpuart_port *sport)
 {
-	struct circ_buf *xmit = &sport->port.state->xmit;
 	struct scatterlist *sgl = sport->tx_sgl;
 	struct device *dev = sport->port.dev;
 	struct dma_chan *chan = sport->dma_tx_chan;
-	int ret;
+	struct dma_async_tx_descriptor *desc;
 
 	if (sport->dma_tx_in_progress)
 		return;
 
-	sport->dma_tx_bytes = uart_circ_chars_pending(xmit);
-
-	if (xmit->tail < xmit->head || xmit->head == 0) {
-		sport->dma_tx_nents = 1;
-		sg_init_one(sgl, xmit->buf + xmit->tail, sport->dma_tx_bytes);
-	} else {
-		sport->dma_tx_nents = 2;
-		sg_init_table(sgl, 2);
-		sg_set_buf(sgl, xmit->buf + xmit->tail,
-				UART_XMIT_SIZE - xmit->tail);
-		sg_set_buf(sgl + 1, xmit->buf, xmit->head);
-	}
-
-	ret = dma_map_sg(chan->device->dev, sgl, sport->dma_tx_nents,
-			 DMA_TO_DEVICE);
-	if (!ret) {
-		dev_err(dev, "DMA mapping error for TX.\n");
+	sport->dma_tx_nents = ARRAY_SIZE(sport->tx_sgl);
+	desc = uart_xmit_sg_prep(&sport->port, chan, NULL, sgl, &sport->dma_tx_nents,
+				 DMA_PREP_INTERRUPT);
+	if (IS_ERR(desc)) {
+		dev_err(dev, "DMA %s error for TX!\n",
+			PTR_ERR(desc) == -ENOMEM ? "mapping" : "prepare");
 		return;
 	}
 
-	sport->dma_tx_desc = dmaengine_prep_slave_sg(chan, sgl,
-					ret, DMA_MEM_TO_DEV,
-					DMA_PREP_INTERRUPT);
-	if (!sport->dma_tx_desc) {
-		dma_unmap_sg(chan->device->dev, sgl, sport->dma_tx_nents,
-			      DMA_TO_DEVICE);
-		dev_err(dev, "Cannot prepare TX slave DMA!\n");
-		return;
-	}
-
+	sport->dma_tx_desc = desc;
 	sport->dma_tx_desc->callback = lpuart_dma_tx_complete;
 	sport->dma_tx_desc->callback_param = sport;
 	sport->dma_tx_in_progress = true;
@@ -509,10 +487,10 @@ static void lpuart_dma_tx_complete(void *arg)
 		return;
 	}
 
+	uart_xmit_sg_complete(&sport->port, sgl, sport->dma_tx_nents);
 	dma_unmap_sg(chan->device->dev, sgl, sport->dma_tx_nents,
 		     DMA_TO_DEVICE);
 
-	uart_xmit_advance(&sport->port, sport->dma_tx_bytes);
 	sport->dma_tx_in_progress = false;
 	spin_unlock_irqrestore(&sport->port.lock, flags);
 
