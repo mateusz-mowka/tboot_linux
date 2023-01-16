@@ -14,28 +14,29 @@
 static void __dma_tx_complete(void *param)
 {
 	struct uart_8250_port	*p = param;
+	struct uart_port	*up = &p->port;
 	struct uart_8250_dma	*dma = p->dma;
-	struct circ_buf		*xmit = &p->port.state->xmit;
+	struct circ_buf		*xmit = &up->state->xmit;
 	unsigned long	flags;
 	int		ret;
 
 	dma_sync_single_for_cpu(dma->txchan->device->dev, dma->tx_addr,
 				UART_XMIT_SIZE, DMA_TO_DEVICE);
 
-	spin_lock_irqsave(&p->port.lock, flags);
+	spin_lock_irqsave(&up->lock, flags);
 
 	dma->tx_running = 0;
 
-	uart_xmit_advance(&p->port, dma->tx_size);
+	uart_xmit_advance(up, dma->tx_size);
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_write_wakeup(&p->port);
+		uart_write_wakeup(up);
 
 	ret = serial8250_tx_dma(p);
 	if (ret || !dma->tx_running)
 		serial8250_set_THRI(p);
 
-	spin_unlock_irqrestore(&p->port.lock, flags);
+	spin_unlock_irqrestore(&up->lock, flags);
 }
 
 static void __dma_rx_complete(struct uart_8250_port *p)
