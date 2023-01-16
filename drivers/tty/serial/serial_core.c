@@ -29,6 +29,8 @@
 
 #include <linux/irq.h>
 #include <linux/uaccess.h>
+#include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
 
 /*
  * This is used to lock changes in serial line configuration.
@@ -695,6 +697,95 @@ static void uart_send_xchar(struct tty_struct *tty, char ch)
 	}
 	uart_port_deref(port);
 }
+
+/**
+ * uart_xmit_sg_prep - Setup scatterlist from the circular xmit buffer and prep DMA Tx
+ *
+ * @up: uart_port structure describing the port
+ * @chan: DMA Tx channel
+ * @dev: device for DMA mapping, if NULL, derived from @chan
+ * @sgl: scatterlist used for setup
+ * @nents: scatterlist entries (1-2)
+ * @prep_flags: flags to pass for dmaengine_prep_slave_sg()
+ *
+ * Converts xmit circular buffer into scatterlist and prepares it for DMA Tx over
+ * @chan. Takes into account the wraps within the circular buffer.
+ *
+ * Return:
+ * * On success: descriptior for DMA Tx. @nents updated to number of used entries.
+ * * On failure: error wrapped with ERR_PTR().
+ */
+struct dma_async_tx_descriptor *uart_xmit_sg_prep(struct uart_port *up, struct dma_chan *chan,
+						  struct device *dev,
+						  struct scatterlist *sgl, int *nents,
+						  unsigned long prep_flags)
+{
+	struct circ_buf *xmit = &up->state->xmit;
+	struct dma_async_tx_descriptor *desc;
+	int tail = READ_ONCE(xmit->tail);
+	int head = READ_ONCE(xmit->head);
+	unsigned int len;
+	int ret;
+	int n;
+
+	WARN_ON_ONCE(*nents < 1 || *nents > 2);
+
+	n = *nents;
+	if (tail < head || head == 0 || n == 1) {
+		n = 1;
+		len = CIRC_CNT_TO_END(head, tail, UART_XMIT_SIZE);
+
+		sg_init_one(sgl, xmit->buf + tail, len);
+	} else {
+		sg_init_table(sgl, n);
+		sg_set_buf(sgl, xmit->buf + tail, UART_XMIT_SIZE - tail);
+		sg_set_buf(sgl + 1, xmit->buf, head);
+	}
+
+	if (!dev)
+		dev = chan->device->dev;
+
+	ret = dma_map_sg(dev, sgl, n, DMA_TO_DEVICE);
+	if (!ret) {
+		ret = -ENOMEM;
+		goto err;
+	}
+	/* The second part not mapped? */
+	if (ret < n)
+		sg_dma_len(sgl + 1) = 0;
+
+	desc = dmaengine_prep_slave_sg(chan, sgl, ret, DMA_MEM_TO_DEV, prep_flags);
+	if (!desc) {
+		ret = -EBUSY;
+		goto unmap;
+	}
+
+	*nents = n;
+	return desc;
+
+unmap:
+	dma_unmap_sg(dev, sgl, n, DMA_TO_DEVICE);
+err:
+	return ERR_PTR(ret);
+}
+EXPORT_SYMBOL_GPL(uart_xmit_sg_prep);
+
+/**
+ * uart_xmit_sg_complete - Account bytes Tx'ed with scatterlist @sgl
+ * @up: uart_port structure describing the port
+ * @sgl: scatterlist that was used for Tx
+ * @nents: scatterlist entries
+ *
+ * Advances tail of the xmit buffer and accounts the Tx'ed bytes.
+ */
+void uart_xmit_sg_complete(struct uart_port *up, struct scatterlist *sgl, int nents)
+{
+	int i;
+
+	for (i = 0; i < nents; i++, sgl++)
+		uart_xmit_advance(up, sg_dma_len(sgl));
+}
+EXPORT_SYMBOL_GPL(uart_xmit_sg_complete);
 
 static void uart_throttle(struct tty_struct *tty)
 {
