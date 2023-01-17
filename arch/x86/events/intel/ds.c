@@ -1935,6 +1935,12 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 							  gprs ? gprs->ax : 0);
 			data->sample_flags |= PERF_SAMPLE_TRANSACTION;
 		}
+
+		if ((event->hw.flags & PERF_X86_EVENT_TSX_CONFLICT_ADDR) &&
+		    (sample_type & PERF_SAMPLE_PHYS_ADDR)) {
+			rdmsrl(MSR_TSX_CONFLICT_ADDR, data->phys_addr);
+			data->sample_flags |= PERF_SAMPLE_PHYS_ADDR;
+		}
 	}
 
 	if (format_size & PEBS_DATACFG_XMMS) {

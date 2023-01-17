@@ -3927,6 +3927,12 @@ static void intel_pebs_aliases_skl(struct perf_event *event)
 	return intel_pebs_aliases_precdist(event);
 }
 
+static bool is_tsx_conflict_addr_event(struct perf_event *event)
+{
+	/* STORE_TSX_KILL event is not compatible with large PEBS */
+	return false;
+}
+
 static unsigned long intel_pmu_large_pebs_flags(struct perf_event *event)
 {
 	unsigned long flags = x86_pmu.large_pebs_flags;
@@ -3937,6 +3943,8 @@ static unsigned long intel_pmu_large_pebs_flags(struct perf_event *event)
 		flags &= ~PERF_SAMPLE_REGS_USER;
 	if (event->attr.sample_regs_user & ~PEBS_GP_REGS)
 		flags &= ~(PERF_SAMPLE_REGS_USER | PERF_SAMPLE_REGS_INTR);
+	if (is_tsx_conflict_addr_event(event))
+		flags &= ~PERF_SAMPLE_PHYS_ADDR;
 	return flags;
 }
 
