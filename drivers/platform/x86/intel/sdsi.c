@@ -84,6 +84,9 @@
 #define GUID_V2_CNTRL_SIZE		16
 #define GUID_V2_REGS_SIZE		80
 
+static int timeout_us = MBOX_TIMEOUT_US;
+module_param(timeout_us, int, 0644);
+
 static LIST_HEAD(sdsi_list);
 static DEFINE_MUTEX(sdsi_list_lock);
 
@@ -173,8 +176,10 @@ static int sdsi_mbox_poll(struct sdsi_priv *priv, struct sdsi_mbox_info *info,
 		u32 packet_size;
 
 		/* Poll on ready bit */
-		ret = readq_poll_timeout(priv->control_addr, control, control & CTRL_READY,
-					 MBOX_POLLING_PERIOD_US, MBOX_TIMEOUT_US);
+		ret = readq_poll_timeout(priv->control_addr, control,
+					 control & CTRL_READY,
+					 MBOX_POLLING_PERIOD_US,
+					 timeout_us);
 		if (ret)
 			break;
 
