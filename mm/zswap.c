@@ -245,6 +245,8 @@ struct zswap_entry {
 	int refcount;
 	unsigned int length;
 	unsigned int by_n_length[MAX_BY_N];
+	int by_n_length_order[MAX_BY_N];
+
 	struct zswap_pool *pool;
 	union {
 		unsigned long handle;
@@ -359,6 +361,36 @@ static struct zswap_entry *zswap_entry_cache_alloc(gfp_t gfp)
 static void zswap_entry_cache_free(struct zswap_entry *entry)
 {
 	kmem_cache_free(zswap_entry_cache, entry);
+}
+
+/**
+ * by_n_corder_swap - swap values of @o1 and @o2 if @l1 < @l2
+ * @l1: length1
+ * @l2; length2
+ * @o1: order index 1
+ * @o2: order index 2
+ */
+#define by_n_corder_swap(l1, l2,o1,o2) \
+	do { if ((l1) < (l2)) {typeof(o1) __tmp = (o1); (o1) = (o2); (o2) = __tmp;} } while (0)
+
+static void __zswap_sort_by_n_order(struct zswap_entry *entry)
+{
+	switch (zswap_by_n) {
+		case 2: /* by2*/
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length_order[0],entry->by_n_length_order[1]);
+			break;
+		case 3: /* by3*/
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length_order[0],entry->by_n_length_order[2]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length_order[0],entry->by_n_length_order[1]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length_order[1],entry->by_n_length_order[2]);
+			break;
+		case 4: /* by4*/
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length_order[0],entry->by_n_length_order[2]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length[entry->by_n_length_order[3]],entry->by_n_length_order[1],entry->by_n_length_order[3]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length_order[0],entry->by_n_length_order[1]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length[entry->by_n_length_order[3]],entry->by_n_length_order[2],entry->by_n_length_order[3]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length_order[1],entry->by_n_length_order[2]);
+    }
 }
 
 /*********************************
@@ -1011,7 +1043,7 @@ static int zswap_get_swap_cache_page(swp_entry_t entry,
 	return ZSWAP_SWAPCACHE_EXIST;
 }
 
-static int do_by_n(struct by_n by_n[], unsigned int dlen[], bool decompress)
+static int do_by_n(struct by_n by_n[], int by_n_length_order[], unsigned int dlen[], bool decompress)
 {
 	u8 req = 0xff >> (8 - zswap_by_n);
 	int i, ret = 0;
@@ -1019,7 +1051,7 @@ static int do_by_n(struct by_n by_n[], unsigned int dlen[], bool decompress)
 	/* fire off all async compresses one after the other, wait below */
 	for (i = 0; i < zswap_by_n; i++) {
 		if (decompress)
-			ret = crypto_acomp_decompress(by_n[i].req);
+			ret = crypto_acomp_decompress(by_n[by_n_length_order[i]].req);
 		else
 			ret = crypto_acomp_compress(by_n[i].req);
 		if (ret != -EINPROGRESS)
@@ -1085,7 +1117,7 @@ static int by_n_compress(struct crypto_acomp_ctx *acomp_ctx,
 					 dst_size);
 	}
 
-	return do_by_n(by_n, dlen, false);
+	return do_by_n(by_n, NULL, dlen, false);
 }
 
 static unsigned int by_n_length(struct zswap_entry *entry)
@@ -1128,7 +1160,7 @@ static int by_n_decompress(struct crypto_acomp_ctx *acomp_ctx,
 					 &by_n[i].output, entry->by_n_length[i], (odd && (i == zswap_by_n - 1)) ? dst_size + 1 : dst_size);
 	}
 
-	return do_by_n(by_n, dlen, true);
+	return do_by_n(by_n, entry->by_n_length_order, dlen, true);
 }
 
 /*
@@ -1543,8 +1575,10 @@ by_n:
 		for (i = 0; i < zswap_by_n; i++) {
 			entry->by_n_length[i] = by_n_dlen[i];
 			length += by_n_dlen[i];
+			entry->by_n_length_order[i] = i;
 		}
 		entry->length = length;
+		__zswap_sort_by_n_order(entry);
 	} else {
 		entry->length = dlen;
 		/*
