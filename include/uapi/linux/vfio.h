@@ -248,8 +248,10 @@ struct vfio_device_bind_iommufd {
  */
 struct vfio_device_attach_iommufd_pt {
 	__u32	argsz;
+#define VFIO_DEVICE_ATTACH_IOMMUFD_PT_PASID	1
 	__u32	flags;
 	__u32	pt_id;
+	__u32   pasid;
 };
 
 #define VFIO_DEVICE_ATTACH_IOMMUFD_PT		_IO(VFIO_TYPE, VFIO_BASE + 20)
