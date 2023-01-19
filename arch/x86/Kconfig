@@ -1960,7 +1960,7 @@ config INTEL_TDX_HOST
 	bool "Intel Trust Domain Extensions (TDX) host support"
 	depends on CPU_SUP_INTEL
 	depends on X86_64
-	depends on KVM_INTEL
+	depends on KVM_INTEL || SVOS
 	depends on X86_X2APIC
 	select ARCH_KEEP_MEMBLOCK
 	depends on CONTIG_ALLOC
@@ -2002,7 +2002,6 @@ config INTEL_TDX_HOST_OLD
 	depends on INTEL_TDX_HOST
 	help
 	  Initialize TDX module at boot time.
-
 
 config INTEL_TDX_HOST_DEBUG
 	tristate "TDX host debugfs"
