@@ -1345,6 +1345,7 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	unsigned int by_n_dlen[MAX_BY_N];
 	struct zswap_header zhdr = { .swpentry = swp_entry(type, offset) };
 	gfp_t gfp;
+	bool is_by_n = false; /* will be set true if page will be stored by_n */
 
 	/* THP isn't supported */
 	if (PageTransHuge(page)) {
@@ -1486,6 +1487,7 @@ by_n:
 		ret = by_n_compress(acomp_ctx, page, by_n_dst, by_n_dlen);
 		if (ret)
 			goto put_dstmem;
+		is_by_n = true;
 	}
 
 	if (ret) {
@@ -1498,7 +1500,7 @@ by_n:
 	gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM;
 	if (zpool_malloc_support_movable(entry->pool->zpool))
 		gfp |= __GFP_HIGHMEM | __GFP_MOVABLE;
-	if (zswap_by_n) {
+	if (is_by_n) {
 		int i;
 
 		dlen = 0;
@@ -1516,7 +1518,7 @@ by_n:
 	}
 	buf = zpool_map_handle(entry->pool->zpool, handle, ZPOOL_MM_WO);
 	memcpy(buf, &zhdr, hlen);
-	if (zswap_by_n) {
+	if (is_by_n) {
 		unsigned int offset = 0;
 		int i;
 
@@ -1533,7 +1535,7 @@ by_n:
 	/* populate entry */
 	entry->offset = offset;
 	entry->handle = handle;
-	if (zswap_by_n) {
+	if (is_by_n) {
 		unsigned int length = 0;
 		int i;
 
@@ -1542,8 +1544,14 @@ by_n:
 			length += by_n_dlen[i];
 		}
 		entry->length = length;
-	} else
+	} else {
 		entry->length = dlen;
+		/*
+		 * This is necessary to indicate that the page has *not* been
+		 * stored by_n:
+		 */
+		entry->by_n_length[0] = 0;
+	}
 
 insert_entry:
 	entry->objcg = objcg;
@@ -1605,6 +1613,7 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 	u8 *src, *dst, *tmp;
 	unsigned int dlen;
 	int ret;
+	bool is_by_n = false; /* will be set to true of page was stored by_n */
 
 	/* find */
 	spin_lock(&tree->lock);
@@ -1624,11 +1633,14 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 		goto stats;
 	}
 
+	is_by_n = entry->by_n_length[0] != 0;
+
 	if (!zpool_can_sleep_mapped(entry->pool->zpool)) {
 		unsigned length = entry->length;
 
-		if (zswap_by_n)
+		if (is_by_n)
 			length = by_n_length(entry);
+
 		tmp = kmalloc(length, GFP_KERNEL);
 		if (!tmp) {
 			ret = -ENOMEM;
@@ -1645,8 +1657,9 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 	if (!zpool_can_sleep_mapped(entry->pool->zpool)) {
 		unsigned length = entry->length;
 
-		if (zswap_by_n)
+		if (is_by_n)
 			length = by_n_length(entry);
+
 		memcpy(tmp, src, length);
 		src = tmp;
 		zpool_unmap_handle(entry->pool->zpool, entry->handle);
@@ -1654,9 +1667,11 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 
 	acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
 	mutex_lock(acomp_ctx->mutex);
-	if (zswap_by_n && entry->by_n_length[0])
+
+	if (is_by_n)
 		/* page was compressed using by_n */
 		goto by_n;
+
 	sg_init_one(&input, src, entry->length);
 	sg_init_table(&output, 1);
 	sg_set_page(&output, page, PAGE_SIZE, 0);
@@ -1675,7 +1690,7 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 	} else
 		ret = crypto_wait_req(crypto_acomp_decompress(acomp_ctx->req), &acomp_ctx->wait);
 by_n:
-	if (zswap_by_n && entry->by_n_length[0]) {
+	if (is_by_n) {
 		unsigned int by_n_dlen[MAX_BY_N];
 
 		ret = by_n_decompress(acomp_ctx, page, src, entry, by_n_dlen);
