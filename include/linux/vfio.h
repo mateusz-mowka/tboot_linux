@@ -33,6 +33,10 @@ struct vfio_device_set {
 	struct list_head device_list;
 	unsigned int device_count;
 };
+struct vfio_pci_hwpt {
+	ioasid_t        pasid;
+	u32             hwpt_id;
+};
 
 struct vfio_device {
 	struct device *dev;
@@ -71,6 +75,7 @@ struct vfio_device {
 	struct iommufd_device *iommufd_device;
 	struct iommufd_ctx *iommufd_ictx;
 	bool iommufd_attached;
+	struct xarray pasid_xa;
 #endif
 	bool single_open;
 };
@@ -103,6 +108,8 @@ struct vfio_device_ops {
 				struct iommufd_ctx *ictx, u32 *out_device_id);
 	void	(*unbind_iommufd)(struct vfio_device *vdev);
 	int	(*attach_ioas)(struct vfio_device *vdev, u32 *pt_id);
+	int	(*attach_hwpt)(struct vfio_device *vdev, u32 *pt_id,
+			       ioasid_t pasid);
 	int	(*open_device)(struct vfio_device *vdev);
 	void	(*close_device)(struct vfio_device *vdev);
 	ssize_t	(*read)(struct vfio_device *vdev, char __user *buf,
@@ -124,6 +131,8 @@ int vfio_iommufd_physical_bind(struct vfio_device *vdev,
 			       struct iommufd_ctx *ictx, u32 *out_device_id);
 void vfio_iommufd_physical_unbind(struct vfio_device *vdev);
 int vfio_iommufd_physical_attach_ioas(struct vfio_device *vdev, u32 *pt_id);
+int vfio_iommufd_physical_attach_hwpt(struct vfio_device *vdev, u32 *pt_id,
+				      ioasid_t pasid);
 int vfio_iommufd_emulated_bind(struct vfio_device *vdev,
 			       struct iommufd_ctx *ictx, u32 *out_device_id);
 void vfio_iommufd_emulated_unbind(struct vfio_device *vdev);
@@ -136,6 +145,8 @@ int vfio_iommufd_emulated_attach_ioas(struct vfio_device *vdev, u32 *pt_id);
 	((void (*)(struct vfio_device *vdev)) NULL)
 #define vfio_iommufd_physical_attach_ioas \
 	((int (*)(struct vfio_device *vdev, u32 *pt_id)) NULL)
+#define vfio_iommufd_physical_attach_hwpt \
+	((int (*)(struct vfio_device *vdev, u32 *pt_id, ioasid_t pasid)) NULL)
 #define vfio_iommufd_emulated_bind                                      \
 	((int (*)(struct vfio_device *vdev, struct iommufd_ctx *ictx,   \
 		  u32 *out_device_id)) NULL)

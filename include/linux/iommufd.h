@@ -9,6 +9,7 @@
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/err.h>
+#include <linux/ioasid.h>
 
 struct device;
 struct iommufd_device;
@@ -21,8 +22,9 @@ struct iommufd_device *iommufd_device_bind(struct iommufd_ctx *ictx,
 					   struct device *dev, u32 *id);
 void iommufd_device_unbind(struct iommufd_device *idev);
 
-int iommufd_device_attach(struct iommufd_device *idev, u32 *pt_id);
-void iommufd_device_detach(struct iommufd_device *idev);
+int iommufd_device_attach(struct iommufd_device *idev, u32 *pt_id,
+			  ioasid_t pasid);
+void iommufd_device_detach(struct iommufd_device *idev, ioasid_t pasid);
 
 struct iommufd_access_ops {
 	u8 needs_pin_pages : 1;

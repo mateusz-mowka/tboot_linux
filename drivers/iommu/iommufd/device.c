@@ -284,7 +284,8 @@ static void iommufd_device_detach_ioas(struct iommufd_device *idev,
 }
 
 static int iommufd_device_do_attach(struct iommufd_device *idev,
-				    struct iommufd_hw_pagetable *hwpt)
+				    struct iommufd_hw_pagetable *hwpt,
+				    ioasid_t pasid)
 {
 	int rc;
 
@@ -315,7 +316,12 @@ static int iommufd_device_do_attach(struct iommufd_device *idev,
 	 * the group once for the first device that is in the group.
 	 */
 	if (!iommufd_hw_pagetable_has_group(hwpt, idev->group)) {
-		rc = iommu_attach_group(hwpt->domain, idev->group);
+		if (pasid == INVALID_IOASID) {
+			rc = iommu_attach_group(hwpt->domain, idev->group);
+		} else {
+			rc = iommu_attach_device_pasid(hwpt->domain, idev->dev,
+						       pasid);
+		}
 		if (rc)
 			goto out_unlock;
 	}
@@ -344,7 +350,8 @@ out_unlock:
  * Automatic domain selection will never pick a manually created domain.
  */
 static int iommufd_device_auto_get_domain(struct iommufd_device *idev,
-					  struct iommufd_ioas *ioas)
+					  struct iommufd_ioas *ioas,
+					  ioasid_t pasid)
 {
 	struct iommufd_hw_pagetable *hwpt;
 	int rc;
@@ -358,7 +365,7 @@ static int iommufd_device_auto_get_domain(struct iommufd_device *idev,
 		if (!hwpt->auto_domain)
 			continue;
 
-		rc = iommufd_device_do_attach(idev, hwpt);
+		rc = iommufd_device_do_attach(idev, hwpt, pasid);
 
 		/*
 		 * -EINVAL means the domain is incompatible with the device.
@@ -375,7 +382,7 @@ static int iommufd_device_auto_get_domain(struct iommufd_device *idev,
 		return PTR_ERR(hwpt);
 	hwpt->auto_domain = true;
 
-	rc = iommufd_device_do_attach(idev, hwpt);
+	rc = iommufd_device_do_attach(idev, hwpt, pasid);
 	if (rc)
 		goto out_abort;
 
@@ -399,7 +406,8 @@ out_abort:
  * The caller should return the resulting pt_id back to userspace.
  * This function is undone by calling iommufd_device_detach().
  */
-int iommufd_device_attach(struct iommufd_device *idev, u32 *pt_id)
+int iommufd_device_attach(struct iommufd_device *idev, u32 *pt_id,
+			  ioasid_t pasid)
 {
 	struct iommufd_object *pt_obj;
 	int rc;
@@ -414,7 +422,7 @@ int iommufd_device_attach(struct iommufd_device *idev, u32 *pt_id)
 			container_of(pt_obj, struct iommufd_hw_pagetable, obj);
 
 		mutex_lock(&hwpt->ioas->mutex);
-		rc = iommufd_device_do_attach(idev, hwpt);
+		rc = iommufd_device_do_attach(idev, hwpt, pasid);
 		mutex_unlock(&hwpt->ioas->mutex);
 		if (rc)
 			goto out_put_pt_obj;
@@ -425,7 +433,7 @@ int iommufd_device_attach(struct iommufd_device *idev, u32 *pt_id)
 			container_of(pt_obj, struct iommufd_ioas, obj);
 
 		mutex_lock(&ioas->mutex);
-		rc = iommufd_device_auto_get_domain(idev, ioas);
+		rc = iommufd_device_auto_get_domain(idev, ioas, pasid);
 		mutex_unlock(&ioas->mutex);
 		if (rc)
 			goto out_put_pt_obj;
@@ -446,14 +454,7 @@ out_put_pt_obj:
 }
 EXPORT_SYMBOL_NS_GPL(iommufd_device_attach, IOMMUFD);
 
-/**
- * iommufd_device_detach - Disconnect a device to an iommu_domain
- * @idev: device to detach
- *
- * Undo iommufd_device_attach(). This disconnects the idev from the previously
- * attached pt_id. The device returns back to a blocked DMA translation.
- */
-void iommufd_device_detach(struct iommufd_device *idev)
+static void __iommufd_device_detach(struct iommufd_device *idev)
 {
 	struct iommufd_hw_pagetable *hwpt = idev->hwpt;
 
@@ -475,6 +476,43 @@ void iommufd_device_detach(struct iommufd_device *idev)
 	idev->hwpt = NULL;
 
 	refcount_dec(&idev->obj.users);
+}
+
+static void __iommufd_device_pasid_detach(struct iommufd_device *idev,
+					  ioasid_t pasid)
+{
+	struct iommufd_hw_pagetable *hwpt = idev->hwpt;
+
+	mutex_lock(hwpt->devices_lock);
+	refcount_dec(hwpt->devices_users);
+	list_del(&idev->devices_item);
+	iommufd_device_detach_ioas(idev, hwpt);
+	if (!iommufd_hw_pagetable_has_group(hwpt, idev->group))
+		iommu_detach_device_pasid(hwpt->domain, idev->dev, pasid);
+	mutex_unlock(hwpt->devices_lock);
+
+	refcount_dec(&hwpt->obj.users);
+
+	idev->hwpt = NULL;
+
+	refcount_dec(&idev->obj.users);
+}
+
+/**
+ * iommufd_device_detach - Disconnect a device to an iommu_domain
+ * @idev: device to detach
+ * @pasid: pasid to detach
+ *
+ * Undo iommufd_device_attach(). This disconnects the idev from the previously
+ * attached pt_id and pasid. The device returns back to a blocked DMA
+ * translation.
+ */
+void iommufd_device_detach(struct iommufd_device *idev, ioasid_t pasid)
+{
+	if (pasid == INVALID_IOASID)
+		__iommufd_device_detach(idev);
+	else
+		__iommufd_device_pasid_detach(idev, pasid);
 }
 EXPORT_SYMBOL_NS_GPL(iommufd_device_detach, IOMMUFD);
 

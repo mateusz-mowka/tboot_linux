@@ -1229,26 +1229,79 @@ out_unlock:
 	return ret;
 }
 
+/* Try to find and get the reference on the input pasid */
+static int vfio_find_pasid(ioasid_t pasid, bool get)
+{
+	struct mm_struct *mm;
+	struct ioasid_set *ioasid_set;
+	int ret = 0;
+
+	mm = get_task_mm(current);
+	ioasid_set = ioasid_find_mm_set(mm);
+	if (!ioasid_set) {
+		ret = -ENODEV;
+		goto out_put_mm;
+	}
+
+	/* Hold reference on the host pasid if caller indicates */
+
+	ret = ioasid_get(ioasid_set, pasid);
+	if (!ret && !get)
+		ioasid_put(ioasid_set, pasid);
+out_put_mm:
+	mmput(mm);
+	return ret;
+}
+
+static void vfio_put_pasid(ioasid_t pasid)
+{
+	struct mm_struct *mm;
+	struct ioasid_set *ioasid_set;
+
+	mm = get_task_mm(current);
+	ioasid_set = ioasid_find_mm_set(mm);
+	if (WARN_ON(unlikely(!ioasid_set)))
+		goto out_put_mm;
+	ioasid_put(ioasid_set, pasid);
+out_put_mm:
+	mmput(mm);
+}
+
 static int vfio_ioctl_device_attach(struct vfio_device *device,
 				    struct vfio_device_feature __user *arg)
 {
 	struct vfio_device_attach_iommufd_pt attach;
 	u32 pt_id;
 	int ret;
+	bool pasid_attach = false;
 
 	if (copy_from_user(&attach, (void __user *)arg, sizeof(attach)))
 		return -EFAULT;
 
-	if (attach.flags)
+	if (attach.flags && attach.flags != VFIO_DEVICE_ATTACH_IOMMUFD_PT_PASID)
 		return -EINVAL;
 
 	if (!device->ops->bind_iommufd)
 		return -ENODEV;
 
 	mutex_lock(&device->dev_set->lock);
+	pasid_attach = attach.flags & VFIO_DEVICE_ATTACH_IOMMUFD_PT_PASID;
+	if (pasid_attach &&
+	    vfio_find_pasid(attach.pasid, true))
+		return -EINVAL;
+
 	pt_id = attach.pt_id;
-	ret = vfio_iommufd_attach(device,
+	if (pasid_attach) {
+		ret = vfio_iommufd_attach_pasid(device,
+				pt_id != IOMMUFD_INVALID_ID ? &pt_id : NULL,
+				attach.pasid);
+		if (ret)
+			vfio_put_pasid(attach.pasid);
+	} else {
+		ret = vfio_iommufd_attach(device,
 				  pt_id != IOMMUFD_INVALID_ID ? &pt_id : NULL);
+	}
+
 	if (ret)
 		goto out_unlock;
 
@@ -1264,7 +1317,10 @@ static int vfio_ioctl_device_attach(struct vfio_device *device,
 	return 0;
 
 out_detach:
-	vfio_iommufd_attach(device, NULL);
+	if (pasid_attach)
+		vfio_iommufd_attach_pasid(device, NULL, attach.pasid);
+	else
+		vfio_iommufd_attach(device, NULL);
 out_unlock:
 	mutex_unlock(&device->dev_set->lock);
 	return ret;

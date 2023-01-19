@@ -18,6 +18,14 @@ int vfio_iommufd_attach(struct vfio_device *vdev, u32 *pt_id)
 	return vdev->ops->attach_ioas(vdev, pt_id);
 }
 
+int vfio_iommufd_attach_pasid(struct vfio_device *vdev, u32 *pt_id,
+			      ioasid_t pasid)
+{
+	lockdep_assert_held(&vdev->dev_set->lock);
+
+	return vdev->ops->attach_hwpt(vdev, pt_id, pasid);
+}
+
 int vfio_iommufd_bind(struct vfio_device *vdev, struct iommufd_ctx *ictx,
 		      u32 *dev_id, u32 *pt_id)
 {
@@ -81,7 +89,7 @@ EXPORT_SYMBOL_GPL(vfio_iommufd_physical_bind);
 
 static void __vfio_iommufd_detach(struct vfio_device *vdev)
 {
-	iommufd_device_detach(vdev->iommufd_device);
+	iommufd_device_detach(vdev->iommufd_device, INVALID_IOASID);
 	vdev->iommufd_attached = false;
 }
 
@@ -114,13 +122,74 @@ int vfio_iommufd_physical_attach_ioas(struct vfio_device *vdev, u32 *pt_id)
 	if (vdev->iommufd_attached)
 		return -EBUSY;
 
-	rc = iommufd_device_attach(vdev->iommufd_device, pt_id);
+	rc = iommufd_device_attach(vdev->iommufd_device, pt_id, INVALID_IOASID);
 	if (rc)
 		return rc;
 	vdev->iommufd_attached = true;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(vfio_iommufd_physical_attach_ioas);
+
+static void __vfio_iommufd_detach_hwpt(struct vfio_device *vdev, ioasid_t pasid)
+{
+	struct vfio_pci_hwpt *hwpt;
+
+	/* userspace needs to detach a hwpt before attaching a new */
+	hwpt = xa_load(&vdev->pasid_xa, pasid);
+	if (!hwpt)
+		return;
+	xa_erase(&vdev->pasid_xa, hwpt->pasid);
+	iommufd_device_detach(vdev->iommufd_device, pasid);
+	kfree(hwpt);
+}
+
+int vfio_iommufd_physical_attach_hwpt(struct vfio_device *vdev, u32 *pt_id,
+				      ioasid_t pasid)
+{
+	int rc;
+	struct vfio_pci_hwpt *hwpt, *tmp;
+
+	lockdep_assert_held(&vdev->dev_set->lock);
+
+	if (!vdev->iommufd_device)
+		return -EINVAL;
+
+	if (!pt_id) {
+		__vfio_iommufd_detach_hwpt(vdev, pasid);
+		return 0;
+	}
+
+	/* userspace needs to detach a hwpt before attaching a new */
+	hwpt = xa_load(&vdev->pasid_xa, pasid);
+	if (hwpt)
+		return -EBUSY;
+
+	hwpt = kzalloc(sizeof(*hwpt), GFP_KERNEL);
+	if (!hwpt)
+		return -ENOMEM;
+
+	rc = iommufd_device_attach(vdev->iommufd_device, pt_id, pasid);
+	if (rc)
+		goto out_free;
+
+	hwpt->hwpt_id = *pt_id;
+	hwpt->pasid = pasid;
+	tmp = xa_store(&vdev->pasid_xa, hwpt->pasid, hwpt, GFP_KERNEL);
+	if (IS_ERR(tmp)) {
+		rc = PTR_ERR(tmp);
+		goto out_detach;
+	}
+
+	return 0;
+
+out_detach:
+	iommufd_device_detach(vdev->iommufd_device, hwpt->pasid);
+out_free:
+	kfree(hwpt);
+
+	return rc;
+}
+EXPORT_SYMBOL_GPL(vfio_iommufd_physical_attach_hwpt);
 
 /*
  * The emulated standard ops mean that vfio_device is going to use the
