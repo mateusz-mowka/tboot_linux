@@ -773,7 +773,7 @@ int ioasid_get(struct ioasid_set *set, ioasid_t ioasid)
 }
 EXPORT_SYMBOL_GPL(ioasid_get);
 
-static void ioasid_put_locked(struct ioasid_set *set, ioasid_t ioasid)
+void ioasid_put_locked(struct ioasid_set *set, ioasid_t ioasid)
 {
 	struct ioasid_data *data;
 
@@ -799,6 +799,7 @@ static void ioasid_put_locked(struct ioasid_set *set, ioasid_t ioasid)
 	ioasid_do_free_locked(data);
 	pr_info("PASID %d freed", ioasid);
 }
+EXPORT_SYMBOL_GPL(ioasid_put_locked);
 
 /**
  * ioasid_put - Drop reference on an IOASID. Free if refcount drops to 0,
