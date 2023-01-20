@@ -1081,7 +1081,7 @@ static int by_n_compress(struct crypto_acomp_ctx *acomp_ctx,
 		by_n[i].req = acomp_ctx->by_n_req[i];
 
 		acomp_request_set_params(by_n[i].req, &by_n[i].input,
-					 &by_n[i].output, src_size,
+					 &by_n[i].output, (odd && (i == zswap_by_n - 1)) ? src_size + 1 : src_size,
 					 dst_size);
 	}
 
@@ -1107,6 +1107,7 @@ static int by_n_decompress(struct crypto_acomp_ctx *acomp_ctx,
 	struct by_n by_n[MAX_BY_N];
 	unsigned int dst_size, offset = 0;
 	int i;
+	bool odd = zswap_by_n & 1;
 
 	/* total dst size is 1 page, divide this between nths */
 	dst_size = PAGE_SIZE / zswap_by_n;
@@ -1124,7 +1125,7 @@ static int by_n_decompress(struct crypto_acomp_ctx *acomp_ctx,
 		by_n[i].req = acomp_ctx->by_n_req[i];
 
 		acomp_request_set_params(by_n[i].req, &by_n[i].input,
-					 &by_n[i].output, entry->by_n_length[i], dst_size);
+					 &by_n[i].output, entry->by_n_length[i], (odd && (i == zswap_by_n - 1)) ? dst_size + 1 : dst_size);
 	}
 
 	return do_by_n(by_n, dlen, true);
@@ -1613,6 +1614,7 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 	u8 *src, *dst, *tmp;
 	unsigned int dlen;
 	int ret;
+	int i;
 	bool is_by_n = false; /* will be set to true of page was stored by_n */
 
 	/* find */
@@ -1694,8 +1696,13 @@ by_n:
 		unsigned int by_n_dlen[MAX_BY_N];
 
 		ret = by_n_decompress(acomp_ctx, page, src, entry, by_n_dlen);
+		dlen = 0;
+		for (i = 0; i < zswap_by_n; i++)
+			dlen += by_n_dlen[i];
 	}
+	dlen = acomp_ctx->req->dlen;
 
+	BUG_ON(dlen != PAGE_SIZE);
 	mutex_unlock(acomp_ctx->mutex);
 
 	if (zpool_can_sleep_mapped(entry->pool->zpool))
