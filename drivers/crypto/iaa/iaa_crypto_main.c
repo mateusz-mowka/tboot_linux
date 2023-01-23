@@ -118,11 +118,16 @@ static DRIVER_ATTR_RW(verify_compress);
 static struct iaa_compression_mode *iaa_compression_modes[IAA_COMP_MODES_MAX];
 static int active_compression_mode;
 
+static bool canned_mode;
+
 static ssize_t compression_mode_show(struct device_driver *driver, char *buf)
 {
 	int ret = 0;
 
-	ret = sprintf(buf, "%s\n", "fixed");
+	if (canned_mode)
+		ret = sprintf(buf, "%s\n", "canned");
+	else
+		ret = sprintf(buf, "%s\n", "fixed");
 
 	return ret;
 }
@@ -380,6 +385,12 @@ int set_iaa_compression_mode(const char *name)
 		pr_debug("compression mode set to: %s\n", name);
 		ret = 0;
 	}
+
+	if (ret == 0 && !strcmp(name, "canned"))
+		canned_mode = true;
+
+	if (ret == 0 && !strcmp(name, "fixed"))
+		canned_mode = false;
 
 	return ret;
 }
@@ -1103,6 +1114,7 @@ static int iaa_compress_verify(struct crypto_tfm *tfm, struct acomp_req *req,
 	struct idxd_device *idxd;
 	struct iaa_wq *iaa_wq;
 	struct pci_dev *pdev;
+	dma_addr_t src2_addr;
 	struct device *dev;
 	int ret = 0;
 
@@ -1132,6 +1144,13 @@ static int iaa_compress_verify(struct crypto_tfm *tfm, struct acomp_req *req,
 	desc->dst_addr = (u64)src_addr;
 	desc->max_dst_size = slen;
 	desc->completion_addr = idxd_desc->compl_dma;
+
+	if (canned_mode) {
+		src2_addr = iaa_wq->iaa_device->active_compression_mode->aecs_decomp_table_dma_addr;
+		desc->src2_addr = (u64)src2_addr;
+		desc->src2_size = 1088;
+		desc->flags |= IDXD_OP_FLAG_RD_SRC2_AECS;
+	}
 
 	dev_dbg(dev, "(verify) compression mode %s,"
 		" desc->src1_addr %llx, desc->src1_size %d,"
@@ -1184,6 +1203,7 @@ static int iaa_decompress(struct crypto_tfm *tfm, struct acomp_req *req,
 	struct idxd_device *idxd;
 	struct iaa_wq *iaa_wq;
 	struct pci_dev *pdev;
+	dma_addr_t src2_addr;
 	struct device *dev;
 	int ret = 0;
 
@@ -1213,7 +1233,14 @@ static int iaa_decompress(struct crypto_tfm *tfm, struct acomp_req *req,
 	desc->src1_size = slen;
 	desc->completion_addr = idxd_desc->compl_dma;
 
-	dev_dbg(dev, "%s decompression mode %s,"
+	if (canned_mode) {
+		src2_addr = iaa_wq->iaa_device->active_compression_mode->aecs_decomp_table_dma_addr;
+		desc->src2_addr = (u64)src2_addr;
+		desc->src2_size = 1088;
+		desc->flags |= IDXD_OP_FLAG_RD_SRC2_AECS;
+	}
+
+	dev_dbg(dev, "%s: decompression mode %s,"
 		" desc->src1_addr %llx, desc->src1_size %d,"
 		" desc->dst_addr %llx, desc->max_dst_size %d,"
 		" desc->src2_addr %llx, desc->src2_size %d\n", __func__,
@@ -1554,8 +1581,15 @@ static int __init iaa_crypto_init_module(void)
 		goto err_attr_create;
 	}
 
+	ret = iaa_aecs_init_canned();
+	if (ret < 0) {
+		pr_debug("IAA canned compression mode init failed\n");
+		goto err_compression_mode;
+	}
+
 	ret = iaa_aecs_init_fixed();
 	if (ret < 0) {
+		iaa_aecs_cleanup_canned();
 		pr_debug("IAA fixed compression mode init failed\n");
 		goto err_compression_mode;
 	}
@@ -1582,6 +1616,7 @@ static void __exit iaa_crypto_cleanup_module(void)
 	driver_remove_file(&iaa_crypto_driver.drv,
 			   &driver_attr_verify_compress);
 	idxd_driver_unregister(&iaa_crypto_driver);
+	iaa_aecs_cleanup_canned();
 	iaa_aecs_cleanup_fixed();
 
 	pr_debug("cleaned up\n");
