@@ -111,6 +111,8 @@ struct aecs_decomp_table_record {
 	u32 decomp_state[1220];
 } __packed;
 
+int iaa_aecs_init_canned(void);
+void iaa_aecs_cleanup_canned(void);
 int iaa_aecs_init_fixed(void);
 void iaa_aecs_cleanup_fixed(void);
 
