@@ -178,7 +178,7 @@ void __init load_ucode_bsp(void)
 		return;
 
 	if (intel)
-		load_ucode_intel_bsp();
+		load_ucode_intel(true);
 	else
 		load_ucode_amd_bsp(cpuid_1_eax);
 }
@@ -204,7 +204,7 @@ void load_ucode_ap(void)
 	switch (x86_cpuid_vendor()) {
 	case X86_VENDOR_INTEL:
 		if (x86_family(cpuid_1_eax) >= 6)
-			load_ucode_intel_ap();
+			load_ucode_intel(false);
 		break;
 	case X86_VENDOR_AMD:
 		if (x86_family(cpuid_1_eax) >= 0x10)
@@ -316,7 +316,7 @@ void reload_early_microcode(void)
 	switch (vendor) {
 	case X86_VENDOR_INTEL:
 		if (family >= 6)
-			reload_ucode_intel();
+			load_ucode_intel(false);
 		break;
 	case X86_VENDOR_AMD:
 		if (family >= 0x10)
