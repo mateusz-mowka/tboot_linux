@@ -23,6 +23,7 @@
 #include <linux/spinlock.h>
 #include <linux/syscore_ops.h>
 #include <linux/tboot.h>
+#include <asm/intel-family.h>
 
 #include "iommu.h"
 #include "../dma-iommu.h"
@@ -1420,17 +1421,53 @@ done:
  * IDs ranging from 0x4940 to 0x4943. It is exempted from risky_device()
  * check because it applies only to the built-in QAT devices and it doesn't
  * grant additional privileges.
+ * Above finds the EMR and SPR platforms with QAT PCI device ID 0x4940 - 0x4943.
+ * Below hardware also need extra devTLB flush quick.
+ * GNR Stepping A0 and B0, QAT PCI Device ID 0x4944 and 0x4945, PCI Revision ID 0x00 and 0x10
+ * GNR-D stepping A0, QAT PCI device ID 0x4946 and 0x4947, PCI revision ID 0x00
+ * SRF stepping A0, QAT PCI device ID 0x4944 and 0x4945, PCI revision ID 0x00
  */
-#define BUGGY_QAT_DEVID_MASK 0x4940
+#define BUGGY_SPR_EMR_QAT_DEVID_MASK 0x4940
 static bool dev_needs_extra_dtlb_flush(struct pci_dev *pdev)
 {
+	u8 revid = 0;
+	struct cpuinfo_x86 *c = &cpu_data(0);
+
 	if (pdev->vendor != PCI_VENDOR_ID_INTEL)
 		return false;
 
-	if ((pdev->device & 0xfffc) != BUGGY_QAT_DEVID_MASK)
-		return false;
+	pci_read_config_byte(pdev, PCI_REVISION_ID, &revid);
 
-	return true;
+	/* SPR and EMR platform QAT PCI device ID is unique 0x4940 - 0x4943,
+	 * no need to check CPU Family, Model and Stepping,
+	 * no need to check PCI revision id
+	 * But it is good to have a rigorous check on cpu model
+	 */
+	if (((pdev->device & 0xfffc) == BUGGY_SPR_EMR_QAT_DEVID_MASK) &&
+		(c->x86_model == INTEL_FAM6_SAPPHIRERAPIDS_X || c->x86_model == INTEL_FAM6_EMERALDRAPIDS_X))
+		return true;
+
+	/* GNR Stepping A0 and B0, QAT PCI Device ID 0x4944 and 0x4945, PCI Revision ID 0x00 and 0x10 */
+	if ((c->x86_model == INTEL_FAM6_GRANITERAPIDS_X && c->x86_stepping <= 1) &&
+		(pdev->device == 0x4944 || pdev->device == 0x4945) &&
+		(revid == 0x00 || revid == 0x10))
+		return true;
+
+	/* GNR-D stepping A0, QAT PCI device ID 0x4946 and 0x4947, PCI revision ID 0x00 */
+	/* GNR-D model number 0xAE is what I succcessfully guessed, since GNR model number is 0xAD, SRF is 0XAF */
+	/* Jacob: no need to check stepping number since we already know the unique QAT pci device id */
+	if ((c->x86_model == 0xAE) &&
+		(pdev->device == 0x4946 || pdev->device == 0x4947) &&
+		(revid == 0x00))
+		return true;
+
+	/* SRF stepping A0, QAT PCI device ID 0x4944 and 0x4945, PCI revision ID 0x00 */
+	if ((c->x86_model == INTEL_FAM6_SIERRAFOREST_X && c->x86_stepping == 0) &&
+		(pdev->device == 0x4944 || pdev->device == 0x4945) &&
+		(revid == 0x00))
+		return true;
+
+	return false;
 }
 
 static void iommu_enable_pci_caps(struct device_domain_info *info)
