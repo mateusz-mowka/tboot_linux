@@ -28,6 +28,7 @@
 
 #include "isst_tpmi_core.h"
 #include "isst_if_common.h"
+#include "../tpmi_power_domains.h"
 
 /* Supported SST hardware version by this driver */
 #define ISST_HEADER_VERSION		1
@@ -582,7 +583,7 @@ static long isst_if_clos_assoc(void __user *argp)
 		if (assoc_cmds.punit_cpu_map)
 			punit_cpu_no = cpu;
 		else
-			return -EOPNOTSUPP;
+			punit_cpu_no = tpmi_get_punit_core_number(cpu);
 
 		if (punit_cpu_no < 0)
 			return -EINVAL;
@@ -985,6 +986,37 @@ static int isst_if_get_perf_level_info(void __user *argp)
 	return 0;
 }
 
+static int isst_print_cpu_map(char *buf, int len, u64 mask, int pkg, int power_domain)
+{
+	cpumask_var_t cpumask;
+	int i, n;
+
+	if (!alloc_cpumask_var(&cpumask, GFP_KERNEL))
+		return 0;
+
+	for (i = 0; i < 64; ++i) {
+		if (mask & BIT_ULL(i)) {
+			int cpu;
+
+			cpu = tpmi_get_linux_cpu_number(pkg, power_domain, i);
+			if (cpu >= 0) {
+				int sibling;
+
+				cpumask_set_cpu(cpu, cpumask);
+				for_each_cpu(sibling, topology_sibling_cpumask(cpu)) {
+					cpumask_set_cpu(sibling, cpumask);
+				}
+			}
+		}
+	}
+
+	n = cpumap_print_bitmask_to_buf(buf, cpumask, 0, len);
+
+	free_cpumask_var(cpumask);
+
+	return n;
+}
+
 #define SST_PP_FUSED_CORE_COUNT_START	0
 #define SST_PP_FUSED_CORE_COUNT_WIDTH	8
 
@@ -1013,8 +1045,16 @@ static int isst_if_get_perf_level_mask(void __user *argp)
 
 	cpumask.mask = mask;
 
-	if (!cpumask.punit_cpu_map)
-		return -EOPNOTSUPP;
+	if (!cpumask.punit_cpu_map) {
+		if (!cpumask.cpu_buffer_size)
+			return -EINVAL;
+
+		cpumask.cpu_buffer_size = isst_print_cpu_map(cpumask.cpu_buffer,
+							     cpumask.cpu_buffer_size,
+							     mask,
+							     cpumask.socket_id,
+							     cpumask.power_domain_id);
+	}
 
 	if (copy_to_user(argp, &cpumask, sizeof(cpumask)))
 		return -EFAULT;
@@ -1094,8 +1134,16 @@ static int isst_if_get_base_freq_mask(void __user *argp)
 
 	cpumask.mask = mask;
 
-	if (!cpumask.punit_cpu_map)
-		return -EOPNOTSUPP;
+	if (!cpumask.punit_cpu_map) {
+		if (!cpumask.cpu_buffer_size)
+			return -EINVAL;
+
+		cpumask.cpu_buffer_size = isst_print_cpu_map(cpumask.cpu_buffer,
+							     cpumask.cpu_buffer_size,
+							     mask,
+							     cpumask.socket_id,
+							     cpumask.power_domain_id);
+	}
 
 	if (copy_to_user(argp, &cpumask, sizeof(cpumask)))
 		return -EFAULT;
