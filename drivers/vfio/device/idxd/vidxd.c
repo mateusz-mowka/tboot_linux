@@ -157,6 +157,8 @@ static void vidxd_mmio_init_gencap(struct vdcm_idxd *vidxd)
 	gencap->drain_readback = idxd->hw.gen_cap.drain_readback;
 	gencap->max_xfer_shift = idxd->hw.gen_cap.max_xfer_shift;
 	gencap->max_batch_shift = idxd->hw.gen_cap.max_batch_shift;
+        if (device_user_pasid_enabled(idxd))
+                gencap->block_on_fault = idxd->hw.gen_cap.block_on_fault;
 }
 
 static void vidxd_mmio_init_cmdcap(struct vdcm_idxd *vidxd)
