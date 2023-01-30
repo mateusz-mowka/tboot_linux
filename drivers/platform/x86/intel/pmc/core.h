@@ -404,9 +404,11 @@ void icl_core_init(struct pmc_dev *pmcdev);
 void tgl_core_init(struct pmc_dev *pmcdev);
 void adl_core_init(struct pmc_dev *pmcdev);
 void mtl_core_init(struct pmc_dev *pmcdev);
+void lkf_core_init(struct pmc_dev *pmcdev);
 void tgl_core_configure(struct pmc_dev *pmcdev);
 void adl_core_configure(struct pmc_dev *pmcdev);
 void mtl_core_configure(struct pmc_dev *pmcdev);
+void lkf_core_configure(struct pmc_dev *pmcdev);
 
 #define pmc_for_each_mode(i, mode, pmcdev)		\
 	for (i = 0, mode = pmcdev->lpm_en_modes[i];	\
