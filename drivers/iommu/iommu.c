@@ -3296,15 +3296,15 @@ static int __iommu_set_group_pasid(struct iommu_domain *domain,
 	return ret;
 }
 
-static void __iommu_remove_group_pasid(struct iommu_group *group,
+static void __iommu_remove_group_pasid(struct iommu_domain *domain,
+				       struct iommu_group *group,
 				       ioasid_t pasid)
 {
 	struct group_device *device;
-	const struct iommu_ops *ops;
 
 	list_for_each_entry(device, &group->devices, list) {
-		ops = dev_iommu_ops(device->dev);
-		ops->remove_dev_pasid(device->dev, pasid);
+		if (domain->ops->remove_dev_pasid)
+			domain->ops->remove_dev_pasid(device->dev, pasid);
 	}
 }
 
@@ -3339,7 +3339,7 @@ int iommu_attach_device_pasid(struct iommu_domain *domain,
 
 	ret = __iommu_set_group_pasid(domain, group, pasid);
 	if (ret) {
-		__iommu_remove_group_pasid(group, pasid);
+		__iommu_remove_group_pasid(domain, group, pasid);
 		xa_erase(&group->pasid_array, pasid);
 	}
 out_unlock:
@@ -3365,7 +3365,7 @@ void iommu_detach_device_pasid(struct iommu_domain *domain, struct device *dev,
 	struct iommu_group *group = iommu_group_get(dev);
 
 	mutex_lock(&group->mutex);
-	__iommu_remove_group_pasid(group, pasid);
+	__iommu_remove_group_pasid(domain, group, pasid);
 	WARN_ON(xa_erase(&group->pasid_array, pasid) != domain);
 	mutex_unlock(&group->mutex);
 

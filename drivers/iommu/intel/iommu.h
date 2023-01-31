@@ -540,6 +540,7 @@ struct dmar_domain {
 
 	spinlock_t lock;		/* Protect device tracking lists */
 	struct list_head devices;	/* all devices' list */
+	struct list_head subdevices;	/* all subdevices' list */
 
 	union {
 		/* DMA remapping domain */
@@ -631,6 +632,14 @@ struct intel_iommu {
 	void *perf_statistic;
 };
 
+/* PCI domain-subdevice relationship */
+struct subdev_domain_info {
+	struct list_head link_domain;	/* link to domain siblings */
+	struct dmar_domain *domain;
+	struct device *pdev;		/* physical device derived from */
+	ioasid_t pasid;			/* PASID on physical device */
+};
+
 /* PCI domain-device relationship */
 struct device_domain_info {
 	struct list_head link;	/* link to domain siblings */
@@ -650,6 +659,7 @@ struct device_domain_info {
 	struct intel_iommu *iommu; /* IOMMU used by this device */
 	struct dmar_domain *domain; /* pointer to domain */
 	struct pasid_table *pasid_table; /* pasid table */
+	struct xarray subdevice_array;
 };
 
 static inline void __iommu_flush_cache(
@@ -811,7 +821,6 @@ extern int intel_svm_finish_prq(struct intel_iommu *iommu);
 int intel_svm_page_response(struct device *dev, struct iommu_fault_event *evt,
 			    struct iommu_page_response *msg);
 struct iommu_domain *intel_svm_domain_alloc(void);
-void intel_svm_remove_dev_pasid(struct device *dev, ioasid_t pasid);
 
 struct intel_svm_dev {
 	struct list_head list;
@@ -839,10 +848,6 @@ static inline void intel_svm_check(struct intel_iommu *iommu) {}
 static inline struct iommu_domain *intel_svm_domain_alloc(void)
 {
 	return NULL;
-}
-
-static inline void intel_svm_remove_dev_pasid(struct device *dev, ioasid_t pasid)
-{
 }
 #endif
 

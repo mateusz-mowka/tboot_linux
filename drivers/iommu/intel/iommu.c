@@ -1767,6 +1767,7 @@ static struct dmar_domain *alloc_domain(unsigned int type)
 		domain->use_first_level = true;
 	domain->has_iotlb_device = false;
 	INIT_LIST_HEAD(&domain->devices);
+	INIT_LIST_HEAD(&domain->subdevices);
 	spin_lock_init(&domain->lock);
 	xa_init(&domain->iommu_array);
 
@@ -4527,6 +4528,7 @@ static struct iommu_device *intel_iommu_probe_device(struct device *dev)
 
 	info->dev = dev;
 	info->iommu = iommu;
+	xa_init(&info->subdevice_array);
 	if (dev_is_pci(dev)) {
 		if (ecap_dev_iotlb_support(iommu->ecap) &&
 		    pci_ats_supported(pdev) &&
@@ -4762,26 +4764,102 @@ static void intel_iommu_iotlb_sync_map(struct iommu_domain *domain,
 		__mapping_notify_one(info->iommu, dmar_domain, pfn, pages);
 }
 
+static int domain_attach_device_pasid(struct dmar_domain *domain,
+				      struct device *dev, ioasid_t pasid)
+{
+	struct device_domain_info *info = dev_iommu_priv_get(dev);
+	struct intel_iommu *iommu = info->iommu;
+	struct subdev_domain_info *sinfo;
+	unsigned long flags;
+	int ret;
+
+	if (!sm_supported(iommu))
+		return -EOPNOTSUPP;
+
+	sinfo = kzalloc(sizeof(*sinfo), GFP_ATOMIC);
+	if (!sinfo)
+		return -ENOMEM;
+
+	sinfo->domain = domain;
+	sinfo->pasid = pasid;
+	sinfo->pdev = dev;
+
+	spin_lock_irqsave(&domain->lock, flags);
+	ret = xa_err(xa_store(&info->subdevice_array, pasid,
+			      sinfo, GFP_ATOMIC));
+	if (ret)
+		goto out_unlock;
+
+	/*
+	 * iommu->lock must be held to attach domain to iommu and setup the
+	 * pasid entry for second level translation.
+	 */
+	spin_lock(&iommu->lock);
+	ret = domain_attach_iommu(domain, iommu);
+	spin_unlock(&iommu->lock);
+	if (ret)
+		goto out_erase;
+
+	/* Setup the PASID entry for mediated devices: */
+	if (domain->use_first_level)
+		ret = domain_setup_first_level(iommu, domain, dev, pasid);
+	else
+		ret = intel_pasid_setup_second_level(iommu, domain, dev, pasid);
+	if (ret)
+		goto out_detach_iommu;
+
+	list_add(&sinfo->link_domain, &domain->subdevices);
+	spin_unlock_irqrestore(&domain->lock, flags);
+
+	return 0;
+
+out_detach_iommu:
+	spin_lock(&iommu->lock);
+	domain_detach_iommu(domain, iommu);
+	spin_unlock(&iommu->lock);
+out_erase:
+	xa_erase(&info->subdevice_array, pasid);
+out_unlock:
+	spin_unlock_irqrestore(&domain->lock, flags);
+
+	return ret;
+}
+
+static int intel_iommu_attach_device_pasid(struct iommu_domain *domain,
+					   struct device *dev, ioasid_t pasid)
+{
+	int ret;
+
+	ret = prepare_domain_attach_device(domain, dev);
+	if (ret)
+		return ret;
+
+	return domain_attach_device_pasid(to_dmar_domain(domain), dev, pasid);
+}
+
 static void intel_iommu_remove_dev_pasid(struct device *dev, ioasid_t pasid)
 {
 	struct intel_iommu *iommu = device_to_iommu(dev, NULL, NULL);
 	struct iommu_domain *domain;
+	struct dmar_domain *dmar_domain;
+	struct device_domain_info *info = dev_iommu_priv_get(dev);
+	struct subdev_domain_info *sinfo;
+	unsigned long flags;
 
-	/* Domain type specific cleanup: */
 	domain = iommu_get_domain_for_dev_pasid(dev, pasid, 0);
-	if (domain) {
-		switch (domain->type) {
-		case IOMMU_DOMAIN_SVA:
-			intel_svm_remove_dev_pasid(dev, pasid);
-			break;
-		default:
-			/* should never reach here */
-			WARN_ON(1);
-			break;
-		}
-	}
+	dmar_domain = to_dmar_domain(domain);
 
+	spin_lock_irqsave(&dmar_domain->lock, flags);
+	sinfo = xa_load(&info->subdevice_array, pasid);
 	intel_pasid_tear_down_entry(iommu, dev, pasid, false);
+	spin_lock(&iommu->lock);
+	domain_detach_iommu(dmar_domain, iommu);
+	spin_unlock(&iommu->lock);
+	list_del(&sinfo->link_domain);
+	xa_erase(&info->subdevice_array, pasid);
+	spin_unlock_irqrestore(&dmar_domain->lock, flags);
+
+	kfree(sinfo);
 }
 
 static int intel_iommu_hw_info(struct device *dev, void *data, size_t length)
@@ -4818,7 +4896,6 @@ const struct iommu_ops intel_iommu_ops = {
 	.dev_disable_feat	= intel_iommu_dev_disable_feat,
 	.is_attach_deferred	= intel_iommu_is_attach_deferred,
 	.def_domain_type	= device_def_domain_type,
-	.remove_dev_pasid	= intel_iommu_remove_dev_pasid,
 	.pgsize_bitmap		= SZ_4K,
 	.driver_type		= IOMMU_DEVICE_DATA_INTEL_VTD,
 #ifdef CONFIG_INTEL_IOMMU_SVM
@@ -4834,6 +4911,8 @@ const struct iommu_ops intel_iommu_ops = {
 		.iova_to_phys		= intel_iommu_iova_to_phys,
 		.free			= intel_iommu_domain_free,
 		.enforce_cache_coherency = intel_iommu_enforce_cache_coherency,
+		.set_dev_pasid		= intel_iommu_attach_device_pasid,
+		.remove_dev_pasid	= intel_iommu_remove_dev_pasid,
 	}
 };
 
