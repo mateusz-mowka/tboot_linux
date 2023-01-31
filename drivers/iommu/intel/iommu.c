@@ -1502,6 +1502,33 @@ static void iommu_flush_dev_iotlb(struct dmar_domain *domain,
 	spin_unlock_irqrestore(&domain->lock, flags);
 }
 
+/*
+ * The VT-d spec requires to use PASID-based-IOTLB Invalidation to invalidate
+ * IOTLB and the paging-structure-caches for a first-level page table.
+ */
+static void domain_flush_pasid_iotlb(struct intel_iommu *iommu,
+				     struct dmar_domain *domain,
+				     u64 addr, u16 did,
+				     unsigned long npages, bool ih)
+{
+	struct subdev_domain_info *sinfo;
+	struct device_domain_info *info;
+	unsigned long flags;
+
+	spin_lock_irqsave(&domain->lock, flags);
+	list_for_each_entry(sinfo, &domain->subdevices, link_domain) {
+		info = dev_iommu_priv_get(sinfo->pdev);
+		if (info->iommu != iommu)
+			continue;
+
+		qi_flush_piotlb(iommu, did, sinfo->pasid, addr, npages, ih);
+	}
+	spin_unlock_irqrestore(&domain->lock, flags);
+
+	if (!list_empty(&domain->devices))
+		qi_flush_piotlb(iommu, did, PASID_RID2PASID, addr, npages, ih);
+}
+
 void iommu_flush_iotlb_psi(struct intel_iommu *iommu,
 			   struct dmar_domain *domain,
 			   unsigned long pfn, unsigned int pages,
@@ -1519,7 +1546,7 @@ void iommu_flush_iotlb_psi(struct intel_iommu *iommu,
 		ih = 1 << 6;
 
 	if (domain->use_first_level) {
-		qi_flush_piotlb(iommu, did, PASID_RID2PASID, addr, pages, ih);
+		domain_flush_pasid_iotlb(iommu, domain, addr, did, pages, ih);
 		/* flush additional kernel DMA PASIDs attached */
 		if (iommu_domain->dma_pasid)
 			qi_flush_piotlb(iommu, did, iommu_domain->dma_pasid, addr, pages, ih);
@@ -1592,7 +1619,7 @@ void intel_flush_iotlb_all(struct iommu_domain *domain)
 		u16 did = domain_id_iommu(dmar_domain, iommu);
 
 		if (dmar_domain->use_first_level)
-			qi_flush_piotlb(iommu, did, PASID_RID2PASID, 0, -1, 0);
+			domain_flush_pasid_iotlb(iommu, dmar_domain, 0, did, -1, 0);
 		else
 			iommu->flush.flush_iotlb(iommu, did, 0, 0,
 						 DMA_TLB_DSI_FLUSH);
