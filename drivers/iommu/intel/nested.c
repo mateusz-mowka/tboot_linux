@@ -17,16 +17,16 @@
 #include "iommu.h"
 #include "pasid.h"
 
-static int intel_nested_attach_dev(struct iommu_domain *domain,
-				   struct device *dev)
+static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
+					 struct device *dev, ioasid_t pasid)
 {
 	struct device_domain_info *info = dev_iommu_priv_get(dev);
 	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
 	struct intel_iommu *iommu = info->iommu;
-	unsigned long flags;
 	int ret = 0;
+	unsigned long flags;
 
-	if (info->domain)
+	if (pasid == PASID_RID2PASID && info->domain)
 		device_block_translation(dev);
 
 	/* Is s2_domain compatible with this IOMMU? */
@@ -42,8 +42,7 @@ static int intel_nested_attach_dev(struct iommu_domain *domain,
 		return ret;
 	}
 
-	ret = intel_pasid_setup_nested(iommu, dev,
-				       PASID_RID2PASID, dmar_domain);
+	ret = intel_pasid_setup_nested(iommu, dev, pasid, dmar_domain);
 	if (ret) {
 		domain_detach_iommu(dmar_domain, iommu);
 		dev_err_ratelimited(dev, "Failed to setup pasid entry\n");
@@ -52,11 +51,35 @@ static int intel_nested_attach_dev(struct iommu_domain *domain,
 
 	info->domain = dmar_domain;
 	spin_lock_irqsave(&dmar_domain->lock, flags);
-	list_add(&info->link, &dmar_domain->devices);
+	if (++info->nested_users == 1)
+		list_add(&info->link, &dmar_domain->devices);
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 	domain_update_iommu_cap(dmar_domain);
+	return ret;
+}
 
-	return 0;
+static void intel_nested_detach_dev_pasid(struct device *dev, ioasid_t pasid)
+{
+	struct iommu_domain *domain = iommu_get_domain_for_dev_pasid(dev, pasid, 0);
+	struct device_domain_info *info = dev_iommu_priv_get(dev);
+	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
+	struct intel_iommu *iommu = info->iommu;
+	unsigned long flags;
+
+	intel_pasid_tear_down_entry(iommu, dev, pasid, false);
+	/* Revist: Need to drain the prq when PR is support. */
+
+	domain_detach_iommu(dmar_domain, iommu);
+	spin_lock_irqsave(&dmar_domain->lock, flags);
+	if (--info->nested_users == 0)
+		list_del(&info->link);
+	spin_unlock_irqrestore(&dmar_domain->lock, flags);
+}
+
+static int intel_nested_attach_dev(struct iommu_domain *domain,
+				   struct device *dev)
+{
+	return intel_nested_attach_dev_pasid(domain, dev, PASID_RID2PASID);
 }
 
 static void intel_nested_domain_free(struct iommu_domain *domain)
@@ -117,6 +140,8 @@ static const struct iommu_domain_ops intel_nested_domain_ops = {
 	.iotlb_sync_user	= intel_nested_iotlb_sync_user,
 	.free			= intel_nested_domain_free,
 	.enforce_cache_coherency = intel_iommu_enforce_cache_coherency,
+	.set_dev_pasid		= intel_nested_attach_dev_pasid,
+	.remove_dev_pasid	= intel_nested_detach_dev_pasid,
 };
 
 struct iommu_domain *intel_nested_domain_alloc(struct iommu_domain *s2_domain,
