@@ -51,6 +51,9 @@ atomic_t zswap_stored_pages = ATOMIC_INIT(0);
 /* The number of same-value filled pages currently stored in zswap */
 static atomic_t zswap_same_filled_pages = ATOMIC_INIT(0);
 
+static atomic_t zswap_primary_used = ATOMIC_INIT(0);
+static atomic_t zswap_secondary_used = ATOMIC_INIT(0);
+
 /*
  * The statistics below are not protected from concurrent access for
  * performance reasons so they may not be a 100% accurate.  However,
@@ -137,6 +140,9 @@ module_param_named(same_filled_pages_enabled, zswap_same_filled_pages_enabled,
 static bool zswap_non_same_filled_pages_enabled = true;
 module_param_named(non_same_filled_pages_enabled, zswap_non_same_filled_pages_enabled,
 		   bool, 0644);
+
+static unsigned int zswap_secondary_threshold = 512;
+module_param_named(secondary_threshold, zswap_secondary_threshold, uint, 0644);
 
 #define MAX_BY_N 4
 #define MAX_BY_N_THRESHOLD 4096
@@ -236,6 +242,7 @@ struct crypto_acomp_ctx {
 struct zswap_pool {
 	struct zpool *zpool;
 	struct crypto_acomp_ctx __percpu *acomp_ctx;
+	struct crypto_acomp_ctx __percpu *secondary_acomp_ctx;
 	struct kref kref;
 	struct list_head list;
 	struct work_struct release_work;
@@ -273,6 +280,7 @@ struct zswap_entry {
 	int by_n_length_order[MAX_BY_N];
 
 	struct zswap_pool *pool;
+	bool use_secondary; /* use `pool`'s secondary_acomp_ctx */
 	union {
 		unsigned long handle;
 		unsigned long value;
@@ -580,9 +588,11 @@ static int zswap_cpu_comp_prepare(unsigned int cpu, struct hlist_node *node)
 {
 	struct zswap_pool *pool = hlist_entry(node, struct zswap_pool, node);
 	struct crypto_acomp_ctx *acomp_ctx = per_cpu_ptr(pool->acomp_ctx, cpu);
+	struct crypto_acomp_ctx *secondary_acomp_ctx = per_cpu_ptr(pool->secondary_acomp_ctx, cpu);
 	struct crypto_acomp *acomp;
 	struct acomp_req *req;
 	int i, j;
+	const char *secondary_tfm_name = "lzo-rle";
 
 	acomp = crypto_alloc_acomp_node(pool->tfm_name, 0, 0, cpu_to_node(cpu));
 	if (IS_ERR(acomp)) {
@@ -629,6 +639,34 @@ static int zswap_cpu_comp_prepare(unsigned int cpu, struct hlist_node *node)
 	acomp_ctx->mutex = per_cpu(zswap_mutex, cpu);
 	acomp_ctx->dstmem = per_cpu(zswap_dstmem, cpu);
 
+	/* Set up secondary crypto_acomp_ctx: */
+	acomp = crypto_alloc_acomp_node(secondary_tfm_name, 0, 0, cpu_to_node(cpu));
+	if (IS_ERR(acomp)) {
+		pr_err("could not alloc secondary crypto acomp %s : %ld\n",
+				secondary_tfm_name, PTR_ERR(acomp));
+		return PTR_ERR(acomp);
+	}
+	secondary_acomp_ctx->acomp = acomp;
+
+	req = acomp_request_alloc(secondary_acomp_ctx->acomp);
+	if (!req) {
+		pr_err("could not alloc secondary crypto acomp_request %s\n",
+		       secondary_tfm_name);
+		acomp_request_free(acomp_ctx->req);
+		crypto_free_acomp(acomp_ctx->acomp);
+		crypto_free_acomp(secondary_acomp_ctx->acomp);
+		return -ENOMEM;
+	}
+	secondary_acomp_ctx->req = req;
+
+	crypto_init_wait(&secondary_acomp_ctx->wait);
+	acomp_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG,
+				   crypto_req_done, &secondary_acomp_ctx->wait);
+
+	secondary_acomp_ctx->mutex = per_cpu(zswap_mutex, cpu);
+	secondary_acomp_ctx->dstmem = per_cpu(zswap_dstmem, cpu);
+	/* *** */
+
 	return 0;
 }
 
@@ -645,6 +683,14 @@ static int zswap_cpu_comp_dead(unsigned int cpu, struct hlist_node *node)
 			if (!IS_ERR_OR_NULL(acomp_ctx->by_n_req[i]))
 				acomp_request_free(acomp_ctx->by_n_req[i]);
 		}
+		if (!IS_ERR_OR_NULL(acomp_ctx->acomp))
+			crypto_free_acomp(acomp_ctx->acomp);
+	}
+
+	acomp_ctx = per_cpu_ptr(pool->secondary_acomp_ctx, cpu);
+	if (!IS_ERR_OR_NULL(acomp_ctx)) {
+		if (!IS_ERR_OR_NULL(acomp_ctx->req))
+			acomp_request_free(acomp_ctx->req);
 		if (!IS_ERR_OR_NULL(acomp_ctx->acomp))
 			crypto_free_acomp(acomp_ctx->acomp);
 	}
@@ -778,6 +824,12 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 		goto error;
 	}
 
+	pool->secondary_acomp_ctx = alloc_percpu(*pool->secondary_acomp_ctx);
+	if (!pool->secondary_acomp_ctx) {
+		pr_err("percpu alloc failed\n");
+		goto error;
+	}
+
 	ret = cpuhp_state_add_instance(CPUHP_MM_ZSWP_POOL_PREPARE,
 				       &pool->node);
 	if (ret)
@@ -798,6 +850,8 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 error:
 	if (pool->acomp_ctx)
 		free_percpu(pool->acomp_ctx);
+	if (pool->secondary_acomp_ctx)
+		free_percpu(pool->secondary_acomp_ctx);
 	if (pool->zpool)
 		zpool_destroy_pool(pool->zpool);
 	kfree(pool);
@@ -852,6 +906,7 @@ static void zswap_pool_destroy(struct zswap_pool *pool)
 
 	cpuhp_state_remove_instance(CPUHP_MM_ZSWP_POOL_PREPARE, &pool->node);
 	free_percpu(pool->acomp_ctx);
+	free_percpu(pool->secondary_acomp_ctx);
 	zpool_destroy_pool(pool->zpool);
 	kfree(pool);
 }
@@ -1323,7 +1378,11 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 
 	case ZSWAP_SWAPCACHE_NEW: /* page is locked */
 		/* decompress */
-		acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+		if (entry->use_secondary)
+			acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
+		else
+			acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+
 		dlen = PAGE_SIZE;
 
 		zhdr = zpool_map_handle(pool, handle, ZPOOL_MM_RO);
@@ -1544,7 +1603,18 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	}
 
 	/* compress */
-	acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+
+	/*
+	 * Start with secondary compressor so that the threshold is made against
+	 * its result (rather than against the result of the primary compressor.
+	 */
+	acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
+	entry->use_secondary = true;
+recompress:
+	/*
+	 * Upon re-compress, acomp_ctx will have been set to the entry's pool's
+	 * secondary_acomp_ctx.
+	 */
 
 	mutex_lock(acomp_ctx->mutex);
 
@@ -1573,7 +1643,7 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	   async irq version (e.g. set iaa crypto driver to use async
 	   irq vs async noirq with 4096 zswap by_n threshold.
 	 */
-	if (zswap_by_n && (zswap_by_n_threshold == 0))
+	if (zswap_by_n && (zswap_by_n_threshold == 0) && !entry->use_secondary)
 		/* always hit threshold, no need to check */
 		goto by_n;
 
@@ -1622,7 +1692,7 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 
 	dlen = acomp_ctx->req->dlen;
 by_n:
-	if (zswap_by_n && dlen > zswap_by_n_threshold) {
+	if (zswap_by_n && dlen > zswap_by_n_threshold && !entry->use_secondary) {
 		start_time_ns = ktime_get_ns();
 		ret = by_n_compress(acomp_ctx, page, by_n_dst, by_n_dlen);
 		end_time_ns = ktime_get_ns();
@@ -1634,6 +1704,14 @@ by_n:
 	if (ret) {
 		ret = -EINVAL;
 		goto put_dstmem;
+	}
+
+	if (entry->use_secondary && dlen >= zswap_secondary_threshold) {
+		mutex_unlock(acomp_ctx->mutex);
+		acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+		entry->use_secondary = false;
+		is_by_n = false;
+		goto recompress;
 	}
 
 	/* store */
@@ -1712,6 +1790,11 @@ by_n:
 					   raw_smp_processor_id(),
 					   acomp_ctx->req->dlen, ret);
 	}
+
+	if (entry->use_secondary)
+		atomic_inc(&zswap_secondary_used);
+	else
+		atomic_inc(&zswap_primary_used);
 
 insert_entry:
 	entry->objcg = objcg;
@@ -1829,7 +1912,10 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 		zpool_unmap_handle(entry->pool->zpool, entry->handle);
 	}
 
-	acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+	if (entry->use_secondary)
+		acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
+	else
+		acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
 	mutex_lock(acomp_ctx->mutex);
 
 	if (is_by_n)
@@ -2006,6 +2092,11 @@ static int __init zswap_debugfs_init(void)
 				zswap_debugfs_root, &zswap_stored_pages);
 	debugfs_create_atomic_t("same_filled_pages", 0444,
 				zswap_debugfs_root, &zswap_same_filled_pages);
+
+	debugfs_create_atomic_t("primary_used", 0444, zswap_debugfs_root,
+				&zswap_primary_used);
+	debugfs_create_atomic_t("secondary_used", 0444, zswap_debugfs_root,
+				&zswap_secondary_used);
 
 	return 0;
 }
