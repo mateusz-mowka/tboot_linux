@@ -51,8 +51,7 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 
 	info->domain = dmar_domain;
 	spin_lock_irqsave(&dmar_domain->lock, flags);
-	if (++info->nested_users == 1)
-		list_add(&info->link, &dmar_domain->devices);
+	list_add(&info->link, &dmar_domain->devices);
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 	domain_update_iommu_cap(dmar_domain);
 	return ret;
@@ -71,8 +70,7 @@ static void intel_nested_detach_dev_pasid(struct device *dev, ioasid_t pasid)
 
 	domain_detach_iommu(dmar_domain, iommu);
 	spin_lock_irqsave(&dmar_domain->lock, flags);
-	if (--info->nested_users == 0)
-		list_del(&info->link);
+	list_del(&info->link);
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 }
 
@@ -126,13 +124,10 @@ static void intel_nested_iotlb_sync_user(struct iommu_domain *domain,
 {
 	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
 	struct device_domain_info *info;
-	unsigned long flags;
 
-	spin_lock_irqsave(&dmar_domain->lock, flags);
 	list_for_each_entry(info, &dmar_domain->devices, link)
 		intel_nested_invalidate(info->dev, dmar_domain,
 					user_data, data_len);
-	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 }
 
 static const struct iommu_domain_ops intel_nested_domain_ops = {
@@ -165,6 +160,7 @@ struct iommu_domain *intel_nested_domain_alloc(struct iommu_domain *s2_domain,
 	domain->domain.ops = &intel_nested_domain_ops;
 	domain->domain.type = IOMMU_DOMAIN_NESTED;
 	INIT_LIST_HEAD(&domain->devices);
+	INIT_LIST_HEAD(&domain->subdevices);
 	spin_lock_init(&domain->lock);
 	xa_init(&domain->iommu_array);
 
