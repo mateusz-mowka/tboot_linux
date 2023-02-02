@@ -1476,6 +1476,7 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	unsigned int by_n_dlen[MAX_BY_N];
 	struct zswap_header zhdr = { .swpentry = swp_entry(type, offset) };
 	u64 start_time_ns;
+	u64 end_time_ns;
 	gfp_t gfp;
 	bool is_by_n = false; /* will be set true if page will be stored by_n */
 
@@ -1607,11 +1608,11 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 				cpu_relax();
 			} while (ret);
 		}
-		trace_zswap_store_lat_async(acomp_ctx->req, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), acomp_ctx->req->dlen, ret);
+		end_time_ns = ktime_get_ns();
 	} else {
 		start_time_ns = ktime_get_ns();
 		ret = crypto_wait_req(crypto_acomp_compress(acomp_ctx->req), &acomp_ctx->wait);
-		trace_zswap_store_lat_sync(acomp_ctx->req, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), acomp_ctx->req->dlen, ret);
+		end_time_ns = ktime_get_ns();
 	}
 
 	if (ret) {
@@ -1624,7 +1625,7 @@ by_n:
 	if (zswap_by_n && dlen > zswap_by_n_threshold) {
 		start_time_ns = ktime_get_ns();
 		ret = by_n_compress(acomp_ctx, page, by_n_dst, by_n_dlen);
-		trace_zswap_store_lat_by_n(acomp_ctx->req, zswap_by_n, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), by_n_dlen[0], by_n_dlen[1], by_n_dlen[2], by_n_dlen[3], ret);		
+		end_time_ns = ktime_get_ns();
 		if (ret)
 			goto put_dstmem;
 		is_by_n = true;
@@ -1692,6 +1693,24 @@ by_n:
 		 * stored by_n:
 		 */
 		entry->by_n_length[0] = 0;
+	}
+
+	if (is_by_n) {
+		trace_zswap_store_lat_by_n(acomp_ctx->req, zswap_by_n,
+					   end_time_ns - start_time_ns,
+					   raw_smp_processor_id(),
+					   by_n_dlen[0], by_n_dlen[1],
+					   by_n_dlen[2], by_n_dlen[3], ret);
+	} else if (acomp_ctx->acomp->poll) {
+		trace_zswap_store_lat_async(acomp_ctx->req,
+					    end_time_ns - start_time_ns,
+					    raw_smp_processor_id(),
+					    acomp_ctx->req->dlen, ret);
+	} else {
+		trace_zswap_store_lat_sync(acomp_ctx->req,
+					   end_time_ns - start_time_ns,
+					   raw_smp_processor_id(),
+					   acomp_ctx->req->dlen, ret);
 	}
 
 insert_entry:
