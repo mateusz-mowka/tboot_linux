@@ -61,9 +61,18 @@ enum intel_vsec_quirks {
 	VSEC_QUIRK_EARLY_HW     = BIT(4),
 };
 
+enum intel_vsec_capabilities {
+	VSEC_CAP_TELEMETRY	= BIT(0),
+	VSEC_CAP_WATCHER	= BIT(1),
+	VSEC_CAP_CRASHLOG	= BIT(2),
+	VSEC_CAP_SDSI		= BIT(3),
+	VSEC_CAP_TPMI		= BIT(4),
+};
+
 /* Platform specific data */
 struct intel_vsec_platform_info {
-	struct intel_vsec_header **capabilities;
+	struct intel_vsec_header **headers;
+	unsigned long caps;
 	unsigned long quirks;
 };
 
