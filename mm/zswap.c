@@ -1833,20 +1833,33 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 				cpu_relax();
 			} while (ret);
 		}
-		trace_zswap_load_lat_async(acomp_ctx->req, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), ret);
+		trace_zswap_load_lat_async(acomp_ctx->req,
+					   ktime_get_ns() - start_time_ns,
+					   raw_smp_processor_id(),
+					   entry->length, ret);
 	} else {
 		start_time_ns = ktime_get_ns();
 		ret = crypto_wait_req(crypto_acomp_decompress(acomp_ctx->req), &acomp_ctx->wait);
-		trace_zswap_load_lat_sync(acomp_ctx->req, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), ret);
+		trace_zswap_load_lat_sync(acomp_ctx->req,
+					  ktime_get_ns() - start_time_ns,
+					  raw_smp_processor_id(), entry->length,
+					  ret);
 	}
 	dlen = acomp_ctx->req->dlen;
 by_n:
 	if (is_by_n) {
 		unsigned int by_n_dlen[MAX_BY_N];
 
-		start_time_ns = ktime_get_ns();		
+		start_time_ns = ktime_get_ns();
 		ret = by_n_decompress(acomp_ctx, page, src, entry, by_n_dlen);
-		trace_zswap_load_lat_by_n(acomp_ctx->req, zswap_by_n, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), ret);
+		trace_zswap_load_lat_by_n(acomp_ctx->req, zswap_by_n,
+					  ktime_get_ns() - start_time_ns,
+					  raw_smp_processor_id(),
+					  entry->by_n_length[0],
+					  entry->by_n_length[1],
+					  entry->by_n_length[2],
+					  entry->by_n_length[3],
+					  ret);
 		dlen = 0;
 		for (i = 0; i < zswap_by_n; i++)
 			dlen += by_n_dlen[i];
