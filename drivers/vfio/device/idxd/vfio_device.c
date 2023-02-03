@@ -70,8 +70,10 @@ static void idxd_vdcm_close(struct vfio_device *vdev)
 	mutex_unlock(&vidxd->dev_lock);
 }
 
+//static int idxd_vdcm_bind_iommufd(struct vfio_device *vdev,
+//				  struct vfio_device_bind_iommufd *bind)
 static int idxd_vdcm_bind_iommufd(struct vfio_device *vdev,
-				  struct vfio_device_bind_iommufd *bind)
+				  struct iommufd_ctx *ictx, u32 *out_device_id)
 {
 	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
 	struct idxd_device *idxd = vidxd->idxd;
@@ -87,17 +89,20 @@ static int idxd_vdcm_bind_iommufd(struct vfio_device *vdev,
 		goto out;
 	}
 
-	idev = iommufd_bind_device(bind->iommufd, &idxd->pdev->dev,
-				       IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP, &id);
+//	idev = iommufd_bind_device(bind->iommufd, &idxd->pdev->dev,
+//				       IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP, &id);
+	/* The flag is removed in the new bind API. Is this right? */
+	idev = iommufd_device_bind(ictx, &idxd->pdev->dev, out_device_id);
 	if (IS_ERR(idev)) {
 		rc = PTR_ERR(idev);
 		goto out;
 	}
 
-	vidxd->iommufd = bind->iommufd;
+//	vidxd->iommufd = bind->iommufd;
 	vidxd->idev = idev;
 	xa_init_flags(&vidxd->pasid_xa, XA_FLAGS_ALLOC);
-	bind->out_devid = id;
+//	bind->out_devid = id;
+        vdev->iommufd_device = idev;
 
 out:
 	mutex_unlock(&vidxd->dev_lock);
@@ -126,11 +131,12 @@ static void idxd_vdcm_unbind_iommufd(struct vfio_device *vdev)
 		unsigned long index;
 
 		xa_for_each (&vidxd->pasid_xa, index, hwpt) {
-			iommufd_device_pasid_detach(vidxd->idev, hwpt->pasid);
+			iommufd_device_detach(vidxd->idev, hwpt->pasid);
 			kfree(hwpt);
 		}
 		xa_destroy(&vidxd->pasid_xa);
-		iommufd_unbind_device(vidxd->idev);
+//		iommufd_unbind_device(vidxd->idev);
+		iommufd_device_unbind(vidxd->idev);
 		vidxd->idev = NULL;
 	}
 	mutex_unlock(&vidxd->dev_lock);
@@ -150,8 +156,9 @@ static int idxd_vdcm_pasid_attach(struct vdcm_idxd *vidxd, ioasid_t pasid, u32 *
 	if (!hwpt)
 		return -ENOMEM;
 
-	ret = iommufd_device_pasid_attach(vidxd->idev, pt_id, pasid,
-					  IOMMUFD_ATTACH_FLAGS_ALLOW_UNSAFE_INTERRUPT);
+//	ret = iommufd_device_pasid_attach(vidxd->idev, pt_id, pasid,
+//					  IOMMUFD_ATTACH_FLAGS_ALLOW_UNSAFE_INTERRUPT);
+	ret = iommufd_device_attach(vidxd->idev, pt_id, pasid);
 	if (ret)
 		goto out_free;
 
@@ -164,22 +171,24 @@ static int idxd_vdcm_pasid_attach(struct vdcm_idxd *vidxd, ioasid_t pasid, u32 *
 	}
 	return 0;
 out_detach:
-	iommufd_device_pasid_detach(vidxd->idev, pasid);
+//	iommufd_device_pasid_detach(vidxd->idev, pasid);
+	iommufd_device_detach(vidxd->idev, pasid);
 out_free:
 	kfree(hwpt);
 	return ret;
 }
 
 static int idxd_vdcm_attach_ioas(struct vfio_device *vdev,
-				 struct vfio_device_attach_ioas *attach)
+				 u32 *pt_id)
 {
 	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
-	u32 pasid, pt_id = attach->ioas_id;
+	u32 pasid;
 	int rc = 0;
 
 	mutex_lock(&vidxd->dev_lock);
 
-	if (!vidxd->idev || vidxd->iommufd != attach->iommufd) {
+//	if (!vidxd->idev || vidxd->iommufd != attach->iommufd) {
+	if (!vidxd->idev) {
 		rc = -EINVAL;
 		goto out_unlock;
 	}
@@ -196,29 +205,28 @@ static int idxd_vdcm_attach_ioas(struct vfio_device *vdev,
 		goto out_unlock;
 	}
 
-	rc = idxd_vdcm_pasid_attach(vidxd, pasid, &pt_id);
+	rc = idxd_vdcm_pasid_attach(vidxd, pasid, pt_id);
 	if (rc)
 		goto out_unlock;
 
-	WARN_ON(attach->ioas_id == pt_id);
-	attach->out_hwpt_id = pt_id;
+//	WARN_ON(attach->ioas_id == *pt_id);
+//	attach->out_hwpt_id = *pt_id;
 out_unlock:
 	mutex_unlock(&vidxd->dev_lock);
 	return rc;
 }
 
-int idxd_vdcm_attach_hwpt(struct vfio_device *vdev,
-			  struct vfio_device_attach_hwpt *attach)
+int idxd_vdcm_attach_hwpt(struct vfio_device *vdev, u32 *pt_id, ioasid_t pasid)
 {
-	ioasid_t pasid = attach->flags & VFIO_DEVICE_ATTACH_FLAG_PASID ?
-			 attach->pasid : INVALID_IOASID;
+//	ioasid_t pasid = attach->flags & VFIO_DEVICE_ATTACH_FLAG_PASID ?
+//			 attach->pasid : INVALID_IOASID;
 	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
-	u32 pt_id = attach->hwpt_id;
 	int ret;
 
 	mutex_lock(&vidxd->dev_lock);
 
-	if (!vidxd->idev || vidxd->iommufd != attach->iommufd) {
+//	if (!vidxd->idev || vidxd->iommufd != attach->iommufd) {
+	if (!vidxd->idev) {
 		ret = -EINVAL;
 		goto out_unlock;
 	}
@@ -229,11 +237,10 @@ int idxd_vdcm_attach_hwpt(struct vfio_device *vdev,
 		goto out_unlock;
 	}
 
-	ret = idxd_vdcm_pasid_attach(vidxd, pasid, &pt_id);
+	ret = idxd_vdcm_pasid_attach(vidxd, pasid, pt_id);
 	if (ret)
 		goto out_unlock;
 
-	WARN_ON(attach->hwpt_id != pt_id);
 out_unlock:
 	mutex_unlock(&vidxd->dev_lock);
 
@@ -241,6 +248,7 @@ out_unlock:
 }
 EXPORT_SYMBOL_GPL(idxd_vdcm_attach_hwpt);
 
+#if 0
 void idxd_vdcm_detach_hwpt(struct vfio_device *vdev,
 			   struct vfio_device_detach_hwpt *detach)
 {
@@ -262,13 +270,14 @@ void idxd_vdcm_detach_hwpt(struct vfio_device *vdev,
 		goto out_unlock;
 	}
 	xa_erase(&vidxd->pasid_xa, hwpt->pasid);
-	iommufd_device_pasid_detach(vidxd->idev, pasid);
+//	iommufd_device_pasid_detach(vidxd->idev, pasid);
+	iommufd_device_detach(vidxd->idev, pasid);
 	kfree(hwpt);
 out_unlock:
 	mutex_unlock(&vidxd->dev_lock);
 }
 EXPORT_SYMBOL_GPL(idxd_vdcm_detach_hwpt);
-
+#endif
 
 static ssize_t idxd_vdcm_rw(struct vfio_device *vdev, char *buf, size_t count,
 			    loff_t *ppos, int mode)
@@ -849,7 +858,7 @@ static const struct vfio_device_ops idxd_vdev_ops = {
 	.unbind_iommufd = idxd_vdcm_unbind_iommufd,
 	.attach_ioas = idxd_vdcm_attach_ioas,
 	.attach_hwpt = idxd_vdcm_attach_hwpt,
-	.detach_hwpt = idxd_vdcm_detach_hwpt,
+//	.detach_hwpt = idxd_vdcm_detach_hwpt,
 	.read = idxd_vdcm_read,
 	.write = idxd_vdcm_write,
 	.mmap = idxd_vdcm_mmap,

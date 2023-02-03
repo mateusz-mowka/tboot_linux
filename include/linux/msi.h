@@ -674,6 +674,20 @@ void *platform_msi_get_host_data(struct irq_domain *domain);
 void msi_domain_set_default_info_flags(struct msi_domain_info *info);
 #endif /* CONFIG_GENERIC_MSI_IRQ */
 
+#ifdef CONFIG_DEVICE_MSI
+struct irq_domain *device_msi_create_irq_domain(struct fwnode_handle *fn,
+						struct msi_domain_info *info,
+						struct irq_domain *parent);
+int dev_msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev,
+			      int nvecs);
+void dev_msi_domain_free_irqs(struct irq_domain *domain, struct device *dev);
+
+# ifdef CONFIG_PCI
+struct irq_domain *pci_subdevice_msi_create_irq_domain(struct pci_dev *pdev,
+                                                      struct msi_domain_info *info);
+# endif
+#endif /* CONFIG_DEVICE_MSI */
+
 /* PCI specific interfaces */
 #ifdef CONFIG_PCI_MSI
 struct pci_dev *msi_desc_to_pci_dev(struct msi_desc *desc);

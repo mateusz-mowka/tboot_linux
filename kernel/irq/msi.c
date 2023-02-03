@@ -484,7 +484,7 @@ static inline int msi_sysfs_create_group(struct device *dev)
 
 static inline void msi_sysfs_remove_group(struct device *dev)
 {
-	devm_device_remove_group(dev, &msi_irqs_group);
+//	devm_device_remove_group(dev, &msi_irqs_group);
 }
 
 static int msi_device_data_match(struct device *dev, void *res, void *data)
@@ -1054,7 +1054,7 @@ free_bundle:
 	kfree(bundle);
 	return false;
 }
-EXPORT_SYMBOL_GPL(msi_domain_alloc_irqs);
+//EXPORT_SYMBOL_GPL(msi_domain_alloc_irqs);
 
 /**
  * msi_remove_device_irq_domain - Free a device MSI interrupt domain
@@ -1085,7 +1085,7 @@ void msi_remove_device_irq_domain(struct device *dev, unsigned int domid)
 unlock:
 	msi_unlock_descs(dev);
 }
-EXPORT_SYMBOL_GPL(msi_domain_free_irqs);
+//EXPORT_SYMBOL_GPL(msi_domain_free_irqs);
 
 /**
  * msi_match_device_irq_domain - Match a device irq domain against a bus token
@@ -1294,7 +1294,8 @@ static int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain
 		return ret;
 
 	if (ops->msi_alloc_store) {
-		ret = ops->msi_alloc_store(domain, dev, nvec);
+//		ret = ops->msi_alloc_store(domain, dev, nvec);
+		ret = ops->msi_alloc_store(domain, dev, ctrl->nirqs);
 		if (ret)
 			return ret;
 	}

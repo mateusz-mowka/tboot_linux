@@ -11,7 +11,8 @@
 #include <linux/mmu_context.h>
 #include <linux/vfio.h>
 #include <linux/msi.h>
-#include <linux/intel-iommu.h>
+//#include <linux/intel-iommu.h>
+#include <linux/iommu.h>
 #include <linux/intel-svm.h>
 #include <linux/kvm_host.h>
 #include <linux/eventfd.h>

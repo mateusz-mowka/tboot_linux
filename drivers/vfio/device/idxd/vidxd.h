@@ -49,7 +49,7 @@ struct vdcm_idxd {
 	struct idxd_device *idxd;
 	struct idxd_wq *wq;
 	struct iommufd_device *idev;
-	int iommufd;
+//	int iommufd;
 	u32 pt_id;
 
 	u64 bar_val[VIDXD_MAX_BARS];
