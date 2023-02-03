@@ -34,7 +34,8 @@ void iommufd_device_destroy(struct iommufd_object *obj)
 	struct iommufd_device *idev =
 		container_of(obj, struct iommufd_device, obj);
 
-	iommu_device_release_dma_owner(idev->dev);
+	if (idev->dma_owner_claimed)
+		iommu_device_release_dma_owner(idev->dev);
 	iommu_group_put(idev->group);
 	iommufd_ctx_put(idev->ictx);
 }
@@ -56,7 +57,8 @@ void iommufd_device_destroy(struct iommufd_object *obj)
  * The caller must undo this with iommufd_device_unbind()
  */
 struct iommufd_device *iommufd_device_bind(struct iommufd_ctx *ictx,
-					   struct device *dev, u32 *id)
+					   struct device *dev, u32 *id,
+					   unsigned int flags)
 {
 	struct iommufd_device *idev;
 	struct iommu_group *group;
@@ -73,9 +75,11 @@ struct iommufd_device *iommufd_device_bind(struct iommufd_ctx *ictx,
 	if (!group)
 		return ERR_PTR(-ENODEV);
 
-	rc = iommu_device_claim_dma_owner(dev, ictx);
-	if (rc)
-		goto out_group_put;
+	if (!(flags & IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP)) {
+		rc = iommu_device_claim_dma_owner(dev, ictx);
+		if (rc)
+			goto out_group_put;
+	}
 
 	idev = iommufd_object_alloc(ictx, idev, IOMMUFD_OBJ_DEVICE);
 	if (IS_ERR(idev)) {
@@ -91,6 +95,8 @@ struct iommufd_device *iommufd_device_bind(struct iommufd_ctx *ictx,
 	refcount_inc(&idev->obj.users);
 	/* group refcount moves into iommufd_device */
 	idev->group = group;
+	idev->dma_owner_claimed =
+		!(flags & IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP);
 
 	/*
 	 * If the caller fails after this success it must call
@@ -103,7 +109,8 @@ struct iommufd_device *iommufd_device_bind(struct iommufd_ctx *ictx,
 	return idev;
 
 out_release_owner:
-	iommu_device_release_dma_owner(dev);
+	if ((!flags & IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP))
+		iommu_device_release_dma_owner(dev);
 out_group_put:
 	iommu_group_put(group);
 	return ERR_PTR(rc);
@@ -338,7 +345,10 @@ static int iommufd_device_do_attach(struct iommufd_device *idev,
 	return 0;
 
 out_detach:
-	iommu_detach_group(hwpt->domain, idev->group);
+	if (pasid == INVALID_IOASID)
+		iommu_detach_group(hwpt->domain, idev->group);
+	else
+		iommu_detach_device_pasid(hwpt->domain, idev->dev, pasid);
 out_unlock:
 	mutex_unlock(hwpt->devices_lock);
 	return rc;
@@ -411,6 +421,9 @@ int iommufd_device_attach(struct iommufd_device *idev, u32 *pt_id,
 {
 	struct iommufd_object *pt_obj;
 	int rc;
+
+	if (pasid == INVALID_IOASID && !idev->dma_owner_claimed)
+		return -EPERM;
 
 	pt_obj = iommufd_get_object(idev->ictx, *pt_id, IOMMUFD_OBJ_ANY);
 	if (IS_ERR(pt_obj))

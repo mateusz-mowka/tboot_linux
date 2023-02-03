@@ -264,6 +264,7 @@ struct iommufd_device {
 	struct device *dev;
 	struct iommu_group *group;
 	bool enforce_cache_coherency;
+	bool dma_owner_claimed;
 };
 
 int iommufd_device_get_info(struct iommufd_ucmd *ucmd);
