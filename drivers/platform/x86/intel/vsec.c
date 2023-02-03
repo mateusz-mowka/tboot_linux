@@ -382,12 +382,6 @@ static int intel_vsec_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 	return 0;
 }
 
-/* TGL info */
-static const struct intel_vsec_platform_info tgl_info = {
-	.quirks = VSEC_QUIRK_NO_WATCHER | VSEC_QUIRK_NO_CRASHLOG |
-		  VSEC_QUIRK_TABLE_SHIFT | VSEC_QUIRK_EARLY_HW,
-};
-
 /* DG1 info */
 static struct intel_vsec_header dg1_telemetry = {
 	.length = 0x10,
@@ -411,6 +405,12 @@ static const struct intel_vsec_platform_info dg1_info = {
 /* MTL info */
 static const struct intel_vsec_platform_info mtl_info = {
 	.quirks = VSEC_QUIRK_NO_WATCHER | VSEC_QUIRK_NO_CRASHLOG,
+};
+
+/* TGL info */
+static const struct intel_vsec_platform_info tgl_info = {
+	.quirks = VSEC_QUIRK_NO_WATCHER | VSEC_QUIRK_NO_CRASHLOG |
+		  VSEC_QUIRK_TABLE_SHIFT | VSEC_QUIRK_EARLY_HW,
 };
 
 #define PCI_DEVICE_ID_INTEL_VSEC_ADL		0x467d
