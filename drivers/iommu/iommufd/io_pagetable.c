@@ -774,9 +774,6 @@ again:
 		area->pages = NULL;
 		up_write(&iopt->iova_rwsem);
 
-		iopt_area_unfill_domains(area, pages, bitmap);
-		iopt_abort_area(area);
-		iopt_put_pages(pages);
 		rc = __iopt_unmap_iova(iopt, area, pages, bitmap);
 		if (rc)
 			goto out_unlock_iova;
