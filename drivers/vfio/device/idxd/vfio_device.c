@@ -12,6 +12,8 @@
 #include "idxd.h"
 #include "vidxd.h"
 
+MODULE_IMPORT_NS(IOMMUFD);
+
 enum {
 	IDXD_VDEV_TYPE_1DWQ = 0,
 	IDXD_VDEV_TYPE_1SWQ,
@@ -79,7 +81,6 @@ static int idxd_vdcm_bind_iommufd(struct vfio_device *vdev,
 	struct idxd_device *idxd = vidxd->idxd;
 	struct iommufd_device *idev;
 	int rc = 0;
-	u32 id;
 
 	mutex_lock(&vidxd->dev_lock);
 

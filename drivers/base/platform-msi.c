@@ -371,6 +371,10 @@ int platform_msi_device_domain_alloc(struct irq_domain *domain, unsigned int vir
  */
 static int device_msi_alloc_irqs(struct irq_domain *domain, struct device *dev, int nvecs)
 {
+	struct msi_ctrl ctrl = {
+		.domid	= MSI_DEFAULT_DOMAIN,
+		.nirqs	= nvecs,
+	};
 	struct msi_desc desc;
 	int i, ret = 0;
 
@@ -380,12 +384,15 @@ static int device_msi_alloc_irqs(struct irq_domain *domain, struct device *dev, 
 	for (i = 0 ; i < nvecs; i++) {
 		desc.affinity = NULL;
 		desc.msi_index = i;
-		ret = msi_add_msi_desc(dev, &desc);
+//		ret = msi_add_msi_desc(dev, &desc);
+		ret = msi_insert_msi_desc(dev, &desc);
 		if (ret)
 			goto fail;
 	}
 
-	ret = __msi_domain_alloc_irqs(domain, dev, nvecs);
+	ctrl.first = ctrl.last = desc.msi_index;
+//	ret = __msi_domain_alloc_irqs(dev, domain, nvecs);
+	ret = __msi_domain_alloc_irqs(dev, domain, &ctrl);
 	if (!ret)
 		return 0;
 
@@ -401,13 +408,17 @@ int dev_msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev, int
 	if (ret)
 		return ret;
 
-	return msi_domain_alloc_irqs(domain, dev, nvecs);
+//	return msi_domain_alloc_irqs(domain, dev, nvecs);
+	ret = msi_domain_alloc_irqs_range(dev, MSI_DEFAULT_DOMAIN, 0, nvecs - 1);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(dev_msi_domain_alloc_irqs);
 
 void dev_msi_domain_free_irqs(struct irq_domain *domain, struct device *dev)
 {
-	msi_domain_free_irqs(domain, dev);
+//	msi_domain_free_irqs(domain, dev);
+	msi_domain_free_irqs_all(dev, MSI_DEFAULT_DOMAIN);
 	msi_free_device_data(dev);
 }
 EXPORT_SYMBOL_GPL(dev_msi_domain_free_irqs);
