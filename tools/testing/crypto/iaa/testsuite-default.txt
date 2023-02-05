@@ -1,9 +1,9 @@
-sync-canned-dedicated
-sync-lzo-rle
-sync-deflate
-sync-zstd
-async-canned-noirq-dedicated
-async-canned-irq-dedicated
+#sync-canned-dedicated
+#sync-lzo-rle
+#sync-deflate
+#sync-zstd
+#async-canned-noirq-dedicated
+#async-canned-irq-dedicated
 async-by2-canned-dedicated
 async-by3-canned-dedicated
 async-by4-canned-dedicated

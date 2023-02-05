@@ -146,6 +146,28 @@ struct by_n {
 	struct acomp_req *req;
 };
 
+static int zswap_by_n_chunk_threshold_set(const char *val,
+					  const struct kernel_param *kp)
+{
+	unsigned int n;
+	int ret;
+
+	ret = kstrtouint(val, 10, &n);
+	if (ret != 0 || n > MAX_BY_N_THRESHOLD)
+		return -EINVAL;
+
+	return param_set_uint(val, kp);
+}
+
+static const struct kernel_param_ops by_n_chunk_threshold_ops = {
+	.set = zswap_by_n_chunk_threshold_set,
+	.get = param_get_uint,
+};
+
+/* The chunk_threshold for splitting a page into 2 compresses */
+static unsigned int zswap_by_n_chunk_threshold = PAGE_SIZE; /* bytes */
+module_param_cb(by_n_chunk_threshold, &by_n_chunk_threshold_ops, &zswap_by_n_chunk_threshold, 0644);
+
 static int zswap_by_n_threshold_set(const char *val,
 				    const struct kernel_param *kp)
 {
@@ -1046,31 +1068,73 @@ static int zswap_get_swap_cache_page(swp_entry_t entry,
 	return ZSWAP_SWAPCACHE_EXIST;
 }
 
-static int do_by_n(struct by_n by_n[], int by_n_length_order[], unsigned int dlen[], bool decompress)
+static int do_by_n(struct by_n by_n[], int by_n_length_order[], unsigned int dlen[], bool decompress, u8* src, struct page *page)
 {
 	u8 req = 0xff >> (8 - zswap_by_n);
 	int i, ret = 0;
+	unsigned int dst_size = PAGE_SIZE/zswap_by_n;
+	bool odd = zswap_by_n & 1;
+	char *dst;
+	unsigned int offset = 0;
+
+	for (i = 0; i < zswap_by_n; i++) {
+		if (decompress) {
+			int index = by_n_length_order[i];
+			if( by_n[index].req->slen  >= zswap_by_n_chunk_threshold) {
+				req &= 0xff - (1 << index);
+				dlen[index] = by_n[index].req->slen;
+				ret = 0;
+			}
+		}
+	}
 
 	/* fire off all async compresses one after the other, wait below */
 	for (i = 0; i < zswap_by_n; i++) {
-		if (decompress)
-			ret = crypto_acomp_decompress(by_n[by_n_length_order[i]].req);
-		else
+		if (decompress ) {
+			int index = by_n_length_order[i];
+			if (req & (1 << index) ) {
+				ret = crypto_acomp_decompress(by_n[by_n_length_order[i]].req);
+			}else
+				ret = -EINPROGRESS;
+		} else
 			ret = crypto_acomp_compress(by_n[i].req);
 		if (ret != -EINPROGRESS)
 			goto err;
 	}
 
+	if(decompress == true) {
+	    bool page_mapped = false;
+		for (i = 0; i < zswap_by_n; i++) {
+			if( by_n[i].req->slen  >= zswap_by_n_chunk_threshold ) {
+				unsigned long by_n_dlen = (odd && (i == zswap_by_n - 1)) ? dst_size + 1 : dst_size;
+				char *local_src = src;
+				if (!page_mapped) {
+					dst = kmap_atomic(page);
+					page_mapped = true;
+				}
+				memcpy(dst + (i * dst_size), local_src + offset, by_n[i].req->slen);
+				dlen[i] = by_n_dlen;
+				ret = 0;
+			}
+			offset += by_n[i].req->slen;
+		}
+
+	    if (page_mapped)
+		    kunmap_atomic(dst);
+	}
+
 	/* wait for all async compresses to finish */
 	do {
 		for (i = 0; i < zswap_by_n; i++) {
-			if (req & (1 << i)) {
-				ret = crypto_acomp_poll(by_n[i].req);
+			int index = decompress ? by_n_length_order[i] : i;
+			if (req & (1 << index) ) {
+				ret = crypto_acomp_poll(by_n[index].req);
+
 				if (ret && ret != -EAGAIN)
 					goto err;
 				if (ret == 0)
-					req &= 0xff - (1 << i);
-				dlen[i] = by_n[i].req->dlen;
+					req &= 0xff - (1 << index);
+				dlen[index] = by_n[index].req->dlen;
 			}
 		}
 		cpu_relax();
@@ -1087,6 +1151,9 @@ static int by_n_compress(struct crypto_acomp_ctx *acomp_ctx,
 	bool odd = zswap_by_n & 1;
 	struct by_n by_n[MAX_BY_N];
 	int i;
+	char *src;
+	bool page_mapped = false;
+	int ret;
 
 	/* Each by_n gets (1/n)*2 pages e.g. by_2 gets (1/2)*2 = 1
 	   page by_3 gets (1/3)*2 = 2/3 page, by_ gets (1/4)*2 = 1/2
@@ -1120,7 +1187,27 @@ static int by_n_compress(struct crypto_acomp_ctx *acomp_ctx,
 					 dst_size);
 	}
 
-	return do_by_n(by_n, NULL, dlen, false);
+	ret = do_by_n(by_n, NULL, dlen, false, NULL, NULL);
+
+	if (ret)
+		goto out;
+
+	for (i = 0; i < zswap_by_n; i++) {
+		if(dlen[i] >= zswap_by_n_chunk_threshold) {
+			unsigned long by_n_dlen = (odd && (i == zswap_by_n - 1)) ? src_size + 1 : src_size;
+			if (!page_mapped) {
+				src = kmap_atomic(page);
+				page_mapped = true;
+			}
+			memcpy(dst[i], src + (i * src_size), by_n_dlen);
+			dlen[i] = by_n_dlen;
+		}
+	}
+	if (page_mapped)
+		kunmap_atomic(src);
+
+out:
+	return ret;
 }
 
 static unsigned int by_n_length(struct zswap_entry *entry)
@@ -1163,7 +1250,7 @@ static int by_n_decompress(struct crypto_acomp_ctx *acomp_ctx,
 					 &by_n[i].output, entry->by_n_length[i], (odd && (i == zswap_by_n - 1)) ? dst_size + 1 : dst_size);
 	}
 
-	return do_by_n(by_n, entry->by_n_length_order, dlen, true);
+	return do_by_n(by_n, entry->by_n_length_order, dlen, true, src, page);
 }
 
 /*
@@ -1591,11 +1678,13 @@ by_n:
 	if (is_by_n) {
 		unsigned int length = 0;
 		int i;
-
+		bool used_memcpy = false;
 		for (i = 0; i < zswap_by_n; i++) {
 			entry->by_n_length[i] = by_n_dlen[i];
 			length += by_n_dlen[i];
 			entry->by_n_length_order[i] = i;
+			if(entry->by_n_length[i] >= zswap_by_n_chunk_threshold)
+				used_memcpy = true;
 		}
 		entry->length = length;
 		__zswap_sort_by_n_order(entry);
