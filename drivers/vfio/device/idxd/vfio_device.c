@@ -92,8 +92,8 @@ static int idxd_vdcm_bind_iommufd(struct vfio_device *vdev,
 
 //	idev = iommufd_bind_device(bind->iommufd, &idxd->pdev->dev,
 //				       IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP, &id);
-	/* The flag is removed in the new bind API. Is this right? */
-	idev = iommufd_device_bind(ictx, &idxd->pdev->dev, out_device_id);
+	idev = iommufd_device_bind(ictx, &idxd->pdev->dev, out_device_id,
+				   IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP);
 	if (IS_ERR(idev)) {
 		rc = PTR_ERR(idev);
 		goto out;
