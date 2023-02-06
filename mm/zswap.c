@@ -1093,7 +1093,7 @@ static int do_by_n(struct by_n by_n[], int by_n_length_order[], unsigned int dle
 		if (decompress ) {
 			int index = by_n_length_order[i];
 			if (req & (1 << index) ) {
-				ret = crypto_acomp_decompress(by_n[by_n_length_order[i]].req);
+				ret = crypto_acomp_decompress(by_n[index].req);
 			}else
 				ret = -EINPROGRESS;
 		} else
@@ -1678,13 +1678,10 @@ by_n:
 	if (is_by_n) {
 		unsigned int length = 0;
 		int i;
-		bool used_memcpy = false;
 		for (i = 0; i < zswap_by_n; i++) {
 			entry->by_n_length[i] = by_n_dlen[i];
 			length += by_n_dlen[i];
 			entry->by_n_length_order[i] = i;
-			if(entry->by_n_length[i] >= zswap_by_n_chunk_threshold)
-				used_memcpy = true;
 		}
 		entry->length = length;
 		__zswap_sort_by_n_order(entry);
