@@ -64,12 +64,12 @@ cat /sys/kernel/debug/tracing/trace > test-async-by3-canned-dedicated.trace
 ./calcpercent.py test-async-by3-canned-dedicated.out 98 >> test-async-by4-canned-dedicated.out
 cat /sys/kernel/debug/tracing/trace > test-async-by4-canned-dedicated.trace
 
-# async by2 thresh canned dedicated
+# async by2 thresh chunk canned dedicated
 ./teardown-zswap
-./test-async-by2-thresh-canned-dedicated > test-async-by2-thresh-canned-dedicated.out
-./dump-zswap-hists-all >> test-async-by2-thresh-canned-dedicated.out
-./calcpercent.py test-async-by2-thresh-canned-dedicated.out 98 >> test-async-by2-thresh-canned-dedicated.out
-cat /sys/kernel/debug/tracing/trace > test-async-by2-thresh-canned-dedicated.trace
+./test-async-by2-thresh-chunk-canned-dedicated > test-async-by2-thresh-chunk-canned-dedicated.out
+./dump-zswap-hists-all >> test-async-by2-thresh-chunk-canned-dedicated.out
+./calcpercent.py test-async-by2-thresh-chunk-canned-dedicated.out 98 >> test-async-by2-thresh-chunk-canned-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-by2-thresh-chunk-canned-dedicated.trace
 
 ## sub-latench breakdown example
 
