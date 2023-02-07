@@ -5005,13 +5005,7 @@ static int domain_attach_device_pasid(struct dmar_domain *domain,
 	if (ret)
 		goto out_unlock;
 
-	/*
-	 * iommu->lock must be held to attach domain to iommu and setup the
-	 * pasid entry for second level translation.
-	 */
-	spin_lock(&iommu->lock);
 	ret = domain_attach_iommu(domain, iommu);
-	spin_unlock(&iommu->lock);
 	if (ret)
 		goto out_erase;
 
