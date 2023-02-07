@@ -205,21 +205,12 @@ struct tdx_mig_state {
 	struct tdx_mig_stream backward_stream;
 };
 
-static inline uint16_t tdx_mig_get_stream_num(struct kvm_tdx *kvm_tdx)
-{
-	struct tdx_mig_state *mig_state =
-			(struct tdx_mig_state *)kvm_tdx->mig_state;
-
-	return (uint16_t)atomic_read(&mig_state->mig_stream_next_idx);
-}
-
 static int tdx_mig_export_state_immutable(struct kvm_tdx *kvm_tdx,
 					  struct tdx_mig_stream *stream,
 					  uint64_t __user *data)
 {
 	struct tdx_module_output out;
-	uint16_t stream_num = tdx_mig_get_stream_num(kvm_tdx);
-	uint64_t i, err, stream_config = stream_num << 16;
+	uint64_t i, err, stream_config = 0;
 	struct tdx_mig_page_list *page_list = &stream->page_list;
 	struct tdx_mig_buf_list *mig_buf_list = &stream->mig_buf_list;
 
