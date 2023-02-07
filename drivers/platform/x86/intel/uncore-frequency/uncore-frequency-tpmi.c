@@ -175,7 +175,7 @@ static int tpmi_uncore_init(struct auxiliary_device *auxdev)
 
 	tpmi_uncore->power_domain_count = num_resources;
 
-	plat_info = dev_get_platdata(&auxdev->dev);
+	plat_info = tpmi_get_platform_data(auxdev);
 	if (plat_info)
 		pkg = plat_info->package_id;
 
