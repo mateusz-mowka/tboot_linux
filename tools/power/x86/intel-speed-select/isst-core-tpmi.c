@@ -176,6 +176,7 @@ static int tpmi_get_ctdp_control(struct isst_id *id, int config_index,
 {
 	struct isst_core_power core_power_info;
 	struct isst_perf_level_info info;
+	int level_mask;
 	int ret;
 
 	info.socket_id = id->pkg;
@@ -183,6 +184,14 @@ static int tpmi_get_ctdp_control(struct isst_id *id, int config_index,
 
 	ret = tpmi_process_ioctl(ISST_IF_PERF_LEVELS, &info);
 	if (ret == -1)
+		return -1;
+
+	if (config_index != 0xff)
+		level_mask = 1 << config_index;
+	else
+		level_mask = config_index;
+
+	if (!(info.level_mask & level_mask))
 		return -1;
 
 	ctdp_level->fact_support = info.sst_tf_support;
