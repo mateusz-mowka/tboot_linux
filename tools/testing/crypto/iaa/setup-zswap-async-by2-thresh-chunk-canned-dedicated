@@ -39,7 +39,7 @@ echo "${by_n_threshold}" > /sys/module/zswap/parameters/by_n_threshold
 echo "by_n_threshold:"
 cat /sys/module/zswap/parameters/by_n_threshold
 
-echo "${by_n_chunk_threshold}" > /sys/module/zswap/parameters/by_n_chunck_threshold
+echo "${by_n_chunk_threshold}" > /sys/module/zswap/parameters/by_n_chunk_threshold
 echo "by_n_chunk_threshold:"
 cat /sys/module/zswap/parameters/by_n_chunk_threshold
 
