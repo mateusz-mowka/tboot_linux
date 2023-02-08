@@ -4579,7 +4579,7 @@ static bool intel_iommu_capable(struct device *dev, enum iommu_cap cap)
 		return dmar_platform_optin();
 	case IOMMU_CAP_ENFORCE_CACHE_COHERENCY:
 		return ecap_sc_support(info->iommu->ecap);
-	if (cap == IOMMU_CAP_VIOMMU_HINT)
+	case IOMMU_CAP_VIOMMU_HINT:
 		return intel_caching_mode;
 	default:
 		return false;
