@@ -5063,9 +5063,9 @@ static void intel_iommu_remove_dev_pasid(struct device *dev, ioasid_t pasid)
 	spin_lock_irqsave(&dmar_domain->lock, flags);
 	sinfo = xa_load(&info->subdevice_array, pasid);
 	intel_pasid_tear_down_entry(iommu, dev, pasid, false);
-	spin_lock(&iommu->lock);
+	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 	domain_detach_iommu(dmar_domain, iommu);
-	spin_unlock(&iommu->lock);
+	spin_lock_irqsave(&dmar_domain->lock, flags);
 	list_del(&sinfo->link_domain);
 	xa_erase(&info->subdevice_array, pasid);
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
