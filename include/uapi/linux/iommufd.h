@@ -51,6 +51,8 @@ enum {
 	IOMMUFD_CMD_HWPT_ALLOC,
 	IOMMUFD_CMD_HWPT_INVALIDATE,
 	IOMMUFD_CMD_PAGE_RESPONSE,
+	IOMMUFD_CMD_ALLOC_PASID,
+	IOMMUFD_CMD_FREE_PASID,
 	IOMMUFD_CMD_HWPT_SET_DIRTY,
 	IOMMUFD_CMD_HWPT_GET_DIRTY_IOVA,
 	IOMMUFD_CMD_IOAS_UNMAP_DIRTY,
@@ -616,6 +618,42 @@ struct iommufd_dma_fault {
 #define IOMMU_FAULT_PERM_WRITE	(1 << 1) /* write */
 #define IOMMU_FAULT_PERM_EXEC	(1 << 2) /* exec */
 #define IOMMU_FAULT_PERM_PRIV	(1 << 3) /* privileged */
+
+/*
+ * struct iommu_alloc_pasid - ioctl(IOMMU_ALLOC_PASID)
+ * @size: sizeof(struct iommu_alloc_pasid)
+ * @flags: optional flags.
+ * @min: min pasid
+ * @max: max pasid
+ * @pasid: input a user pasid and output the allocated host pasid
+ *
+ * Allocate a host pasid within [@min, @max]
+ */
+struct iommu_alloc_pasid {
+	__u32 size;
+	__u32 flags;
+#define IOMMU_ALLOC_PASID_IDENTICAL (1 << 0)
+	struct {
+		__u32   min;
+		__u32   max;
+	} range;
+	__u32 pasid;
+};
+#define IOMMU_ALLOC_PASID _IO(IOMMUFD_TYPE, IOMMUFD_CMD_ALLOC_PASID)
+
+/*
+ * struct iommu_free_pasid - ioctl(IOMMU_FREE_PASID)
+ * @size: sizeof(struct iommu_free_pasid)
+ * @flags: must be 0
+ * @pasid: the pasid to be freed
+ *
+ */
+struct iommu_free_pasid {
+	__u32 size;
+	__u32 flags;
+	__u32 pasid;
+};
+#define IOMMU_FREE_PASID _IO(IOMMUFD_TYPE, IOMMUFD_CMD_FREE_PASID)
 
 /* Generic fault types, can be expanded IRQ remapping fault */
 enum iommu_fault_type {
