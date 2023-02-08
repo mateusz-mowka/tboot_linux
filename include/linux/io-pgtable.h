@@ -166,6 +166,22 @@ struct io_pgtable_ops {
 			      struct iommu_iotlb_gather *gather);
 	phys_addr_t (*iova_to_phys)(struct io_pgtable_ops *ops,
 				    unsigned long iova);
+	int (*set_dirty_tracking)(struct io_pgtable_ops *ops,
+				  unsigned long iova, size_t size,
+				  bool enabled);
+	int (*read_and_clear_dirty)(struct io_pgtable_ops *ops,
+				    unsigned long iova, size_t size,
+				    struct iommu_dirty_bitmap *dirty);
+	size_t (*unmap_read_dirty)(struct io_pgtable_ops *ops,
+				   unsigned long iova,
+				   size_t size,
+				   struct iommu_iotlb_gather *gather,
+				   struct iommu_dirty_bitmap *dirty);
+	size_t (*unmap_pages_read_dirty)(struct io_pgtable_ops *ops,
+					 unsigned long iova,
+					 size_t pgsize, size_t pgcount,
+					 struct iommu_iotlb_gather *gather,
+					 struct iommu_dirty_bitmap *dirty);
 };
 
 /**

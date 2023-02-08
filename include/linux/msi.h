@@ -158,6 +158,16 @@ struct msi_desc_data {
 	union msi_instance_cookie	icookie;
 };
 
+/*
+ * device_msi_desc - Device MSI specific MSI descriptor data
+ * @priv_iomem:			Pointer to device specific private io memory
+ * @hwirq:			The hardware irq number in the device domain
+ */
+struct device_msi_desc {
+	void __iomem	*priv_iomem;
+	u16		hwirq;
+};
+
 #define MSI_MAX_INDEX		((unsigned int)USHRT_MAX)
 
 /**
@@ -199,6 +209,7 @@ struct msi_desc {
 		struct pci_msi_desc	pci;
 		struct msi_desc_data	data;
 	};
+	struct device_msi_desc          device_msi;
 };
 
 /*
@@ -241,6 +252,7 @@ struct msi_device_data {
 };
 
 int msi_setup_device_data(struct device *dev);
+void msi_free_device_data(struct device *dev);
 
 void msi_lock_descs(struct device *dev);
 void msi_unlock_descs(struct device *dev);
@@ -418,6 +430,10 @@ struct msi_domain_info;
  *			function.
  * @domain_free_irqs:	Optional function to override the default free
  *			function.
+ * @msi_alloc_store:	Optional callback to allocate storage in a device
+ *			specific non-standard MSI store
+ * @msi_alloc_free:	Optional callback to free storage in a device
+ *			specific non-standard MSI store
  * @msi_post_free:	Optional function which is invoked after freeing
  *			all interrupts.
  *
@@ -457,6 +473,10 @@ struct msi_domain_ops {
 					    struct device *dev);
 	void		(*msi_post_free)(struct irq_domain *domain,
 					 struct device *dev);
+	int		(*msi_alloc_store)(struct irq_domain *domain,
+					   struct device *dev, int nvec);
+	void		(*msi_free_store)(struct irq_domain *domain,
+					  struct device *dev);
 };
 
 /**
@@ -591,6 +611,23 @@ struct irq_domain *msi_create_irq_domain(struct fwnode_handle *fwnode,
 					 struct msi_domain_info *info,
 					 struct irq_domain *parent);
 
+/**
+ * struct msi_ctrl - MSI internal management control structure
+ * @domid:	ID of the domain on which management operations should be done
+ * @first:	First (hardware) slot index to operate on
+ * @last:	Last (hardware) slot index to operate on
+ * @nirqs:	The number of Linux interrupts to allocate. Can be larger
+ *		than the range due to PCI/multi-MSI.
+ */
+struct msi_ctrl {
+	unsigned int			domid;
+	unsigned int			first;
+	unsigned int			last;
+	unsigned int			nirqs;
+};
+int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain,
+			   struct msi_ctrl *ctrl);
+
 bool msi_create_device_irq_domain(struct device *dev, unsigned int domid,
 				  const struct msi_domain_template *template,
 				  unsigned int hwsize, void *domain_data,
@@ -625,6 +662,8 @@ struct irq_domain *platform_msi_create_irq_domain(struct fwnode_handle *fwnode,
 int platform_msi_domain_alloc_irqs(struct device *dev, unsigned int nvec,
 				   irq_write_msi_msg_t write_msi_msg);
 void platform_msi_domain_free_irqs(struct device *dev);
+int dev_msi_irq_vector(struct device *dev, unsigned int nr);
+int dev_msi_hwirq(struct device *dev, unsigned int nr);
 
 /* When an MSI domain is used as an intermediate domain */
 int msi_domain_prepare_irqs(struct irq_domain *domain, struct device *dev,
@@ -649,7 +688,22 @@ int platform_msi_device_domain_alloc(struct irq_domain *domain, unsigned int vir
 void platform_msi_device_domain_free(struct irq_domain *domain, unsigned int virq,
 				     unsigned int nvec);
 void *platform_msi_get_host_data(struct irq_domain *domain);
+void msi_domain_set_default_info_flags(struct msi_domain_info *info);
 #endif /* CONFIG_GENERIC_MSI_IRQ */
+
+#ifdef CONFIG_DEVICE_MSI
+struct irq_domain *device_msi_create_irq_domain(struct fwnode_handle *fn,
+						struct msi_domain_info *info,
+						struct irq_domain *parent);
+int dev_msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev,
+			      int nvecs);
+void dev_msi_domain_free_irqs(struct irq_domain *domain, struct device *dev);
+
+# ifdef CONFIG_PCI
+struct irq_domain *pci_subdevice_msi_create_irq_domain(struct pci_dev *pdev,
+                                                      struct msi_domain_info *info);
+# endif
+#endif /* CONFIG_DEVICE_MSI */
 
 /* PCI specific interfaces */
 #ifdef CONFIG_PCI_MSI
@@ -671,5 +725,9 @@ static inline struct irq_domain *pci_msi_get_device_domain(struct pci_dev *pdev)
 }
 static inline void pci_write_msi_msg(unsigned int irq, struct msi_msg *msg) { }
 #endif /* !CONFIG_PCI_MSI */
+
+#ifndef arch_msi_prepare
+# define arch_msi_prepare	NULL
+#endif
 
 #endif /* LINUX_MSI_H */

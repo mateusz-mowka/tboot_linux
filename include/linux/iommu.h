@@ -14,7 +14,7 @@
 #include <linux/err.h>
 #include <linux/of.h>
 #include <linux/ioasid.h>
-#include <uapi/linux/iommu.h>
+#include <uapi/linux/iommufd.h>
 
 #define IOMMU_READ	(1 << 0)
 #define IOMMU_WRITE	(1 << 1)
@@ -66,6 +66,9 @@ struct iommu_domain_geometry {
 
 #define __IOMMU_DOMAIN_SVA	(1U << 4)  /* Shared process address space */
 
+#define __IOMMU_DOMAIN_NESTED	(1U << 5)  /* User-managed IOVA nested on
+					      a stage-2 translation        */
+
 /*
  * This are the possible domain-types
  *
@@ -91,6 +94,7 @@ struct iommu_domain_geometry {
 				 __IOMMU_DOMAIN_DMA_API |	\
 				 __IOMMU_DOMAIN_DMA_FQ)
 #define IOMMU_DOMAIN_SVA	(__IOMMU_DOMAIN_SVA)
+#define IOMMU_DOMAIN_NESTED	(__IOMMU_DOMAIN_NESTED)
 
 struct iommu_domain {
 	unsigned type;
@@ -111,6 +115,8 @@ struct iommu_domain {
 			int users;
 		};
 	};
+	ioasid_t dma_pasid;		/* Used for DMA requests with PASID */
+	atomic_t dma_pasid_users;
 };
 
 static inline bool iommu_is_dma_domain(struct iommu_domain *domain)
@@ -129,6 +135,8 @@ enum iommu_cap {
 	 * this device.
 	 */
 	IOMMU_CAP_ENFORCE_CACHE_COHERENCY,
+	IOMMU_CAP_VIOMMU_HINT,		/* IOMMU can detect a hit for running in
+					   VM */
 };
 
 /* These are the possible reserved region types */
@@ -221,9 +229,30 @@ struct iommu_iotlb_gather {
 };
 
 /**
+ * struct iommu_dirty_bitmap - Dirty IOVA bitmap state
+ *
+ * @iova: IOVA representing the start of the bitmap, the first bit of the bitmap
+ * @pgshift: Page granularity of the bitmap
+ * @gather: Range information for a pending IOTLB flush
+ * @start_offset: Offset of the first user page
+ * @pages: User pages representing the bitmap region
+ * @npages: Number of user pages pinned
+ */
+struct iommu_dirty_bitmap {
+	unsigned long iova;
+	unsigned long pgshift;
+	struct iommu_iotlb_gather *gather;
+	unsigned long start_offset;
+	unsigned long npages;
+	struct page **pages;
+};
+
+/**
  * struct iommu_ops - iommu ops and capabilities
  * @capable: check capability
+ * @hw_info: IOMMU hardware capabilities
  * @domain_alloc: allocate iommu domain
+ * @domain_alloc_user: allocate user iommu domain
  * @probe_device: Add device to iommu driver handling
  * @release_device: Remove device from iommu driver handling
  * @probe_finalize: Do final setup work after the device is added to an IOMMU
@@ -249,9 +278,14 @@ struct iommu_iotlb_gather {
  */
 struct iommu_ops {
 	bool (*capable)(struct device *dev, enum iommu_cap);
+	int (*hw_info)(struct device *dev, void *data, size_t length);
 
 	/* Domain allocation and freeing by the iommu driver */
 	struct iommu_domain *(*domain_alloc)(unsigned iommu_domain_type);
+	struct iommu_domain *(*domain_alloc_user)(struct device *dev,
+						  struct iommu_domain *parent,
+						  const void *user_data,
+						  size_t data_len);
 
 	struct iommu_device *(*probe_device)(struct device *dev);
 	void (*release_device)(struct device *dev);
@@ -273,9 +307,9 @@ struct iommu_ops {
 			     struct iommu_page_response *msg);
 
 	int (*def_domain_type)(struct device *dev);
-	void (*remove_dev_pasid)(struct device *dev, ioasid_t pasid);
 
 	const struct iommu_domain_ops *default_domain_ops;
+	enum iommu_device_data_type driver_type;
 	unsigned long pgsize_bitmap;
 	struct module *owner;
 };
@@ -306,6 +340,7 @@ struct iommu_ops {
  * @iotlb_sync_map: Sync mappings created recently using @map to the hardware
  * @iotlb_sync: Flush all queued ranges from the hardware TLBs and empty flush
  *            queue
+ * @iotlb_sync_user: Flush hardware TLBs caching user space IO mappings
  * @iova_to_phys: translate iova to physical address
  * @enforce_cache_coherency: Prevent any kind of DMA from bypassing IOMMU_CACHE,
  *                           including no-snoop TLPs on PCIe or other platform
@@ -319,6 +354,7 @@ struct iommu_domain_ops {
 	void (*detach_dev)(struct iommu_domain *domain, struct device *dev);
 	int (*set_dev_pasid)(struct iommu_domain *domain, struct device *dev,
 			     ioasid_t pasid);
+	void (*remove_dev_pasid)(struct device *dev, ioasid_t pasid);
 
 	int (*map)(struct iommu_domain *domain, unsigned long iova,
 		   phys_addr_t paddr, size_t size, int prot, gfp_t gfp);
@@ -336,6 +372,8 @@ struct iommu_domain_ops {
 			       size_t size);
 	void (*iotlb_sync)(struct iommu_domain *domain,
 			   struct iommu_iotlb_gather *iotlb_gather);
+	void (*iotlb_sync_user)(struct iommu_domain *domain,
+				void *user_data, size_t data_len);
 
 	phys_addr_t (*iova_to_phys)(struct iommu_domain *domain,
 				    dma_addr_t iova);
@@ -346,6 +384,24 @@ struct iommu_domain_ops {
 				  unsigned long quirks);
 
 	void (*free)(struct iommu_domain *domain);
+
+	int (*set_dirty_tracking)(struct iommu_domain *domain, bool enabled);
+	int (*set_dirty_tracking_range)(struct iommu_domain *domain,
+					unsigned long iova, size_t size,
+					struct iommu_iotlb_gather *iotlb_gather,
+					bool enabled);
+	int (*read_and_clear_dirty)(struct iommu_domain *domain,
+				    unsigned long iova, size_t size,
+				    struct iommu_dirty_bitmap *dirty);
+	size_t (*unmap_read_dirty)(struct iommu_domain *domain,
+				   unsigned long iova, size_t size,
+				   struct iommu_iotlb_gather *iotlb_gather,
+				   struct iommu_dirty_bitmap *dirty);
+	size_t (*unmap_pages_read_dirty)(struct iommu_domain *domain,
+					 unsigned long iova,
+					 size_t pgsize, size_t pgcount,
+					 struct iommu_iotlb_gather *iotlb_gather,
+					 struct iommu_dirty_bitmap *dirty);
 };
 
 /**
@@ -415,6 +471,9 @@ struct dev_iommu {
 	u32				max_pasids;
 };
 
+int iommu_get_hw_info(struct device *dev, enum iommu_device_data_type type,
+		      void *data, size_t length);
+
 int iommu_device_register(struct iommu_device *iommu,
 			  const struct iommu_ops *ops,
 			  struct device *hwdev);
@@ -456,6 +515,13 @@ extern int bus_iommu_probe(struct bus_type *bus);
 extern bool iommu_present(struct bus_type *bus);
 extern bool device_iommu_capable(struct device *dev, enum iommu_cap cap);
 extern struct iommu_domain *iommu_domain_alloc(struct bus_type *bus);
+struct iommu_domain *iommu_domain_alloc_user(struct device *dev,
+					     enum iommu_device_data_type type,
+					     struct iommu_domain *parent,
+					     const void *user_data,
+					     size_t data_len);
+void iommu_iotlb_sync_user(struct iommu_domain *domain, void *user_data,
+			   size_t data_len);
 extern struct iommu_group *iommu_group_get_by_id(int id);
 extern void iommu_domain_free(struct iommu_domain *domain);
 extern int iommu_attach_device(struct iommu_domain *domain,
@@ -472,6 +538,9 @@ extern int iommu_map_atomic(struct iommu_domain *domain, unsigned long iova,
 			    phys_addr_t paddr, size_t size, int prot);
 extern size_t iommu_unmap(struct iommu_domain *domain, unsigned long iova,
 			  size_t size);
+extern size_t iommu_unmap_read_dirty(struct iommu_domain *domain,
+				     unsigned long iova, size_t size,
+				     struct iommu_dirty_bitmap *dirty);
 extern size_t iommu_unmap_fast(struct iommu_domain *domain,
 			       unsigned long iova, size_t size,
 			       struct iommu_iotlb_gather *iotlb_gather);
@@ -535,6 +604,23 @@ void iommu_set_dma_strict(void);
 
 extern int report_iommu_fault(struct iommu_domain *domain, struct device *dev,
 			      unsigned long iova, int flags);
+
+unsigned int iommu_dirty_bitmap_record(struct iommu_dirty_bitmap *dirty,
+				       unsigned long iova, unsigned long length);
+
+static inline void iommu_dirty_bitmap_init(struct iommu_dirty_bitmap *dirty,
+					   unsigned long base,
+					   unsigned long pgshift,
+					   struct iommu_iotlb_gather *gather)
+{
+	memset(dirty, 0, sizeof(*dirty));
+	dirty->iova = base;
+	dirty->pgshift = pgshift;
+	dirty->gather = gather;
+
+	if (gather)
+		iommu_iotlb_gather_init(dirty->gather);
+}
 
 static inline void iommu_flush_iotlb_all(struct iommu_domain *domain)
 {
@@ -723,6 +809,9 @@ void iommu_detach_device_pasid(struct iommu_domain *domain,
 struct iommu_domain *
 iommu_get_domain_for_dev_pasid(struct device *dev, ioasid_t pasid,
 			       unsigned int type);
+ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain);
+int iommu_attach_dma_pasid(struct device *dev, ioasid_t *pasid);
+void iommu_detach_dma_pasid(struct device *dev);
 #else /* CONFIG_IOMMU_API */
 
 struct iommu_ops {};
@@ -818,6 +907,11 @@ static inline void iommu_flush_iotlb_all(struct iommu_domain *domain)
 
 static inline void iommu_iotlb_sync(struct iommu_domain *domain,
 				  struct iommu_iotlb_gather *iotlb_gather)
+{
+}
+
+static inline void iommu_iotlb_sync_user(struct iommu_domain *domain,
+					 void *user_data, size_t data_len)
 {
 }
 

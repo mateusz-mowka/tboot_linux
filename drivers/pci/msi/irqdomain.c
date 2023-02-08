@@ -126,12 +126,8 @@ struct irq_domain *pci_msi_create_irq_domain(struct fwnode_handle *fwnode,
 	/* Let the core code free MSI descriptors when freeing interrupts */
 	info->flags |= MSI_FLAG_FREE_MSI_DESCS;
 
-	info->flags |= MSI_FLAG_ACTIVATE_EARLY | MSI_FLAG_DEV_SYSFS;
-	if (IS_ENABLED(CONFIG_GENERIC_IRQ_RESERVATION_MODE))
-		info->flags |= MSI_FLAG_MUST_REACTIVATE;
+	msi_domain_set_default_info_flags(info);
 
-	/* PCI-MSI is oneshot-safe */
-	info->chip->flags |= IRQCHIP_ONESHOT_SAFE;
 	/* Let the core update the bus token */
 	info->bus_token = DOMAIN_BUS_PCI_MSI;
 

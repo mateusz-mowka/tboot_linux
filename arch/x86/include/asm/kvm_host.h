@@ -87,7 +87,7 @@
 #define KVM_REQ_SMI			KVM_ARCH_REQ(12)
 #endif
 #define KVM_REQ_MASTERCLOCK_UPDATE	KVM_ARCH_REQ(13)
-#define KVM_REQ_MCLOCK_INPROGRESS \
+#define KVM_REQ_BLOCK_VMENTRY \
 	KVM_ARCH_REQ_FLAGS(14, KVM_REQUEST_WAIT | KVM_REQUEST_NO_WAKEUP)
 #define KVM_REQ_SCAN_IOAPIC \
 	KVM_ARCH_REQ_FLAGS(15, KVM_REQUEST_WAIT | KVM_REQUEST_NO_WAKEUP)
@@ -1166,6 +1166,7 @@ struct msr_bitmap_range {
 
 /* Xen emulation context */
 struct kvm_xen {
+	struct mutex xen_lock;
 	u32 xen_version;
 	bool long_mode;
 	bool runstate_update_flag;
@@ -1812,6 +1813,8 @@ struct kvm_x86_ops {
 	 * Returns vCPU specific APICv inhibit reasons
 	 */
 	unsigned long (*vcpu_get_apicv_inhibit_reasons)(struct kvm_vcpu *vcpu);
+
+	int (*ioasid_bind)(struct kvm_vcpu *vcpu, struct kvm_bind_pasid *pb);
 };
 
 struct kvm_x86_nested_ops {
@@ -2287,6 +2290,9 @@ static inline int kvm_cpu_get_apicid(int mps_cpu)
 	return BAD_APICID;
 #endif
 }
+
+void kvm_make_block_vmentry_request(struct kvm *kvm);
+void kvm_clear_block_vmentry_request(struct kvm *kvm);
 
 int memslot_rmap_alloc(struct kvm_memory_slot *slot, unsigned long npages);
 
