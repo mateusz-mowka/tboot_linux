@@ -23,6 +23,7 @@ struct iommufd_ctx {
 	struct file *file;
 	struct xarray objects;
 
+	struct ioasid_set *pasid_set;
 	u8 account_mode;
 	struct iommufd_ioas *vfio_ioas;
 };
@@ -146,6 +147,8 @@ union ucmd_buffer {
 	struct iommu_hwpt_alloc hwpt_alloc;
 	struct iommu_hwpt_invalidate hwpt_invalidate;
 	struct iommu_hwpt_page_response resp;
+	struct iommu_alloc_pasid alloc_pasid;
+	struct iommu_free_pasid free_pasid;
 #ifdef CONFIG_IOMMUFD_TEST
 	struct iommu_test_cmd test;
 #endif
@@ -403,6 +406,9 @@ void iommufd_access_destroy_object(struct iommufd_object *obj);
 
 struct iommufd_device *
 iommufd_device_get_by_id(struct iommufd_ctx *ictx, u32 dev_id);
+
+int iommufd_alloc_pasid(struct iommufd_ucmd *ucmd);
+int iommufd_free_pasid(struct iommufd_ucmd *ucmd);
 
 #ifdef CONFIG_IOMMUFD_TEST
 struct iommufd_hw_pagetable *
