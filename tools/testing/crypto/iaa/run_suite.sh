@@ -103,5 +103,7 @@ while read -a words; do
     echo "----------------------------------------"
     echo "trace_to_comp_avg.py"
     echo "----------------------------------------"
-    ./trace_to_comp_avg.py -d "${dir}"
+    ./trace_to_comp_avg.py -d "${dir}" -e load
+    ./trace_to_comp_avg.py -d "${dir}" -e store
+
 done <"${testsuite}"

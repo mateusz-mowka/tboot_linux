@@ -50,7 +50,11 @@ argument specifies the location to store the results):
 And then you can summarize the results with summarize.sh.
 For example:
 
-./summarize.sh ~/results/subject/01
+# For a summary of latency values:
+./summarize.sh ~/results/subject/01 _lat_stats.csv
+
+# For a summary of size values:
+./summarize.sh ~/results/subject/01 _size_stats.csv
 
 Notes:
 

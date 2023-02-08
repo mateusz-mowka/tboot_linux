@@ -5,19 +5,20 @@
 # Argument:
 #
 #     basedir - Directory containing results from running a testsuite
-#     short   - If set to anything, produce short summary
+#     data_file_suffix   - Summarize data in files with names ending in this.
+#                          Defaults to "_lat_stats.csv", which will summarize
+#                          the latency values.
+#                          Use "_size_stats.csv" for compressed size values.
 #
 
 basedir=$1
-short=$2
+data_file_suffix=$2
 
-# Start with short list of targets:
-targets="0.50 0.75 0.98 0.99"
-
-# If short mode is not set, use long list:
-if [ -z "${short}" ]; then
-    targets=$(echo $(seq 0.50 0.05 0.95)" 0.98 0.99")
+if [ -z "${data_file_suffix}" ]; then
+    data_file_suffix="_lat_stats.csv"
 fi
+
+targets=$(echo $(seq 0.05 0.05 0.95)" 0.98 0.99")
 
 function extract_from_csv () {
     file=$1
@@ -31,6 +32,7 @@ function extract_from_csv () {
          END { \
              asort(a, a, "@val_num_asc"); \
              n = NR-1; \
+	     printf("%d ", n); \
              for (i in targets) { \
                  printf("%g ", a[int(n * targets[i])]); \
              } \
@@ -41,16 +43,14 @@ head_tformats=$(echo "${targets}" | sed 's/[^ ]*/%6s/g')
 data_tformats=$(echo "${targets}" | sed 's/[^ ]*/%6d/g')
 
 for event in store load; do
-    printf '\n%-55s '"${head_tformats}"' %10s\n' "${event}" ${targets} comp_ratio
+    printf '\n%-55s %10s '"${head_tformats}"' %10s\n' "${event}" count ${targets} comp_ratio
     echo '----------------------------------------------------------------------------------------------'
 
     for dir in "${basedir}"/*; do
         title=$(basename "${dir}")
+        values=$(extract_from_csv "${dir}"/*_"${event}${data_file_suffix}")
+        comp_ratio=$(cut -d' ' -f3 "${dir}"/*_"${event}"_comp_avg.csv)
 
-        ptiles=$(extract_from_csv "${dir}"/*"${event}"_lat_stats.csv)
-
-        comp_ratio=$(cut -d' ' -f3 "${dir}"/"${title}"_store_comp_avg.csv)
-
-        printf '%-55s '"${data_tformats}"' %10.2f\n' "${title}" ${ptiles} "${comp_ratio}"
+        printf '%-55s %10d '"${data_tformats}"' %10.2f\n' "${title}" ${values} "${comp_ratio}"
     done
 done

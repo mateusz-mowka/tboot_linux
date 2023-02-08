@@ -2,6 +2,7 @@
 
 import argparse
 import glob
+from multiprocessing import Process
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-d', '--dir', default='.', help='input and output data directory')
@@ -13,17 +14,18 @@ files = glob.glob(f'{args.dir}/*.trace')
 print("Dir: %s" % args.dir)
 print("Event: %s" % args.event)
 
-for fl in files:
-        dir_file = fl.split('/')
+
+def processFile(path):
+        dir_file = path.split('/')
         file = dir_file[-1]
         file = file.split('.')
         filebase = file[0]
-        print("Filename: %s" % fl)
+        print("Filename: %s" % path)
         print("File: %s" % file)
         print("Filebase: %s" % filebase)
         outfilename = "{}/{}_{}_lat_stats.csv".format(args.dir, filebase, args.event)
-        print("Outfilename: %s" % outfilename)        
-        infile = open(fl, 'r')
+        print("Outfilename: %s" % outfilename)
+        infile = open(path, 'r')
         outfile = open(outfilename, 'w')
         outfile.write("name,lat\n")
 
@@ -42,6 +44,15 @@ for fl in files:
                                         outfile.write("lat{},{}\n".format(count, int(elt[1])))
                                         i += 1
                                         count = count + 1
-        outfile.close()           
+        outfile.close()
         infile.close()
 
+
+processes = []
+
+for path in files:
+        process = Process(target=processFile, args=[path])
+        process.start()
+
+for process in processes:
+        process.join()

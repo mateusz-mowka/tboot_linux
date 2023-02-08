@@ -2,43 +2,45 @@
 
 import argparse
 import glob
+from multiprocessing import Process
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-d', '--dir', default='.', help='input and output data directory')
+parser.add_argument('-e', '--event', default='load', help='load or store')
 args = parser.parse_args()
 
 files = glob.glob(f'{args.dir}/*.trace')
 
 print("Dir: %s" % args.dir)
+print("Event: %s" % args.event)
 
-for fl in files:
-        dir_file = fl.split('/')
+
+def processFile(path):
+        dir_file = path.split('/')
         file = dir_file[-1]
         print("File: %s" % file)
         file = file.split('.')
         filebase = file[0]
-        print("Filename: %s" % fl)
+        print("Filename: %s" % path)
         print("Filebase: %s" % filebase)
-        outfilename = "{}/{}_store_comp_avg.csv".format(args.dir, filebase)
-        print("Outfilename: %s" % outfilename)
-        infile = open(fl, 'r')
-        outfile = open(outfilename, 'w')
+        avgfilename = "{}/{}_{}_comp_avg.csv".format(args.dir, filebase, args.event)
+        print("avgfilename: %s" % avgfilename)
+        sizefilename = "{}/{}_{}_size_stats.csv".format(args.dir, filebase, args.event)
+        print("sizefilename: %s" % sizefilename)
+        infile = open(path, 'r')
+        avgfile = open(avgfilename, 'w')
+        sizefile = open(sizefilename, 'w')
 
         lines = infile.readlines()
 
         count = 0
         total_dlen = 0
 
-        # A compressed length which has been deferred from being added to the
-        # total in case a by_n compression for that page followed it (in which
-        # case the length for *that* compression replaces the deferred one
-        # because the deferred one is assumed to be from the preceding by1
-        # compression which was replaced by a by_n compression):
-        deferred = 0
+        print("name,size", file=sizefile)
 
         for line in lines:
                 sline = line.strip()
-                if sline.find('store') != -1:
+                if sline.find(args.event) != -1:
                         metrics = {}
                         for word in sline.split(' '):
                                 if word.find('=') != -1:
@@ -48,31 +50,46 @@ for fl in files:
                                         except ValueError:
                                                 metrics[key] = value
 
+                        length = 0
                         by_n = metrics.get("by_n", 0);
-
                         if by_n > 1:
                                 for i in range(1, by_n + 1):
-                                        total_dlen += metrics[f"dlen{i}"]
-                                count += 1
-                                deferred = 0
+                                        try:
+                                                length += metrics[f"length{i}"]
+                                        except KeyError:
+                                                length += metrics.get(f"dlen{i}", 0)
                         else:
-                                if deferred > 0:
-                                        total_dlen += deferred
-                                        count += 1
-                                        deferred = 0
-                                if metrics.get("dlen", 0) > 0:
-                                        deferred = metrics["dlen"]
-
-        if deferred > 0:
-                total_dlen += deferred
-                count += 1
+                                try:
+                                        length = metrics["length"]
+                                except KeyError:
+                                        length = metrics.get("dlen", 0)
+                        if length > 0:
+                                print("len{},{}".format(count, length), file=sizefile)
+                                total_dlen += length
+                                count += 1
 
         print("total_dlen: %d" % total_dlen)
         print("count: %d" % count)
         print("total_size: %d" % (count * 4096))
-        print("Compression ratio = total_size / total_dlen: %f" % ((count * 4096) / total_dlen))
+        ratio = 0
+        try:
+                ratio = ((count * 4096) / total_dlen)
+        except:
+                pass
+        print("Compression ratio = total_size / total_dlen: %f" % ratio)
 
-        outfile.write("Compression ratio: %f" % ((count * 4096) / total_dlen))
+        print("Compression ratio: %f" % ratio, file=avgfile)
 
-        outfile.close()
+        avgfile.close()
+        sizefile.close()
         infile.close()
+
+
+processes = []
+
+for path in files:
+        process = Process(target=processFile, args=[path])
+        process.start()
+
+for process in processes:
+        process.join()
