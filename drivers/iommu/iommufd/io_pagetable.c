@@ -925,18 +925,23 @@ static void iopt_unfill_domain(struct io_pagetable *iopt,
  * @iopt: io_pagetable to act on
  * @domain: domain to fill
  *
- * Fill the domain with PFNs from every area in the iopt. On failure the domain
- * is left unchanged.
+ * Fill the domain with PFNs from every area in the iopt. On failure skip the
+ * area and remove it from the iopt.
  */
-static int iopt_fill_domain(struct io_pagetable *iopt,
+static void iopt_fill_domain(struct io_pagetable *iopt,
 			    struct iommu_domain *domain)
 {
 	struct iopt_area *end_area;
 	struct iopt_area *area;
+	struct xarray wrong_area_xa;
 	int rc;
+	unsigned long index;
+	int next_area_id = 0;
 
 	lockdep_assert_held(&iopt->iova_rwsem);
 	lockdep_assert_held_write(&iopt->domains_rwsem);
+
+	xa_init_flags(&wrong_area_xa, XA_FLAGS_ACCOUNT);
 
 	for (area = iopt_area_iter_first(iopt, 0, ULONG_MAX); area;
 	     area = iopt_area_iter_next(area, 0, ULONG_MAX)) {
@@ -949,7 +954,8 @@ static int iopt_fill_domain(struct io_pagetable *iopt,
 		rc = iopt_area_fill_domain(area, domain);
 		if (rc) {
 			mutex_unlock(&pages->mutex);
-			goto out_unfill;
+			xa_store(&wrong_area_xa, next_area_id++, area, GFP_KERNEL);
+			continue;
 		}
 		if (!area->storage_domain) {
 			WARN_ON(iopt->next_domain_id != 0);
@@ -959,28 +965,20 @@ static int iopt_fill_domain(struct io_pagetable *iopt,
 		}
 		mutex_unlock(&pages->mutex);
 	}
-	return 0;
 
-out_unfill:
-	end_area = area;
-	for (area = iopt_area_iter_first(iopt, 0, ULONG_MAX); area;
-	     area = iopt_area_iter_next(area, 0, ULONG_MAX)) {
-		struct iopt_pages *pages = area->pages;
+	up_write(&iopt->iova_rwsem);
+	xa_for_each(&wrong_area_xa, index, area) {
+		struct iopt_pages *pages;
 
-		if (area == end_area)
-			break;
-		if (WARN_ON(!pages))
-			continue;
-		mutex_lock(&pages->mutex);
-		if (iopt->next_domain_id == 0) {
-			interval_tree_remove(&area->pages_node,
-					     &pages->domains_itree);
-			area->storage_domain = NULL;
-		}
-		iopt_area_unfill_domain(area, pages, domain);
-		mutex_unlock(&pages->mutex);
+		pages = area->pages;
+		WARN_ON(!pages);
+		area->pages = NULL;
+
+		WARN_ON(atomic_read(&area->num_users));
+		iopt_abort_area(area);
+		iopt_put_pages(pages);
 	}
-	return rc;
+	down_write(&iopt->iova_rwsem);
 }
 
 /* All existing area's conform to an increased page size */
@@ -1057,9 +1055,7 @@ int iopt_table_add_domain(struct io_pagetable *iopt,
 	if (rc)
 		goto out_reserved;
 
-	rc = iopt_fill_domain(iopt, domain);
-	if (rc)
-		goto out_release;
+	iopt_fill_domain(iopt, domain);
 
 	iopt->iova_alignment = new_iova_alignment;
 	xa_store(&iopt->domains, iopt->next_domain_id, domain, GFP_KERNEL);
@@ -1067,8 +1063,6 @@ int iopt_table_add_domain(struct io_pagetable *iopt,
 	up_write(&iopt->iova_rwsem);
 	up_write(&iopt->domains_rwsem);
 	return 0;
-out_release:
-	xa_release(&iopt->domains, iopt->next_domain_id);
 out_reserved:
 	__iopt_remove_reserved_iova(iopt, domain);
 out_unlock:
