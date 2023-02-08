@@ -5004,11 +5004,13 @@ static int domain_attach_device_pasid(struct dmar_domain *domain,
 			      sinfo, GFP_ATOMIC));
 	if (ret)
 		goto out_unlock;
+	spin_unlock_irqrestore(&domain->lock, flags);
 
 	ret = domain_attach_iommu(domain, iommu);
 	if (ret)
 		goto out_erase;
 
+	spin_lock_irqsave(&domain->lock, flags);
 	/* Setup the PASID entry for mediated devices: */
 	if (domain->use_first_level)
 		ret = domain_setup_first_level(iommu, domain, dev, pasid);
