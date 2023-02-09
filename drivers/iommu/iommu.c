@@ -3337,6 +3337,7 @@ unsigned int iommu_dirty_bitmap_record(struct iommu_dirty_bitmap *dirty,
 
 	return nbits;
 }
+EXPORT_SYMBOL_GPL(iommu_dirty_bitmap_record);
 
 static int __iommu_set_group_pasid(struct iommu_domain *domain,
 				   struct iommu_group *group, ioasid_t pasid)

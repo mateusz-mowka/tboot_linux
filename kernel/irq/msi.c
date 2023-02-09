@@ -1691,6 +1691,7 @@ struct msi_domain_info *msi_get_domain_info(struct irq_domain *domain)
 {
 	return (struct msi_domain_info *)domain->host_data;
 }
+EXPORT_SYMBOL_GPL(msi_get_domain_info);
 
 /**
  * get_dev_msi_entry - Get the nth device MSI entry
