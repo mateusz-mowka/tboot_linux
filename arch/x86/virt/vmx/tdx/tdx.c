@@ -1574,6 +1574,15 @@ bool tdx_io_support(void)
 }
 EXPORT_SYMBOL_GPL(tdx_io_support);
 
+bool tdx_io_enabled(void)
+{
+       if (!tdx_io_support())
+               return false;
+
+       return tdxio;
+}
+EXPORT_SYMBOL_GPL(tdx_io_enabled);
+
 #ifdef CONFIG_SYSFS
 
 static struct kobject *tdx_kobj;

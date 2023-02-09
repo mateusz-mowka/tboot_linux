@@ -188,6 +188,7 @@ u32 tdx_get_num_keyid(void);
 int tdx_keyid_alloc(void);
 void tdx_keyid_free(int keyid);
 bool tdx_io_support(void);
+bool tdx_io_enabled(void);
 
 u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10,
 	       u64 r11, u64 r12, u64 r13, struct tdx_module_output *out);
@@ -247,6 +248,7 @@ static inline u32 tdx_get_num_keyid(void) { return 0; }
 static inline int tdx_keyid_alloc(void) { return -EOPNOTSUPP; }
 static inline void tdx_keyid_free(int keyid) { }
 static inline bool tdx_io_support(void) { return false; }
+static inline bool tdx_io_enabled(void) { return false; }
 static inline u64 tdh_iommu_setreg(u64 iommu_id, u64 reg, u64 val) { return 0; }
 static inline u64 tdh_iommu_getreg(u64 iommu_id, u64 reg, u64 *val) { return 0; }
 #endif	/* CONFIG_INTEL_TDX_HOST */
