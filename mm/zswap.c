@@ -141,7 +141,7 @@ static bool zswap_non_same_filled_pages_enabled = true;
 module_param_named(non_same_filled_pages_enabled, zswap_non_same_filled_pages_enabled,
 		   bool, 0644);
 
-static unsigned int zswap_secondary_threshold = 512;
+static unsigned int zswap_secondary_threshold = 0;
 module_param_named(secondary_threshold, zswap_secondary_threshold, uint, 0644);
 
 #define MAX_BY_N 4
@@ -1609,7 +1609,8 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	 * its result (rather than against the result of the primary compressor.
 	 */
 	acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
-	entry->use_secondary = true;
+	if (zswap_secondary_threshold)
+		entry->use_secondary = true;
 recompress:
 	/*
 	 * Upon re-compress, acomp_ctx will have been set to the entry's pool's
