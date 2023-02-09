@@ -1604,19 +1604,19 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 
 	/* compress */
 
-	/*
-	 * Start with secondary compressor so that the threshold is made against
-	 * its result (rather than against the result of the primary compressor.
-	 */
-	acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
-	if (zswap_secondary_threshold)
-		entry->use_secondary = true;
-recompress:
-	/*
-	 * Upon re-compress, acomp_ctx will have been set to the entry's pool's
-	 * secondary_acomp_ctx.
-	 */
+	acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+	entry->use_secondary = false;
 
+	if (zswap_secondary_threshold) {
+		/*
+		 * Start with the secondary compressor so that the threshold is
+		 * made against its result (rather than against the result of
+		 * the primary compressor).
+		 */
+		acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
+		entry->use_secondary = true;
+	}
+recompress:
 	mutex_lock(acomp_ctx->mutex);
 
 	/* If by_n is disabled, use normal compress/decompress
