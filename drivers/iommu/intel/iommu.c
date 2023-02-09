@@ -5261,6 +5261,7 @@ static void intel_iommu_detach_device_pasid(struct iommu_domain *domain,
 static int intel_iommu_hw_info(struct device *dev, struct iommu_hw_info *info)
 {
 	struct intel_iommu *iommu = device_to_iommu(dev, NULL, NULL);
+	u64 addr_width, cap_addr_mask;
 
 	if (!iommu)
 		return -ENODEV;
@@ -5270,6 +5271,19 @@ static int intel_iommu_hw_info(struct device *dev, struct iommu_hw_info *info)
 	info->data.vtd.flags = 0;
 	info->data.vtd.cap_reg = iommu->cap;
 	info->data.vtd.ecap_reg = iommu->ecap;
+
+	/* check if this iommu agaw is sufficient for max mapped address */
+	addr_width = agaw_to_width(iommu->agaw);
+	if (addr_width > cap_mgaw(iommu->cap))
+		addr_width = cap_mgaw(iommu->cap);
+
+	if (!cpu_feature_enabled(X86_FEATURE_LA57) &&
+	    addr_width == ADDR_WIDTH_5LEVEL)
+		addr_width = ADDR_WIDTH_4LEVEL;
+
+	cap_addr_mask = (0x3fULL << 16);
+	info->data.vtd.cap_reg &= ~cap_addr_mask;
+	info->data.vtd.cap_reg |= ((addr_width & 0x3fULL) << 16);
 
 	return 0;
 }
