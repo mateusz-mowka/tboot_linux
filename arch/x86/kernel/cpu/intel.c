@@ -338,19 +338,19 @@ int intel_microcode_sanity_check(void *mc, bool print_err, int hdr_type)
 	}
 
 	/*
-	 * Enforce for late-load that min_req_id is specified in the header.
+	 * Enforce for late-load that min_req_ver is specified in the header.
 	 * Otherwise its an old format microcode, reject it.
 	 */
 	if (print_err && hdr_type != MC_HEADER_TYPE_IFS) {
-		if (!mc_header->min_req_id) {
+		if (!mc_header->min_req_ver) {
 			pr_warn("Header MUST specify min version for late-load\n");
 			return -EINVAL;
 		}
 
 		intel_cpu_collect_info(&uci);
-		if (uci.cpu_sig.rev < mc_header->min_req_id) {
+		if (uci.cpu_sig.rev < mc_header->min_req_ver) {
 			pr_warn("Current revision 0x%x is too old to update must be at 0x%x version or higher\n",
-				uci.cpu_sig.rev, mc_header->min_req_id);
+				uci.cpu_sig.rev, mc_header->min_req_ver);
 			return -EINVAL;
 		}
 	}

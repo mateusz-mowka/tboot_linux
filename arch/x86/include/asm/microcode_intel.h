@@ -15,7 +15,7 @@ struct microcode_header_intel {
 	unsigned int            datasize;
 	unsigned int            totalsize;
 	unsigned int            metasize;
-	unsigned int            min_req_id;
+	unsigned int		min_req_ver;
 	unsigned int            reserved3;
 };
 
