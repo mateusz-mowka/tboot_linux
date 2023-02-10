@@ -575,7 +575,9 @@ static unsigned long domain_super_pgsize_bitmap(struct dmar_domain *domain)
 void domain_update_iommu_cap(struct dmar_domain *domain)
 {
 	domain_update_iommu_coherency(domain);
-	domain->iommu_superpage = domain_update_iommu_superpage(domain, NULL);
+
+	if (domain->domain.type != IOMMU_DOMAIN_NESTED)
+		domain->iommu_superpage = domain_update_iommu_superpage(domain, NULL);
 
 	/*
 	 * If RHSA is missing, we should default to the device numa domain
