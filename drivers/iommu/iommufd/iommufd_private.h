@@ -13,6 +13,7 @@
 #include <linux/eventfd.h>
 #include <linux/iommu.h>
 #include <linux/uio.h>
+#include <linux/ioasid_def.h>
 #include "iommufd_test.h"
 
 struct iommu_domain;
@@ -302,6 +303,13 @@ int iommufd_ioas_unmap_dirty(struct iommufd_ucmd *ucmd);
 int iommufd_check_iova_range(struct iommufd_ioas *ioas,
 			     struct iommufd_dirty_data *bitmap);
 
+struct iommufd_hwpt_device {
+	unsigned int hwpt_xa_id;
+	ioasid_t pasid;
+	struct iommufd_device *idev;
+	struct iommufd_hw_pagetable *hwpt;
+};
+
 /*
  * A iommufd_device object represents the binding relationship between a
  * consuming driver and the iommufd. These objects are created/destroyed by
@@ -310,9 +318,8 @@ int iommufd_check_iova_range(struct iommufd_ioas *ioas,
 struct iommufd_device {
 	struct iommufd_object obj;
 	struct iommufd_ctx *ictx;
-	struct iommufd_hw_pagetable *hwpt;
-	/* Head at iommufd_hw_pagetable::devices */
-	struct list_head devices_item;
+	struct mutex pasid_lock;
+	struct xarray pasid_xa;
 	/* always the physical device */
 	struct device *dev;
 	struct iommu_group *group;
@@ -354,7 +361,7 @@ struct iommufd_hw_pagetable {
 	 */
 	struct mutex *devices_lock;
 	refcount_t *devices_users;
-	struct list_head devices;
+	struct xarray devices;
 	/*
 	 * If hwpt->parent is valid, this buffer is pre-allocated to store
 	 * the cache invaliation data from user as cache invalidation is
