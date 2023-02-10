@@ -405,6 +405,7 @@ void tgl_core_init(struct pmc_dev *pmcdev);
 void adl_core_init(struct pmc_dev *pmcdev);
 void mtl_core_init(struct pmc_dev *pmcdev);
 void lkf_core_init(struct pmc_dev *pmcdev);
+void cnp_core_configure(struct pmc_dev *pmcdev);
 void tgl_core_configure(struct pmc_dev *pmcdev);
 void adl_core_configure(struct pmc_dev *pmcdev);
 void mtl_core_configure(struct pmc_dev *pmcdev);
