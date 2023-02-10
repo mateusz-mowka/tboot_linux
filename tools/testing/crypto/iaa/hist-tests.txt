@@ -71,7 +71,14 @@ cat /sys/kernel/debug/tracing/trace > test-async-by4-canned-dedicated.trace
 ./calcpercent.py test-async-by2-thresh-chunk-canned-dedicated.out 98 >> test-async-by2-thresh-chunk-canned-dedicated.out
 cat /sys/kernel/debug/tracing/trace > test-async-by2-thresh-chunk-canned-dedicated.trace
 
-## sub-latench breakdown example
+# async secondary threshould canned dedicated
+./teardown-zswap
+./test-async-thresh-secondary-canned-dedicated > test-async-thresh-seondary-canned-dedicated.out
+./dump-zswap-hists-all >> test-async-thresh-secondary-canned-dedicated.out
+./calcpercent.py test-async-thresh-secondary-canned-dedicated.out 98 >> test-async-thresh-secondary-canned-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-thresh-secondary-canned-dedicated.trace
+
+## sub-latency breakdown example
 
 # async canned noirq dedicated
 ./teardown-zswap
