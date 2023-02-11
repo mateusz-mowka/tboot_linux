@@ -37,6 +37,8 @@
 #include <asm/unistd.h>
 #include <stdbool.h>
 
+#include "intel_pmt.h"
+
 #define UNUSED(x) (void)(x)
 
 /*
@@ -6751,6 +6753,8 @@ int main(int argc, char **argv)
 		return fork_it(argv + optind);
 	else
 		turbostat_loop();
+
+	pmt_destroy_table();
 
 	return 0;
 }
