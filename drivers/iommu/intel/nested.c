@@ -48,7 +48,7 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 	 * may you have a look.
 	 */
 	ret = intel_iommu_enable_pasid(iommu, dev);
-	if (ret) {
+	if (ret && pasid != PASID_RID2PASID) {
 		dev_err_ratelimited(dev, "Failed to enable PASID capability\n");
 		return ret;
 	}
