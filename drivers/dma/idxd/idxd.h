@@ -313,7 +313,7 @@ struct idxd_evl_fault {
 
 struct vdev_device_ops {
 	int (*device_create)(struct idxd_device *idxd, u32 type);
-	int (*device_remove)(struct idxd_device *idxd, char *vdev_name);
+	int (*device_remove)(struct idxd_device *idxd, const char *vdev_name);
 };
 
 struct idxd_idpt_entry_data {

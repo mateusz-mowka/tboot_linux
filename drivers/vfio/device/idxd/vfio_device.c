@@ -2255,6 +2255,7 @@ static int vdev_device_create(struct idxd_device *idxd, u32 type)
 {
 	struct device *dev, *dev_found;
 	struct idxd_dev *parent;
+	struct vdcm_idxd *vidxd;
 	char vdev_name[32];
 	int rc;
 
@@ -2278,29 +2279,38 @@ static int vdev_device_create(struct idxd_device *idxd, u32 type)
 	sprintf(vdev_name, "vdev%u.%u", idxd->id, parent->id);
 	dev_found = device_find_child_by_name(dev->parent, vdev_name);
 	if (dev_found) {
-		put_device(dev);
-		return -EEXIST;
+		rc = -EEXIST;
+		goto fail;
 	}
 	rc = dev_set_name(dev, "%s", vdev_name);
-	if (rc < 0) {
-		put_device(dev);
-		return rc;
-	}
+	if (rc < 0)
+		goto fail;
+
 	parent->vdev_type = type;
 	parent->idxd = idxd;
 
 	rc = device_add(dev);
-	if (rc < 0) {
-		put_device(dev);
-		return rc;
+	if (rc)
+		goto fail;
+
+	/* On successfully added device, dev's drvdata should contain vidxd. */
+	vidxd = dev_get_drvdata(dev);
+	if (!vidxd) {
+		device_del(dev);
+		return -ENODEV;
 	}
 
 	list_add_tail(&parent->list, &idxd->vdev_list);
 
 	return 0;
+
+fail:
+	put_device(dev);
+
+	return rc;
 }
 
-static int vdev_device_remove(struct idxd_device *idxd, char *vdev_name)
+static int vdev_device_remove(struct idxd_device *idxd, const char *vdev_name)
 {
 	struct idxd_dev *pos, *n;
 
