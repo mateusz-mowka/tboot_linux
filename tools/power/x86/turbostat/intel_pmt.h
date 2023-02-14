@@ -40,4 +40,5 @@ int pmt_create_table(struct pmt_guids *g);
 bool pmt_table_has(enum pmt_metric_index metric_index);
 void pmt_destroy_table(void);
 void pmt_read_metric(enum pmt_metric_index metric_idx, unsigned long long *val);
+extern struct pmt_guids pmt_guids_mtl[];
 #endif

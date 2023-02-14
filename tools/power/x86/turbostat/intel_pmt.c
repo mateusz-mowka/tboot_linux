@@ -190,3 +190,18 @@ void pmt_read_metric(enum pmt_metric_index metric_idx, unsigned long long *val)
 	mask >>= 64 - num_bits;
 	*val = (sample >> lsb) & mask;
 }
+
+/* MTL GUIDs */
+struct pmt_guids pmt_guids_mtl[] = {
+	{ "0x1a067102", PMT_METRIC_ARR_TO_PTR {
+		{ PMT_XTAL, 0, 0, 64 },
+		{ PMT_DIE_C2p1, 11, 0, 64 },
+		{ PMT_DIE_C2p2, 12, 0, 64 },
+		{ PMT_DIE_C3p1, 13, 0, 64 },
+		{ PMT_DIE_C3p2, 14, 0, 64 },
+		{ PMT_DIE_C6, 15, 0, 64 },
+		{ PMT_DIE_LLC, 16, 0, 64 },
+		{ PMT_METRIC_END, 0, 0, 0 }
+	}},
+	{},
+};
