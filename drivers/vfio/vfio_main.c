@@ -414,28 +414,26 @@ static int vfio_device_first_open(struct vfio_device_file *df,
 	if (!try_module_get(device->dev->driver->owner))
 		return -ENODEV;
 
+	device->kvm = kvm;
+	if (device->ops->open_device) {
+		ret = device->ops->open_device(device);
+		if (ret)
+			goto err_module_put;
+	}
+
 	if (iommufd && !IS_ERR(iommufd))
 		ret = vfio_iommufd_bind(device, iommufd, dev_id, pt_id);
 	else
 		ret = vfio_device_group_use_iommu(device);
 	if (ret)
-		goto err_module_put;
+		goto err_unuse_iommu;
 
-	device->kvm = kvm;
-	if (device->ops->open_device) {
-		ret = device->ops->open_device(device);
-		if (ret)
-			goto err_unuse_iommu;
-	}
 	return 0;
 
 err_unuse_iommu:
-	device->kvm = NULL;
-	if (iommufd && !IS_ERR(iommufd))
-		vfio_iommufd_unbind(device);
-	else
-		vfio_device_group_unuse_iommu(device);
+	device->ops->close_device(device);
 err_module_put:
+	device->kvm = NULL;
 	module_put(device->dev->driver->owner);
 	return ret;
 }
