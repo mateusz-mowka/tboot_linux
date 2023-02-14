@@ -6617,6 +6617,7 @@ __init int intel_pmu_init(void)
 		x86_pmu.flags |= PMU_FL_PEBS_ALL;
 		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
 		x86_pmu.get_event_constraints = cmt_get_event_constraints;
+		x86_pmu.pebs_latency_data = mtl_latency_data_small;
 		td_attr = cmt_events_attrs;
 		mem_attr = grt_mem_attrs;
 		extra_attr = nhm_format_attr;
