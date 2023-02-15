@@ -152,10 +152,12 @@ static int idxd_vdcm_pasid_attach(struct vdcm_idxd *vidxd, ioasid_t pasid, u32 *
 	struct vdcm_hwpt *hwpt, *tmp;
 	int ret;
 
+#if 0
 	/* userspace needs to detach a hwpt before attaching a new */
 	hwpt = xa_load(&vidxd->pasid_xa, pasid);
 	if (hwpt)
 		return -EBUSY;
+#endif
 
 	hwpt = kzalloc(sizeof(*hwpt), GFP_KERNEL);
 	if (!hwpt)
@@ -198,15 +200,30 @@ static int idxd_vdcm_attach_ioas(struct vfio_device *vdev,
 		goto out_unlock;
 	}
 
+#if 0
 	/* Only allows one IOAS attach */
 	if (!xa_empty(&vidxd->pasid_xa)) {
 		rc = -EBUSY;
 		goto out_unlock;
 	}
+#endif
 
 	pasid = vfio_device_get_pasid(vdev);
 	if (!pasid_valid(pasid)) {
 		rc = -ENODEV;
+		goto out_unlock;
+	}
+
+	if (!pt_id) {
+		struct vfio_pci_hwpt *hwpt;
+
+		hwpt = xa_load(&vidxd->pasid_xa, pasid);
+		if (!hwpt) {
+			goto out_unlock;
+		}
+		xa_erase(&vidxd->pasid_xa, hwpt->pasid);
+		kfree(hwpt);
+		iommufd_device_detach(vidxd->idev, pasid);
 		goto out_unlock;
 	}
 
@@ -239,6 +256,19 @@ int idxd_vdcm_attach_hwpt(struct vfio_device *vdev, u32 *pt_id, ioasid_t pasid)
 	pasid = idxd_vdcm_get_pasid(vidxd, pasid);
 	if (!pasid_valid(pasid)) {
 		ret = -EINVAL;
+		goto out_unlock;
+	}
+
+	if (!pt_id) {
+		struct vfio_pci_hwpt *hwpt;
+
+		hwpt = xa_load(&vidxd->pasid_xa, pasid);
+		if (!hwpt) {
+			goto out_unlock;
+		}
+		xa_erase(&vidxd->pasid_xa, hwpt->pasid);
+		kfree(hwpt);
+		iommufd_device_detach(vidxd->idev, pasid);
 		goto out_unlock;
 	}
 
