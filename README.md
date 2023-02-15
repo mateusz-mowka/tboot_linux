@@ -13,6 +13,12 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.6
+----------------
+9. This fixes an failure of the tool when running on GNR Q2TK, which supports PP level4 only.
+    https://hsdes.intel.com/resource/16019627423
+    tools/power/x86/intel-speed-select: return failure for unsupported PP level
+
 gnr-bkc-6.2-v1.5
 ----------------
 8. Add Confidential Computing Event Log (CCEL) support,
