@@ -51,7 +51,8 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 
 	info->domain = dmar_domain;
 	spin_lock_irqsave(&dmar_domain->lock, flags);
-	list_add(&info->link, &dmar_domain->devices);
+	if (++info->nested_users == 1)
+		list_add(&info->link, &dmar_domain->devices);
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 	domain_update_iommu_cap(dmar_domain);
 	return ret;
@@ -70,7 +71,8 @@ static void intel_nested_detach_dev_pasid(struct device *dev, ioasid_t pasid)
 
 	domain_detach_iommu(dmar_domain, iommu);
 	spin_lock_irqsave(&dmar_domain->lock, flags);
-	list_del(&info->link);
+	if (--info->nested_users == 0)
+		list_del(&info->link);
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 }
 
