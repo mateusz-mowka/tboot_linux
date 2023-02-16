@@ -1869,6 +1869,7 @@ static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 	gfn_t s = gpa_to_gfn(gpa) & ~kvm_gfn_shared_mask(kvm);
 	gfn_t e = gpa_to_gfn(end) & ~kvm_gfn_shared_mask(kvm);
 	bool map_private = kvm_is_private_gpa(kvm, gpa);
+	bool range_in_slot = false;
 	int ret;
 	int i;
 
@@ -1900,6 +1901,7 @@ static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 
 			/* contained in slot */
 			if (slot_s <= s && e <= slot_e) {
+				range_in_slot = true;
 				if (kvm_slot_can_be_private(slot)) {
 					if (prefault)
 						vcpu->arch.complete_tdx_vp_vmcall = tdx_complete_map_gpa;
@@ -1919,7 +1921,7 @@ static int tdx_map_gpa(struct kvm_vcpu *vcpu)
 	} else if (ret) {
 		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_INVALID_OPERAND);
 	} else {
-		if (prefault)
+		if (prefault && range_in_slot)
 			tdx_complete_map_gpa(vcpu);
 		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_SUCCESS);
 	}
