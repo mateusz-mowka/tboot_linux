@@ -243,7 +243,7 @@ int idxd_vdcm_attach_hwpt(struct vfio_device *vdev, u32 *pt_id, ioasid_t pasid)
 //	ioasid_t pasid = attach->flags & VFIO_DEVICE_ATTACH_FLAG_PASID ?
 //			 attach->pasid : INVALID_IOASID;
 	struct vdcm_idxd *vidxd = vdev_to_vidxd(vdev);
-	int ret;
+	int ret = 0;
 
 	mutex_lock(&vidxd->dev_lock);
 
@@ -264,6 +264,7 @@ int idxd_vdcm_attach_hwpt(struct vfio_device *vdev, u32 *pt_id, ioasid_t pasid)
 
 		hwpt = xa_load(&vidxd->pasid_xa, pasid);
 		if (!hwpt) {
+			ret = -EINVAL;
 			goto out_unlock;
 		}
 		xa_erase(&vidxd->pasid_xa, hwpt->pasid);
