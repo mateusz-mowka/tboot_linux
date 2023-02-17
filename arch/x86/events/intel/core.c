@@ -5522,10 +5522,12 @@ static struct attribute *icl_tsx_events_attrs[] = {
 EVENT_ATTR_STR(mem-stores,	mem_st_spr,	"event=0xcd,umask=0x2");
 EVENT_ATTR_STR(mem-loads-aux,	mem_ld_aux,	"event=0x03,umask=0x82");
 
+#define SPR_MEM_LD_AUX_IDX		2
+
 static struct attribute *spr_events_attrs[] = {
 	EVENT_PTR(mem_ld_hsw),
 	EVENT_PTR(mem_st_spr),
-	EVENT_PTR(mem_ld_aux),
+	NULL,
 	NULL,
 };
 
@@ -6863,6 +6865,9 @@ __init int intel_pmu_init(void)
 
 	case INTEL_FAM6_SAPPHIRERAPIDS_X:
 	case INTEL_FAM6_EMERALDRAPIDS_X:
+		x86_pmu.flags |= PMU_FL_MEM_LOADS_AUX;
+		spr_events_attrs[SPR_MEM_LD_AUX_IDX] = EVENT_PTR(mem_ld_aux);
+		fallthrough;
 	case INTEL_FAM6_GRANITERAPIDS_X:
 	case INTEL_FAM6_GRANITERAPIDS_D:
 		pmem = true;
@@ -6880,7 +6885,7 @@ __init int intel_pmu_init(void)
 		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
 		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
 		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
-		x86_pmu.flags |= PMU_FL_MEM_LOADS_AUX;
+
 
 		x86_pmu.hw_config = hsw_hw_config;
 		x86_pmu.get_event_constraints = spr_get_event_constraints;
