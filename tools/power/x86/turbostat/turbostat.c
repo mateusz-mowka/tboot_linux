@@ -135,6 +135,9 @@ struct msr_counter bic[] = {
 	{ 0x0, "IPC", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "CoreThr", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "UncMHz", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc2", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PM%pc2r", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc3", "", 0, 0, 0, NULL, 0 },
 };
 
 #define MAX_BIC (sizeof(bic) / sizeof(struct msr_counter))
@@ -199,6 +202,9 @@ struct msr_counter bic[] = {
 #define	BIC_IPC		(1ULL << 58)
 #define	BIC_CORE_THROT_CNT	(1ULL << 59)
 #define	BIC_UNCORE_MHZ		(1ULL << 60)
+#define BIC_PMT_PC2	(1ULL << 61)
+#define BIC_PMT_PC2R	(1ULL << 62)
+#define BIC_PMT_PC3	(1ULL << 63)
 
 #define BIC_TOPOLOGY (BIC_Package | BIC_Node | BIC_CoreCnt | BIC_PkgCnt | BIC_Core | BIC_CPU | BIC_Die )
 #define BIC_THERMAL_PWR ( BIC_CoreTmp | BIC_PkgTmp | BIC_PkgWatt | BIC_CorWatt | BIC_GFXWatt | BIC_RAMWatt | BIC_PKG__ | BIC_RAM__)
@@ -401,6 +407,9 @@ struct pkg_data {
 	unsigned long long die_c3_1;
 	unsigned long long die_c3_2;
 	unsigned long long die_c6;
+	unsigned long long pmt_pc2;
+	unsigned long long pmt_pc2r;
+	unsigned long long pmt_pc3;
 	unsigned long long cpu_lpi;
 	unsigned long long sys_lpi;
 	unsigned long long pkg_wtd_core_c0;
@@ -999,6 +1008,13 @@ void print_header(char *delim)
 	if (DO_BIC(BIC_SYS_LPI))
 		outp += sprintf(outp, "%sSYS%%LPI", (printed++ ? delim : ""));
 
+	if (DO_BIC(BIC_PMT_PC2))
+		outp += sprintf(outp, "%sPMT%%pc2", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_PMT_PC2R))
+		outp += sprintf(outp, "%sPM%%pc2r", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_PMT_PC3))
+		outp += sprintf(outp, "%sPMT%%pc3", (printed++ ? delim : ""));
+
 	if (do_rapl && !rapl_joules) {
 		if (DO_BIC(BIC_PkgWatt))
 			outp += sprintf(outp, "%sPkgWatt", (printed++ ? delim : ""));
@@ -1122,6 +1138,14 @@ int dump_counters(struct thread_data *t, struct core_data *c, struct pkg_data *p
 
 		outp += sprintf(outp, "cpu_lpi: %016llX\n", p->cpu_lpi);
 		outp += sprintf(outp, "sys_lpi: %016llX\n", p->sys_lpi);
+
+		if (DO_BIC(BIC_PMT_PC2))
+			outp += sprintf(outp, "PMT pc2: %016llX\n", p->pmt_pc2);
+		if (DO_BIC(BIC_PMT_PC2R))
+			outp += sprintf(outp, "PMT pc2r: %016llX\n", p->pmt_pc2r);
+		if (DO_BIC(BIC_PMT_PC3))
+			outp += sprintf(outp, "PMT pc3: %016llX\n", p->pmt_pc3);
+
 		outp += sprintf(outp, "Joules PKG: %0llX\n", p->energy_pkg);
 		outp += sprintf(outp, "Joules COR: %0llX\n", p->energy_cores);
 		outp += sprintf(outp, "Joules GFX: %0llX\n", p->energy_gfx);
@@ -1409,6 +1433,14 @@ int format_counters(struct thread_data *t, struct core_data *c, struct pkg_data 
 		outp +=
 		    sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->sys_lpi / 1000000.0 / interval_float);
 
+	/* PMT Package C states */
+	if (DO_BIC(BIC_PMT_PC2))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc2 / p->pmt_xtal);
+	if (DO_BIC(BIC_PMT_PC2R))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc2r / p->pmt_xtal);
+	if (DO_BIC(BIC_PMT_PC3))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc3 / p->pmt_xtal);
+
 	if (DO_BIC(BIC_PkgWatt))
 		outp +=
 		    sprintf(outp, fmt8, (printed++ ? delim : ""), p->energy_pkg * rapl_energy_units / interval_float);
@@ -1551,6 +1583,14 @@ int delta_package(struct pkg_data *new, struct pkg_data *old)
 
 	old->cpu_lpi = new->cpu_lpi - old->cpu_lpi;
 	old->sys_lpi = new->sys_lpi - old->sys_lpi;
+
+	if (DO_BIC(BIC_PMT_PC2))
+		old->pmt_pc2 = new->pmt_pc2 - old->pmt_pc2;
+	if (DO_BIC(BIC_PMT_PC2R))
+		old->pmt_pc2r = new->pmt_pc2r - old->pmt_pc2r;
+	if (DO_BIC(BIC_PMT_PC3))
+		old->pmt_pc3 = new->pmt_pc3 - old->pmt_pc3;
+
 	old->pkg_temp_c = new->pkg_temp_c;
 
 	/* flag an error when rc6 counter resets/wraps */
@@ -1777,6 +1817,10 @@ void clear_counters(struct thread_data *t, struct core_data *c, struct pkg_data 
 	p->cpu_lpi = 0;
 	p->sys_lpi = 0;
 
+	p->pmt_pc2 = 0;
+	p->pmt_pc2r = 0;
+	p->pmt_pc3 = 0;
+
 	p->energy_pkg = 0;
 	p->energy_dram = 0;
 	p->energy_cores = 0;
@@ -1894,6 +1938,13 @@ int sum_counters(struct thread_data *t, struct core_data *c, struct pkg_data *p)
 
 	average.packages.cpu_lpi = p->cpu_lpi;
 	average.packages.sys_lpi = p->sys_lpi;
+
+	if (DO_BIC(BIC_PMT_PC2))
+		average.packages.pmt_pc2 += p->pmt_pc2;
+	if (DO_BIC(BIC_PMT_PC2R))
+		average.packages.pmt_pc2r = p->pmt_pc2r;
+	if (DO_BIC(BIC_PMT_PC3))
+		average.packages.pmt_pc3 += p->pmt_pc3;
 
 	average.packages.energy_pkg += p->energy_pkg;
 	average.packages.energy_dram += p->energy_dram;
@@ -2391,6 +2442,13 @@ retry:
 		p->cpu_lpi = cpuidle_cur_cpu_lpi_us;
 	if (DO_BIC(BIC_SYS_LPI))
 		p->sys_lpi = cpuidle_cur_sys_lpi_us;
+
+	if (DO_BIC(BIC_PMT_PC2))
+		pmt_read_metric(PMT_PC2_RES, &p->pmt_pc2);
+	if (DO_BIC(BIC_PMT_PC2R))
+		pmt_read_metric(PMT_PC2R_RES, &p->pmt_pc2r);
+	if (DO_BIC(BIC_PMT_PC3))
+		pmt_read_metric(PMT_PC3_RES, &p->pmt_pc3);
 
 	if (do_rapl & RAPL_PKG) {
 		if (get_msr_sum(cpu, MSR_PKG_ENERGY_STATUS, &msr))
@@ -5927,6 +5985,12 @@ void process_cpuid()
 			BIC_PRESENT(BIC_Die_C3_2);
 		if (pmt_table_has(PMT_DIE_C6))
 			BIC_PRESENT(BIC_Die_C6);
+		if (pmt_table_has(PMT_PC2_RES))
+			BIC_PRESENT(BIC_PMT_PC2);
+		if (pmt_table_has(PMT_PC2R_RES))
+			BIC_PRESENT(BIC_PMT_PC2R);
+		if (pmt_table_has(PMT_PC3_RES))
+			BIC_PRESENT(BIC_PMT_PC3);
 	}
 
 	if (!quiet)

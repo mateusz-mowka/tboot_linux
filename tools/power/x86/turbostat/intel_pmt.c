@@ -203,5 +203,16 @@ struct pmt_guids pmt_guids_mtl[] = {
 		{ PMT_DIE_LLC, 16, 0, 64 },
 		{ PMT_METRIC_END, 0, 0, 0 }
 	}},
+	{ "0x130671b2", PMT_METRIC_ARR_TO_PTR {
+		{ PMT_PC2_RES, 30, 0, 64 },
+		{ PMT_PC2R_RES, 31, 0, 64 },
+		{ PMT_PC3_RES, 32, 0, 64 },
+		{ PMT_PC6_RES, 33, 0, 64 },
+		{ PMT_PC7_RES, 34, 0, 64 },
+		{ PMT_PC8_RES, 35, 0, 64 },
+		{ PMT_PC9_RES, 36, 0, 64 },
+		{ PMT_PC10_RES, 37, 0, 64 },
+		{ PMT_METRIC_END, 0, 0, 0 }
+	}},
 	{},
 };
