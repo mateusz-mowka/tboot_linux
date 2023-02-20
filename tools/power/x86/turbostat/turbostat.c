@@ -73,7 +73,7 @@ struct msr_counter {
 #define	SYSFS_PERCPU	(1 << 1)
 };
 
-struct msr_counter bic[] = {
+struct msr_counter bic0[] = {
 	{ 0x0, "usec", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "Time_Of_Day_Seconds", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "Package", "", 0, 0, 0, NULL, 0 },
@@ -140,7 +140,13 @@ struct msr_counter bic[] = {
 	{ 0x0, "PMT%pc3", "", 0, 0, 0, NULL, 0 },
 };
 
-#define MAX_BIC (sizeof(bic) / sizeof(struct msr_counter))
+static inline unsigned int max_bic(int num) {
+	if (num == 0)
+		return sizeof(bic0) / sizeof(struct msr_counter);
+	else
+		return 0;
+};
+
 #define	BIC_USEC	(1ULL << 0)
 #define	BIC_TOD		(1ULL << 1)
 #define	BIC_Package	(1ULL << 2)
@@ -214,15 +220,15 @@ struct msr_counter bic[] = {
 
 #define BIC_DISABLED_BY_DEFAULT	(BIC_USEC | BIC_TOD | BIC_APIC | BIC_X2APIC)
 
-unsigned long long bic_enabled = (0xFFFFFFFFFFFFFFFFULL & ~BIC_DISABLED_BY_DEFAULT);
-unsigned long long bic_present = BIC_USEC | BIC_TOD | BIC_sysfs | BIC_APIC | BIC_X2APIC;
+unsigned long long bic0_enabled = (0xFFFFFFFFFFFFFFFFULL & ~BIC_DISABLED_BY_DEFAULT);
+unsigned long long bic0_present = BIC_USEC | BIC_TOD | BIC_sysfs | BIC_APIC | BIC_X2APIC;
 
-#define DO_BIC(COUNTER_NAME) (bic_enabled & bic_present & COUNTER_NAME)
-#define DO_BIC_READ(COUNTER_NAME) (bic_present & COUNTER_NAME)
-#define ENABLE_BIC(COUNTER_NAME) (bic_enabled |= COUNTER_NAME)
-#define BIC_PRESENT(COUNTER_BIT) (bic_present |= COUNTER_BIT)
-#define BIC_NOT_PRESENT(COUNTER_BIT) (bic_present &= ~COUNTER_BIT)
-#define BIC_IS_ENABLED(COUNTER_BIT) (bic_enabled & COUNTER_BIT)
+#define DO_BIC(COUNTER_NAME) (bic0_enabled & bic0_present & COUNTER_NAME)
+#define DO_BIC_READ(COUNTER_NAME) (bic0_present & COUNTER_NAME)
+#define ENABLE_BIC(COUNTER_NAME) (bic0_enabled |= COUNTER_NAME)
+#define BIC_PRESENT(COUNTER_BIT) (bic0_present |= COUNTER_BIT)
+#define BIC_NOT_PRESENT(COUNTER_BIT) (bic0_present &= ~COUNTER_BIT)
+#define BIC_IS_ENABLED(COUNTER_BIT) (bic0_enabled & COUNTER_BIT)
 
 char *proc_stat = "/proc/stat";
 FILE *outf;
@@ -787,10 +793,16 @@ void help(void)
  * for all the strings in comma separate name_list,
  * set the approprate bit in return value.
  */
-unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode)
+unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode, int num)
 {
 	unsigned int i;
 	unsigned long long retval = 0;
+	struct msr_counter *bic;
+
+	if (num == 0)
+		bic = bic0;
+	else
+		return retval;
 
 	while (name_list) {
 		char *comma;
@@ -800,7 +812,7 @@ unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode)
 		if (comma)
 			*comma = '\0';
 
-		for (i = 0; i < MAX_BIC; ++i) {
+		for (i = 0; i < max_bic(num); ++i) {
 			if (!strcmp(name_list, bic[i].name)) {
 				retval |= (1ULL << i);
 				break;
@@ -826,7 +838,7 @@ unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode)
 			}
 
 		}
-		if (i == MAX_BIC) {
+		if (i == max_bic(num)) {
 			if (mode == SHOW_LIST) {
 				deferred_add_names[deferred_add_index++] = name_list;
 				if (deferred_add_index >= MAX_DEFERRED) {
@@ -6842,7 +6854,7 @@ void cmdline(int argc, char **argv)
 			break;
 		case 'e':
 			/* --enable specified counter */
-			bic_enabled = bic_enabled | bic_lookup(optarg, SHOW_LIST);
+			bic0_enabled = bic0_enabled | bic_lookup(optarg, SHOW_LIST, 0);
 			break;
 		case 'd':
 			debug++;
@@ -6853,7 +6865,7 @@ void cmdline(int argc, char **argv)
 			 * --hide: do not show those specified
 			 *  multiple invocations simply clear more bits in enabled mask
 			 */
-			bic_enabled &= ~bic_lookup(optarg, HIDE_LIST);
+			bic0_enabled &= ~bic_lookup(optarg, HIDE_LIST, 0);
 			break;
 		case 'h':
 		default:
@@ -6910,9 +6922,9 @@ void cmdline(int argc, char **argv)
 			 *  subsequent invocations can add to it.
 			 */
 			if (shown == 0)
-				bic_enabled = bic_lookup(optarg, SHOW_LIST);
+				bic0_enabled = bic_lookup(optarg, SHOW_LIST, 0);
 			else
-				bic_enabled |= bic_lookup(optarg, SHOW_LIST);
+				bic0_enabled |= bic_lookup(optarg, SHOW_LIST, 0);
 			shown = 1;
 			break;
 		case 'S':
