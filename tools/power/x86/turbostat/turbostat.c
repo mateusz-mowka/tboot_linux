@@ -140,9 +140,19 @@ struct msr_counter bic0[] = {
 	{ 0x0, "PMT%pc3", "", 0, 0, 0, NULL, 0 },
 };
 
+struct msr_counter bic1[] = {
+	{ 0x0, "PMT%pc6", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc7", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc8", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc9", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PM%pc10", "", 0, 0, 0, NULL, 0 },
+};
+
 static inline unsigned int max_bic(int num) {
 	if (num == 0)
 		return sizeof(bic0) / sizeof(struct msr_counter);
+	if (num == 1)
+		return sizeof(bic1) / sizeof(struct msr_counter);
 	else
 		return 0;
 };
@@ -212,6 +222,12 @@ static inline unsigned int max_bic(int num) {
 #define BIC_PMT_PC2R	(1ULL << 62)
 #define BIC_PMT_PC3	(1ULL << 63)
 
+#define BIC1_PMT_PC6	(1ULL << 0)
+#define BIC1_PMT_PC7	(1ULL << 1)
+#define BIC1_PMT_PC8	(1ULL << 2)
+#define BIC1_PMT_PC9	(1ULL << 3)
+#define BIC1_PMT_PC10	(1ULL << 4)
+
 #define BIC_TOPOLOGY (BIC_Package | BIC_Node | BIC_CoreCnt | BIC_PkgCnt | BIC_Core | BIC_CPU | BIC_Die )
 #define BIC_THERMAL_PWR ( BIC_CoreTmp | BIC_PkgTmp | BIC_PkgWatt | BIC_CorWatt | BIC_GFXWatt | BIC_RAMWatt | BIC_PKG__ | BIC_RAM__)
 #define BIC_FREQUENCY ( BIC_Avg_MHz | BIC_Busy | BIC_Bzy_MHz | BIC_TSC_MHz | BIC_GFXMHz | BIC_GFXACTMHz | BIC_UNCORE_MHZ)
@@ -222,6 +238,8 @@ static inline unsigned int max_bic(int num) {
 
 unsigned long long bic0_enabled = (0xFFFFFFFFFFFFFFFFULL & ~BIC_DISABLED_BY_DEFAULT);
 unsigned long long bic0_present = BIC_USEC | BIC_TOD | BIC_sysfs | BIC_APIC | BIC_X2APIC;
+unsigned long long bic1_enabled = 0xFFFFFFFFFFFFFFFFULL;
+unsigned long long bic1_present = 0;
 
 #define DO_BIC(COUNTER_NAME) (bic0_enabled & bic0_present & COUNTER_NAME)
 #define DO_BIC_READ(COUNTER_NAME) (bic0_present & COUNTER_NAME)
@@ -229,6 +247,9 @@ unsigned long long bic0_present = BIC_USEC | BIC_TOD | BIC_sysfs | BIC_APIC | BI
 #define BIC_PRESENT(COUNTER_BIT) (bic0_present |= COUNTER_BIT)
 #define BIC_NOT_PRESENT(COUNTER_BIT) (bic0_present &= ~COUNTER_BIT)
 #define BIC_IS_ENABLED(COUNTER_BIT) (bic0_enabled & COUNTER_BIT)
+
+#define DO_BIC1(COUNTER_NAME) (bic1_enabled & bic1_present & COUNTER_NAME)
+#define BIC1_PRESENT(COUNTER_BIT) (bic1_present |= COUNTER_BIT)
 
 char *proc_stat = "/proc/stat";
 FILE *outf;
@@ -416,6 +437,11 @@ struct pkg_data {
 	unsigned long long pmt_pc2;
 	unsigned long long pmt_pc2r;
 	unsigned long long pmt_pc3;
+	unsigned long long pmt_pc6;
+	unsigned long long pmt_pc7;
+	unsigned long long pmt_pc8;
+	unsigned long long pmt_pc9;
+	unsigned long long pmt_pc10;
 	unsigned long long cpu_lpi;
 	unsigned long long sys_lpi;
 	unsigned long long pkg_wtd_core_c0;
@@ -801,6 +827,8 @@ unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode, int num
 
 	if (num == 0)
 		bic = bic0;
+	else if (num == 1)
+		bic = bic1;
 	else
 		return retval;
 
@@ -838,7 +866,7 @@ unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode, int num
 			}
 
 		}
-		if (i == max_bic(num)) {
+		if (i == 64) {
 			if (mode == SHOW_LIST) {
 				deferred_add_names[deferred_add_index++] = name_list;
 				if (deferred_add_index >= MAX_DEFERRED) {
@@ -859,6 +887,9 @@ unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode, int num
 				}
 			}
 		}
+
+		if (comma)
+			*comma = ',';
 
 		name_list = comma;
 		if (name_list)
@@ -1026,6 +1057,16 @@ void print_header(char *delim)
 		outp += sprintf(outp, "%sPM%%pc2r", (printed++ ? delim : ""));
 	if (DO_BIC(BIC_PMT_PC3))
 		outp += sprintf(outp, "%sPMT%%pc3", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC6))
+		outp += sprintf(outp, "%sPMT%%pc6", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC7))
+		outp += sprintf(outp, "%sPMT%%pc7", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC8))
+		outp += sprintf(outp, "%sPMT%%pc8", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC9))
+		outp += sprintf(outp, "%sPMT%%pc9", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC10))
+		outp += sprintf(outp, "%sPM%%pc10", (printed++ ? delim : ""));
 
 	if (do_rapl && !rapl_joules) {
 		if (DO_BIC(BIC_PkgWatt))
@@ -1157,6 +1198,16 @@ int dump_counters(struct thread_data *t, struct core_data *c, struct pkg_data *p
 			outp += sprintf(outp, "PMT pc2r: %016llX\n", p->pmt_pc2r);
 		if (DO_BIC(BIC_PMT_PC3))
 			outp += sprintf(outp, "PMT pc3: %016llX\n", p->pmt_pc3);
+		if (DO_BIC1(BIC1_PMT_PC6))
+			outp += sprintf(outp, "PMT pc6: %016llX\n", p->pmt_pc6);
+		if (DO_BIC1(BIC1_PMT_PC7))
+			outp += sprintf(outp, "PMT pc7: %016llX\n", p->pmt_pc7);
+		if (DO_BIC1(BIC1_PMT_PC8))
+			outp += sprintf(outp, "PMT pc8: %016llX\n", p->pmt_pc8);
+		if (DO_BIC1(BIC1_PMT_PC9))
+			outp += sprintf(outp, "PMT pc9: %016llX\n", p->pmt_pc9);
+		if (DO_BIC1(BIC1_PMT_PC10))
+			outp += sprintf(outp, "PMT pc10: %016llX\n", p->pmt_pc10);
 
 		outp += sprintf(outp, "Joules PKG: %0llX\n", p->energy_pkg);
 		outp += sprintf(outp, "Joules COR: %0llX\n", p->energy_cores);
@@ -1452,6 +1503,16 @@ int format_counters(struct thread_data *t, struct core_data *c, struct pkg_data 
 		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc2r / p->pmt_xtal);
 	if (DO_BIC(BIC_PMT_PC3))
 		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc3 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC6))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc6 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC7))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc7 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC8))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc8 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC9))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc9 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC10))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc10 / p->pmt_xtal);
 
 	if (DO_BIC(BIC_PkgWatt))
 		outp +=
@@ -1602,6 +1663,16 @@ int delta_package(struct pkg_data *new, struct pkg_data *old)
 		old->pmt_pc2r = new->pmt_pc2r - old->pmt_pc2r;
 	if (DO_BIC(BIC_PMT_PC3))
 		old->pmt_pc3 = new->pmt_pc3 - old->pmt_pc3;
+	if (DO_BIC1(BIC1_PMT_PC6))
+		old->pmt_pc6 = new->pmt_pc6 - old->pmt_pc6;
+	if (DO_BIC1(BIC1_PMT_PC7))
+		old->pmt_pc7 = new->pmt_pc7 - old->pmt_pc7;
+	if (DO_BIC1(BIC1_PMT_PC8))
+		old->pmt_pc8 = new->pmt_pc8 - old->pmt_pc8;
+	if (DO_BIC1(BIC1_PMT_PC9))
+		old->pmt_pc9 = new->pmt_pc9 - old->pmt_pc9;
+	if (DO_BIC1(BIC1_PMT_PC10))
+		old->pmt_pc10 = new->pmt_pc10 - old->pmt_pc10;
 
 	old->pkg_temp_c = new->pkg_temp_c;
 
@@ -1832,6 +1903,11 @@ void clear_counters(struct thread_data *t, struct core_data *c, struct pkg_data 
 	p->pmt_pc2 = 0;
 	p->pmt_pc2r = 0;
 	p->pmt_pc3 = 0;
+	p->pmt_pc6 = 0;
+	p->pmt_pc7 = 0;
+	p->pmt_pc8 = 0;
+	p->pmt_pc9 = 0;
+	p->pmt_pc10 = 0;
 
 	p->energy_pkg = 0;
 	p->energy_dram = 0;
@@ -1957,6 +2033,16 @@ int sum_counters(struct thread_data *t, struct core_data *c, struct pkg_data *p)
 		average.packages.pmt_pc2r = p->pmt_pc2r;
 	if (DO_BIC(BIC_PMT_PC3))
 		average.packages.pmt_pc3 += p->pmt_pc3;
+	if (DO_BIC1(BIC1_PMT_PC6))
+		average.packages.pmt_pc6 += p->pmt_pc6;
+	if (DO_BIC1(BIC1_PMT_PC7))
+		average.packages.pmt_pc7 += p->pmt_pc7;
+	if (DO_BIC1(BIC1_PMT_PC8))
+		average.packages.pmt_pc8 += p->pmt_pc8;
+	if (DO_BIC1(BIC1_PMT_PC9))
+		average.packages.pmt_pc9 += p->pmt_pc9;
+	if (DO_BIC1(BIC1_PMT_PC10))
+		average.packages.pmt_pc10 += p->pmt_pc10;
 
 	average.packages.energy_pkg += p->energy_pkg;
 	average.packages.energy_dram += p->energy_dram;
@@ -2461,6 +2547,16 @@ retry:
 		pmt_read_metric(PMT_PC2R_RES, &p->pmt_pc2r);
 	if (DO_BIC(BIC_PMT_PC3))
 		pmt_read_metric(PMT_PC3_RES, &p->pmt_pc3);
+	if (DO_BIC1(BIC1_PMT_PC6))
+		pmt_read_metric(PMT_PC6_RES, &p->pmt_pc6);
+	if (DO_BIC1(BIC1_PMT_PC7))
+		pmt_read_metric(PMT_PC7_RES, &p->pmt_pc7);
+	if (DO_BIC1(BIC1_PMT_PC8))
+		pmt_read_metric(PMT_PC8_RES, &p->pmt_pc8);
+	if (DO_BIC1(BIC1_PMT_PC9))
+		pmt_read_metric(PMT_PC9_RES, &p->pmt_pc9);
+	if (DO_BIC1(BIC1_PMT_PC10))
+		pmt_read_metric(PMT_PC10_RES, &p->pmt_pc10);
 
 	if (do_rapl & RAPL_PKG) {
 		if (get_msr_sum(cpu, MSR_PKG_ENERGY_STATUS, &msr))
@@ -6003,6 +6099,16 @@ void process_cpuid()
 			BIC_PRESENT(BIC_PMT_PC2R);
 		if (pmt_table_has(PMT_PC3_RES))
 			BIC_PRESENT(BIC_PMT_PC3);
+		if (pmt_table_has(PMT_PC6_RES))
+			BIC1_PRESENT(BIC1_PMT_PC6);
+		if (pmt_table_has(PMT_PC7_RES))
+			BIC1_PRESENT(BIC1_PMT_PC7);
+		if (pmt_table_has(PMT_PC8_RES))
+			BIC1_PRESENT(BIC1_PMT_PC8);
+		if (pmt_table_has(PMT_PC9_RES))
+			BIC1_PRESENT(BIC1_PMT_PC9);
+		if (pmt_table_has(PMT_PC10_RES))
+			BIC1_PRESENT(BIC1_PMT_PC10);
 	}
 
 	if (!quiet)
@@ -6855,6 +6961,7 @@ void cmdline(int argc, char **argv)
 		case 'e':
 			/* --enable specified counter */
 			bic0_enabled = bic0_enabled | bic_lookup(optarg, SHOW_LIST, 0);
+			bic1_enabled = bic1_enabled | bic_lookup(optarg, SHOW_LIST, 1);
 			break;
 		case 'd':
 			debug++;
@@ -6866,6 +6973,7 @@ void cmdline(int argc, char **argv)
 			 *  multiple invocations simply clear more bits in enabled mask
 			 */
 			bic0_enabled &= ~bic_lookup(optarg, HIDE_LIST, 0);
+			bic1_enabled &= ~bic_lookup(optarg, HIDE_LIST, 1);
 			break;
 		case 'h':
 		default:
@@ -6921,10 +7029,13 @@ void cmdline(int argc, char **argv)
 			 *  The 1st invocation will clear and replace the enabled mask
 			 *  subsequent invocations can add to it.
 			 */
-			if (shown == 0)
+			if (shown == 0) {
 				bic0_enabled = bic_lookup(optarg, SHOW_LIST, 0);
-			else
+				bic1_enabled = bic_lookup(optarg, SHOW_LIST, 1);
+			} else {
 				bic0_enabled |= bic_lookup(optarg, SHOW_LIST, 0);
+				bic1_enabled |= bic_lookup(optarg, SHOW_LIST, 1);
+			}
 			shown = 1;
 			break;
 		case 'S':
