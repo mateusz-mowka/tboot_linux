@@ -1293,13 +1293,6 @@ int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain,
 	if (ret)
 		return ret;
 
-	if (ops->msi_alloc_store) {
-//		ret = ops->msi_alloc_store(domain, dev, nvec);
-		ret = ops->msi_alloc_store(domain, dev, ctrl->nirqs);
-		if (ret)
-			return ret;
-	}
-
 	/*
 	 * This flag is set by the PCI layer as we need to activate
 	 * the MSI entries before the PCI layer enables MSI in the
@@ -1558,7 +1551,6 @@ static void __msi_domain_free_irqs(struct device *dev, struct irq_domain *domain
 	struct irq_data *irqd;
 	struct msi_desc *desc;
 	unsigned long idx;
-	struct msi_domain_ops *ops = info->ops;
 	int i;
 
 	xa_for_each_range(xa, idx, desc, ctrl->first, ctrl->last) {
@@ -1578,9 +1570,6 @@ static void __msi_domain_free_irqs(struct device *dev, struct irq_domain *domain
 			msi_sysfs_remove_desc(dev, desc);
 		desc->irq = 0;
 	}
-
-	if (ops->msi_free_store)
-		ops->msi_free_store(domain, dev);
 }
 
 static void msi_domain_free_locked(struct device *dev, struct msi_ctrl *ctrl)
