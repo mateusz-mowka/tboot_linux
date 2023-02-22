@@ -161,10 +161,11 @@ static struct class intel_pmt_class = {
 
 static int intel_pmt_populate_entry(struct intel_pmt_entry *entry,
 				    struct intel_pmt_header *header,
-				    struct device *dev,
+				    struct intel_vsec_device *intel_vsec_dev,
 				    struct resource *disc_res)
 {
-	struct pci_dev *pci_dev = to_pci_dev(dev->parent);
+	struct pci_dev *pci_dev = intel_vsec_dev->pcidev;
+	struct device *dev = &intel_vsec_dev->auxdev.dev;
 	u8 bir;
 
 	/*
@@ -216,6 +217,12 @@ static int intel_pmt_populate_entry(struct intel_pmt_entry *entry,
 
 		break;
 	case ACCESS_BARID:
+		if (intel_vsec_dev->info->base_addr) {
+			entry->base_addr = intel_vsec_dev->info->base_addr +
+				   GET_ADDRESS(header->base_offset);
+			break;
+		}
+
 		/*
 		 * If another BAR was specified then the base offset
 		 * represents the offset within that BAR. SO retrieve the
@@ -223,6 +230,8 @@ static int intel_pmt_populate_entry(struct intel_pmt_entry *entry,
 		 */
 		entry->base_addr = pci_resource_start(pci_dev, bir) +
 				   GET_ADDRESS(header->base_offset);
+
+
 		break;
 	default:
 		dev_err(dev, "Unsupported access type %d\n",
@@ -320,7 +329,7 @@ int intel_pmt_dev_create(struct intel_pmt_entry *entry, struct intel_pmt_namespa
 	if (ret)
 		return ret;
 
-	ret = intel_pmt_populate_entry(entry, &header, dev, disc_res);
+	ret = intel_pmt_populate_entry(entry, &header, intel_vsec_dev, disc_res);
 	if (ret)
 		return ret;
 
