@@ -19,7 +19,6 @@
 
 #include "internals.h"
 
-#if 0
 /**
  * struct msi_ctrl - MSI internal management control structure
  * @domid:	ID of the domain on which management operations should be done
@@ -34,7 +33,6 @@ struct msi_ctrl {
 	unsigned int			last;
 	unsigned int			nirqs;
 };
-#endif
 
 /* Invalid Xarray index which is outside of any searchable range */
 #define MSI_XA_MAX_INDEX	(ULONG_MAX - 1)
@@ -1277,7 +1275,7 @@ static int msi_init_virq(struct irq_domain *domain, int virq, unsigned int vflag
 	return 0;
 }
 
-int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain,
+static int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain,
 				   struct msi_ctrl *ctrl)
 {
 	struct xarray *xa = &dev->msi.data->__domains[ctrl->domid].store;
