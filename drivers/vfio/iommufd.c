@@ -83,6 +83,7 @@ int vfio_iommufd_physical_bind(struct vfio_device *vdev,
 	if (IS_ERR(idev))
 		return PTR_ERR(idev);
 	vdev->iommufd_device = idev;
+	xa_init_flags(&vdev->pasid_xa, XA_FLAGS_ALLOC | XA_FLAGS_ACCOUNT);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(vfio_iommufd_physical_bind);
