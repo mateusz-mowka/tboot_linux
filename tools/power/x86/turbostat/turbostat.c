@@ -427,6 +427,7 @@ struct pkg_data {
 	unsigned long long pc8;
 	unsigned long long pc9;
 	unsigned long long pc10;
+	unsigned long long pmt_socn_xtal;
 	unsigned long long pmt_xtal;
 	unsigned long long die_llc;
 	unsigned long long die_c2_1;
@@ -1488,6 +1489,15 @@ int format_counters(struct thread_data *t, struct core_data *c, struct pkg_data 
 		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->die_c3_2 / p->pmt_xtal);
 	if (DO_BIC(BIC_Die_C6))
 		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->die_c6 / p->pmt_xtal);
+	if (debug) {
+		puts("*******************************");
+		printf("core: %u\n", t->cpu_id);
+		printf("crystal hz: %u\n", crystal_hz);
+		printf("interval s: %.2f\n", interval_float);
+		printf("calc crystal ticks: %.0f\n", crystal_hz * interval_float);
+		printf("cdie xtal ticks:    %lld\n", p->pmt_xtal);
+		printf("socn xtal ticks:    %lld\n", p->pmt_socn_xtal);
+	}
 
 	if (DO_BIC(BIC_CPU_LPI))
 		outp +=
@@ -1639,8 +1649,10 @@ int delta_package(struct pkg_data *new, struct pkg_data *old)
 	old->pc9 = new->pc9 - old->pc9;
 	old->pc10 = new->pc10 - old->pc10;
 
-	if (pmt_table_has(PMT_XTAL))
+	if (pmt_table_has(PMT_XTAL)) {
+		old->pmt_socn_xtal = new->pmt_socn_xtal - old->pmt_socn_xtal;
 		old->pmt_xtal = new->pmt_xtal - old->pmt_xtal;
+	}
 	if (DO_BIC(BIC_Die_LLC_Flush))
 		old->die_llc = new->die_llc - old->die_llc;
 	if (DO_BIC(BIC_Die_C2_1))
@@ -1890,6 +1902,7 @@ void clear_counters(struct thread_data *t, struct core_data *c, struct pkg_data 
 	p->pc9 = 0;
 	p->pc10 = 0;
 
+	p->pmt_socn_xtal = 0;
 	p->pmt_xtal = 0;
 	p->die_llc = 0;
 	p->die_c2_1 = 0;
@@ -2009,8 +2022,10 @@ int sum_counters(struct thread_data *t, struct core_data *c, struct pkg_data *p)
 	average.packages.pc9 += p->pc9;
 	average.packages.pc10 += p->pc10;
 
-	if (pmt_table_has(PMT_XTAL))
+	if (pmt_table_has(PMT_XTAL)) {
+		average.packages.pmt_socn_xtal += p->pmt_socn_xtal;
 		average.packages.pmt_xtal += p->pmt_xtal;
+	}
 	if (DO_BIC(BIC_Die_LLC_Flush))
 		average.packages.die_llc += p->die_llc;
 	if (DO_BIC(BIC_Die_C2_1))
@@ -2521,8 +2536,10 @@ retry:
 		if (get_msr(cpu, MSR_PKG_C10_RESIDENCY, &p->pc10))
 			return -13;
 
-	if (pmt_table_has(PMT_XTAL))
+	if (pmt_table_has(PMT_XTAL)) {
+		pmt_read_metric(PMT_SOCN_XTAL, &p->pmt_socn_xtal);
 		pmt_read_metric(PMT_XTAL, &p->pmt_xtal);
+	}
 	if (DO_BIC(BIC_Die_LLC_Flush))
 		pmt_read_metric(PMT_DIE_LLC, &p->die_llc);
 	if (DO_BIC(BIC_Die_C2_1))

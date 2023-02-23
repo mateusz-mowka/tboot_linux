@@ -7,6 +7,7 @@
 
 enum pmt_metric_index {
 	PMT_XTAL,
+	PMT_SOCN_XTAL,
 	PMT_DIE_LLC,
 	PMT_DIE_C2p1,
 	PMT_DIE_C2p2,

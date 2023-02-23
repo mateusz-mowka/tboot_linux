@@ -228,6 +228,7 @@ struct pmt_guids pmt_guids_mtl[] = {
 		{ PMT_METRIC_END, 0, 0, 0 }
 	}},
 	{ "0x130671b2", PMT_METRIC_ARR_TO_PTR {
+		{ PMT_SOCN_XTAL, 1, 0, 64 },
 		{ PMT_PC2_RES, 30, 0, 64 },
 		{ PMT_PC2R_RES, 31, 0, 64 },
 		{ PMT_PC3_RES, 32, 0, 64 },
