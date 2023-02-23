@@ -349,7 +349,6 @@ void vfio_virqfd_disable(struct virqfd **pvirqfd);
 
 extern void vfio_device_set_pasid(struct vfio_device *device, u32 pasid);
 extern u32 vfio_device_get_pasid(struct vfio_device *device);
-extern void vfio_device_set_msi_domain(struct vfio_device *device, struct irq_domain *domain);
 
 /* common lib functions */
 extern int vfio_set_ctx_trigger_single(struct eventfd_ctx **ctx,
