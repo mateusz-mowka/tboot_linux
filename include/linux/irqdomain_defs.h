@@ -26,7 +26,6 @@ enum irq_domain_bus_token {
 	DOMAIN_BUS_DMAR,
 	DOMAIN_BUS_AMDVI,
 	DOMAIN_BUS_PCI_DEVICE_IMS,
-	DOMAIN_BUS_DEVICE_MSI,
 };
 
 #endif /* _LINUX_IRQDOMAIN_DEFS_H */
