@@ -159,7 +159,6 @@ bool pci_dev_has_default_msi_parent_domain(struct pci_dev *dev)
 	return domain == x86_vector_domain;
 }
 
-#if 0
 /**
  * x86_msi_prepare - Setup of msi_alloc_info_t for allocations
  * @domain:	The domain for which this setup happens
@@ -192,7 +191,6 @@ static int x86_msi_prepare(struct irq_domain *domain, struct device *dev,
 		return -EINVAL;
 	}
 }
-#endif
 
 /**
  * x86_init_dev_msi_info - Domain info setup for MSI domains
@@ -284,38 +282,19 @@ void __init x86_create_pci_msi_domain(void)
 	x86_pci_msi_default_domain = x86_init.irqs.create_pci_msi_domain();
 }
 
-void pci_msi_prepare(struct device *dev, msi_alloc_info_t *arg)
-{
-	init_irq_alloc_info(arg, NULL);
-
-        if (to_pci_dev(dev)->msix_enabled) {
-                arg->type = X86_IRQ_ALLOC_TYPE_PCI_MSIX;
-	} else {
-		arg->type = X86_IRQ_ALLOC_TYPE_PCI_MSI;
-//		arg->flags |= X86_IRQ_ALLOC_CONTIGUOUS_VECTORS;
-	}
-}
-EXPORT_SYMBOL_GPL(pci_msi_prepare);
-
-static void dev_msi_prepare(struct device *dev, msi_alloc_info_t *arg)
-{
-	arg->type = X86_IRQ_ALLOC_TYPE_DEV_MSI;
-}
-
 /* Keep around for hyperV */
-int x86_msi_prepare(struct irq_domain *domain, struct device *dev, int nvec,
+int pci_msi_prepare(struct irq_domain *domain, struct device *dev, int nvec,
 		    msi_alloc_info_t *arg)
 {
 	init_irq_alloc_info(arg, NULL);
 
-	if (dev_is_pci(dev))
-		pci_msi_prepare(dev, arg);
+	if (to_pci_dev(dev)->msix_enabled)
+		arg->type = X86_IRQ_ALLOC_TYPE_PCI_MSIX;
 	else
-		dev_msi_prepare(dev, arg);
-
+		arg->type = X86_IRQ_ALLOC_TYPE_PCI_MSI;
 	return 0;
 }
-EXPORT_SYMBOL_GPL(x86_msi_prepare);
+EXPORT_SYMBOL_GPL(pci_msi_prepare);
 
 #ifdef CONFIG_DMAR_TABLE
 /*
