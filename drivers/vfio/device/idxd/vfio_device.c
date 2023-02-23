@@ -2246,9 +2246,6 @@ static int idxd_vfio_dev_drv_probe(struct idxd_dev *idxd_dev)
 	vidxd->parent = idxd_dev;
         vidxd->num_wqs = VIDXD_MAX_WQS;
 
-	/* Set the IMS domain to the vfio_device 'struct device' */
-	vfio_device_set_msi_domain(&vidxd->vdev, wq->idxd->ims_domain);
-
 	rc = vfio_register_emulated_iommu_dev(&vidxd->vdev);
 	if (rc < 0)
 		goto err_vfio_register;

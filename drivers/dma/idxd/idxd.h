@@ -333,8 +333,6 @@ struct idxd_device {
 	struct idxd_pmu *idxd_pmu;
 
 	unsigned long *opcap_bmap;
-
-	struct irq_domain *ims_domain;
 	struct mutex vdev_lock;
 	struct ida vdev_ida;
 	struct vdev_device_ops *vdev_ops;
