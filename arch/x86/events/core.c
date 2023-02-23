@@ -1166,7 +1166,7 @@ static int collect_events(struct cpu_hw_events *cpuc, struct perf_event *leader,
 	int num_counters = hybrid(cpuc->pmu, num_counters);
 	int num_counters_fixed = hybrid(cpuc->pmu, num_counters_fixed);
 	struct perf_event *event;
-	int i, n, max_count;
+	int n, max_count;
 
 	max_count = num_counters + num_counters_fixed;
 
@@ -1193,16 +1193,6 @@ static int collect_events(struct cpu_hw_events *cpuc, struct perf_event *leader,
 				return -EINVAL;
 
 			cpuc->pebs_output = is_pebs_pt(leader) + 1;
-		}
-
-		/*
-		 * Only support one active group with branch events
-		 */
-		if (leader->attr.branch_events) {
-			for (i = 0; i < cpuc->n_events; i++) {
-				if (cpuc->event_list[i]->group_leader != leader->group_leader)
-					return -EINVAL;
-			}
 		}
 	}
 
