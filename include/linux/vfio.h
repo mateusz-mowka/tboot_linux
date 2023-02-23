@@ -45,12 +45,13 @@ struct vfio_ims_entry {
 	char *name;
 	bool ims;
 	int ims_id;
+	int virq;
+	u32 pasid;
 };
 
 struct vfio_ims {
 	struct vfio_ims_entry *ims_entries;
 	int num;
-	int ims_num;
 	int irq_type;
 	bool ims_en;
 };
@@ -366,14 +367,14 @@ extern void vfio_device_request(struct vfio_device *vdev, unsigned int count);
 #if IS_ENABLED(CONFIG_VFIO_IMS)
 int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
 			 unsigned int start, unsigned int count, u32 flags,
-			 void *data);
+			 void *data, struct pci_dev *pdev);
 void vfio_ims_send_signal(struct vfio_device *vdev, int vector);
 int vfio_ims_init(struct vfio_device *vdev, int num, bool *ims_map);
 void vfio_ims_free(struct vfio_device *vdev);
 #else
 static inline int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
 				       unsigned int start, unsigned int count, u32 flags,
-				       void *data)
+				       void *data, struct pci_dev *pdev)
 {
 	return -EOPNOTSUPP;
 }

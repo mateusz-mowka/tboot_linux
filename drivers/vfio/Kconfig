@@ -73,7 +73,6 @@ config VFIO_VIRQFD
 config VFIO_IMS
 	tristate "VFIO common lib code supporting Interrupt Message Store (IMS)"
 	depends on VFIO && EVENTFD
-	select IMS_MSI_ARRAY
 	select IRQ_BYPASS_MANAGER
 	default n
 	help

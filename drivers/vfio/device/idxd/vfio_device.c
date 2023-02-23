@@ -560,7 +560,8 @@ static int idxd_vdcm_set_irqs(struct vdcm_idxd *vidxd, uint32_t flags,
 			break;
 		case VFIO_IRQ_SET_ACTION_TRIGGER:
 			return vfio_set_ims_trigger(&vidxd->vdev, index, start,
-						    count, flags, data);
+						    count, flags, data,
+						    vidxd->wq->idxd->pdev);
 		}
 		break;
 	case VFIO_PCI_REQ_IRQ_INDEX:

@@ -11,10 +11,10 @@
 #include <linux/slab.h>
 #include <linux/device.h>
 #include <linux/interrupt.h>
-#include <linux/irqchip/irq-ims-msi.h>
 #include <linux/eventfd.h>
 #include <linux/irqreturn.h>
-#include <linux/msi.h>
+#include <linux/irqchip/irq-pci-intel-idxd.h>
+#include <linux/pci.h>
 #include <linux/vfio.h>
 #include <linux/irqbypass.h>
 #include <linux/mdev.h>
@@ -48,15 +48,17 @@ void vfio_ims_send_signal(struct vfio_device *vdev, int vector)
 }
 EXPORT_SYMBOL_GPL(vfio_ims_send_signal);
 
-static int vfio_ims_set_vector_signal(struct vfio_ims *ims, int vector, int fd)
+static int vfio_ims_set_vector_signal(struct vfio_ims *ims, int vector, int fd,
+				      struct pci_dev *pdev)
 {
 	int rc, irq;
 	struct vfio_device *vdev = ims_to_vdev(ims);
 	struct vfio_ims_entry *entry;
 	struct device *dev = &vdev->device;
 	struct eventfd_ctx *trigger;
+	struct msi_map irq_map = {};
 	char *name;
-	u64 auxval;
+	u32 pasid;
 
 	if (vector < 0 || vector >= ims->num)
 		return -EINVAL;
@@ -68,7 +70,7 @@ static int vfio_ims_set_vector_signal(struct vfio_ims *ims, int vector, int fd)
 	 * irq will be set to 0, otherwise it is the Linux irq number.
 	 */
 	if (entry->ims)
-		irq = dev_msi_irq_vector(dev, entry->ims_id);
+		irq = entry->virq;
 	else
 		irq = 0;
 
@@ -102,8 +104,35 @@ static int vfio_ims_set_vector_signal(struct vfio_ims *ims, int vector, int fd)
 	if (!irq)
 		return 0;
 
-	auxval = ims_ctrl_pasid_aux(vfio_device_get_pasid(vdev), true);
-	irq_set_auxdata(irq, IMS_AUXDATA_CONTROL_WORD, auxval);
+	pasid = vfio_device_get_pasid(vdev);
+
+	if (entry->pasid != pasid) {
+		irq_map.index = entry->ims_id;
+		irq_map.virq = entry->virq;
+		dev_dbg(&vdev->device, "Freeing IMS interrupt %d virq %d\n",
+				irq_map.index, irq_map.virq);
+		pci_ims_free_irq(pdev, irq_map);
+		entry->ims_id = -EINVAL;
+		entry->virq = 0;
+		entry->pasid = 0;
+
+		irq_map = pci_ims_alloc_irq(pdev,
+				&INTEL_IDXD_DEV_COOKIE(pasid),
+				NULL);
+		if (irq_map.index < 0) {
+			dev_warn(&vdev->device, "Allocating IMS IRQ failed: %d\n",
+				irq_map.index);
+			rc = irq_map.index;
+			goto err;
+		}
+		entry->ims_id = irq_map.index;
+		entry->virq = irq_map.virq;
+		entry->pasid = pasid;
+		dev_dbg(&vdev->device, "Allocated IMS interrupt %d virq %d with pasid %u\n",
+			irq_map.index, irq_map.virq, pasid);
+		irq = entry->virq;
+	}
+
 	rc = request_irq(irq, vfio_ims_irq_handler, 0, name, trigger);
 	if (rc < 0)
 		goto err;
@@ -123,11 +152,12 @@ static int vfio_ims_set_vector_signal(struct vfio_ims *ims, int vector, int fd)
 	kfree(name);
 	eventfd_ctx_put(trigger);
 	entry->trigger = NULL;
+	entry->name = NULL;
 	return rc;
 }
 
 static int vfio_ims_set_vector_signals(struct vfio_ims *ims, unsigned int start,
-					unsigned int count, int *fds)
+					unsigned int count, int *fds, struct pci_dev *pdev)
 {
 	int i, j, rc = 0;
 
@@ -137,25 +167,79 @@ static int vfio_ims_set_vector_signals(struct vfio_ims *ims, unsigned int start,
 	for (i = 0, j = start; j < count && !rc; i++, j++) {
 		int fd = fds ? fds[i] : -1;
 
-		rc = vfio_ims_set_vector_signal(ims, j, fd);
+		rc = vfio_ims_set_vector_signal(ims, j, fd, pdev);
 	}
 
 	if (rc) {
 		for (--j; j >= (int)start; j--)
-			vfio_ims_set_vector_signal(ims, j, -1);
+			vfio_ims_set_vector_signal(ims, j, -1, pdev);
 	}
 
 	return rc;
 }
 
-static int vfio_ims_enable(struct vfio_ims *ims, int nvec)
+static void vfio_ims_irq_free(struct vfio_ims *ims, struct pci_dev *pdev)
 {
 	struct vfio_device *vdev = ims_to_vdev(ims);
-	struct device *dev = &vdev->device;
+	struct msi_map irq_map = {};
+	int i;
+
+	for (i = 0; i < ims->num; i++) {
+		if (ims->ims_entries[i].ims && ims->ims_entries[i].ims_id >= 0) {
+			irq_map.index = ims->ims_entries[i].ims_id;
+			irq_map.virq = ims->ims_entries[i].virq;
+			dev_dbg(&vdev->device, "Freeing IMS interrupt %d virq %d\n",
+				irq_map.index, irq_map.virq);
+			pci_ims_free_irq(pdev, irq_map);
+			ims->ims_entries[i].ims_id = -EINVAL;
+			ims->ims_entries[i].virq = 0;
+			ims->ims_entries[i].pasid = 0;
+		}
+	}
+}
+
+static int vfio_ims_irq_alloc(struct vfio_ims *ims, struct pci_dev *pdev)
+{
+	struct vfio_device *vdev = ims_to_vdev(ims);
+	struct msi_map irq_map = {};
+	int i, ret = 0;
+	u32 pasid;
+
+	for (i = 0; i < ims->num; i++) {
+		if (ims->ims_entries[i].ims) {
+			WARN_ON(ims->ims_entries[i].ims_id >= 0);
+			pasid = vfio_device_get_pasid(vdev);
+			irq_map = pci_ims_alloc_irq(pdev,
+					&INTEL_IDXD_DEV_COOKIE(pasid),
+					NULL);
+			if (irq_map.index < 0) {
+				dev_warn(&vdev->device, "Allocating IMS IRQ failed: %d\n",
+					 irq_map.index);
+				ret = irq_map.index;
+				goto err;
+			}
+			ims->ims_entries[i].ims_id = irq_map.index;
+			ims->ims_entries[i].virq = irq_map.virq;
+			ims->ims_entries[i].pasid = pasid;
+			dev_dbg(&vdev->device, "Allocated IMS interrupt %d virq %d\n",
+				irq_map.index, irq_map.virq);
+		}
+	}
+
+	return 0;
+err:
+	vfio_ims_irq_free(ims, pdev);
+	return ret;
+}
+
+static int vfio_ims_enable(struct vfio_ims *ims, int nvec, struct pci_dev *pdev)
+{
+	struct vfio_device *vdev = ims_to_vdev(ims);
 	int rc;
 
-	if (ims->ims_num && !ims->ims_en) {
-		rc = dev_msi_domain_alloc_irqs(dev_get_msi_domain(dev), dev, ims->ims_num);
+	dev_dbg(&vdev->device, "Enabling IMS ... \n");
+	if (!ims->ims_en) {
+		rc = vfio_ims_irq_alloc(ims, pdev);
 		if (rc < 0)
 			return rc;
 		ims->ims_en = true;
@@ -165,21 +249,13 @@ static int vfio_ims_enable(struct vfio_ims *ims, int nvec)
 	return 0;
 }
 
-static int vfio_ims_disable(struct vfio_ims *ims)
+static int vfio_ims_disable(struct vfio_ims *ims, struct pci_dev *pdev)
 {
 	struct vfio_device *vdev = ims_to_vdev(ims);
-	struct device *dev = &vdev->device;
-	struct irq_domain *irq_domain;
 
-	vfio_ims_set_vector_signals(ims, 0, ims->num, NULL);
-	irq_domain = dev_get_msi_domain(dev);
-
-	if (irq_domain) {
-		struct msi_domain_info *info = msi_get_domain_info(irq_domain);
-
-		info->flags |= MSI_FLAG_FREE_MSI_DESCS;
-		dev_msi_domain_free_irqs(irq_domain, dev);
-	}
+	dev_dbg(&vdev->device, "Disabling IMS ... \n");
+	vfio_ims_set_vector_signals(ims, 0, ims->num, NULL, pdev);
+	vfio_ims_irq_free(ims, pdev);
 	ims->ims_en = false;
 	ims->irq_type = VFIO_PCI_NUM_IRQS;
 	return 0;
@@ -200,7 +276,7 @@ static int vfio_ims_disable(struct vfio_ims *ims)
  */
 int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
 			 unsigned int start, unsigned int count, u32 flags,
-			 void *data)
+			 void *data, struct pci_dev *pdev)
 {
 	struct vfio_ims *ims = &vdev->ims;
 	int i, rc = 0;
@@ -209,7 +285,7 @@ int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
 		count = ims->num;
 
 	if (!count && (flags & VFIO_IRQ_SET_DATA_NONE)) {
-		vfio_ims_disable(ims);
+		vfio_ims_disable(ims, pdev);
 		return 0;
 	}
 
@@ -217,15 +293,15 @@ int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
 		int *fds = data;
 
 		if (ims->irq_type == index)
-			return vfio_ims_set_vector_signals(ims, start, count, fds);
+			return vfio_ims_set_vector_signals(ims, start, count, fds, pdev);
 
-		rc = vfio_ims_enable(ims, start + count);
+		rc = vfio_ims_enable(ims, start + count, pdev);
 		if (rc < 0)
 			return rc;
 
-		rc = vfio_ims_set_vector_signals(ims, start, count, fds);
+		rc = vfio_ims_set_vector_signals(ims, start, count, fds, pdev);
 		if (rc < 0)
-			vfio_ims_disable(ims);
+			vfio_ims_disable(ims, pdev);
 
 		return rc;
 	}
@@ -274,9 +350,9 @@ int vfio_ims_init(struct vfio_device *vdev, int num, bool *ims_map)
 
 	for (i = 0; i < num; i++) {
 		ims->ims_entries[i].ims = ims_map[i];
-		if (ims_map[i]) {
-			ims->ims_entries[i].ims_id = ims->ims_num;
-			ims->ims_num++;
+		if (ims->ims_entries[i].ims) {
+			/* Temporary, to indicate IMS not allocated */
+			ims->ims_entries[i].ims_id = -EINVAL;
 		}
 	}
 
