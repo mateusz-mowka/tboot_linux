@@ -117,6 +117,8 @@ struct kvm_tdx {
 	spinlock_t binding_slot_lock;
 
 	struct tdx_mig_state *mig_state;
+
+	u64 mmio_offset;
 };
 
 union tdx_exit_reason {
@@ -347,6 +349,19 @@ static __always_inline u64 td_tdcs_exec_read64(struct kvm_tdx *kvm_tdx, u32 fiel
 	err = tdh_mng_rd(kvm_tdx->tdr_pa, TDCS_EXEC(field), &out);
 	if (unlikely(err)) {
 		pr_err("TDH_MNG_RD[EXEC.0x%x] failed: 0x%llx\n", field, err);
+		return 0;
+	}
+	return out.r8;
+}
+
+static __always_inline u64 td_tdr_tdxio_read64(struct kvm_tdx *kvm_tdx, u32 field)
+{
+	struct tdx_module_output out;
+	u64 err;
+
+	err = tdh_mng_rd(kvm_tdx->tdr_pa, TDR_TDXIO(field), &out);
+	if (unlikely(err)) {
+		pr_err("TDH_MNG_RD[TDXIO.0x%x] failed: 0x%llx\n", field, err);
 		return 0;
 	}
 	return out.r8;
