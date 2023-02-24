@@ -1175,6 +1175,12 @@ static int pmc_core_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	mutex_destroy(&pmcdev->lock);
 	iounmap(pmcdev->regbase);
+
+	if (pmcdev->ssram_pcidev) {
+		pci_dev_put(pmcdev->ssram_pcidev);
+		pci_disable_device(pmcdev->ssram_pcidev);
+	}
+
 	return 0;
 }
 
