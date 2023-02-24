@@ -372,7 +372,7 @@ static const struct intel_vsec_platform_info dg1_info = {
 
 /* MTL info */
 static const struct intel_vsec_platform_info mtl_info = {
-	.caps = VSEC_CAP_TELEMETRY,
+	.caps = VSEC_CAP_TELEMETRY | VSEC_CAP_WATCHER,
 	.quirks = VSEC_QUIRK_NO_WATCHER | VSEC_QUIRK_NO_CRASHLOG,
 };
 
