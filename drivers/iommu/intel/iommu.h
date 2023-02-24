@@ -646,7 +646,8 @@ struct subdev_domain_info {
 /* PCI domain-device relationship */
 struct device_domain_info {
 	struct list_head link;	/* link to domain siblings */
-	int nested_users;
+	int nested_users;	/* for nested translation */
+	int users;
 	u32 segment;		/* PCI segment number */
 	u8 bus;			/* PCI bus number */
 	u8 devfn;		/* PCI devfn number */
