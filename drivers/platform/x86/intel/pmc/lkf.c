@@ -35,17 +35,20 @@ static const struct pmc_reg_map lkf_reg_map = {
 	.etr3_offset = ETR3_OFFSET,
 };
 
-void lkf_core_configure(struct pmc_dev *pmcdev)
+int lkf_core_init(struct pmc_dev *pmcdev)
 {
+	int ret;
+
+	pmcdev->map = &lkf_reg_map;
+	ret = get_primary_reg_base(pmcdev);
+	if (ret)
+		return ret;
+
 	/* Due to a hardware limitation, the GBE LTR blocks PC10
 	 * when a cable is attached. Tell the PMC to ignore it.
 	 */
 	dev_dbg(&pmcdev->pdev->dev, "ignoring GBE LTR\n");
 	pmc_core_send_ltr_ignore(pmcdev, 3);
-}
 
-void lkf_core_init(struct pmc_dev *pmcdev)
-{
-	pmcdev->map = &lkf_reg_map;
-	pmcdev->core_configure = lkf_core_configure;
+	return ret;
 }
