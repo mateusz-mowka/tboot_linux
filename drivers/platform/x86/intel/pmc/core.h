@@ -306,6 +306,7 @@ struct pmc_reg_map {
 	const u32 lpm_status_offset;
 	const u32 lpm_live_status_offset;
 	const u32 etr3_offset;
+	const u8  *lpm_reg_index;
 };
 
 /**
@@ -398,6 +399,7 @@ extern const struct pmc_reg_map mtl_reg_map;
 extern void pmc_core_get_tgl_lpm_reqs(struct platform_device *pdev);
 extern int pmc_core_send_ltr_ignore(struct pmc_dev *pmcdev, u32 value);
 extern int get_primary_reg_base(struct pmc_dev *pmcdev);
+extern void pmc_core_get_low_power_modes(struct platform_device *pdev);
 
 int spt_core_init(struct pmc_dev *pmcdev);
 int cnp_core_init(struct pmc_dev *pmcdev);

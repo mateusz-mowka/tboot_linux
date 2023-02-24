@@ -21,6 +21,13 @@
 #define SSRAM_PCH_OFFSET	0x60
 #define SSRAM_IOE_OFFSET	0x68
 
+#define SOCS_LPM_REQ_GUID	0x2625030
+#define LPM_REG_INDEX_OFFSET	2
+#define LPM_REG_NUM		28
+#define LPM_SUBSTATE_NUM	1
+
+static const u8 MTL_LPM_REG_INDEX[] = {0, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20};
+
 static struct intel_vsec_header *headers[2];
 
 static struct intel_vsec_header socs_hdr = {
@@ -59,7 +66,56 @@ const struct pmc_reg_map mtl_reg_map = {
 	.lpm_sts = adl_lpm_maps,
 	.lpm_status_offset = MTL_LPM_STATUS_OFFSET,
 	.lpm_live_status_offset = MTL_LPM_LIVE_STATUS_OFFSET,
+	.lpm_reg_index = MTL_LPM_REG_INDEX,
 };
+
+static int pmc_core_get_mtl_lpm_reqs(struct pmc_dev *pmcdev)
+{
+	const u8 *reg_index = pmcdev->map->lpm_reg_index;
+	const int num_maps = pmcdev->map->lpm_num_maps;
+	u32 lpm_size = LPM_MAX_NUM_MODES * num_maps;
+	struct telem_endpoint *ep;
+	struct pci_dev *pcidev = pmcdev->ssram_pcidev;
+	int i, j, mode, map_offset = 0;
+	int ret = 0;
+	u32 *lpm_req_regs;
+
+	if (!pcidev)
+		return -ENODEV;
+
+	ep = pmt_telem_find_and_register_endpoint(pcidev, SOCS_LPM_REQ_GUID, 0);
+	if (IS_ERR(ep)) {
+		dev_err(&pmcdev->pdev->dev, "pmc_core: couldn't get telem endpoint %d", ret);
+		return PTR_ERR(ep);
+	}
+
+	lpm_req_regs = devm_kzalloc(&pmcdev->pdev->dev, lpm_size * sizeof(u32),
+				     GFP_KERNEL);
+
+	for (j = 0, mode = pmcdev->lpm_en_modes[j]; j < pmcdev->num_lpm_modes; j++,
+		 mode = pmcdev->lpm_en_modes[j]) {
+		u32 *ptr;
+
+		ptr = lpm_req_regs;
+		ptr += mode * num_maps;
+		for (i = 0; i < num_maps; ++i) {
+			u8 index = reg_index[i] + LPM_REG_INDEX_OFFSET + map_offset;
+
+			ret = pmt_telem_read32(ep, index, ptr, 1);
+			if (ret) {
+				dev_err(&pmcdev->pdev->dev,
+						"pmc_core: couldn't read 32 bit data %d", ret);
+				return ret;
+			}
+			++ptr;
+		}
+		map_offset += LPM_REG_NUM + LPM_SUBSTATE_NUM;
+	}
+	pmcdev->lpm_req_regs = lpm_req_regs;
+	pmt_telem_unregister_endpoint(ep);
+
+	return ret;
+}
 
 static void
 mtl_pmc_add_pmt(struct pmc_dev *pmcdev, struct pci_dev *pdev, u64 ssram_base,
@@ -119,7 +175,7 @@ static void mtl_pmc_ssram_init(struct pmc_dev *pmcdev)
 	u64 ioe_ssram_base;
 	u64 pch_ssram_base;
 	int ret;
-
+ 
 	pcidev = pci_get_domain_bus_and_slot(0, 0, PCI_DEVFN(20, 2));
 	if (!pcidev) {
 		dev_err(&pmcdev->pdev->dev, "pci_dev is not found.");
@@ -163,6 +219,13 @@ int mtl_core_init(struct pmc_dev *pmcdev)
 		return ret;
 
 	mtl_pmc_ssram_init(pmcdev);
+
+	pmc_core_get_low_power_modes(pmcdev->pdev);
+	ret = pmc_core_get_mtl_lpm_reqs(pmcdev);
+	if (ret) {
+		iounmap(pmcdev->regbase);
+		return ret;
+	}
 
 	/* Due to a hardware limitation, the GBE LTR blocks PC10
 	 * when a cable is attached. Tell the PMC to ignore it.

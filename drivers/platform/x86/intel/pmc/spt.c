@@ -136,6 +136,13 @@ const struct pmc_reg_map spt_reg_map = {
 
 int spt_core_init(struct pmc_dev *pmcdev)
 {
+	int ret;
+
 	pmcdev->map = &spt_reg_map;
-	return get_primary_reg_base(pmcdev);
+	ret = get_primary_reg_base(pmcdev);
+	if (ret)
+		return ret;
+
+	pmc_core_get_low_power_modes(pmcdev->pdev);
+	return ret;
 }
