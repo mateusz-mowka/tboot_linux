@@ -193,6 +193,30 @@ void pmt_read_metric(enum pmt_metric_index metric_idx, unsigned long long *val)
 
 /* MTL GUIDs */
 struct pmt_guids pmt_guids_mtl[] = {
+	/* Rev 3 */
+	{ "0x1a067101", PMT_METRIC_ARR_TO_PTR {
+		{ PMT_XTAL, 0, 0, 64 },
+		{ PMT_DIE_C2p1, 10, 0, 64 },
+		{ PMT_DIE_C2p2, 11, 0, 64 },
+		{ PMT_DIE_C3p1, 12, 0, 64 },
+		{ PMT_DIE_C3p2, 13, 0, 64 },
+		{ PMT_DIE_C6, 14, 0, 64 },
+		{ PMT_DIE_LLC, 15, 0, 64 },
+		{ PMT_METRIC_END, 0, 0, 0 }
+	}},
+	{ "0x130671b1", PMT_METRIC_ARR_TO_PTR {
+		{ PMT_SOCN_XTAL, 1, 0, 64 },
+		{ PMT_PC2_RES, 24, 0, 64 },
+		{ PMT_PC2R_RES, 25, 0, 64 },
+		{ PMT_PC3_RES, 26, 0, 64 },
+		{ PMT_PC6_RES, 27, 0, 64 },
+		{ PMT_PC7_RES, 28, 0, 64 },
+		{ PMT_PC8_RES, 29, 0, 64 },
+		{ PMT_PC9_RES, 30, 0, 64 },
+		{ PMT_PC10_RES, 31, 0, 64 },
+		{ PMT_METRIC_END, 0, 0, 0 }
+	}},
+	/* Rev 4 */
 	{ "0x1a067102", PMT_METRIC_ARR_TO_PTR {
 		{ PMT_XTAL, 0, 0, 64 },
 		{ PMT_DIE_C2p1, 11, 0, 64 },
