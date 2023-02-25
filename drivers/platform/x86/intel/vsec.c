@@ -24,6 +24,7 @@
 
 #include "vsec.h"
 
+#define DRIVER_VERSION			"0.0.1"
 #define PMT_XA_START			0
 #define PMT_XA_MAX			INT_MAX
 #define PMT_XA_LIMIT			XA_LIMIT(PMT_XA_START, PMT_XA_MAX)
@@ -477,3 +478,4 @@ module_pci_driver(intel_vsec_pci_driver);
 MODULE_AUTHOR("David E. Box <david.e.box@linux.intel.com>");
 MODULE_DESCRIPTION("Intel Extended Capabilities auxiliary bus driver");
 MODULE_LICENSE("GPL v2");
+MODULE_VERSION(DRIVER_VERSION);
