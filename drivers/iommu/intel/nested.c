@@ -26,6 +26,23 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 	int ret = 0;
 	unsigned long flags;
 
+	if (!info->domain)
+		info->domain = dmar_domain;
+
+	/*
+	 * Set up device context entry for PASID if not enabled already, one
+	 * strange thing, the intel_iommu_enable_pasid() is supposed to
+	 * be done when calling iommu_dev_enable_feature(, SVA). However,
+	 * without below intel_iommu_enable_pasid(), error is observed.
+	 * "SM: PASID Enable field in Context Entry is clear". @Baolu,
+	 * may you have a look.
+	 */
+	ret = intel_iommu_enable_pasid(iommu, dev);
+	if (ret) {
+		dev_err_ratelimited(dev, "Failed to enable PASID capability, return %d\n", ret);
+		return ret;
+	}
+
 	if (pasid == PASID_RID2PASID && info->domain)
 		device_block_translation(dev);
 
@@ -49,7 +66,6 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 		return ret;
 	}
 
-	info->domain = dmar_domain;
 	spin_lock_irqsave(&dmar_domain->lock, flags);
 	if (++info->nested_users == 1)
 		list_add(&info->link, &dmar_domain->devices);
