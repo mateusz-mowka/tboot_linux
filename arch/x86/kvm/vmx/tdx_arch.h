@@ -202,13 +202,6 @@ enum tdx_ext_exit_qualification_type {
 	NUM_EXT_EXIT_QUAL,
 };
 
-/* The field id used to access the metadata is non-architectural. */
-#define TDX_MD_FID_NOARCH_TDVPS_DETAILS_1_0	0x9100000000000100
-#define TDX_MD_FID_NOARCH_TDVPS_DETAILS_1_5	0x9120000300000021
-#define TDX_MD_FID_NOARCH_TDVPS_DETAILS_2_0	0x9120000300000021
-
-u64 tdx_non_arch_field_switch(u64 field);
-
 /* The field id used to access the metadata. Section 5 of the ABI spec */
 #define TDX_MD_FID_SERVTD_MAX_SERVTDS		0xA100000100000000
 
