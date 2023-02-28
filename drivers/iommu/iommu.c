@@ -1970,10 +1970,15 @@ static void __iommu_group_set_core_domain(struct iommu_group *group)
 	struct iommu_domain *new_domain;
 	int ret;
 
-	if (group->owner)
-		new_domain = group->blocking_domain;
-	else
+	if (!group->owner)
 		new_domain = group->default_domain;
+	else {
+		if (group->domain->type == IOMMU_DOMAIN_NESTED) {
+			ret = __iommu_group_set_domain(group, NULL);
+			WARN(ret, "iommu driver failed to detach from nested domain");
+		}
+		new_domain = group->blocking_domain;
+	}
 
 	ret = __iommu_group_set_domain(group, new_domain);
 	WARN(ret, "iommu driver failed to attach the default/blocking domain");
