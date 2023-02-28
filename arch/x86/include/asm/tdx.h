@@ -239,6 +239,9 @@ u64 __seamcall_io(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10, u64 r11,
 #define TDH_IQINV_REQ			161
 #define TDH_IQINV_PROC			162
 #define TDH_MEM_SHARED_SEPT_WR		163
+#define TDH_DEVIFMT_ADD			164
+#define TDH_DEVIFMT_REMOVE		165
+#define TDH_DEVIFMT_RD			166
 
 /* Temp solution, copied from tdx_error.h */
 #define TDX_INTERRUPTED_RESUMABLE		0x8000000300000000ULL
@@ -810,6 +813,57 @@ static inline u64 tdh_mem_shared_sept_wr(u64 gpa_info, u64 tdr_pa, u64 entry,
 				 0, 0, 0, 0, 0, 0, 0, out);
 }
 
+static inline u64 tdh_devifmt_add(u64 devifmt_idx, u64 devifmt_pa)
+{
+	u64 ret;
+	/*
+	 * TDH.DEVIFMT.ADD
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - DEVIFMT index (level + function id)
+	 * Input: RDX - DEVIFMT PA of new page
+	 */
+	ret = seamcall_io_retry(TDH_DEVIFMT_ADD, devifmt_idx, devifmt_pa,
+				0, 0, 0, 0, 0, 0, 0, 0, NULL);
+	pr_debug("%s: ret %llx, devifmt_idx %llx, devifmt_pa %llx\n",
+		 __func__, ret, devifmt_idx, devifmt_pa);
+
+	return ret;
+}
+
+static inline u64 tdh_devifmt_remove(u64 devifmt_idx)
+{
+	u64 ret;
+	/*
+	 * TDH.DEVIFMT.REMOVE
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - DEVIFMT index (level + function id)
+	 */
+	ret = seamcall_io_retry(TDH_DEVIFMT_REMOVE, devifmt_idx,
+				0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+
+	pr_debug("%s: ret %llx, devifmt_idx %llx\n",
+		 __func__, ret, devifmt_idx);
+
+	return ret;
+}
+
+static inline u64 tdh_devifmt_read(u64 devifmt_idx, struct tdx_module_output *out)
+{
+	/*
+	 * TDH.DEVIFMT.READ
+	 *
+	 * Input: RAX - SEAMCALL instruction leaf number
+	 * Input: RCX - DEVIFMT index (level + function id)
+	 *
+	 * Output: RAX - SEAMCALL return code
+	 * Output: RCX - DEVIFMT entry data
+	 */
+	return seamcall_io_retry(TDH_DEVIFMT_RD, devifmt_idx,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+}
+
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id, struct tdx_module_output *out)
@@ -952,6 +1006,12 @@ static inline u64 tdh_iqinv_process(u64 iommu_id) { return -EOPNOTSUPP; }
 static inline u64
 tdh_mem_shared_sept_wr(u64 gpa_info, u64 tdr_pa, u64 entry,
 		       struct tdx_module_output *out) { return -EOPNOTSUPP; }
+static inline u64 tdh_devifmt_add(u64 devifmt_idx,
+				  u64 devifmt_pa) { return -EOPNOTSUPP; }
+static inline u64 tdh_devifmt_remove(u64 devifmt_idx) { return -EOPNOTSUPP; }
+static inline u64
+tdh_devifmt_read(u64 devifmt_idx,
+		 struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64
 tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
 		 u64 devif_id,
