@@ -10,7 +10,6 @@
 #include <linux/eventfd.h>
 #include <linux/anon_inodes.h>
 #include <linux/msi.h>
-#include <linux/irqchip/irq-ims-msi.h>
 #include "registers.h"
 #include "idxd.h"
 #include "vidxd.h"
@@ -1447,9 +1446,10 @@ vidxd_resume_ims_state(struct vdcm_idxd *vidxd, bool *int_handle_revoked)
 
 	/* Restore int handle info */
 	for (i = 1; i < ims->num; i++) {
-		u32 revoked_handle, perm_val, auxval, gpasid, pasid;
+		u32 revoked_handle, perm_val, gpasid, pasid;
+		//u32 auxval;
 		int ims_idx = vfio_ims_msi_hwirq(&vidxd->vdev, i);
-		int irq = vfio_ims_msi_virq(&vidxd->vdev, i);
+		//int irq = vfio_ims_msi_virq(&vidxd->vdev, i);
 		bool paside;
 
 		memcpy((u8 *)&revoked_handle, &vidxd_data->ims_idx[i],
@@ -1484,6 +1484,8 @@ vidxd_resume_ims_state(struct vdcm_idxd *vidxd, bool *int_handle_revoked)
 				pasid);
 		}
 
+#if 0
+		/* FIXME */
 		auxval = ims_ctrl_pasid_aux(pasid, true);
 
 		rc = irq_set_auxdata(irq, IMS_AUXDATA_CONTROL_WORD, auxval);
@@ -1492,6 +1494,9 @@ vidxd_resume_ims_state(struct vdcm_idxd *vidxd, bool *int_handle_revoked)
 			pr_info("set ims pasid %d failed rc %d\n", pasid, rc);
 			break;
 		}
+#endif
+		pr_info("set ims pasid %d failed NOT IMPLEMENTED \n", pasid);
+		rc = -EOPNOTSUPP;
 	}
 
 	return rc;
