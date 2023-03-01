@@ -350,7 +350,6 @@ void vfio_virqfd_disable(struct virqfd **pvirqfd);
 extern void vfio_device_set_pasid(struct vfio_device *device, u32 pasid);
 extern u32 vfio_device_get_pasid(struct vfio_device *device);
 extern void vfio_device_set_msi_domain(struct vfio_device *device, struct irq_domain *domain);
-extern int vfio_device_msi_hwirq(struct vfio_device *device, int index);
 
 /* common lib functions */
 extern int vfio_set_ctx_trigger_single(struct eventfd_ctx **ctx,
@@ -371,6 +370,8 @@ int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
 void vfio_ims_send_signal(struct vfio_device *vdev, int vector);
 int vfio_ims_init(struct vfio_device *vdev, int num, bool *ims_map);
 void vfio_ims_free(struct vfio_device *vdev);
+int vfio_ims_msi_hwirq(struct vfio_device *vdev, int index);
+int vfio_ims_msi_virq(struct vfio_device *vdev, int index);
 #else
 static inline int vfio_set_ims_trigger(struct vfio_device *vdev, unsigned int index,
 				       unsigned int start, unsigned int count, u32 flags,
@@ -387,6 +388,16 @@ static inline int vfio_ims_init(struct vfio_device *vdev, int num, bool *ims_map
 }
 
 static inline void vfio_ims_free(struct vfio_device *vdev) {}
+
+static inline int vfio_ims_msi_hwirq(struct vfio_device *vdev, int index)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int vfio_ims_msi_virq(struct vfio_device *vdev, int index)
+{
+	return -EOPNOTSUPP;
+}
 #endif /* CONFIG_VFIO_MDEV_IMS */
 
 #endif /* VFIO_H */

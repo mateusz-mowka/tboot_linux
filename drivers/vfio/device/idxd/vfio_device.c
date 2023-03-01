@@ -1448,8 +1448,8 @@ vidxd_resume_ims_state(struct vdcm_idxd *vidxd, bool *int_handle_revoked)
 	/* Restore int handle info */
 	for (i = 1; i < ims->num; i++) {
 		u32 revoked_handle, perm_val, auxval, gpasid, pasid;
-		int ims_idx = dev_msi_hwirq(dev, i - 1);
-		int irq = dev_msi_irq_vector(dev, i - 1);
+		int ims_idx = vfio_ims_msi_hwirq(&vidxd->vdev, i);
+		int irq = vfio_ims_msi_virq(&vidxd->vdev, i);
 		bool paside;
 
 		memcpy((u8 *)&revoked_handle, &vidxd_data->ims_idx[i],
@@ -1659,7 +1659,7 @@ vidxd_source_prepare_for_migration(struct vdcm_idxd *vidxd,
 	/* Save int handle info if MIS was set up. */
 	if  (dev->msi.data) {
 		for (i = 1; i < ims->num; i++) {
-			u32 ims_idx = dev_msi_hwirq(dev, i - 1);
+			u32 ims_idx = vfio_ims_msi_hwirq(&vidxd->vdev, i);
 
 			/* Save the current handle in use */
 			pr_info("Saving handle %d\n", ims_idx);

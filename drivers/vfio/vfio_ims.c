@@ -28,6 +28,34 @@ static irqreturn_t vfio_ims_irq_handler(int irq, void *arg)
 }
 
 /*
+ * Return IMS index of IMS interrupt backing MSI-X interrupt @index
+ */
+int vfio_ims_msi_hwirq(struct vfio_device *vdev, int index)
+{
+	struct vfio_ims *ims = &vdev->ims;
+	struct vfio_ims_entry *entry;
+
+	entry = &ims->ims_entries[index];
+
+	return entry->ims_id;
+}
+EXPORT_SYMBOL_GPL(vfio_ims_msi_hwirq);
+
+/*
+ * Return IMS index of IMS interrupt backing MSI-X interrupt @index
+ */
+int vfio_ims_msi_virq(struct vfio_device *vdev, int index)
+{
+	struct vfio_ims *ims = &vdev->ims;
+	struct vfio_ims_entry *entry;
+
+	entry = &ims->ims_entries[index];
+
+	return entry->virq;
+}
+EXPORT_SYMBOL_GPL(vfio_ims_msi_virq);
+
+/*
  * Common helper routine to send signal to the eventfd that has been setup.
  *
  * @vdev [in]		: vfio_device context

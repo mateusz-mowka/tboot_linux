@@ -826,7 +826,7 @@ static void vidxd_alloc_int_handle(struct vdcm_idxd *vidxd, int operand)
 	 * index to the vdev device. This index would start at 0. So for a
 	 * passed in vidx that is 1, we pass 0 to dev_msi_hwirq() and so forth.
 	 */
-	ims_idx = vfio_device_msi_hwirq(&vidxd->vdev, vidx - 1);
+	ims_idx = vfio_ims_msi_hwirq(&vidxd->vdev, vidx);
 	cmdsts = ims_idx << IDXD_CMDSTS_RES_SHIFT;
 	dev_dbg(dev, "requested index %d handle %d\n", vidx, ims_idx);
 	idxd_complete_command(vidxd, cmdsts);
@@ -848,8 +848,7 @@ static void vidxd_release_int_handle(struct vdcm_idxd *vidxd, int operand)
 
 	/* IMS backed entry start at 1, 0 is emulated vector */
 	for (i = 1; i < VIDXD_MAX_MSIX_VECS; i++) {
-//		if (vfio_device_msi_hwirq(&vidxd->vdev, i) == handle) {
-		if (vfio_device_msi_hwirq(&vidxd->vdev, i - 1) == handle) {
+		if (vfio_ims_msi_hwirq(&vidxd->vdev, i) == handle) {
 			found = true;
 			break;
 		}
@@ -1327,7 +1326,7 @@ int vidxd_mmio_write(struct vdcm_idxd *vidxd, u64 pos, void *buf, unsigned int s
 			break;
 
 // This needs to be reworked and needs to go through IMS core!!! FIXME
-		ims_index = vfio_device_msi_hwirq(&vidxd->vdev, index - 1);
+		ims_index = vfio_ims_msi_hwirq(&vidxd->vdev, index);
 		ims_off = idxd->ims_offset + ims_index * 16 + sizeof(u64);
 		ims_ctrl = ioread32(idxd->reg_base + ims_off);
 		ims_mask = ims_ctrl & MSIX_ENTRY_MASK_INT;
