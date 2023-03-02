@@ -9,7 +9,6 @@
 #include <linux/bitfield.h>
 #include <linux/dma-mapping.h>
 #include <linux/delay.h>
-#include <linux/pci-ats.h>
 
 static int force_upper_vector = 1;
 module_param(force_upper_vector, int, 0644);
@@ -446,7 +445,6 @@ struct rpb_device {
 	struct vm_vector __iomem *vectors;
 	void __iomem *vm_regs;
 
-	bool old_pasid_enabled;
 	struct pci_dev *pdev;
 
 	/* mem operation attributes */
@@ -1923,10 +1921,6 @@ static int rpb_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		return ret;
 
-	rdev->old_pasid_enabled = pdev->pasid_enabled;
-	if (pdev->pasid_enabled)
-		pci_disable_pasid(pdev);
-
 	pci_set_drvdata(pdev, rdev);
 
 	spin_lock(&list_lock);
@@ -1944,8 +1938,6 @@ static void rpb_remove(struct pci_dev *pdev)
 	list_del_init(&rdev->node);
 	spin_unlock(&list_lock);
 
-	if (rdev->old_pasid_enabled)
-		pci_enable_pasid(pdev, 0);
 	rpb_reset_vm(rdev);
 }
 
