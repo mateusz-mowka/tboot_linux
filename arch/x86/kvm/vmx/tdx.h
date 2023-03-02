@@ -387,7 +387,6 @@ struct tdx_tdisp_dev {
 	struct tdx_devif_id id;
 
 	struct list_head mmiomt;
-	struct list_head mmio;
 
 	struct tdx_iommu *tiommu;
 	struct kvm_tdx *kvm_tdx;
