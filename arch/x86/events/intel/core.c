@@ -4380,13 +4380,15 @@ void intel_pmu_save(void)
 {
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	int idx;
+	struct perf_event *event;
 
 	perf_pmu_disable(x86_get_pmu(smp_processor_id()));
 
 	for (idx = 0; idx < X86_PMC_IDX_MAX; idx++) {
-		if (test_bit(idx, cpuc->active_mask))
-			x86_perf_event_update(cpuc->events[idx]);
-		else
+		if (test_bit(idx, cpuc->active_mask)) {
+			event = cpuc->events[idx];
+			static_call(x86_pmu_update)(event);
+		} else
 			/*
 			 * Increase unused counters' tags to avoid reusing
 			 * previous config, see match_prev_assignment().
@@ -4407,7 +4409,7 @@ void intel_pmu_restore(void)
 	for_each_set_bit(idx, (unsigned long *)&cpuc->active_mask, X86_PMC_IDX_MAX) {
 		struct perf_event *event = cpuc->events[idx];
 
-		x86_perf_event_set_period(event);
+		static_call(x86_pmu_set_period)(event);
 		if (idx < INTEL_PMC_IDX_FIXED)
 			__x86_pmu_enable_event(&event->hw,
 					       ARCH_PERFMON_EVENTSEL_ENABLE);
