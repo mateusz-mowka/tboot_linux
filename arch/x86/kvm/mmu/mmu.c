@@ -1098,11 +1098,8 @@ static inline bool page_fault_page_type_conflict(struct kvm_page_fault *fault)
 {
 	enum kvm_page_type page_type;
 
-	if (!fault->slot)
+	if (!fault->slot || kvm_is_mmio_pfn(fault->pfn))
 		return fault->is_private;
-
-	if (kvm_is_mmio_pfn(fault->pfn))
-		return false;
 
 	page_type = kvm_get_valid_page_type(fault->gfn, fault->slot);
 	switch(page_type) {
