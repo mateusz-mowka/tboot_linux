@@ -21,7 +21,6 @@
 #define TDDEVIFRD			67
 #define TDDEVIFREQ			68
 #define TDDEVIFRESP			69
-#define TDDMARACCEPT			70
 #define TDMMIOACCEPT			71
 
 /* TDX hypercall Leaf IDs */
