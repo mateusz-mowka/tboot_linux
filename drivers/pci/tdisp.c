@@ -22,6 +22,42 @@ static int tdisp_kvm_bind_tdisp_dev(struct kvm *kvm,
 	return ret;
 }
 
+static int tdisp_kvm_unbind_tdisp_dev(struct kvm *kvm,
+				      struct pci_tdisp_dev *tdev)
+{
+	int (*fn)(struct kvm *kvm, struct pci_tdisp_dev *tdev);
+	int ret;
+
+	fn = symbol_get(kvm_unbind_tdisp_dev);
+	if (!fn)
+		return -ENOENT;
+
+	ret = fn(kvm, tdev);
+
+	symbol_put(kvm_unbind_tdisp_dev);
+
+	return ret;
+}
+
+static int tdisp_kvm_tdisp_request(struct kvm *kvm,
+				   struct pci_tdisp_dev *tdev,
+				   struct pci_tdisp_req *req)
+{
+	int (*fn)(struct kvm *kvm, struct pci_tdisp_dev *tdev,
+		  struct pci_tdisp_req *req);
+	int ret;
+
+	fn = symbol_get(kvm_tdisp_request);
+	if (!fn)
+		return -ENOENT;
+
+	ret = fn(kvm, tdev, req);
+
+	symbol_put(kvm_tdisp_request);
+
+	return ret;
+}
+
 #define PCI_DOE_PROTOCOL_SPDM		1
 #define PCI_DOE_PROTOCOL_SECURED_SPDM	2
 
@@ -57,6 +93,7 @@ static struct pci_doe_mb *pci_tdisp_create_doe_mb(struct pci_dev *pdev)
 struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 				     unsigned int flags)
 {
+	struct pci_tdisp_req req = { 0 };
 	struct pci_ide_stream *stm;
 	struct pci_tdisp_dev *tdev;
 	struct pci_doe_mb* doe_mb;
@@ -109,8 +146,16 @@ struct pci_tdisp_dev *pci_tdisp_init(struct pci_dev *pdev, struct kvm *kvm,
 
 	tdev->kvm = kvm;
 
+	/* Move TDISP Device Interface state from UNLOCKED to LOCKED */
+	req.parm.message = TDISP_LOCK_INTF_REQ;
+	ret = tdisp_kvm_tdisp_request(kvm, tdev, &req);
+	if (ret)
+		goto exit_unbind_dev;
+
 	return tdev;
 
+exit_unbind_dev:
+	tdisp_kvm_unbind_tdisp_dev(kvm, tdev);
 exit_ide_remove:
 	pci_ide_stream_remove(stm);
 exit_free_tdev:
@@ -124,6 +169,8 @@ EXPORT_SYMBOL_GPL(pci_tdisp_init);
  */
 void pci_tdisp_uinit(struct pci_tdisp_dev *tdev)
 {
+	struct pci_tdisp_req req = { 0 };
+
 	/*
 	 * Steps to detach a TDI from a TEE VM
 	 *
@@ -135,11 +182,12 @@ void pci_tdisp_uinit(struct pci_tdisp_dev *tdev)
 	if (!tdev->kvm)
 		return;
 
-	/* check tdisp unbind state??? */
-
+	/* Move TDISP Device Interface state from LOCKED to UNLOCKED */
+	req.parm.message = TDISP_STOP_INTF_REQ;
+	tdisp_kvm_tdisp_request(tdev->kvm, tdev, &req);
+	tdisp_kvm_unbind_tdisp_dev(tdev->kvm, tdev);
 	pci_ide_stream_remove(tdev->stm);
 	kfree(tdev);
-
 	return;
 }
 EXPORT_SYMBOL_GPL(pci_tdisp_uinit);

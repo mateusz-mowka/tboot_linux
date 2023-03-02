@@ -2321,5 +2321,6 @@ static inline void kvm_private_mem_put_pfn(struct kvm_memory_slot *slot,
 
 int kvm_bind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev);
 int kvm_unbind_tdisp_dev(struct kvm *kvm, struct pci_tdisp_dev *tdev);
+int kvm_tdisp_request(struct kvm *kvm, struct pci_tdisp_dev *tdev, struct pci_tdisp_req *req);
 
 #endif
