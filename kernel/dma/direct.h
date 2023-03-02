@@ -8,7 +8,6 @@
 #define _KERNEL_DMA_DIRECT_H
 
 #include <linux/dma-direct.h>
-#include <linux/set_memory.h>
 
 int dma_direct_get_sgtable(struct device *dev, struct sg_table *sgt,
 		void *cpu_addr, dma_addr_t dma_addr, size_t size,
@@ -89,9 +88,8 @@ static inline dma_addr_t dma_direct_map_page(struct device *dev,
 	dma_addr_t dma_addr = phys_to_dma(dev, phys);
 
 	if (dev->authorized == MODE_SECURE && !(attrs & DMA_ATTR_FORCEUNENCRYPTED)) {
-		unsigned long vaddr = (unsigned long)page_address(page) + offset;
-
-		set_memory_encrypted(vaddr, PFN_UP(size));
+		unsigned long vaddr = page_address(page) + offset;
+		x86_platform.guest.enc_status_change_finish(vaddr, PFN_UP(size), true);
 		return dma_addr;
 	}
 
