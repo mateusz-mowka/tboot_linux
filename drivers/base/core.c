@@ -53,7 +53,7 @@ early_param("sysfs.deprecated", sysfs_deprecated_setup);
  * Default authorization status set as allow all. It can be
  * overridden by arch code.
  */
-int __ro_after_init dev_default_authorization = MODE_SHARED;
+bool __ro_after_init dev_default_authorization = true;
 
 /* Device links support. */
 static LIST_HEAD(deferred_sync);
@@ -2919,7 +2919,7 @@ void device_initialize(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(device_initialize);
 
-int __weak arch_dev_authorized(struct device *dev)
+bool __weak arch_dev_authorized(struct device *dev)
 {
 	return dev->authorized;
 }
