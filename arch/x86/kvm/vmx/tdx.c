@@ -5636,10 +5636,9 @@ int tdx_tdisp_get_info(struct kvm *kvm, struct kvm_tdisp_info *info)
 
 	ttdev = tdx_find_tdisp_devif_by_rid(kvm_tdx, info->devid);
 	if (!ttdev)
-		info->handle = 0;
-	else
-		info->handle = ttdev->handle;
+		return -EINVAL;
 
+	info->handle = ttdev->handle;
 	return 0;
 }
 
