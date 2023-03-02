@@ -713,7 +713,7 @@ struct intel_iommu {
 
 	struct iommu_pmu *pmu;
 
-	struct tdx_td_page *tdxio_pages;
+	unsigned long tdxio_config;
 	bool tdxio_enabled;
 	u64 id;
 };
