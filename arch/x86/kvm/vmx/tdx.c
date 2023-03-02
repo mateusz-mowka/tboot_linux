@@ -969,8 +969,7 @@ static noinstr void tdx_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 			pr_tdx_error(TDH_VP_ENTER, err, NULL);
 			break;
 		}
-	} while (err == TDX_OPERAND_BUSY ||
-		 err == TDX_OPERAND_BUSY_HOST_PRIORITY);
+	} while (err == TDX_OPERAND_BUSY);
 	guest_exit_irqoff();
 }
 
