@@ -751,6 +751,10 @@ int _rpb_set_trust_bit(struct rpb_ide *ide, bool trust)
 	u32 offset;
 	u32 val;
 
+	/* Currently, VTC doesn't support to enable trust bit */
+	if (is_vtc_device(ide->pdev))
+		return -ENODEV;
+
 	dev_dbg(&ide->pdev->dev, "Set trust bit to %d\n", !!trust);
 	offset = get_vm_reg_block_offset(ide->pdev, DEFAULT_VM_ID) + MMR;
 	val = readl(ide->bar0_base + offset);
