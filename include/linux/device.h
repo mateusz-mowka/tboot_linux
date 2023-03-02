@@ -456,8 +456,9 @@ struct device_physical_location {
 };
 
 #define MODE_UNAUTHORIZED	0
-#define MODE_SHARED		1
-#define MODE_SECURE		2
+#define MODE_AUTHORIZED		1
+#define MODE_SHARED		2
+#define MODE_SECURE		3
 
 /**
  * struct device - The basic device structure
