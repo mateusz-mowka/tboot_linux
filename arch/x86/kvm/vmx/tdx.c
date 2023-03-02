@@ -1873,28 +1873,21 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 	enum tdvmcall_service_id service_id;
 	int ret = 1;
 
-	if ((nvector > 0 && nvector < 32) || nvector > 255)  {
+	if (nvector) {
 		pr_warn("%s: interrupt not supported, nvector %lld\n",
 			__func__, nvector);
-		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_INVALID_OPERAND);
-		return 1;
+		goto err_cmd;
 	}
 
 	/* TODO: Sanity check if gpa is private */
 
+
 	cmd_buf = tdvmcall_servbuf_alloc(vcpu, cmd_gpa);
-	if (!cmd_buf) {
-		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_INVALID_OPERAND);
-		return 1;
-	}
-
+	if (!cmd_buf)
+		goto err_cmd;
 	status_buf = tdvmcall_servbuf_alloc(vcpu, status_gpa);
-	if (!status_buf) {
-		kfree(cmd_buf);
-		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_INVALID_OPERAND);
-		return 1;
-	}
-
+	if (!status_buf)
+		goto err_status;
 	status_buf->length = sizeof(struct tdvmcall_service);
 
 	service_id = tdvmcall_get_service_id(cmd_buf->guid);
@@ -1915,10 +1908,10 @@ static int tdx_handle_service(struct kvm_vcpu *vcpu)
 	} else {
 		/* Update the guest status buf and free the host buf */
 		tdvmcall_status_copy_and_free(status_buf, vcpu, status_gpa);
-		tdvmcall_set_return_code(vcpu, TDG_VP_VMCALL_SUCCESS);
 	}
-
+err_status:
 	kfree(cmd_buf);
+err_cmd:
 	return ret;
 }
 
