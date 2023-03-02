@@ -45,8 +45,7 @@ struct vfio_iommu_driver_ops {
 				 unsigned long arg);
 	int		(*attach_group)(void *iommu_data,
 					struct iommu_group *group,
-					enum vfio_group_type,
-					unsigned int attrs);
+					enum vfio_group_type);
 	void		(*detach_group)(void *iommu_data,
 					struct iommu_group *group);
 	int		(*pin_pages)(void *iommu_data,
