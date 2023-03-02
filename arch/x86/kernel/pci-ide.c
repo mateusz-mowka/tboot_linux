@@ -1645,11 +1645,9 @@ int pci_arch_ide_stream_setup(struct pci_ide_stream *stm)
 		if (ret)
 			return ret;
 
-		if (!is_vtc_device(stm->dev)) {
-			ret = ide_set_target_device(stm->dev, stm);
-			if (ret)
-				goto err_clear_key_config;
-		}
+		ret = ide_set_target_device(stm->dev, stm);
+		if (ret)
+			goto err_clear_key_config;
 
 		ret = ide_stream_setup(stm->dev, stm);
 		if (ret)
