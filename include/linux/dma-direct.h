@@ -78,9 +78,6 @@ static inline phys_addr_t dma_to_phys(struct device *dev, dma_addr_t dma_addr)
 {
 	phys_addr_t paddr;
 
-	if (dev->authorized == MODE_SECURE)
-		dma_addr ^= dma_addr & cc_mkdec(0);
-
 	if (dev->dma_range_map)
 		paddr = translate_dma_to_phys(dev, dma_addr);
 	else
