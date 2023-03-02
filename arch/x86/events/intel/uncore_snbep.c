@@ -6572,7 +6572,7 @@ void spr_uncore_mmio_init(void)
 
 /* GNR uncore support */
 
-#define UNCORE_GNR_NUM_UNCORE_TYPES	20
+#define UNCORE_GNR_NUM_UNCORE_TYPES	21
 
 static struct intel_uncore_type gnr_uncore_b2hot = {
 	SPR_UNCORE_COMMON_FORMAT(),
@@ -6580,7 +6580,7 @@ static struct intel_uncore_type gnr_uncore_b2hot = {
 };
 
 static struct intel_uncore_type gnr_uncore_b2cmi = {
-	SPR_UNCORE_MMIO_COMMON_FORMAT(),
+	SPR_UNCORE_PCI_COMMON_FORMAT(),
 	.name			= "b2cmi",
 };
 
@@ -6589,12 +6589,17 @@ static struct intel_uncore_type gnr_uncore_b2cxl = {
 	.name			= "b2cxl",
 };
 static struct intel_uncore_type gnr_uncore_b2upi = {
-	SPR_UNCORE_MMIO_COMMON_FORMAT(),
+	SPR_UNCORE_PCI_COMMON_FORMAT(),
 	.name			= "b2upi",
 };
 static struct intel_uncore_type gnr_uncore_mse = {
 	SPR_UNCORE_MMIO_COMMON_FORMAT(),
 	.name			= "mse",
+};
+
+static struct intel_uncore_type gnr_uncore_mdf_sbo = {
+	SPR_UNCORE_COMMON_FORMAT(),
+	.name			= "mdf_sbo",
 };
 
 static struct intel_uncore_type *gnr_uncores[UNCORE_GNR_NUM_UNCORE_TYPES] = {
@@ -6618,6 +6623,7 @@ static struct intel_uncore_type *gnr_uncores[UNCORE_GNR_NUM_UNCORE_TYPES] = {
 	&gnr_uncore_b2cxl,
 	&gnr_uncore_b2upi,
 	&gnr_uncore_mse,
+	&gnr_uncore_mdf_sbo,
 };
 
 void gnr_uncore_cpu_init(void)
