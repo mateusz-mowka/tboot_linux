@@ -963,14 +963,21 @@ static struct tdx_uret_msr tdx_uret_msrs[] = {
 	{.msr = MSR_LSTAR,},
 	{.msr = MSR_TSC_AUX,},
 };
+static unsigned int tdx_uret_tsx_ctrl_slot;
 
-static void tdx_user_return_update_cache(void)
+static void tdx_user_return_update_cache(struct kvm_vcpu *vcpu)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(tdx_uret_msrs); i++)
 		kvm_user_return_update_cache(tdx_uret_msrs[i].slot,
 					     tdx_uret_msrs[i].defval);
+	/*
+	 * TSX_CTRL is reset to 0 if guest TSX is supported. Otherwise
+	 * preserved.
+	 */
+	if (to_kvm_tdx(vcpu->kvm)->tsx_supported && tdx_uret_tsx_ctrl_slot != -1)
+		kvm_user_return_update_cache(tdx_uret_tsx_ctrl_slot, 0);
 }
 
 static void tdx_restore_host_xsave_state(struct kvm_vcpu *vcpu)
@@ -1131,7 +1138,7 @@ fastpath_t tdx_vcpu_run(struct kvm_vcpu *vcpu)
 
 	tdx_vcpu_enter_exit(vcpu, tdx);
 
-	tdx_user_return_update_cache();
+	tdx_user_return_update_cache(vcpu);
 
 	/*
 	 * This is safe only when host PMU is disabled, e.g.
@@ -3726,6 +3733,8 @@ static int setup_tdparams(struct kvm *kvm, struct td_params *td_params,
 		    (entry->ebx & mask) != mask) {
 			pr_info_ratelimited("{HLE,RTM} must be set same!\n");
 				return -EINVAL;
+		} else {
+			to_kvm_tdx(kvm)->tsx_supported = !!(entry->ebx & mask);
 		}
 	}
 
@@ -5208,6 +5217,12 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 				tdx_uret_msrs[i].msr);
 			return -EIO;
 		}
+	}
+	tdx_uret_tsx_ctrl_slot = kvm_find_user_return_msr(MSR_IA32_TSX_CTRL);
+	if (unlikely(tdx_uret_tsx_ctrl_slot == -1 &&
+		     boot_cpu_has(X86_FEATURE_MSR_TSX_CTRL))) {
+		pr_err("MSR_IA32_TSX_CTRL isn't included by kvm_find_user_return_msr\n");
+		return -EIO;
 	}
 
 	/*

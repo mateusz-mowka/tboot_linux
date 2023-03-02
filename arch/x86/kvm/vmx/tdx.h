@@ -90,6 +90,14 @@ struct kvm_tdx {
 
 	u64 tsc_offset;
 
+	/*
+	 * Used on each TD-exit, see tdx_user_return_update_cache().
+	 * TSX_CTRL value on TD exit
+	 * - set 0     if guest TSX enabled
+	 * - preserved if guest TSX disabled
+	 */
+	bool tsx_supported;
+
 	/* TDP MMU */
 	bool has_range_blocked;
 
