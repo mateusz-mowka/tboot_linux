@@ -2034,11 +2034,10 @@ static void __tdx_sept_set_private_spte(struct kvm *kvm, gfn_t gfn,
 	u64 err;
 	int i;
 
-	if (WARN_ON_ONCE(is_error_noslot_pfn(pfn)))
-		return;
+	if (WARN_ON_ONCE(is_error_noslot_pfn(pfn) || kvm_is_reserved_pfn(pfn))) {
+		if (kvm_is_mmio_pfn(pfn))
+			tdx_tdisp_mmio_map(kvm_tdx, gfn, level, pfn);
 
-	if (kvm_is_mmio_pfn(pfn)) {
-		tdx_tdisp_mmio_map(kvm_tdx, gfn, level, pfn);
 		return;
 	}
 
