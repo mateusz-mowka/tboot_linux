@@ -981,7 +981,7 @@ static bool copy_device_table(void)
 	}
 	old_devtb = (cc_platform_has(CC_ATTR_HOST_MEM_ENCRYPT) && is_kdump_kernel())
 		    ? (__force void *)ioremap_encrypted(old_devtb_phys,
-							dev_table_size, _PAGE_CACHE_MODE_WB)
+							dev_table_size)
 		    : memremap(old_devtb_phys, dev_table_size, MEMREMAP_WB);
 
 	if (!old_devtb)

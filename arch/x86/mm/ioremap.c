@@ -456,9 +456,9 @@ void __iomem *ioremap_wt(resource_size_t phys_addr, unsigned long size)
 }
 EXPORT_SYMBOL(ioremap_wt);
 
-void __iomem *ioremap_encrypted(resource_size_t phys_addr, unsigned long size, unsigned long flags)
+void __iomem *ioremap_encrypted(resource_size_t phys_addr, unsigned long size)
 {
-	return __ioremap_caller(phys_addr, size, flags,
+	return __ioremap_caller(phys_addr, size, _PAGE_CACHE_MODE_WB,
 				__builtin_return_address(0), true, false);
 }
 EXPORT_SYMBOL(ioremap_encrypted);

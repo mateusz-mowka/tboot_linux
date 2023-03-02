@@ -28,7 +28,6 @@ static void __iomem *__devm_ioremap(struct device *dev, resource_size_t offset,
 				    enum devm_ioremap_type type)
 {
 	void __iomem **ptr, *addr = NULL;
-	bool trusted = (dev->authorized == MODE_SECURE);
 
 	ptr = devres_alloc(devm_ioremap_release, sizeof(*ptr), GFP_KERNEL);
 	if (!ptr)
@@ -36,35 +35,18 @@ static void __iomem *__devm_ioremap(struct device *dev, resource_size_t offset,
 
 	switch (type) {
 	case DEVM_IOREMAP:
-		if (trusted) {
-			dev_info(dev, "%s() calls ioremap_encrypted() for DEVM_IOREMAP\n", __func__);
-			addr = ioremap_encrypted(offset, size, _PAGE_CACHE_MODE_UC_MINUS);
-		} else {
-			dev_info(dev, "%s() calls ioremap_driver_hardened() for DEVM_IOREMAP\n", __func__);
+		if (dev->authorized)
 			addr = ioremap_driver_hardened(offset, size);
-		}
+		else
+			addr = ioremap(offset, size);
 		break;
 	case DEVM_IOREMAP_UC:
-		if (trusted) {
-			dev_info(dev, "%s() calls ioremap_encrypted() for DEVM_IOREMAP_UC\n", __func__);
-			addr = ioremap_encrypted(offset, size, _PAGE_CACHE_MODE_UC);
-		} else {
-			dev_info(dev, "%s() calls ioremap_driver_hardened() for DEVM_IOREMAP_UC\n", __func__);
-			addr = ioremap_driver_hardened(offset, size);
-		}
+		addr = ioremap_uc(offset, size);
 		break;
 	case DEVM_IOREMAP_WC:
-		if (trusted) {
-			dev_info(dev, "%s() calls ioremap_encrypted() for DEVM_IOREMAP_WC\n", __func__);
-			addr = ioremap_encrypted(offset, size, _PAGE_CACHE_MODE_WC);
-		} else {
-			dev_info(dev, "%s() calls ioremap_driver_hardened() for DEVM_IOREMAP_WC\n", __func__);
-			addr = ioremap_driver_hardened(offset, size);
-		}
+		addr = ioremap_wc(offset, size);
 		break;
 	case DEVM_IOREMAP_NP:
-		if (trusted)
-			dev_err(dev, "No _PAGE_CACHE_MODE_NP flag for ioremap_np()\n");
 		addr = ioremap_np(offset, size);
 		break;
 	}
