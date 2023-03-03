@@ -8,6 +8,13 @@
 #include <linux/xarray.h>
 #include <linux/refcount.h>
 #include <linux/uaccess.h>
+#include <uapi/linux/iommufd.h>
+#include <linux/iommufd.h>
+#include <linux/eventfd.h>
+#include <linux/iommu.h>
+#include <linux/uio.h>
+#include <linux/ioasid_def.h>
+#include "iommufd_test.h"
 
 struct iommu_domain;
 struct iommu_group;
@@ -17,6 +24,7 @@ struct iommufd_ctx {
 	struct file *file;
 	struct xarray objects;
 
+	struct ioasid_set *pasid_set;
 	u8 account_mode;
 	struct iommufd_ioas *vfio_ioas;
 };
@@ -62,12 +70,55 @@ int iopt_map_user_pages(struct iommufd_ctx *ictx, struct io_pagetable *iopt,
 int iopt_map_pages(struct io_pagetable *iopt, struct list_head *pages_list,
 		   unsigned long length, unsigned long *dst_iova,
 		   int iommu_prot, unsigned int flags);
-int iopt_unmap_iova(struct io_pagetable *iopt, unsigned long iova,
-		    unsigned long length, unsigned long *unmapped);
 int iopt_unmap_all(struct io_pagetable *iopt, unsigned long *unmapped);
 
 void iommufd_access_notify_unmap(struct io_pagetable *iopt, unsigned long iova,
 				 unsigned long length);
+int iopt_set_dirty_tracking(struct io_pagetable *iopt,
+			    struct iommu_domain *domain, bool enable);
+int iopt_read_and_clear_dirty_data(struct io_pagetable *iopt,
+				   struct iommu_domain *domain,
+				   struct iommufd_dirty_data *bitmap);
+int iopt_unmap_iova(struct io_pagetable *iopt, unsigned long iova,
+		    unsigned long length, unsigned long *unmapped,
+		    struct iommufd_dirty_data *bitmap);
+
+struct iommufd_dirty_iter {
+	struct iommu_dirty_bitmap dirty;
+	struct iovec bitmap_iov;
+	struct iov_iter bitmap_iter;
+	unsigned long iova;
+};
+
+void iommufd_dirty_iter_put(struct iommufd_dirty_iter *iter);
+int iommufd_dirty_iter_get(struct iommufd_dirty_iter *iter);
+int iommufd_dirty_iter_init(struct iommufd_dirty_iter *iter,
+			    struct iommufd_dirty_data *bitmap);
+void iommufd_dirty_iter_free(struct iommufd_dirty_iter *iter);
+bool iommufd_dirty_iter_done(struct iommufd_dirty_iter *iter);
+void iommufd_dirty_iter_advance(struct iommufd_dirty_iter *iter);
+unsigned long iommufd_dirty_iova_length(struct iommufd_dirty_iter *iter);
+unsigned long iommufd_dirty_iova(struct iommufd_dirty_iter *iter);
+static inline unsigned long dirty_bitmap_bytes(unsigned long nr_pages)
+{
+	return (ALIGN(nr_pages, BITS_PER_TYPE(u64)) / BITS_PER_BYTE);
+}
+
+/*
+ * Input argument of number of bits to bitmap_set() is unsigned integer, which
+ * further casts to signed integer for unaligned multi-bit operation,
+ * __bitmap_set().
+ * Then maximum bitmap size supported is 2^31 bits divided by 2^3 bits/byte,
+ * that is 2^28 (256 MB) which maps to 2^31 * 2^12 = 2^43 (8TB) on 4K page
+ * system.
+ */
+#define DIRTY_BITMAP_PAGES_MAX  ((u64)INT_MAX)
+#define DIRTY_BITMAP_SIZE_MAX   dirty_bitmap_bytes(DIRTY_BITMAP_PAGES_MAX)
+
+int iopt_access_pages(struct io_pagetable *iopt, unsigned long iova,
+		      unsigned long npages, struct page **out_pages, bool write);
+void iopt_unaccess_pages(struct io_pagetable *iopt, unsigned long iova,
+			 unsigned long npages);
 int iopt_table_add_domain(struct io_pagetable *iopt,
 			  struct iommu_domain *domain);
 void iopt_table_remove_domain(struct io_pagetable *iopt,
@@ -85,6 +136,24 @@ int iopt_cut_iova(struct io_pagetable *iopt, unsigned long *iovas,
 		  size_t num_iovas);
 void iopt_enable_large_pages(struct io_pagetable *iopt);
 int iopt_disable_large_pages(struct io_pagetable *iopt);
+
+union ucmd_buffer {
+	struct iommu_destroy destroy;
+	struct iommu_ioas_alloc alloc;
+	struct iommu_ioas_allow_iovas allow_iovas;
+	struct iommu_ioas_iova_ranges iova_ranges;
+	struct iommu_device_info info;
+	struct iommu_ioas_map map;
+	struct iommu_ioas_unmap unmap;
+	struct iommu_hwpt_alloc hwpt_alloc;
+	struct iommu_hwpt_invalidate hwpt_invalidate;
+	struct iommu_hwpt_page_response resp;
+	struct iommu_alloc_pasid alloc_pasid;
+	struct iommu_free_pasid free_pasid;
+#ifdef CONFIG_IOMMUFD_TEST
+	struct iommu_test_cmd test;
+#endif
+};
 
 struct iommufd_ucmd {
 	struct iommufd_ctx *ictx;
@@ -230,6 +299,45 @@ int iommufd_option_rlimit_mode(struct iommu_option *cmd,
 			       struct iommufd_ctx *ictx);
 
 int iommufd_vfio_ioas(struct iommufd_ucmd *ucmd);
+int iommufd_ioas_unmap_dirty(struct iommufd_ucmd *ucmd);
+int iommufd_check_iova_range(struct iommufd_ioas *ioas,
+			     struct iommufd_dirty_data *bitmap);
+
+struct iommufd_hwpt_device {
+	unsigned int hwpt_xa_id;
+	ioasid_t pasid;
+	struct iommufd_device *idev;
+	struct iommufd_hw_pagetable *hwpt;
+};
+
+/*
+ * A iommufd_device object represents the binding relationship between a
+ * consuming driver and the iommufd. These objects are created/destroyed by
+ * external drivers, not by userspace.
+ */
+struct iommufd_device {
+	struct iommufd_object obj;
+	struct iommufd_ctx *ictx;
+	struct mutex pasid_lock;
+	struct xarray pasid_xa;
+	/* always the physical device */
+	struct device *dev;
+	struct iommu_group *group;
+	bool enforce_cache_coherency;
+	bool dma_owner_claimed;
+};
+
+int iommufd_device_get_info(struct iommufd_ucmd *ucmd);
+
+struct iommufd_fault {
+	struct file *fault_file;
+	int fault_fd;
+	struct mutex fault_queue_lock;
+	u8 *fault_pages;
+	size_t fault_region_size;
+	struct mutex notify_gate;
+	struct eventfd_ctx *trigger;
+};
 
 /*
  * A HW pagetable is called an iommu_domain inside the kernel. This user object
@@ -239,6 +347,7 @@ int iommufd_vfio_ioas(struct iommufd_ucmd *ucmd);
  */
 struct iommufd_hw_pagetable {
 	struct iommufd_object obj;
+	struct iommufd_hw_pagetable *parent;
 	struct iommufd_ioas *ioas;
 	struct iommu_domain *domain;
 	bool auto_domain : 1;
@@ -246,14 +355,44 @@ struct iommufd_hw_pagetable {
 	bool msi_cookie : 1;
 	/* Head at iommufd_ioas::hwpt_list */
 	struct list_head hwpt_item;
-	struct mutex devices_lock;
-	struct list_head devices;
+	/*
+	 * If hwpt->parent is valid, always reuse parent's devices_lock and
+	 * devices_users. Otherwise, the current hwpt should allocate them.
+	 */
+	struct mutex *devices_lock;
+	refcount_t *devices_users;
+	struct xarray devices;
+	/*
+	 * If hwpt->parent is valid, this buffer is pre-allocated to store
+	 * the cache invaliation data from user as cache invalidation is
+	 * normally supposed to be fast-path, needs to avoid memory allocation
+	 * in such path.
+	 */
+	void *cache;
+	struct iommufd_fault *fault;
 };
+
+int iommufd_hwpt_set_dirty(struct iommufd_ucmd *ucmd);
+int iommufd_hwpt_get_dirty_iova(struct iommufd_ucmd *ucmd);
+int iommufd_hwpt_unmap_dirty(struct iommufd_ucmd *ucmd);
 
 struct iommufd_hw_pagetable *
 iommufd_hw_pagetable_alloc(struct iommufd_ctx *ictx, struct iommufd_ioas *ioas,
 			   struct device *dev);
 void iommufd_hw_pagetable_destroy(struct iommufd_object *obj);
+
+static inline struct iommufd_hw_pagetable *
+iommufd_get_hwpt(struct iommufd_ucmd *ucmd, u32 id)
+{
+	return container_of(iommufd_get_object(ucmd->ictx, id,
+					       IOMMUFD_OBJ_HW_PAGETABLE),
+			    struct iommufd_hw_pagetable, obj);
+}
+
+int iommufd_hwpt_alloc(struct iommufd_ucmd *ucmd);
+int iommufd_hwpt_invalidate(struct iommufd_ucmd *ucmd);
+
+int iommufd_hwpt_page_response(struct iommufd_ucmd *ucmd);
 
 void iommufd_device_destroy(struct iommufd_object *obj);
 
@@ -271,6 +410,12 @@ int iopt_add_access(struct io_pagetable *iopt, struct iommufd_access *access);
 void iopt_remove_access(struct io_pagetable *iopt,
 			struct iommufd_access *access);
 void iommufd_access_destroy_object(struct iommufd_object *obj);
+
+struct iommufd_device *
+iommufd_device_get_by_id(struct iommufd_ctx *ictx, u32 dev_id);
+
+int iommufd_alloc_pasid(struct iommufd_ucmd *ucmd);
+int iommufd_free_pasid(struct iommufd_ucmd *ucmd);
 
 #ifdef CONFIG_IOMMUFD_TEST
 struct iommufd_hw_pagetable *

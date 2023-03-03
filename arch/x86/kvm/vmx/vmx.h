@@ -356,7 +356,7 @@ struct vcpu_vmx {
 	struct lbr_desc lbr_desc;
 
 	/* Save desired MSR intercept (read: pass-through) state */
-#define MAX_POSSIBLE_PASSTHROUGH_MSRS	15
+#define MAX_POSSIBLE_PASSTHROUGH_MSRS	16
 	struct {
 		DECLARE_BITMAP(read, MAX_POSSIBLE_PASSTHROUGH_MSRS);
 		DECLARE_BITMAP(write, MAX_POSSIBLE_PASSTHROUGH_MSRS);
@@ -374,6 +374,9 @@ struct kvm_vmx {
 	gpa_t ept_identity_map_addr;
 	/* Posted Interrupt Descriptor (PID) table for IPI virtualization */
 	u64 *pid_table;
+
+	struct page *pasid_dirs;
+	spinlock_t pasid_lock;
 };
 
 bool nested_vmx_allowed(struct kvm_vcpu *vcpu);
@@ -579,7 +582,8 @@ static inline u8 vmx_get_rvi(void)
 	 SECONDARY_EXEC_BUS_LOCK_DETECTION |				\
 	 SECONDARY_EXEC_NOTIFY_VM_EXITING |				\
 	 SECONDARY_EXEC_ENCLS_EXITING |					\
-	 SECONDARY_EXEC_EPT_VIOLATION_VE)
+	 SECONDARY_EXEC_EPT_VIOLATION_VE |				\
+	 SECONDARY_EXEC_PASID_TRANSLATION)
 
 #define KVM_REQUIRED_VMX_TERTIARY_VM_EXEC_CONTROL 0
 #define KVM_OPTIONAL_VMX_TERTIARY_VM_EXEC_CONTROL			\

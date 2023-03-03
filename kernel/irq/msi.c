@@ -19,6 +19,7 @@
 
 #include "internals.h"
 
+#if 0
 /**
  * struct msi_ctrl - MSI internal management control structure
  * @domid:	ID of the domain on which management operations should be done
@@ -33,6 +34,7 @@ struct msi_ctrl {
 	unsigned int			last;
 	unsigned int			nirqs;
 };
+#endif
 
 /* Invalid Xarray index which is outside of any searchable range */
 #define MSI_XA_MAX_INDEX	(ULONG_MAX - 1)
@@ -482,6 +484,30 @@ static inline int msi_sysfs_create_group(struct device *dev)
 	return devm_device_add_group(dev, &msi_irqs_group);
 }
 
+static inline void msi_sysfs_remove_group(struct device *dev)
+{
+//	devm_device_remove_group(dev, &msi_irqs_group);
+}
+
+static int msi_device_data_match(struct device *dev, void *res, void *data)
+{
+	struct msi_device_data *r = res;
+
+	if (WARN_ON(!r))
+		return 0;
+
+	return r == data;
+}
+
+void msi_free_device_data(struct device *dev)
+{
+	/* Remove msi_irqs. */
+	msi_sysfs_remove_group(dev);
+	/* Remove MSI device data. */
+	WARN_ON(devres_release(dev, msi_device_data_release,
+			       msi_device_data_match, (void *)dev->msi.data));
+}
+
 static ssize_t msi_mode_show(struct device *dev, struct device_attribute *attr,
 			     char *buf)
 {
@@ -577,6 +603,7 @@ void msi_device_destroy_sysfs(struct device *dev)
 #endif /* CONFIG_PCI_MSI_ARCH_FALLBACK */
 #else /* CONFIG_SYSFS */
 static inline int msi_sysfs_create_group(struct device *dev) { return 0; }
+static inline void msi_free_device_data(struct device *dev) { }
 static inline int msi_sysfs_populate_desc(struct device *dev, struct msi_desc *desc) { return 0; }
 static inline void msi_sysfs_remove_desc(struct device *dev, struct msi_desc *desc) { }
 #endif /* !CONFIG_SYSFS */
@@ -612,6 +639,30 @@ static unsigned int msi_domain_get_hwsize(struct device *dev, unsigned int domid
 	}
 	/* No domain, default to MSI_XA_DOMAIN_SIZE */
 	return MSI_XA_DOMAIN_SIZE;
+}
+
+void msi_domain_set_default_info_flags(struct msi_domain_info *info)
+{
+	/* Required so that a device latches a valid MSI message on startup */
+	info->flags |= MSI_FLAG_ACTIVATE_EARLY | MSI_FLAG_DEV_SYSFS;
+
+	/*
+	 * Interrupt reservation mode allows to stear the MSI message of an
+	 * inactive device to a special (usually spurious interrupt) target.
+	 * This allows to prevent interrupt vector exhaustion e.g. on x86.
+	 * But (PCI)MSI interrupts are activated early - see above - so the
+	 * interrupt request/startup sequence would not try to allocate a
+	 * usable vector which means that the device interrupts would end
+	 * up on the special vector and issue spurious interrupt messages.
+	 * Setting the reactivation flag ensures that when the interrupt
+	 * is requested the activation is invoked again so that a real
+	 * vector can be allocated.
+	 */
+	if (IS_ENABLED(CONFIG_GENERIC_IRQ_RESERVATION_MODE))
+		info->flags |= MSI_FLAG_MUST_REACTIVATE;
+
+	/* MSI is oneshot-safe at least in theory */
+	info->chip->flags |= IRQCHIP_ONESHOT_SAFE;
 }
 
 static inline void irq_chip_write_msi_msg(struct irq_data *data,
@@ -1005,6 +1056,7 @@ free_bundle:
 	kfree(bundle);
 	return false;
 }
+//EXPORT_SYMBOL_GPL(msi_domain_alloc_irqs);
 
 /**
  * msi_remove_device_irq_domain - Free a device MSI interrupt domain
@@ -1035,6 +1087,7 @@ void msi_remove_device_irq_domain(struct device *dev, unsigned int domid)
 unlock:
 	msi_unlock_descs(dev);
 }
+//EXPORT_SYMBOL_GPL(msi_domain_free_irqs);
 
 /**
  * msi_match_device_irq_domain - Match a device irq domain against a bus token
@@ -1226,7 +1279,7 @@ static int msi_init_virq(struct irq_domain *domain, int virq, unsigned int vflag
 	return 0;
 }
 
-static int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain,
+int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain,
 				   struct msi_ctrl *ctrl)
 {
 	struct xarray *xa = &dev->msi.data->__domains[ctrl->domid].store;
@@ -1241,6 +1294,13 @@ static int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain
 	ret = msi_domain_prepare_irqs(domain, dev, ctrl->nirqs, &arg);
 	if (ret)
 		return ret;
+
+	if (ops->msi_alloc_store) {
+//		ret = ops->msi_alloc_store(domain, dev, nvec);
+		ret = ops->msi_alloc_store(domain, dev, ctrl->nirqs);
+		if (ret)
+			return ret;
+	}
 
 	/*
 	 * This flag is set by the PCI layer as we need to activate
@@ -1500,6 +1560,7 @@ static void __msi_domain_free_irqs(struct device *dev, struct irq_domain *domain
 	struct irq_data *irqd;
 	struct msi_desc *desc;
 	unsigned long idx;
+	struct msi_domain_ops *ops = info->ops;
 	int i;
 
 	xa_for_each_range(xa, idx, desc, ctrl->first, ctrl->last) {
@@ -1519,6 +1580,9 @@ static void __msi_domain_free_irqs(struct device *dev, struct irq_domain *domain
 			msi_sysfs_remove_desc(dev, desc);
 		desc->irq = 0;
 	}
+
+	if (ops->msi_free_store)
+		ops->msi_free_store(domain, dev);
 }
 
 static void msi_domain_free_locked(struct device *dev, struct msi_ctrl *ctrl)
@@ -1627,3 +1691,55 @@ struct msi_domain_info *msi_get_domain_info(struct irq_domain *domain)
 {
 	return (struct msi_domain_info *)domain->host_data;
 }
+EXPORT_SYMBOL_GPL(msi_get_domain_info);
+
+/**
+ * get_dev_msi_entry - Get the nth device MSI entry
+ * @dev: device to operate on
+ * @nr: device-relative interrupt vector index (0-based).
+ *
+ * Return the nth dev_msi entry
+ */
+static struct msi_desc *get_dev_msi_entry(struct device *dev, unsigned int nr)
+{
+	struct msi_desc *entry;
+	int i = 0;
+
+	msi_lock_descs(dev);
+	msi_for_each_desc(entry, dev, MSI_DESC_ALL) {
+		if (i == nr) {
+			msi_unlock_descs(dev);
+			return entry;
+		} i++;
+	}
+
+	msi_unlock_descs(dev);
+	WARN_ON_ONCE(!entry);
+	return entry;
+}
+
+/**
+ * dev_msi_irq_vector - Get the Linux IRQ number of a device vector
+ * @dev: device to operate on
+ * @nr: device-relative interrupt vector index (0-based).
+ *
+ * Returns the Linux IRQ number of a device vector.
+ */
+int dev_msi_irq_vector(struct device *dev, unsigned int nr)
+{
+	return get_dev_msi_entry(dev, nr)->irq;
+}
+EXPORT_SYMBOL_GPL(dev_msi_irq_vector);
+
+/**
+ * dev_msi_hwirq - Get the device MSI hw IRQ number of a device vector
+ * @dev: device to operate on
+ * @nr: device-relative interrupt vector index (0-based).
+ *
+ * Return the dev_msi hw IRQ number of a device vector.
+ */
+int dev_msi_hwirq(struct device *dev, unsigned int nr)
+{
+	return get_dev_msi_entry(dev, nr)->device_msi.hwirq;
+}
+EXPORT_SYMBOL_GPL(dev_msi_hwirq);

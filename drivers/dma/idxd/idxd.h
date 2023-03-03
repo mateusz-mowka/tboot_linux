@@ -32,12 +32,19 @@ enum idxd_dev_type {
 	IDXD_DEV_GROUP,
 	IDXD_DEV_ENGINE,
 	IDXD_DEV_CDEV,
+	IDXD_DEV_VDEV,
 	IDXD_DEV_MAX_TYPE,
 };
 
 struct idxd_dev {
 	struct device conf_dev;
 	enum idxd_dev_type type;
+
+	/* relevant to vdev */
+	struct idxd_device *idxd;
+	int id;
+	u32 vdev_type;
+	struct list_head list;
 };
 
 #define IDXD_REG_TIMEOUT	50
@@ -130,6 +137,7 @@ struct idxd_pmu {
 enum idxd_wq_state {
 	IDXD_WQ_DISABLED = 0,
 	IDXD_WQ_ENABLED,
+	IDXD_WQ_LOCKED,
 };
 
 enum idxd_wq_flag {
@@ -142,6 +150,7 @@ enum idxd_wq_type {
 	IDXD_WQT_NONE = 0,
 	IDXD_WQT_KERNEL,
 	IDXD_WQT_USER,
+	IDXD_WQT_VDEV,
 };
 
 struct idxd_cdev {
@@ -214,6 +223,7 @@ struct idxd_wq {
 	char name[WQ_NAME_SIZE + 1];
 	u64 max_xfer_bytes;
 	u32 max_batch_size;
+	char driver_name[WQ_NAME_SIZE + 1];
 };
 
 struct idxd_engine {
@@ -260,6 +270,11 @@ struct idxd_driver_data {
 	int align;
 };
 
+struct vdev_device_ops {
+	int (*device_create)(struct idxd_device *idxd, u32 type);
+	int (*device_remove)(struct idxd_device *idxd, char *vdev_name);
+};
+
 struct idxd_device {
 	struct idxd_dev idxd_dev;
 	struct idxd_driver_data *data;
@@ -274,6 +289,7 @@ struct idxd_device {
 
 	struct pci_dev *pdev;
 	void __iomem *reg_base;
+	void __iomem *portal_base;
 
 	spinlock_t dev_lock;	/* spinlock for device */
 	spinlock_t cmd_lock;	/* spinlock for device commands */
@@ -282,13 +298,13 @@ struct idxd_device {
 	struct idxd_wq **wqs;
 	struct idxd_engine **engines;
 
-	struct iommu_sva *sva;
 	unsigned int pasid;
 
 	int num_groups;
 	int irq_cnt;
 	bool request_int_handles;
 
+	u32 ims_offset;
 	u32 msix_perm_offset;
 	u32 wqcfg_offset;
 	u32 grpcfg_offset;
@@ -296,6 +312,7 @@ struct idxd_device {
 
 	u64 max_xfer_bytes;
 	u32 max_batch_size;
+	int ims_size;
 	int max_groups;
 	int max_engines;
 	int max_rdbufs;
@@ -316,6 +333,12 @@ struct idxd_device {
 	struct idxd_pmu *idxd_pmu;
 
 	unsigned long *opcap_bmap;
+
+	struct irq_domain *ims_domain;
+	struct mutex vdev_lock;
+	struct ida vdev_ida;
+	struct vdev_device_ops *vdev_ops;
+	struct list_head vdev_list;
 };
 
 /* IDXD software descriptor */
@@ -463,6 +486,11 @@ static inline bool is_idxd_wq_kernel(struct idxd_wq *wq)
 	return wq->type == IDXD_WQT_KERNEL;
 }
 
+static inline bool is_idxd_wq_vdev(struct idxd_wq *wq)
+{
+	return (wq->type == IDXD_WQT_VDEV);
+}
+
 static inline bool wq_dedicated(struct idxd_wq *wq)
 {
 	return test_bit(WQ_FLAG_DEDICATED, &wq->flags);
@@ -486,7 +514,8 @@ static inline bool device_user_pasid_enabled(struct idxd_device *idxd)
 static inline bool wq_pasid_enabled(struct idxd_wq *wq)
 {
 	return (is_idxd_wq_kernel(wq) && device_pasid_enabled(wq->idxd)) ||
-	       (is_idxd_wq_user(wq) && device_user_pasid_enabled(wq->idxd));
+	       (is_idxd_wq_user(wq) && device_user_pasid_enabled(wq->idxd)) ||
+	       (is_idxd_wq_vdev(wq) && device_user_pasid_enabled(wq->idxd));
 }
 
 static inline bool wq_shared_supported(struct idxd_wq *wq)
@@ -504,15 +533,10 @@ enum idxd_interrupt_type {
 	IDXD_IRQ_IMS,
 };
 
-static inline int idxd_get_wq_portal_offset(enum idxd_portal_prot prot)
+static inline int idxd_get_wq_portal_offset(int wq_id, enum idxd_portal_prot prot,
+					    enum idxd_interrupt_type irq_type)
 {
-	return prot * 0x1000;
-}
-
-static inline int idxd_get_wq_portal_full_offset(int wq_id,
-						 enum idxd_portal_prot prot)
-{
-	return ((wq_id * 4) << PAGE_SHIFT) + idxd_get_wq_portal_offset(prot);
+	return ((wq_id * 4) << PAGE_SHIFT) + prot * 0x1000 + irq_type * 0x2000;
 }
 
 #define IDXD_PORTAL_MASK	(PAGE_SIZE - 1)
@@ -580,6 +604,14 @@ static inline void idxd_wqcfg_set_max_batch_shift(int idxd_type, union wqcfg *wq
 		wqcfg->max_batch_shift = max_batch_shift;
 }
 
+static inline int idxd_wq_driver_name_match(struct idxd_wq *wq, struct device *dev)
+{
+	return (strncmp(wq->driver_name, dev->driver->name, strlen(dev->driver->name)) == 0);
+}
+
+#define MODULE_ALIAS_IDXD_DEVICE(type) MODULE_ALIAS("idxd:t" __stringify(type) "*")
+#define IDXD_DEVICES_MODALIAS_FMT "idxd:t%d"
+
 int __must_check __idxd_driver_register(struct idxd_device_driver *idxd_drv,
 					struct module *module, const char *mod_name);
 #define idxd_driver_register(driver) \
@@ -610,8 +642,8 @@ int idxd_register_idxd_drv(void);
 void idxd_unregister_idxd_drv(void);
 int idxd_device_drv_probe(struct idxd_dev *idxd_dev);
 void idxd_device_drv_remove(struct idxd_dev *idxd_dev);
-int drv_enable_wq(struct idxd_wq *wq);
-void drv_disable_wq(struct idxd_wq *wq);
+int __drv_enable_wq(struct idxd_wq *wq);
+void __drv_disable_wq(struct idxd_wq *wq);
 int idxd_device_init_reset(struct idxd_device *idxd);
 int idxd_device_enable(struct idxd_device *idxd);
 int idxd_device_disable(struct idxd_device *idxd);
@@ -633,6 +665,10 @@ int idxd_wq_enable(struct idxd_wq *wq);
 int idxd_wq_disable(struct idxd_wq *wq, bool reset_config);
 void idxd_wq_drain(struct idxd_wq *wq);
 void idxd_wq_reset(struct idxd_wq *wq);
+int idxd_wq_abort(struct idxd_wq *wq);
+void idxd_wq_setup_pasid(struct idxd_wq *wq, int pasid);
+void idxd_wq_clear_pasid(struct idxd_wq *wq);
+void idxd_wq_setup_priv(struct idxd_wq *wq, int priv);
 int idxd_wq_map_portal(struct idxd_wq *wq);
 void idxd_wq_unmap_portal(struct idxd_wq *wq);
 int idxd_wq_set_pasid(struct idxd_wq *wq, int pasid);

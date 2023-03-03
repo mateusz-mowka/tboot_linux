@@ -841,7 +841,7 @@ out:
 	return ret;
 }
 
-void intel_svm_remove_dev_pasid(struct device *dev, ioasid_t pasid)
+static void intel_svm_remove_dev_pasid(struct device *dev, ioasid_t pasid)
 {
 	mutex_lock(&pasid_mutex);
 	intel_svm_unbind_mm(dev, pasid);
@@ -873,6 +873,7 @@ static void intel_svm_domain_free(struct iommu_domain *domain)
 
 static const struct iommu_domain_ops intel_svm_domain_ops = {
 	.set_dev_pasid		= intel_svm_set_dev_pasid,
+	.remove_dev_pasid	= intel_svm_remove_dev_pasid,
 	.free			= intel_svm_domain_free
 };
 

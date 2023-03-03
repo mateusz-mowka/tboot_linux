@@ -15,6 +15,7 @@
 #include <linux/init.h>
 #include <linux/export.h>
 #include <linux/slab.h>
+#include <linux/highmem.h>
 #include <linux/errno.h>
 #include <linux/host1x_context_bus.h>
 #include <linux/iommu.h>
@@ -2390,12 +2391,25 @@ EXPORT_SYMBOL_GPL(iommu_map_atomic);
 
 static size_t __iommu_unmap_pages(struct iommu_domain *domain,
 				  unsigned long iova, size_t size,
-				  struct iommu_iotlb_gather *iotlb_gather)
+				  struct iommu_iotlb_gather *iotlb_gather,
+				  struct iommu_dirty_bitmap *dirty)
 {
 	const struct iommu_domain_ops *ops = domain->ops;
 	size_t pgsize, count;
 
 	pgsize = iommu_pgsize(domain, iova, iova, size, &count);
+
+	if (dirty) {
+		if (!ops->unmap_read_dirty && !ops->unmap_pages_read_dirty)
+			return 0;
+
+		return ops->unmap_pages_read_dirty ?
+		       ops->unmap_pages_read_dirty(domain, iova, pgsize,
+						   count, iotlb_gather, dirty) :
+		       ops->unmap_read_dirty(domain, iova, pgsize,
+					     iotlb_gather, dirty);
+	}
+
 	return ops->unmap_pages ?
 	       ops->unmap_pages(domain, iova, pgsize, count, iotlb_gather) :
 	       ops->unmap(domain, iova, pgsize, iotlb_gather);
@@ -2403,7 +2417,8 @@ static size_t __iommu_unmap_pages(struct iommu_domain *domain,
 
 static size_t __iommu_unmap(struct iommu_domain *domain,
 			    unsigned long iova, size_t size,
-			    struct iommu_iotlb_gather *iotlb_gather)
+			    struct iommu_iotlb_gather *iotlb_gather,
+			    struct iommu_dirty_bitmap *dirty)
 {
 	const struct iommu_domain_ops *ops = domain->ops;
 	size_t unmapped_page, unmapped = 0;
@@ -2438,9 +2453,8 @@ static size_t __iommu_unmap(struct iommu_domain *domain,
 	 * or we hit an area that isn't mapped.
 	 */
 	while (unmapped < size) {
-		unmapped_page = __iommu_unmap_pages(domain, iova,
-						    size - unmapped,
-						    iotlb_gather);
+		unmapped_page = __iommu_unmap_pages(domain, iova, size - unmapped,
+						    iotlb_gather, dirty);
 		if (!unmapped_page)
 			break;
 
@@ -2462,18 +2476,34 @@ size_t iommu_unmap(struct iommu_domain *domain,
 	size_t ret;
 
 	iommu_iotlb_gather_init(&iotlb_gather);
-	ret = __iommu_unmap(domain, iova, size, &iotlb_gather);
+	ret = __iommu_unmap(domain, iova, size, &iotlb_gather, NULL);
 	iommu_iotlb_sync(domain, &iotlb_gather);
 
 	return ret;
 }
 EXPORT_SYMBOL_GPL(iommu_unmap);
 
+size_t iommu_unmap_read_dirty(struct iommu_domain *domain,
+			      unsigned long iova, size_t size,
+			      struct iommu_dirty_bitmap *dirty)
+{
+	struct iommu_iotlb_gather iotlb_gather;
+	size_t ret;
+
+	iommu_iotlb_gather_init(&iotlb_gather);
+	ret = __iommu_unmap(domain, iova, size, &iotlb_gather, dirty);
+	iommu_iotlb_sync(domain, &iotlb_gather);
+
+	return ret;
+
+}
+EXPORT_SYMBOL_GPL(iommu_unmap_read_dirty);
+
 size_t iommu_unmap_fast(struct iommu_domain *domain,
 			unsigned long iova, size_t size,
 			struct iommu_iotlb_gather *iotlb_gather)
 {
-	return __iommu_unmap(domain, iova, size, iotlb_gather);
+	return __iommu_unmap(domain, iova, size, iotlb_gather, NULL);
 }
 EXPORT_SYMBOL_GPL(iommu_unmap_fast);
 
@@ -3281,6 +3311,34 @@ bool iommu_group_dma_owner_claimed(struct iommu_group *group)
 }
 EXPORT_SYMBOL_GPL(iommu_group_dma_owner_claimed);
 
+unsigned int iommu_dirty_bitmap_record(struct iommu_dirty_bitmap *dirty,
+				       unsigned long iova, unsigned long length)
+{
+	unsigned long nbits, offset, start_offset, idx, size, *kaddr;
+
+	nbits = max(1UL, length >> dirty->pgshift);
+	offset = (iova - dirty->iova) >> dirty->pgshift;
+	idx = offset / (PAGE_SIZE * BITS_PER_BYTE);
+	offset = offset % (PAGE_SIZE * BITS_PER_BYTE);
+	start_offset = dirty->start_offset;
+
+	while (nbits > 0) {
+		kaddr = kmap(dirty->pages[idx]) + start_offset;
+		size = min(PAGE_SIZE * BITS_PER_BYTE - offset, nbits);
+		bitmap_set(kaddr, offset, size);
+		kunmap(dirty->pages[idx]);
+		start_offset = offset = 0;
+		nbits -= size;
+		idx++;
+	}
+
+	if (dirty->gather)
+		iommu_iotlb_gather_add_range(dirty->gather, iova, length);
+
+	return nbits;
+}
+EXPORT_SYMBOL_GPL(iommu_dirty_bitmap_record);
+
 static int __iommu_set_group_pasid(struct iommu_domain *domain,
 				   struct iommu_group *group, ioasid_t pasid)
 {
@@ -3296,15 +3354,15 @@ static int __iommu_set_group_pasid(struct iommu_domain *domain,
 	return ret;
 }
 
-static void __iommu_remove_group_pasid(struct iommu_group *group,
+static void __iommu_remove_group_pasid(struct iommu_domain *domain,
+				       struct iommu_group *group,
 				       ioasid_t pasid)
 {
 	struct group_device *device;
-	const struct iommu_ops *ops;
 
 	list_for_each_entry(device, &group->devices, list) {
-		ops = dev_iommu_ops(device->dev);
-		ops->remove_dev_pasid(device->dev, pasid);
+		if (domain->ops->remove_dev_pasid)
+			domain->ops->remove_dev_pasid(device->dev, pasid);
 	}
 }
 
@@ -3339,7 +3397,7 @@ int iommu_attach_device_pasid(struct iommu_domain *domain,
 
 	ret = __iommu_set_group_pasid(domain, group, pasid);
 	if (ret) {
-		__iommu_remove_group_pasid(group, pasid);
+		__iommu_remove_group_pasid(domain, group, pasid);
 		xa_erase(&group->pasid_array, pasid);
 	}
 out_unlock:
@@ -3365,7 +3423,7 @@ void iommu_detach_device_pasid(struct iommu_domain *domain, struct device *dev,
 	struct iommu_group *group = iommu_group_get(dev);
 
 	mutex_lock(&group->mutex);
-	__iommu_remove_group_pasid(group, pasid);
+	__iommu_remove_group_pasid(domain, group, pasid);
 	WARN_ON(xa_erase(&group->pasid_array, pasid) != domain);
 	mutex_unlock(&group->mutex);
 
@@ -3427,3 +3485,101 @@ struct iommu_domain *iommu_sva_domain_alloc(struct device *dev,
 
 	return domain;
 }
+
+/**
+ * iommu_get_hw_info - get hardware information of the IOMMU for a device
+ * @dev - the device for which iommu information is queried
+ * @type - the type of IOMMU hardware
+ * @data - data buffer for the returned information
+ * @length - the length of the data buffer
+ *
+ * Return 0 on success with the IOMMU hardware information stored in the data
+ * buffer. Otherwise, an error number.
+ */
+int iommu_get_hw_info(struct device *dev, enum iommu_device_data_type type,
+		      void *data, size_t length)
+{
+	const struct iommu_ops *ops = dev_iommu_ops(dev);
+
+	if (!ops->hw_info || type != ops->driver_type || !data)
+		return -EINVAL;
+
+	return ops->hw_info(dev, data, length);
+}
+EXPORT_SYMBOL_NS_GPL(iommu_get_hw_info, IOMMUFD_INTERNAL);
+
+/**
+ * iommu_domain_alloc_user - allocate a user domain for a device
+ * @dev - the device for which the domain is allocated
+ * @type - the type of IOMMU hardware page table
+ * @parent - an existing domain which the new domain is nested on,
+ *           NULL if not
+ * @user_data - user specified domain configurations
+ * @data_len - the length of @user_data, the IOMMU driver should check
+ *             the sanity of the user data and length
+ *
+ * Return the domain on success, otherwise ERR_PTR. The driver callback
+ * should set the domain type and ops according to the @user_data.
+ */
+struct iommu_domain *iommu_domain_alloc_user(struct device *dev,
+					     enum iommu_device_data_type type,
+					     struct iommu_domain *parent,
+					     const void *user_data, size_t data_len)
+{
+	const struct iommu_ops *ops = dev_iommu_ops(dev);
+
+	if (!ops->domain_alloc_user)
+		return ERR_PTR(-EOPNOTSUPP);
+
+	/* IOMMU_DEVICE_DATA_NONE and user_data are exclusive. */
+	//if (!((type == IOMMU_DEVICE_DATA_NONE) ^ (user_data != NULL)))
+	/* Qemu requests to alloc s2 hwpt will use INTEL_VTD and user_data NULL */
+	if (type == IOMMU_DEVICE_DATA_NONE && user_data != NULL)
+		return ERR_PTR(-EINVAL);
+
+	if (type != IOMMU_DEVICE_DATA_NONE && type != ops->driver_type)
+		return ERR_PTR(-ENODEV);
+
+	return ops->domain_alloc_user(dev, parent, user_data, data_len);
+}
+EXPORT_SYMBOL_NS_GPL(iommu_domain_alloc_user, IOMMUFD_INTERNAL);
+
+ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain)
+{
+	struct iommu_domain *tdomain;
+	struct iommu_group *group;
+	unsigned long index;
+	ioasid_t pasid = INVALID_IOASID;
+
+	group = iommu_group_get(dev);
+	if (!group)
+		return pasid;
+
+	xa_for_each(&group->pasid_array, index, tdomain) {
+		if (domain == tdomain) {
+			pasid = index;
+			break;
+		}
+	}
+	iommu_group_put(group);
+
+	return pasid;
+}
+
+/**
+ * iommu_iotlb_sync_user - flush hardware caches for a user domain
+ * @domain - the user iommu domain
+ * @user_data - parameters for cache flush
+ * @data_len - the length of the parameters
+ *
+ * Any iommu driver which supports allocation of a user domain through
+ * iommu_domain_alloc_user() must provides the iotlb_sync_user domain
+ * op.
+ */
+void iommu_iotlb_sync_user(struct iommu_domain *domain, void *user_data,
+			   size_t data_len)
+{
+	if (!WARN_ON(!domain->ops->iotlb_sync_user))
+		domain->ops->iotlb_sync_user(domain, user_data, data_len);
+}
+EXPORT_SYMBOL_NS_GPL(iommu_iotlb_sync_user, IOMMUFD_INTERNAL);

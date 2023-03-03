@@ -421,6 +421,7 @@ struct kvm_run {
 			__u8  data[8];
 			__u32 len;
 			__u8  is_write;
+			__u8  np_data[64];
 		} mmio;
 		/* KVM_EXIT_HYPERCALL */
 		struct {
@@ -886,6 +887,12 @@ struct kvm_guest_debug {
 	__u32 control;
 	__u32 pad;
 	struct kvm_guest_debug_arch arch;
+};
+
+struct kvm_bind_pasid {
+	__u32 spid;
+	__u32 id;
+	int bind;
 };
 
 enum {
@@ -1496,15 +1503,26 @@ struct kvm_create_device {
 
 struct kvm_device_attr {
 	__u32	flags;		/* no flags currently defined */
-	__u32	group;		/* device-defined */
-	__u64	attr;		/* group-defined */
+	union {
+		__u32	group;
+		__u32	file;
+	}; /* device-defined */
+	__u64	attr;		/* VFIO-file-defined or group-defined */
 	__u64	addr;		/* userspace address of attr data */
 };
 
-#define  KVM_DEV_VFIO_GROUP			1
-#define   KVM_DEV_VFIO_GROUP_ADD			1
-#define   KVM_DEV_VFIO_GROUP_DEL			2
-#define   KVM_DEV_VFIO_GROUP_SET_SPAPR_TCE		3
+#define  KVM_DEV_VFIO_FILE	1
+
+#define   KVM_DEV_VFIO_FILE_ADD			1
+#define   KVM_DEV_VFIO_FILE_DEL			2
+#define   KVM_DEV_VFIO_FILE_SET_SPAPR_TCE	3
+
+/* Group aliases are for compile time uapi compatibility */
+#define  KVM_DEV_VFIO_GROUP	KVM_DEV_VFIO_FILE
+
+#define   KVM_DEV_VFIO_GROUP_ADD	KVM_DEV_VFIO_FILE_ADD
+#define   KVM_DEV_VFIO_GROUP_DEL	KVM_DEV_VFIO_FILE_DEL
+#define   KVM_DEV_VFIO_GROUP_SET_SPAPR_TCE	KVM_DEV_VFIO_FILE_SET_SPAPR_TCE
 
 enum kvm_device_type {
 	KVM_DEV_TYPE_FSL_MPIC_20	= 1,
@@ -2299,6 +2317,8 @@ struct kvm_stats_desc {
 
 /* Available with KVM_CAP_S390_PROTECTED_DUMP */
 #define KVM_S390_PV_CPU_COMMAND	_IOWR(KVMIO, 0xd0, struct kvm_pv_cmd)
+
+#define KVM_BIND_PASID  _IOW(KVMIO,  0xd1, struct kvm_bind_pasid)
 
 /* Available with KVM_CAP_X86_NOTIFY_VMEXIT */
 #define KVM_X86_NOTIFY_VMEXIT_ENABLED		(1ULL << 0)

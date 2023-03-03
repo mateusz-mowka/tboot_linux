@@ -23,6 +23,7 @@
 #include <linux/bitfield.h>
 #include <linux/xarray.h>
 #include <linux/perf_event.h>
+#include <uapi/linux/iommufd.h>
 
 #include <asm/cacheflush.h>
 #include <asm/iommu.h>
@@ -48,6 +49,9 @@
 #define DMA_FL_PTE_ACCESS	BIT_ULL(5)
 #define DMA_FL_PTE_DIRTY	BIT_ULL(6)
 #define DMA_FL_PTE_XD		BIT_ULL(63)
+
+#define DMA_SL_PTE_DIRTY_BIT	9
+#define DMA_SL_PTE_DIRTY	BIT_ULL(DMA_SL_PTE_DIRTY_BIT)
 
 #define ADDR_WIDTH_5LEVEL	(57)
 #define ADDR_WIDTH_4LEVEL	(48)
@@ -592,16 +596,45 @@ struct dmar_domain {
 
 	spinlock_t lock;		/* Protect device tracking lists */
 	struct list_head devices;	/* all devices' list */
+	struct list_head subdevices;	/* all subdevices' list */
 
-	struct dma_pte	*pgd;		/* virtual address */
-	int		gaw;		/* max guest address width */
+	union {
+		/* DMA remapping domain */
+		struct {
+			/* virtual address */
+			struct dma_pte	*pgd;
+			/* max guest address width */
+			int		gaw;
+			/* adjusted guest address width:
+			 *   0: level 2 30-bit
+			 *   1: level 3 39-bit
+			 *   2: level 4 48-bit
+			 *   3: level 5 57-bit
+			*/
+			int		agaw;
+			/*
+			 * Level of superpages supported:
+			 *   0: 4KiB (no superpages),
+			 *   1: 2MiB,
+			 *   2: 1GiB,
+			 *   3: 512GiB,
+			 *   4: 1TiB
+			 */
+			int		iommu_superpage;
+			/* maximum mapped address */
+			u64		max_addr;
+		};
 
-	/* adjusted guest address width, 0 is level 2 30-bit */
-	int		agaw;
-	int		iommu_superpage;/* Level of superpages supported:
-					   0 == 4KiB (no superpages), 1 == 2MiB,
-					   2 == 1GiB, 3 == 512GiB, 4 == 1TiB */
-	u64		max_addr;	/* maximum mapped address */
+		/* Nested user domain */
+		struct {
+			/* 2-level page table the user domain nested */
+			struct dmar_domain *s2_domain;
+			/* user page table pointer (in GPA) */
+			unsigned long s1_pgtbl;
+			/* page table attributes */
+			struct iommu_hwpt_intel_vtd s1_cfg;
+		};
+	};
 
 	struct iommu_domain domain;	/* generic domain data structure for
 					   iommu core */
@@ -692,9 +725,19 @@ struct intel_iommu {
 	struct iommu_pmu *pmu;
 };
 
+/* PCI domain-subdevice relationship */
+struct subdev_domain_info {
+	struct list_head link_domain;	/* link to domain siblings */
+	struct dmar_domain *domain;
+	struct device *pdev;		/* physical device derived from */
+	ioasid_t pasid;			/* PASID on physical device */
+};
+
 /* PCI domain-device relationship */
 struct device_domain_info {
 	struct list_head link;	/* link to domain siblings */
+	int nested_users;	/* for nested translation */
+	int users;
 	u32 segment;		/* PCI segment number */
 	u8 bus;			/* PCI bus number */
 	u8 devfn;		/* PCI devfn number */
@@ -711,6 +754,7 @@ struct device_domain_info {
 	struct intel_iommu *iommu; /* IOMMU used by this device */
 	struct dmar_domain *domain; /* pointer to domain */
 	struct pasid_table *pasid_table; /* pasid table */
+	struct xarray subdevice_array;
 };
 
 static inline void __iommu_flush_cache(
@@ -754,6 +798,22 @@ static inline void dma_clear_pte(struct dma_pte *pte)
 	pte->val = 0;
 }
 
+static inline bool dma_clear_pte_dirty(struct dma_pte *pte)
+{
+	bool dirty = false;
+	u64 val;
+
+	val = READ_ONCE(pte->val);
+
+	do {
+		val = cmpxchg64(&pte->val, val, 0);
+		if ((val & VTD_PAGE_MASK) & DMA_SL_PTE_DIRTY)
+			dirty = true;
+	} while (val);
+
+	return dirty;
+}
+
 static inline u64 dma_pte_addr(struct dma_pte *pte)
 {
 #ifdef CONFIG_64BIT
@@ -768,6 +828,17 @@ static inline u64 dma_pte_addr(struct dma_pte *pte)
 static inline bool dma_pte_present(struct dma_pte *pte)
 {
 	return (pte->val & 3) != 0;
+}
+
+static inline bool dma_sl_pte_dirty(struct dma_pte *pte)
+{
+	return (pte->val & DMA_SL_PTE_DIRTY) != 0;
+}
+
+static inline bool dma_sl_pte_test_and_clear_dirty(struct dma_pte *pte)
+{
+	return test_and_clear_bit(DMA_SL_PTE_DIRTY_BIT,
+				  (unsigned long *)&pte->val);
 }
 
 static inline bool dma_pte_superpage(struct dma_pte *pte)
@@ -789,6 +860,24 @@ static inline int nr_pte_to_next_page(struct dma_pte *pte)
 static inline bool context_present(struct context_entry *context)
 {
 	return (context->lo & 1);
+}
+
+static inline bool intel_iommu_user_data_valid(const void *data, size_t length,
+					       size_t real_size)
+{
+	const char *bytes = data;
+	int i;
+
+	if (!data || length < real_size)
+		return false;
+
+	/* check for trailing zeros */
+	for (i = real_size; i < length; i++) {
+		if (bytes[i])
+			return false;
+	}
+
+	return true;
 }
 
 extern struct dmar_drhd_unit * dmar_find_matched_drhd_unit(struct pci_dev *dev);
@@ -819,6 +908,19 @@ void qi_flush_pasid_cache(struct intel_iommu *iommu, u16 did, u64 granu,
 
 int qi_submit_sync(struct intel_iommu *iommu, struct qi_desc *desc,
 		   unsigned int count, unsigned long options);
+int domain_attach_iommu(struct dmar_domain *domain, struct intel_iommu *iommu);
+void domain_detach_iommu(struct dmar_domain *domain, struct intel_iommu *iommu);
+void device_block_translation(struct device *dev);
+int prepare_domain_attach_device(struct iommu_domain *domain,
+				 struct device *dev);
+bool intel_iommu_enforce_cache_coherency(struct iommu_domain *domain);
+void iommu_flush_iotlb_psi(struct intel_iommu *iommu,
+			   struct dmar_domain *domain,
+			   unsigned long pfn, unsigned int pages,
+			   int ih, int map);
+void intel_flush_iotlb_all(struct iommu_domain *domain);
+void domain_update_iommu_cap(struct dmar_domain *domain);
+
 /*
  * Options used in qi_submit_sync:
  * QI_OPT_WAIT_DRAIN - Wait for PRQ drain completion, spec 6.5.2.8.
@@ -831,6 +933,9 @@ void *alloc_pgtable_page(int node);
 void free_pgtable_page(void *vaddr);
 void iommu_flush_write_buffer(struct intel_iommu *iommu);
 struct intel_iommu *device_to_iommu(struct device *dev, u8 *bus, u8 *devfn);
+int intel_iommu_enable_pasid(struct intel_iommu *iommu, struct device *dev);
+struct iommu_domain *intel_nested_domain_alloc(struct iommu_domain *s2_domain,
+					       const void *data, size_t len);
 
 #ifdef CONFIG_INTEL_IOMMU_SVM
 extern void intel_svm_check(struct intel_iommu *iommu);
@@ -839,7 +944,6 @@ extern int intel_svm_finish_prq(struct intel_iommu *iommu);
 int intel_svm_page_response(struct device *dev, struct iommu_fault_event *evt,
 			    struct iommu_page_response *msg);
 struct iommu_domain *intel_svm_domain_alloc(void);
-void intel_svm_remove_dev_pasid(struct device *dev, ioasid_t pasid);
 
 struct intel_svm_dev {
 	struct list_head list;
@@ -867,10 +971,6 @@ static inline void intel_svm_check(struct intel_iommu *iommu) {}
 static inline struct iommu_domain *intel_svm_domain_alloc(void)
 {
 	return NULL;
-}
-
-static inline void intel_svm_remove_dev_pasid(struct device *dev, ioasid_t pasid)
-{
 }
 #endif
 

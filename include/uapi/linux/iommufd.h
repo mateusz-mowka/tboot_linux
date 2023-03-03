@@ -9,6 +9,8 @@
 
 #define IOMMUFD_TYPE (';')
 
+#define IOMMUFD_INVALID_ID 0  /* valid ID starts from 1 */
+
 /**
  * DOC: General ioctl format
  *
@@ -45,6 +47,15 @@ enum {
 	IOMMUFD_CMD_IOAS_UNMAP,
 	IOMMUFD_CMD_OPTION,
 	IOMMUFD_CMD_VFIO_IOAS,
+	IOMMUFD_CMD_DEVICE_GET_INFO,
+	IOMMUFD_CMD_HWPT_ALLOC,
+	IOMMUFD_CMD_HWPT_INVALIDATE,
+	IOMMUFD_CMD_PAGE_RESPONSE,
+	IOMMUFD_CMD_ALLOC_PASID,
+	IOMMUFD_CMD_FREE_PASID,
+	IOMMUFD_CMD_HWPT_SET_DIRTY,
+	IOMMUFD_CMD_HWPT_GET_DIRTY_IOVA,
+	IOMMUFD_CMD_IOAS_UNMAP_DIRTY,
 };
 
 /**
@@ -344,4 +355,544 @@ struct iommu_vfio_ioas {
 	__u16 __reserved;
 };
 #define IOMMU_VFIO_IOAS _IO(IOMMUFD_TYPE, IOMMUFD_CMD_VFIO_IOAS)
+
+enum iommu_device_data_type {
+	IOMMU_DEVICE_DATA_NONE = 0,
+	IOMMU_DEVICE_DATA_INTEL_VTD,
+};
+
+/**
+ * struct iommu_device_info_vtd - Intel VT-d device info
+ *
+ * @flags: Must be set to 0
+ * @__reserved: Must be 0
+ * @cap_reg: Basic capability register value
+ * @ecap_reg: Extended capability register value
+ *
+ * Intel hardware iommu capability.
+ */
+struct iommu_device_info_vtd {
+	__u32 flags;
+	__u32 __reserved;
+	__aligned_u64 cap_reg;
+	__aligned_u64 ecap_reg;
+};
+
+/**
+ * struct iommu_device_info - ioctl(IOMMU_DEVICE_GET_INFO)
+ * @size: sizeof(struct iommu_device_info)
+ * @flags: Must be 0
+ * @dev_id: The device being attached to the IOMMU
+ * @data_type: One of enum iommu_device_data_type
+ * @data_len: Length of the type specific data buffer. It cannot be
+ *	      higher than the system PAGE_SIZE.
+ * @__reserved: Must be 0
+ * @data_ptr: Pointer to the type specific structure (e.g.
+ *	      struct iommu_device_info_vtd)
+ *
+ * Query the hardware iommu capability for given device which has been
+ * bound to iommufd. @device_type is the desired iommu hardware type.
+ * If underlying iommu hardware supports this type, the hardware iommu
+ * capability info would be written to the buffer specified by @data_ptr
+ * and return 0. Otherwise, error would be returned.
+ */
+struct iommu_device_info {
+	__u32 size;
+	__u32 flags;
+	__u32 dev_id;
+	__u32 device_type;
+	__u32 data_len;
+	__u32 __reserved;
+	__aligned_u64 data_ptr;
+};
+#define IOMMU_DEVICE_GET_INFO _IO(IOMMUFD_TYPE, IOMMUFD_CMD_DEVICE_GET_INFO)
+
+/**
+ * enum iommu_hwpt_intel_vtd_flags - Intel VT-d stage-1 page
+ *				     table entry attributes
+ * @IOMMU_VTD_PGTBL_SRE: Supervisor request
+ * @IOMMU_VTD_PGTBL_EAFE: Extended access enable
+ * @IOMMU_VTD_PGTBL_PCD: Page-level cache disable
+ * @IOMMU_VTD_PGTBL_PWT: Page-level write through
+ * @IOMMU_VTD_PGTBL_EMTE: Extended mem type enable
+ * @IOMMU_VTD_PGTBL_CD: PASID-level cache disable
+ * @IOMMU_VTD_PGTBL_WPE: Write protect enable
+ */
+enum iommu_hwpt_intel_vtd_flags {
+	IOMMU_VTD_PGTBL_SRE = 1 << 0,
+	IOMMU_VTD_PGTBL_EAFE = 1 << 1,
+	IOMMU_VTD_PGTBL_PCD = 1 << 2,
+	IOMMU_VTD_PGTBL_PWT = 1 << 3,
+	IOMMU_VTD_PGTBL_EMTE = 1 << 4,
+	IOMMU_VTD_PGTBL_CD = 1 << 5,
+	IOMMU_VTD_PGTBL_WPE = 1 << 6,
+	IOMMU_VTD_PGTBL_LAST = 1 << 7,
+};
+
+/**
+ * struct iommu_hwpt_intel_vtd - Intel VT-d specific user-managed
+ *				 stage-1 page table info
+ * @flags: Combination of enum iommu_hwpt_intel_vtd_flags
+ * @pgtbl_addr: The base address of the user-managed stage-1 page table.
+ * @pat: Page attribute table data to compute effective memory type
+ * @emt: Extended memory type
+ * @addr_width: The address width of the untranslated addresses that are
+ *		subjected to the user-managed stage-1 page table.
+ * @__reserved: Must be 0
+ *
+ * The IOMMU_DEVICE_DATA_INTEL_VTD specific data for creating hw_pagetable
+ * to represent the user-managed stage-1 page table that is used in nested
+ * translation.
+ *
+ * In nested translation, the stage-1 page table locates in the address
+ * space that defined by the corresponding stage-2 page table. Hence the
+ * stage-1 page table base address value should not be higher than the
+ * maximum untranslated address of stage-2 page table.
+ *
+ * The paging level of the stage-1 page table should be compataible with
+ * the hardware iommu. Otherwise, the allocation would be failed.
+ */
+struct iommu_hwpt_intel_vtd {
+	__u64 flags;
+	__u64 pgtbl_addr;
+	__u32 pat;
+	__u32 emt;
+	__u32 addr_width;
+	__u32 __reserved;
+};
+
+struct iommu_hwpt_user_data {
+	__u32 config_len;
+	__u32 __reserved;
+	__aligned_u64 config_uptr; /* i.e. struct iommu_hwpt_intel_vtd */
+	__s32 eventfd;
+	__s32 out_fault_fd;
+};
+
+/**
+ * struct iommu_hwpt_alloc - ioctl(IOMMU_HWPT_ALLOC)
+ * @size: sizeof(struct iommu_hwpt_alloc)
+ * @flags: Must be 0
+ * @dev_id: The device to allocate this HWPT for
+ * @pt_id: The parent of this HWPT (IOAS or HWPT)
+ * @data_type: One of enum iommu_device_data_type
+ * @data_len: Length of the type specific data
+ * @data_uptr: User pointer to the type specific data
+ * @out_hwpt_id: Output HWPT ID for the allocated object
+ * @__reserved: Must be 0
+ *
+ * Allocate hw_pagetable for managing page tables in userspace. Such page
+ * tables can be user-managed or kernel-managed. @pt_id is needed for either
+ * case. While the @data_type, @data_len and @data_uptr are optional. For
+ * the user-managed page tables, userspace should provide the data_type, the
+ * data_len and the type speficific data. While for the kernel-managed page
+ * tables, use the IOMMU_DEVICE_DATA_NONE data_type, @data_len and @data_uptr
+ * will be ignored.
+ *
+ * +==============================+=====================================+
+ * | @data_type                   |      Data structure in @data_uptr   |
+ * +------------------------------+-------------------------------------+
+ * | IOMMU_DEVICE_DATA_NONE       |                 N/A                 |
+ * +------------------------------+-------------------------------------+
+ * | IOMMU_DEVICE_DATA_INTEL_VTD  |      struct iommu_hwpt_intel_vtd    |
+ * +------------------------------+-------------------------------------+
+
+ */
+struct iommu_hwpt_alloc {
+	__u32 size;
+	__u32 flags;
+	__u32 dev_id;
+	__u32 pt_id;
+	__u32 data_type;
+	__u32 data_len;
+	__aligned_u64 data_uptr;
+	__u32 out_hwpt_id;
+	__u32 __reserved;
+};
+#define IOMMU_HWPT_ALLOC _IO(IOMMUFD_TYPE, IOMMUFD_CMD_HWPT_ALLOC)
+
+/**
+ * enum iommu_vtd_qi_granularity - Intel VT-d specific granularity of
+ *				   queued invalidation
+ * @IOMMU_VTD_QI_GRAN_DOMAIN: domain-selective invalidation
+ * @IOMMU_VTD_QI_GRAN_ADDR: page-selective invalidation
+ */
+enum iommu_vtd_qi_granularity {
+	IOMMU_VTD_QI_GRAN_DOMAIN,
+	IOMMU_VTD_QI_GRAN_ADDR,
+};
+
+/**
+ * enum iommu_hwpt_intel_vtd_invalidate_flags - Flags for Intel VT-d
+ *						stage-1 page table cache
+ *						invalidation
+ * @IOMMU_VTD_QI_FLAGS_LEAF: The LEAF flag indicates whether only the
+ *			     leaf PTE caching needs to be invalidated
+ *			     and other paging structure caches can be
+ *			     preserved.
+ */
+enum iommu_hwpt_intel_vtd_invalidate_flags {
+	IOMMU_VTD_QI_FLAGS_LEAF = 1 << 0,
+};
+
+/**
+ * struct iommu_hwpt_invalidate_intel_vtd - Intel VT-d cache invalidation info
+ * @granularity: One of enum iommu_vtd_qi_granularity.
+ * @flags: Combination of enum iommu_hwpt_intel_vtd_invalidate_flags
+ * @__reserved: Must be 0
+ * @addr: The start address of the addresses to be invalidated.
+ * @granule_size: Page/block size of the mapping in bytes. It is used to
+ *		  compute the invalidation range togehter with @nb_granules.
+ * @nb_granules: Number of contiguous granules to be invalidated.
+ *
+ * The IOMMU_DEVICE_DATA_INTEL_VTD specific invalidation data for user-managed
+ * stage-1 cache invalidation under nested translation. Userspace uses this
+ * structure to tell host about the impacted caches after modifying the stage-1
+ * page table.
+ *
+ * @addr, @granule_size and @nb_granules are meaningful when
+ * @granularity==IOMMU_VTD_QI_GRAN_ADDR. Intel VT-d currently only supports 4KB
+ * page size, so @granule_size should be 4KB. @addr should be aligned with
+ * @granule_size * @nb_granules, otherwise invalidation won't take effect.
+ */
+struct iommu_hwpt_invalidate_intel_vtd {
+	__u8 granularity;
+	__u8 padding[7];
+	__u32 flags;
+	__u32 __reserved;
+	__u64 addr;
+	__u64 granule_size;
+	__u64 nb_granules;
+};
+
+/**
+ * struct iommu_hwpt_invalidate - ioctl(IOMMU_HWPT_INVALIDATE)
+ * @size: sizeof(struct iommu_hwpt_invalidate)
+ * @hwpt_id: HWPT ID of target hardware page table for the invalidation
+ * @data_type: One of enum iommu_device_data_type
+ * @data_len: Length of the type specific data
+ * @data_uptr: User pointer to the type specific data
+ *
+ * Invalidate the iommu cache for user-managed page table. Modifications
+ * on user-managed page table should be followed with this operation to
+ * sync the userspace with the kernel and underlying hardware. This operation
+ * is only needed by user-managed hw_pagetables, so the @data_type should
+ * never be IOMMU_DEVICE_DATA_NONE.
+ *
+ * +==============================+========================================+
+ * | @data_type                   |     Data structure in @data_uptr       |
+ * +------------------------------+----------------------------------------+
+ * | IOMMU_DEVICE_DATA_INTEL_VTD  | struct iommu_hwpt_invalidate_intel_vtd |
+ * +------------------------------+----------------------------------------+
+ */
+struct iommu_hwpt_invalidate {
+	__u32 size;
+	__u32 hwpt_id;
+	__u32 data_type;
+	__u32 data_len;
+	__aligned_u64 data_uptr;
+};
+#define IOMMU_HWPT_INVALIDATE _IO(IOMMUFD_TYPE, IOMMUFD_CMD_HWPT_INVALIDATE)
+
+/*
+ * DMA Fault Region Layout
+ * @tail: index relative to the start of the ring buffer at which the
+ *        consumer finds the next item in the buffer
+ * @entry_size: fault ring buffer entry size in bytes
+ * @nb_entries: max capacity of the fault ring buffer
+ * @offset: ring buffer offset relative to the start of the region
+ * @head: index relative to the start of the ring buffer at which the
+ *        producer (kernel) inserts items into the buffers
+ */
+struct iommufd_dma_fault {
+	/* Write-Only */
+	__u32   tail;
+	/* Read-Only */
+	__u32   entry_size;
+	__u32	nb_entries;
+	__u32	offset;
+	__u32   head;
+};
+
+#define IOMMU_FAULT_PERM_READ	(1 << 0) /* read */
+#define IOMMU_FAULT_PERM_WRITE	(1 << 1) /* write */
+#define IOMMU_FAULT_PERM_EXEC	(1 << 2) /* exec */
+#define IOMMU_FAULT_PERM_PRIV	(1 << 3) /* privileged */
+
+/*
+ * struct iommu_alloc_pasid - ioctl(IOMMU_ALLOC_PASID)
+ * @size: sizeof(struct iommu_alloc_pasid)
+ * @flags: optional flags.
+ * @min: min pasid
+ * @max: max pasid
+ * @pasid: input a user pasid and output the allocated host pasid
+ *
+ * Allocate a host pasid within [@min, @max]
+ */
+struct iommu_alloc_pasid {
+	__u32 size;
+	__u32 flags;
+#define IOMMU_ALLOC_PASID_IDENTICAL (1 << 0)
+	struct {
+		__u32   min;
+		__u32   max;
+	} range;
+	__u32 pasid;
+};
+#define IOMMU_ALLOC_PASID _IO(IOMMUFD_TYPE, IOMMUFD_CMD_ALLOC_PASID)
+
+/*
+ * struct iommu_free_pasid - ioctl(IOMMU_FREE_PASID)
+ * @size: sizeof(struct iommu_free_pasid)
+ * @flags: must be 0
+ * @pasid: the pasid to be freed
+ *
+ */
+struct iommu_free_pasid {
+	__u32 size;
+	__u32 flags;
+	__u32 pasid;
+};
+#define IOMMU_FREE_PASID _IO(IOMMUFD_TYPE, IOMMUFD_CMD_FREE_PASID)
+
+/* Generic fault types, can be expanded IRQ remapping fault */
+enum iommu_fault_type {
+	IOMMU_FAULT_DMA_UNRECOV = 1,	/* unrecoverable fault */
+	IOMMU_FAULT_PAGE_REQ,		/* page request fault */
+};
+
+enum iommu_fault_reason {
+	IOMMU_FAULT_REASON_UNKNOWN = 0,
+
+	/* Could not access the PASID table (fetch caused external abort) */
+	IOMMU_FAULT_REASON_PASID_FETCH,
+
+	/* PASID entry is invalid or has configuration errors */
+	IOMMU_FAULT_REASON_BAD_PASID_ENTRY,
+
+	/*
+	 * PASID is out of range (e.g. exceeds the maximum PASID
+	 * supported by the IOMMU) or disabled.
+	 */
+	IOMMU_FAULT_REASON_PASID_INVALID,
+
+	/*
+	 * An external abort occurred fetching (or updating) a translation
+	 * table descriptor
+	 */
+	IOMMU_FAULT_REASON_WALK_EABT,
+
+	/*
+	 * Could not access the page table entry (Bad address),
+	 * actual translation fault
+	 */
+	IOMMU_FAULT_REASON_PTE_FETCH,
+
+	/* Protection flag check failed */
+	IOMMU_FAULT_REASON_PERMISSION,
+
+	/* access flag check failed */
+	IOMMU_FAULT_REASON_ACCESS,
+
+	/* Output address of a translation stage caused Address Size fault */
+	IOMMU_FAULT_REASON_OOR_ADDRESS,
+};
+
+/**
+ * struct iommu_fault_unrecoverable - Unrecoverable fault data
+ * @reason: reason of the fault, from &enum iommu_fault_reason
+ * @flags: parameters of this fault (IOMMU_FAULT_UNRECOV_* values)
+ * @pasid: Process Address Space ID
+ * @perm: requested permission access using by the incoming transaction
+ *        (IOMMU_FAULT_PERM_* values)
+ * @addr: offending page address
+ * @fetch_addr: address that caused a fetch abort, if any
+ */
+struct iommu_fault_unrecoverable {
+	__u32	reason;
+#define IOMMU_FAULT_UNRECOV_PASID_VALID		(1 << 0)
+#define IOMMU_FAULT_UNRECOV_ADDR_VALID		(1 << 1)
+#define IOMMU_FAULT_UNRECOV_FETCH_ADDR_VALID	(1 << 2)
+	__u32	flags;
+	__u32	pasid;
+	__u32	perm;
+	__u64	addr;
+	__u64	fetch_addr;
+};
+
+/**
+ * struct iommu_fault_page_request - Page Request data
+ * @flags: encodes whether the corresponding fields are valid and whether this
+ *         is the last page in group (IOMMU_FAULT_PAGE_REQUEST_* values).
+ *         When IOMMU_FAULT_PAGE_RESPONSE_NEEDS_PASID is set, the page response
+ *         must have the same PASID value as the page request. When it is clear,
+ *         the page response should not have a PASID.
+ * @pasid: Process Address Space ID
+ * @grpid: Page Request Group Index
+ * @perm: requested page permissions (IOMMU_FAULT_PERM_* values)
+ * @addr: page address
+ * @private_data: device-specific private information
+ */
+struct iommu_fault_page_request {
+#define IOMMU_FAULT_PAGE_REQUEST_PASID_VALID	(1 << 0)
+#define IOMMU_FAULT_PAGE_REQUEST_LAST_PAGE	(1 << 1)
+#define IOMMU_FAULT_PAGE_REQUEST_PRIV_DATA	(1 << 2)
+#define IOMMU_FAULT_PAGE_RESPONSE_NEEDS_PASID	(1 << 3)
+	__u32	flags;
+	__u32	pasid;
+	__u32	grpid;
+	__u32	perm;
+	__u64	addr;
+	__u64	private_data[2];
+};
+
+/**
+ * struct iommu_fault - Generic fault data
+ * @type: fault type from &enum iommu_fault_type
+ * @dev_id: the dev_id previously returned to userspace per iommufd binding
+ * @event: fault event, when @type is %IOMMU_FAULT_DMA_UNRECOV
+ * @prm: Page Request message, when @type is %IOMMU_FAULT_PAGE_REQ
+ * @padding2: sets the fault size to allow for future extensions
+ */
+struct iommu_fault {
+	__u32	type;
+	__u32	dev_id;
+	union {
+		struct iommu_fault_unrecoverable event;
+		struct iommu_fault_page_request prm;
+		__u8 padding2[56];
+	};
+};
+
+/**
+ * enum iommu_page_response_code - Return status of fault handlers
+ * @IOMMU_PAGE_RESP_SUCCESS: Fault has been handled and the page tables
+ *	populated, retry the access. This is "Success" in PCI PRI.
+ * @IOMMU_PAGE_RESP_FAILURE: General error. Drop all subsequent faults from
+ *	this device if possible. This is "Response Failure" in PCI PRI.
+ * @IOMMU_PAGE_RESP_INVALID: Could not handle this fault, don't retry the
+ *	access. This is "Invalid Request" in PCI PRI.
+ * @IOMMU_PAGE_RESP_ASYNC: Will response later by calling iommu_page_response().
+ */
+enum iommu_page_response_code {
+	IOMMU_PAGE_RESP_SUCCESS = 0,
+	IOMMU_PAGE_RESP_INVALID,
+	IOMMU_PAGE_RESP_FAILURE,
+	IOMMU_PAGE_RESP_ASYNC,
+};
+
+/**
+ * struct iommu_page_response - Generic page response information
+ * @argsz: User filled size of this data
+ * @version: API version of this structure
+ * @flags: encodes whether the corresponding fields are valid
+ *         (IOMMU_FAULT_PAGE_RESPONSE_* values)
+ * @pasid: Process Address Space ID
+ * @grpid: Page Request Group Index
+ * @code: response code from &enum iommu_page_response_code
+ */
+struct iommu_page_response {
+	__u32	argsz;
+#define IOMMU_PAGE_RESP_VERSION_1	1
+	__u32	version;
+#define IOMMU_PAGE_RESP_PASID_VALID	(1 << 0)
+	__u32	flags;
+	__u32	pasid;
+	__u32	grpid;
+	__u32	code;
+	__u32	dev_id;
+};
+
+/**
+ * struct iommu_hwpt_page_response - ioctl(IOMMUFD_CMD_PAGE_RESPONSE)
+ * @size: sizeof(struct iommu_hwpt_page_response)
+ * @flags: must be 0
+ * @hwpt_id: hwpt ID of target hardware page table for the response
+ * @dev_id: device ID of target device for the response
+ * @resp: response info
+ *
+ */
+struct iommu_hwpt_page_response {
+	__u32 size;
+	__u32 flags;
+	__u32 hwpt_id;
+	__u32 dev_id;
+	struct iommu_page_response resp;
+};
+#define IOMMU_PAGE_RESPONSE _IO(IOMMUFD_TYPE, IOMMUFD_CMD_PAGE_RESPONSE)
+
+/**
+ * enum iommufd_set_dirty_flags - Flags for steering dirty tracking
+ * @IOMMU_DIRTY_TRACKING_DISABLED: Disables dirty tracking
+ * @IOMMU_DIRTY_TRACKING_ENABLED: Enables dirty tracking
+ */
+enum iommufd_set_dirty_flags {
+	IOMMU_DIRTY_TRACKING_DISABLED = 0,
+	IOMMU_DIRTY_TRACKING_ENABLED = 1 << 0,
+};
+
+/**
+ * struct iommu_hwpt_set_dirty - ioctl(IOMMU_HWPT_SET_DIRTY)
+ * @size: sizeof(struct iommu_hwpt_set_dirty)
+ * @flags: Flags to control dirty tracking status.
+ * @hwpt_id: HW pagetable ID that represents the IOMMU domain.
+ *
+ * Toggle dirty tracking on an HW pagetable.
+ */
+struct iommu_hwpt_set_dirty {
+	__u32 size;
+	__u32 flags;
+	__u32 hwpt_id;
+	__u32 __reserved;
+};
+#define IOMMU_HWPT_SET_DIRTY _IO(IOMMUFD_TYPE, IOMMUFD_CMD_HWPT_SET_DIRTY)
+
+/**
+ * struct iommufd_dirty_bitmap - Dirty IOVA tracking bitmap
+ * @iova: base IOVA of the bitmap
+ * @length: IOVA size
+ * @page_size: page size granularity of each bit in the bitmap
+ * @data: bitmap where to set the dirty bits. The bitmap bits each
+ * represent a page_size which you deviate from an arbitrary iova.
+ * Checking a given IOVA is dirty:
+ *
+ *  data[(iova / page_size) / 64] & (1ULL << (iova % 64))
+ */
+struct iommufd_dirty_data {
+	__aligned_u64 iova;
+	__aligned_u64 length;
+	__aligned_u64 page_size;
+	__aligned_u64 *data;
+};
+
+/**
+ * struct iommu_hwpt_get_dirty_iova - ioctl(IOMMU_HWPT_GET_DIRTY_IOVA)
+ * @size: sizeof(struct iommu_hwpt_get_dirty_iova)
+ * @bitmap: Bitmap of the range of IOVA to read out
+ */
+struct iommu_hwpt_get_dirty_iova {
+	__u32 size;
+	__u32 hwpt_id;
+	struct iommufd_dirty_data bitmap;
+};
+#define IOMMU_HWPT_GET_DIRTY_IOVA _IO(IOMMUFD_TYPE, IOMMUFD_CMD_HWPT_GET_DIRTY_IOVA)
+
+/**
+ * struct iommu_hwpt_unmap - ioctl(IOMMU_HWPT_UNMAP_DIRTY)
+ * @size: sizeof(struct iommu_hwpt_unmap_dirty)
+ * @ioas_id: IOAS ID to unmap the mapping of
+ * @data: Dirty data of the range of IOVA to unmap
+ *
+ * Unmap an IOVA range and return a bitmap of the dirty bits.
+ * The iova/length must exactly match a range
+ * used with IOMMU_IOAS_PAGETABLE_MAP, or be the values 0 & U64_MAX.
+ * In the latter case all IOVAs will be unmaped.
+ */
+struct iommu_ioas_unmap_dirty {
+	__u32 size;
+	__u32 ioas_id;
+	struct iommufd_dirty_data bitmap;
+};
+#define IOMMU_IOAS_UNMAP_DIRTY _IO(IOMMUFD_TYPE, IOMMUFD_CMD_IOAS_UNMAP_DIRTY)
+
 #endif

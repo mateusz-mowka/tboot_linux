@@ -17,10 +17,10 @@
 #include <linux/bug.h>
 #include <uapi/linux/iommufd.h>
 #include <linux/iommufd.h>
+#include <linux/sched/mm.h>
 
 #include "io_pagetable.h"
 #include "iommufd_private.h"
-#include "iommufd_test.h"
 
 struct iommufd_object_ops {
 	void (*destroy)(struct iommufd_object *obj);
@@ -167,6 +167,8 @@ static int iommufd_destroy(struct iommufd_ucmd *ucmd)
 static int iommufd_fops_open(struct inode *inode, struct file *filp)
 {
 	struct iommufd_ctx *ictx;
+	struct mm_struct *mm;
+	int ret = 0;
 
 	ictx = kzalloc(sizeof(*ictx), GFP_KERNEL_ACCOUNT);
 	if (!ictx)
@@ -185,7 +187,20 @@ static int iommufd_fops_open(struct inode *inode, struct file *filp)
 	xa_init_flags(&ictx->objects, XA_FLAGS_ALLOC1 | XA_FLAGS_ACCOUNT);
 	ictx->file = filp;
 	filp->private_data = ictx;
-	return 0;
+
+	mm = get_task_mm(current);
+	/* REVISIT: IOASID set quota must be enforced at per mm level, but
+	 * users should be able to open iommufd multiple times. For now we
+	 * just prevent multi-open. TODO: find a more explicit token
+	 * than mm.
+	 */
+	ictx->pasid_set = ioasid_set_alloc_with_mm(mm, 1000);
+	/* IOASID core will mmgrab to ensure life time alignment */
+	if (IS_ERR(ictx->pasid_set))
+		ret = -EBUSY;
+	mmput(mm);
+
+	return ret;
 }
 
 static int iommufd_fops_release(struct inode *inode, struct file *filp)
@@ -218,6 +233,12 @@ static int iommufd_fops_release(struct inode *inode, struct file *filp)
 		if (WARN_ON(!destroyed))
 			break;
 	}
+	ioasid_put_all_in_set(ictx->pasid_set);
+	/* There could be PASID refs held on the set, if so the set will not be
+	 * freed until reference to all its PASIDs are dropped.
+	 */
+	ioasid_set_destroy(ictx->pasid_set);
+
 	kfree(ictx);
 	return 0;
 }
@@ -248,18 +269,6 @@ static int iommufd_option(struct iommufd_ucmd *ucmd)
 	return 0;
 }
 
-union ucmd_buffer {
-	struct iommu_destroy destroy;
-	struct iommu_ioas_alloc alloc;
-	struct iommu_ioas_allow_iovas allow_iovas;
-	struct iommu_ioas_iova_ranges iova_ranges;
-	struct iommu_ioas_map map;
-	struct iommu_ioas_unmap unmap;
-#ifdef CONFIG_IOMMUFD_TEST
-	struct iommu_test_cmd test;
-#endif
-};
-
 struct iommufd_ioctl_op {
 	unsigned int size;
 	unsigned int min_size;
@@ -286,6 +295,8 @@ static const struct iommufd_ioctl_op iommufd_ioctl_ops[] = {
 		 src_iova),
 	IOCTL_OP(IOMMU_IOAS_IOVA_RANGES, iommufd_ioas_iova_ranges,
 		 struct iommu_ioas_iova_ranges, out_iova_alignment),
+	IOCTL_OP(IOMMU_DEVICE_GET_INFO, iommufd_device_get_info, struct iommu_device_info,
+		 data_ptr),
 	IOCTL_OP(IOMMU_IOAS_MAP, iommufd_ioas_map, struct iommu_ioas_map,
 		 iova),
 	IOCTL_OP(IOMMU_IOAS_UNMAP, iommufd_ioas_unmap, struct iommu_ioas_unmap,
@@ -294,6 +305,22 @@ static const struct iommufd_ioctl_op iommufd_ioctl_ops[] = {
 		 val64),
 	IOCTL_OP(IOMMU_VFIO_IOAS, iommufd_vfio_ioas, struct iommu_vfio_ioas,
 		 __reserved),
+	IOCTL_OP(IOMMU_HWPT_ALLOC, iommufd_hwpt_alloc, struct iommu_hwpt_alloc,
+		 __reserved),
+	IOCTL_OP(IOMMU_HWPT_INVALIDATE, iommufd_hwpt_invalidate,
+		 struct iommu_hwpt_invalidate, data_uptr),
+	IOCTL_OP(IOMMU_PAGE_RESPONSE, iommufd_hwpt_page_response, struct iommu_hwpt_page_response,
+		 resp),
+	IOCTL_OP(IOMMU_ALLOC_PASID, iommufd_alloc_pasid, struct iommu_alloc_pasid,
+		 pasid),
+	IOCTL_OP(IOMMU_FREE_PASID, iommufd_free_pasid, struct iommu_free_pasid,
+		 pasid),
+	IOCTL_OP(IOMMU_HWPT_SET_DIRTY, iommufd_hwpt_set_dirty,
+		 struct iommu_hwpt_set_dirty, __reserved),
+	IOCTL_OP(IOMMU_HWPT_GET_DIRTY_IOVA, iommufd_hwpt_get_dirty_iova,
+		 struct iommu_hwpt_get_dirty_iova, bitmap.data),
+	IOCTL_OP(IOMMU_IOAS_UNMAP_DIRTY, iommufd_ioas_unmap_dirty,
+		 struct iommu_ioas_unmap_dirty, bitmap.data),
 #ifdef CONFIG_IOMMUFD_TEST
 	IOCTL_OP(IOMMU_TEST_CMD, iommufd_test, struct iommu_test_cmd, last),
 #endif
@@ -331,6 +358,8 @@ static long iommufd_fops_ioctl(struct file *filp, unsigned int cmd,
 				    ucmd.user_size);
 	if (ret)
 		return ret;
+
+	op = &iommufd_ioctl_ops[nr - IOMMUFD_CMD_BASE];
 	ret = op->execute(&ucmd);
 	return ret;
 }

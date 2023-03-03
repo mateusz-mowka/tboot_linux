@@ -611,7 +611,7 @@ static unsigned int hv_msi_get_int_vector(struct irq_data *data)
 	return cfg->vector;
 }
 
-#define hv_msi_prepare		pci_msi_prepare
+#define hv_msi_prepare		x86_msi_prepare
 
 /**
  * hv_arch_irq_unmask() - "Unmask" the IRQ by setting its current
