@@ -32,13 +32,26 @@ Sysfs Interface
 To control uncore frequency, a sysfs interface is provided in the directory:
 `/sys/devices/system/cpu/intel_uncore_frequency/`.
 
+Generations prior to Intel Granite Rapids
+
 There is one directory for each package and die combination as the scope of
 uncore scaling control is per die in multiple die/package SoCs or per
 package for single die per package SoCs. The name represents the
 scope of control. For example: 'package_00_die_00' is for package id 0 and
 die 0.
 
-Each package_*_die_* contains the following attributes:
+Intel Granite Rapids and later
+
+The scope of control for uncore frequency is at package/die level for
+processor generations prior to Granite Rapids CPUs. Granite Rapids generation
+and later SoCs can provide more granular interface. They can contain multiple
+power domains with individual or collection of mesh partitions. Each of this
+partition is called fabric cluster. To accommodate for such granularity and
+also have a scope of extending in future, the directory name doesn't include
+any package or die information, but an unique instance number followed by
+"uncore". The scope is specified by attributes in the directory.
+
+Attributes:
 
 ``initial_max_freq_khz``
 	Out of reset, this attribute represent the maximum possible frequency.
@@ -58,3 +71,15 @@ Each package_*_die_* contains the following attributes:
 
 ``current_freq_khz``
 	This attribute is used to get the current uncore frequency.
+
+``domain_id``
+	This attribute is used to get the power domain id of this instance.
+	Present only when there are multiple power domains.
+
+``fabric_cluster_id``
+	This attribute is used to get the fabric cluster id of this instance.
+	Present only when there are multiple power domains.
+
+``package_id``
+	This attribute is used to get the package id of this instance.
+	Present only when there are multiple power domains.
