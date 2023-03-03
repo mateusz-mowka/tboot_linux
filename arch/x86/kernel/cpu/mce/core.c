@@ -579,7 +579,7 @@ static int uc_decode_notifier(struct notifier_block *nb, unsigned long val,
 	    mce->severity != MCE_DEFERRED_SEVERITY)
 		return NOTIFY_DONE;
 
-	pfn = mce->addr >> PAGE_SHIFT;
+	pfn = (mce->addr & MCI_ADDR_PHYSADDR) >> PAGE_SHIFT;
 	if (!memory_failure(pfn, 0)) {
 		set_mce_nospec(pfn);
 		mce->kflags |= MCE_HANDLED_UC;
@@ -1353,7 +1353,7 @@ static void queue_task_work(struct mce *m, char *msg, void (*func)(struct callba
 
 	/* First call, save all the details */
 	if (count == 1) {
-		current->mce_addr = m->addr;
+		current->mce_addr = m->addr & MCI_ADDR_PHYSADDR;
 		current->mce_kflags = m->kflags;
 		current->mce_ripv = !!(m->mcgstatus & MCG_STATUS_RIPV);
 		current->mce_whole_page = whole_page(m);
@@ -1365,7 +1365,8 @@ static void queue_task_work(struct mce *m, char *msg, void (*func)(struct callba
 		mce_panic("Too many consecutive machine checks while accessing user data", m, msg);
 
 	/* Second or later call, make sure page address matches the one from first call */
-	if (count > 1 && (current->mce_addr >> PAGE_SHIFT) != (m->addr >> PAGE_SHIFT))
+	if (count > 1 && (current->mce_addr >> PAGE_SHIFT) !=
+			 ((m->addr & MCI_ADDR_PHYSADDR) >> PAGE_SHIFT))
 		mce_panic("Consecutive machine checks to different user pages", m, msg);
 
 	/* Do not call task_work_add() more than once */
@@ -1451,6 +1452,19 @@ noinstr void do_machine_check(struct pt_regs *regs)
 	 * on Intel.
 	 */
 	lmce = 1;
+
+	/*
+	 * If the machine check location has EX_HANDLER_FIX_MC type fixup
+	 * handler, it's a #MC from TD guest. Skip handling here because the
+	 * context is not correct.
+	 *
+	 * KVM will call to here from tdx_handle_exit().
+	 */
+	instrumentation_begin();
+	if (ex_get_fixup_type(regs->ip) == EX_TYPE_FIX_MC &&
+	    fixup_exception(regs, X86_TRAP_MC, 0, 0))
+		return;
+	instrumentation_end();
 
 	this_cpu_inc(mce_exception_count);
 

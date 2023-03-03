@@ -19,3 +19,7 @@ KVM
    vcpu-requests
    halt-polling
    review-checklist
+
+   intel-tdx
+   tdx-tdp-mmu
+   tdx-legacy-mmu

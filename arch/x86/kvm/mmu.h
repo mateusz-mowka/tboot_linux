@@ -3,6 +3,7 @@
 #define __KVM_X86_MMU_H
 
 #include <linux/kvm_host.h>
+#include <asm/set_memory.h>
 #include "kvm_cache_regs.h"
 #include "cpuid.h"
 
@@ -101,6 +102,7 @@ static inline u8 kvm_get_shadow_phys_bits(void)
 }
 
 void kvm_mmu_set_mmio_spte_mask(u64 mmio_value, u64 mmio_mask, u64 access_mask);
+void kvm_mmu_set_mmio_spte_value(struct kvm *kvm, u64 mmio_value);
 void kvm_mmu_set_me_spte_mask(u64 me_value, u64 me_mask);
 void kvm_mmu_set_ept_masks(bool has_ad_bits, bool has_exec_only);
 
@@ -152,6 +154,9 @@ static inline void kvm_mmu_load_pgd(struct kvm_vcpu *vcpu)
 	static_call(kvm_x86_load_mmu_pgd)(vcpu, root_hpa,
 					  vcpu->arch.mmu->root_role.level);
 }
+
+kvm_pfn_t kvm_mmu_map_tdp_page(struct kvm_vcpu *vcpu, gpa_t gpa,
+			       u32 error_code, int max_level);
 
 /*
  * Check if a given access (described through the I/D, W/R and U/S bits of a
@@ -213,7 +218,15 @@ static inline u8 permission_fault(struct kvm_vcpu *vcpu, struct kvm_mmu *mmu,
 
 void kvm_zap_gfn_range(struct kvm *kvm, gfn_t gfn_start, gfn_t gfn_end);
 
+#ifdef CONFIG_INTEL_TDX_HOST
+int kvm_tdp_mmu_is_page_private(struct kvm *kvm, struct kvm_memory_slot *memslot,
+				gfn_t gfn, bool *is_private);
+#endif
+
 int kvm_arch_write_log_dirty(struct kvm_vcpu *vcpu);
+
+int kvm_mmu_map_private(struct kvm_vcpu *vcpu, gfn_t *startp, gfn_t end,
+			bool map_private);
 
 int kvm_mmu_post_init_vm(struct kvm *kvm);
 void kvm_mmu_pre_destroy_vm(struct kvm *kvm);
@@ -278,4 +291,46 @@ static inline gpa_t kvm_translate_gpa(struct kvm_vcpu *vcpu,
 		return gpa;
 	return translate_nested_gpa(vcpu, gpa, access, exception);
 }
+
+static inline gfn_t kvm_gfn_shared_mask(const struct kvm *kvm)
+{
+#ifdef CONFIG_KVM_MMU_PRIVATE
+	return kvm->arch.gfn_shared_mask;
+#else
+	return 0;
+#endif
+}
+
+static inline gfn_t kvm_gfn_shared(const struct kvm *kvm, gfn_t gfn)
+{
+	return gfn | kvm_gfn_shared_mask(kvm);
+}
+
+static inline gfn_t kvm_gfn_private(const struct kvm *kvm, gfn_t gfn)
+{
+	return gfn & ~kvm_gfn_shared_mask(kvm);
+}
+
+static inline gpa_t kvm_gpa_private(const struct kvm *kvm, gpa_t gpa)
+{
+	return gpa & ~gfn_to_gpa(kvm_gfn_shared_mask(kvm));
+}
+
+static inline bool kvm_is_private_gpa(const struct kvm *kvm, gpa_t gpa)
+{
+	gfn_t mask = kvm_gfn_shared_mask(kvm);
+
+	return mask && !(gpa_to_gfn(gpa) & mask);
+}
+
+static inline void kvm_mmu_split_direct_map(struct page *page)
+{
+	/*
+	 * Hack to forcibly split kernel direct map so that no split will occur
+	 * within mmu_lock by set_direct_map_{invalid, default}_noflush().
+	 */
+	if (IS_ENABLED(CONFIG_INTEL_TDX_HOST_DEBUG_MEMORY_CORRUPT))
+		set_direct_map_split_noflush(page);
+}
+
 #endif

@@ -7,6 +7,7 @@
  * Authors:
  *   Yaozu (Eddie) Dong <Eddie.dong@intel.com>
  */
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/export.h>
 #include <linux/kvm_host.h>
@@ -98,6 +99,9 @@ int kvm_cpu_has_interrupt(struct kvm_vcpu *v)
 {
 	if (kvm_cpu_has_extint(v))
 		return 1;
+
+	if (lapic_in_kernel(v) && v->arch.apic->guest_apic_protected)
+		return static_call(kvm_x86_protected_apic_has_interrupt)(v);
 
 	return kvm_apic_has_interrupt(v) != -1;	/* LAPIC */
 }

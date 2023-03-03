@@ -772,6 +772,7 @@ config SCHED_OMIT_FRAME_POINTER
 
 menuconfig HYPERVISOR_GUEST
 	bool "Linux guest support"
+	select ARCH_HAS_CC_PLATFORM
 	help
 	  Say Y here to enable options for running Linux under various hyper-
 	  visors. This option enables basic hypervisor detection and platform
@@ -1951,6 +1952,53 @@ config X86_SGX
 	  hardware.
 
 	  If unsure, say N.
+
+config INTEL_TDX_HOST
+	bool "Intel Trust Domain Extensions (TDX) host support"
+	depends on CPU_SUP_INTEL
+	depends on X86_64
+	depends on KVM_INTEL
+	depends on X86_X2APIC
+	select ARCH_KEEP_MEMBLOCK
+	depends on CONTIG_ALLOC
+	help
+	  Intel Trust Domain Extensions (TDX) protects guest VMs from malicious
+	  host and certain physical attacks.  This option enables necessary TDX
+	  support in host kernel to run protected VMs.
+
+	  If unsure, say N.
+
+config INTEL_TDX_HOST_DEBUG_MEMORY_CORRUPT
+	bool "Intel Trust Domain Extensions (TDX) host debug memory corruption"
+	default n
+	depends on INTEL_TDX_HOST
+	help
+	  Intel Trust Domain Extentions (TDX) encrypts memory and protect it
+	  against host.  By making non-present encrypted memory, detect
+	  unintended memory access to encrypted memory.
+
+	  If unuser, say N.
+
+config INTEL_TDX_HOST_DEBUG
+	tristate "TDX host debugfs"
+	default n
+	depends on INTEL_TDX_HOST
+	depends on DEBUG_FS
+	depends on KVM
+	help
+	  TDX module debug support via debug fs.  The debug version of TDX
+	  module is required.
+
+	  If unsure, say N.
+
+config INTEL_TDX_MODULE_LOADER_OLD
+	bool "TDX module boot-time loader"
+	default n
+	depends on INTEL_TDX_HOST
+	depends on SYSFS
+	select FW_LOADER
+	help
+	  This enables kernel to load P-SEAMLDR and TDX module at boot time.
 
 config EFI
 	bool "EFI runtime service support"

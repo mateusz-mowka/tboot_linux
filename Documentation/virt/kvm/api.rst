@@ -147,9 +147,30 @@ described as 'basic' will be available.
 The new VM has no virtual cpus and no memory.
 You probably want to use 0 as machine type.
 
+X86:
+^^^^
+
+Supported vm type can be queried from KVM_CAP_VM_TYPES, which returns the
+bitmap of supported vm types. The 1-setting of bit @n means vm type with
+value @n is supported.
+
+S390:
+^^^^^
+
 In order to create user controlled virtual machines on S390, check
 KVM_CAP_S390_UCONTROL and use the flag KVM_VM_S390_UCONTROL as
 privileged user (CAP_SYS_ADMIN).
+
+MIPS:
+^^^^^
+
+To use hardware assisted virtualization on MIPS (VZ ASE) rather than
+the default trap & emulate implementation (which changes the virtual
+memory layout to fit in user mode), check KVM_CAP_MIPS_VZ and use the
+flag KVM_VM_MIPS_VZ.
+
+ARM64:
+^^^^^^
 
 On arm64, the physical address size for a VM (IPA Size limit) is limited
 to 40bits by default. The limit can be configured if the host supports the
@@ -1296,7 +1317,7 @@ yet and must be cleared on entry.
 :Capability: KVM_CAP_USER_MEMORY
 :Architectures: all
 :Type: vm ioctl
-:Parameters: struct kvm_userspace_memory_region (in)
+:Parameters: struct kvm_userspace_memory_region(_ext) (in)
 :Returns: 0 on success, -1 on error
 
 ::
@@ -1309,9 +1330,18 @@ yet and must be cleared on entry.
 	__u64 userspace_addr; /* start of the userspace allocated memory */
   };
 
-  /* for kvm_userspace_memory_region::flags */
+  struct kvm_userspace_memory_region_ext {
+	struct kvm_userspace_memory_region region;
+	__u64 restricted_offset;
+	__u32 restricted_fd;
+	__u32 pad1;
+	__u64 pad2[14];
+  };
+
+  /\* for kvm_userspace_memory_region{,_ext}::flags \*/
   #define KVM_MEM_LOG_DIRTY_PAGES	(1UL << 0)
   #define KVM_MEM_READONLY	(1UL << 1)
+  #define KVM_MEM_PRIVATE		(1UL << 2)
 
 This ioctl allows the user to create, modify or delete a guest physical
 memory slot.  Bits 0-15 of "slot" specify the slot id and this value
@@ -1342,12 +1372,29 @@ It is recommended that the lower 21 bits of guest_phys_addr and userspace_addr
 be identical.  This allows large pages in the guest to be backed by large
 pages in the host.
 
-The flags field supports two flags: KVM_MEM_LOG_DIRTY_PAGES and
-KVM_MEM_READONLY.  The former can be set to instruct KVM to keep track of
-writes to memory within the slot.  See KVM_GET_DIRTY_LOG ioctl to know how to
-use it.  The latter can be set, if KVM_CAP_READONLY_MEM capability allows it,
-to make a new slot read-only.  In this case, writes to this memory will be
-posted to userspace as KVM_EXIT_MMIO exits.
+kvm_userspace_memory_region_ext struct includes all fields of
+kvm_userspace_memory_region struct, while also adds additional fields for some
+other features. See below description of flags field for more information.
+It's recommended to use kvm_userspace_memory_region_ext in new userspace code.
+
+The flags field supports following flags:
+
+- KVM_MEM_LOG_DIRTY_PAGES to instruct KVM to keep track of writes to memory
+  within the slot. For more details, see KVM_GET_DIRTY_LOG ioctl.
+
+- KVM_MEM_READONLY, if KVM_CAP_READONLY_MEM allows, to make a new slot
+  read-only. In this case, writes to this memory will be posted to userspace as
+  KVM_EXIT_MMIO exits.
+
+- KVM_MEM_PRIVATE, if KVM_MEMORY_ATTRIBUTE_PRIVATE is supported (see
+  KVM_GET_SUPPORTED_MEMORY_ATTRIBUTES ioctl), to indicate a new slot has private
+  memory backed by a file descriptor(fd) and userspace access to the fd may be
+  restricted. Userspace should use restricted_fd/restricted_offset in the
+  kvm_userspace_memory_region_ext to instruct KVM to provide private memory
+  to guest. Userspace should guarantee not to map the same host physical address
+  indicated by restricted_fd/restricted_offset to different guest physical
+  addresses within multiple memslots. Failed to do this may result undefined
+  behavior.
 
 When the KVM_CAP_SYNC_MMU capability is available, changes in the backing of
 the memory region are automatically reflected into the guest.  For example, an
@@ -1362,6 +1409,10 @@ page-table walker, making it impossible to emulate the access.
 Instead, an abort (data abort if the cause of the page-table update
 was a load or a store, instruction abort if it was an instruction
 fetch) is injected in the guest.
+
+For TDX guest, deleting/moving memory region loses guest memory contents.
+Read only region isn't supported.  Only as-id 0 is supported.
+
 
 4.36 KVM_SET_TSS_ADDR
 ---------------------
@@ -4643,7 +4694,7 @@ H_GET_CPU_CHARACTERISTICS hypercall.
 
 :Capability: basic
 :Architectures: x86
-:Type: vm
+:Type: vm ioctl, vcpu ioctl
 :Parameters: an opaque platform specific structure (in/out)
 :Returns: 0 on success; -1 on error
 
@@ -4654,6 +4705,10 @@ encrypted VMs.
 Currently, this ioctl is used for issuing Secure Encrypted Virtualization
 (SEV) commands on AMD Processors. The SEV commands are defined in
 Documentation/virt/kvm/x86/amd-memory-encryption.rst.
+
+Currently, this ioctl is used for issuing Trusted Domain Extensions
+(TDX) commands on Intel Processors. The TDX commands are defined in
+Documentation/virt/kvm/intel-tdx.rst.
 
 4.111 KVM_MEMORY_ENCRYPT_REG_REGION
 -----------------------------------
@@ -5827,6 +5882,48 @@ as the descriptors in Descriptors block.
 :Parameters: struct kvm_xsave (out)
 :Returns: 0 on success, -1 on error
 
+4.135 KVM_MEMORY_ENCRYPT_READ_MEMORY / KVM_MEMORY_ENCRYPT_WRITE_MEMORY
+----------------------------------------------------------------------
+:Capability: KVM_CAP_ENCRYPT_MEMORY_DEBUG
+:Architectures: x86
+:Type: vm ioctl
+:Parameters: struct kvm_rw_memory
+:Returns: 0 on success, < 0 on error
+
+::
+
+  struct kvm_rw_memory
+  {
+	__u64 addr;
+
+The guest address which userspace want to read from/write to, it can
+be GPA or HVA, depends on the implementation in KVM.
+
+::
+	__u64 len;
+
+The length in byte userspace want to read from/write to, it will be
+updated to operation completed byte size when the ioctl return
+
+::
+	__u64 ubuf;
+
+The userspace buffer to receive the data for reading/send the data for
+writing.
+
+  };
+
+::
+  Example:
+  struct kvm_rw_memory rw_memory;
+
+  rw_memory.addr = gpa_addr_for_read_OR_write
+  rw_memory.len = size;
+  rw_memory.buf = buf_for_save_read_data_OR_provide_data_to_write
+
+  r = ioctl(kvm_vm_fd,
+            KVM_MEMORY_ENCRYPT_{READ,WRITE}_MEMORY,
+            &rw_memory);
 
 ::
 
@@ -5936,6 +6033,59 @@ delivery must be provided via the "reg_aen" struct.
 
 The "pad" and "reserved" fields may be used for future extensions and should be
 set to 0s by userspace.
+
+4.138 KVM_GET_SUPPORTED_MEMORY_ATTRIBUTES
+-----------------------------------------
+
+:Capability: KVM_CAP_MEMORY_ATTRIBUTES
+:Architectures: x86
+:Type: vm ioctl
+:Parameters: u64 memory attributes bitmask(out)
+:Returns: 0 on success, <0 on error
+
+Returns supported memory attributes bitmask. Supported memory attributes will
+have the corresponding bits set in u64 memory attributes bitmask.
+
+The following memory attributes are defined::
+
+  #define KVM_MEMORY_ATTRIBUTE_READ              (1ULL << 0)
+  #define KVM_MEMORY_ATTRIBUTE_WRITE             (1ULL << 1)
+  #define KVM_MEMORY_ATTRIBUTE_EXECUTE           (1ULL << 2)
+  #define KVM_MEMORY_ATTRIBUTE_PRIVATE           (1ULL << 3)
+
+4.139 KVM_SET_MEMORY_ATTRIBUTES
+-----------------------------------------
+
+:Capability: KVM_CAP_MEMORY_ATTRIBUTES
+:Architectures: x86
+:Type: vm ioctl
+:Parameters: struct kvm_memory_attributes(in/out)
+:Returns: 0 on success, <0 on error
+
+Sets memory attributes for pages in a guest memory range. Parameters are
+specified via the following structure::
+
+  struct kvm_memory_attributes {
+	__u64 address;
+	__u64 size;
+	__u64 attributes;
+	__u64 flags;
+  };
+
+The user sets the per-page memory attributes to a guest memory range indicated
+by address/size, and in return KVM adjusts address and size to reflect the
+actual pages of the memory range have been successfully set to the attributes.
+If the call returns 0, "address" is updated to the last successful address + 1
+and "size" is updated to the remaining address size that has not been set
+successfully. The user should check the return value as well as the size to
+decide if the operation succeeded for the whole range or not. The user may want
+to retry the operation with the returned address/size if the previous range was
+partially successful.
+
+Both address and size should be page aligned and the supported attributes can be
+retrieved with KVM_GET_SUPPORTED_MEMORY_ATTRIBUTES.
+
+The "flags" field may be used for future extensions and should be set to 0s.
 
 5. The kvm_run structure
 ========================
@@ -6546,6 +6696,28 @@ spec refer, https://github.com/riscv/riscv-sbi-doc.
 
 ::
 
+		/\* KVM_EXIT_MEMORY_FAULT \*/
+		struct {
+  #define KVM_MEMORY_EXIT_FLAG_PRIVATE	(1ULL << 0)
+			__u64 flags;
+			__u64 gpa;
+			__u64 size;
+		} memory;
+
+If exit reason is KVM_EXIT_MEMORY_FAULT then it indicates that the VCPU has
+encountered a memory error which is not handled by KVM kernel module and
+userspace may choose to handle it. The 'flags' field indicates the memory
+properties of the exit.
+
+ - KVM_MEMORY_EXIT_FLAG_PRIVATE - indicates the memory error is caused by
+   private memory access when the bit is set. Otherwise the memory error is
+   caused by shared memory access when the bit is clear.
+
+'gpa' and 'size' indicate the memory range the error occurs at. The userspace
+may handle the error and return to KVM to retry the previous memory access.
+
+::
+
     /* KVM_EXIT_NOTIFY */
     struct {
   #define KVM_NOTIFY_CONTEXT_INVALID	(1 << 0)
@@ -6595,7 +6767,6 @@ for general purpose registers)
 Please note that the kernel is allowed to use the kvm_run structure as the
 primary storage for certain register types. Therefore, the kernel may use the
 values in kvm_run even if the corresponding bit in kvm_dirty_regs is not set.
-
 
 6. Capabilities that can be enabled on vCPUs
 ============================================
@@ -8288,6 +8459,16 @@ structure.
 When getting the Modified Change Topology Report value, the attr->addr
 must point to a byte where the value will be stored or retrieved from.
 
+8.40 KVM_CAP_MEMORY_ATTRIBUTES
+------------------------------
+
+:Capability: KVM_CAP_MEMORY_ATTRIBUTES
+:Architectures: x86
+:Type: vm
+
+This capability indicates KVM supports per-page memory attributes and ioctls
+KVM_GET_SUPPORTED_MEMORY_ATTRIBUTES/KVM_SET_MEMORY_ATTRIBUTES are available.
+
 9. Known KVM API problems
 =========================
 
@@ -8347,3 +8528,17 @@ Ordering of KVM_GET_*/KVM_SET_* ioctls
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 TBD
+
+8.35 KVM_CAP_VM_TYPES
+---------------------
+:Capability: KVM_CAP_EXIT_HYPERCALL
+:Architectures: x86
+:Type: system
+
+This capability will return supported VM types in bitmap.
+#define KVM_X86_DEFAULT_VM      0
+#define KVM_X86_TDX_VM          1
+If only default VM type is supported, 1 = (1ULL << KVM_X86_DEFAULT_VM) is
+returned.
+If TDX VM type is supported,
+3 = (1ULL << KVM_X86_DEFAULT_VM) | (1ULL << KVM_X86_TDX_VM) is returned.
