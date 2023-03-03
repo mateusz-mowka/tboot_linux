@@ -70,10 +70,10 @@ static bool pmt_telem_region_overlaps(struct intel_pmt_entry *entry,
 }
 
 static int pmt_telem_header_decode(struct intel_pmt_entry *entry,
-				   struct intel_pmt_header *header,
 				   struct device *dev)
 {
 	void __iomem *disc_table = entry->disc_table;
+	struct intel_pmt_header *header = &entry->header;
 
 	if (pmt_telem_region_overlaps(entry, dev))
 		return 1;
@@ -93,10 +93,6 @@ static int pmt_telem_header_decode(struct intel_pmt_entry *entry,
 	if (header->size == 0)
 		return 1;
 
-	entry->header.access_type = header->access_type;
-	entry->header.guid = header->guid;
-	entry->header.base_offset = header->base_offset;
-	entry->header.size = header->size;
 
 	return 0;
 }
