@@ -3191,8 +3191,9 @@ int snapshot_gfx_rc6_ms(void)
 /*
  * snapshot_gfx_mhz()
  *
- * record snapshot of
- * /sys/class/graphics/fb0/device/drm/card0/gt_cur_freq_mhz
+ * record snapshot of /sys/class/drm/card0/gt_cur_freq_mhz.
+ * fall back to /sys/class/graphics/fb0/device/drm/card0/gt_cur_freq_mhz
+ * in case /sys/class/drm/card0/gt_cur_freq_mhz is not available.
  *
  * return 1 if config change requires a restart, else return 0
  */
@@ -3201,9 +3202,11 @@ int snapshot_gfx_mhz(void)
 	static FILE *fp;
 	int retval;
 
-	if (fp == NULL)
-		fp = fopen_or_die("/sys/class/graphics/fb0/device/drm/card0/gt_cur_freq_mhz", "r");
-	else {
+	if (fp == NULL) {
+		fp = fopen("/sys/class/drm/card0/gt_cur_freq_mhz", "r");
+		if (!fp)
+			fp = fopen_or_die("/sys/class/graphics/fb0/device/drm/card0/gt_cur_freq_mhz", "r");
+	} else {
 		rewind(fp);
 		fflush(fp);
 	}
@@ -3218,8 +3221,9 @@ int snapshot_gfx_mhz(void)
 /*
  * snapshot_gfx_cur_mhz()
  *
- * record snapshot of
- * /sys/class/graphics/fb0/device/drm/card0/gt_act_freq_mhz
+ * record snapshot of /sys/class/drm/card0/gt_act_freq_mhz
+ * fall back to /sys/class/graphics/fb0/device/drm/card0/gt_act_freq_mhz
+ * in case /sys/class/drm/card0/gt_act_freq_mhz is not available.
  *
  * return 1 if config change requires a restart, else return 0
  */
@@ -3228,9 +3232,11 @@ int snapshot_gfx_act_mhz(void)
 	static FILE *fp;
 	int retval;
 
-	if (fp == NULL)
-		fp = fopen_or_die("/sys/class/graphics/fb0/device/drm/card0/gt_act_freq_mhz", "r");
-	else {
+	if (fp == NULL) {
+		fp = fopen("/sys/class/drm/card0/gt_act_freq_mhz", "r");
+		if (!fp)
+			fp = fopen_or_die("/sys/class/graphics/fb0/device/drm/card0/gt_act_freq_mhz", "r");
+	} else {
 		rewind(fp);
 		fflush(fp);
 	}
@@ -5463,6 +5469,10 @@ unsigned int intel_model_duplicates(unsigned int model)
 
 	case INTEL_FAM6_ICELAKE_D:
 		return INTEL_FAM6_ICELAKE_X;
+
+	case INTEL_FAM6_EMERALDRAPIDS_X:
+	case INTEL_FAM6_GRANITERAPIDS_X:
+		return INTEL_FAM6_SAPPHIRERAPIDS_X;
 	}
 	return model;
 }
@@ -5810,10 +5820,12 @@ void process_cpuid()
 	if (!access("/sys/class/drm/card0/power/rc6_residency_ms", R_OK))
 		BIC_PRESENT(BIC_GFX_rc6);
 
-	if (!access("/sys/class/graphics/fb0/device/drm/card0/gt_cur_freq_mhz", R_OK))
+	if (!access("/sys/class/drm/card0/gt_cur_freq_mhz", R_OK) ||
+	    !access("/sys/class/graphics/fb0/device/drm/card0/gt_cur_freq_mhz", R_OK))
 		BIC_PRESENT(BIC_GFXMHz);
 
-	if (!access("/sys/class/graphics/fb0/device/drm/card0/gt_act_freq_mhz", R_OK))
+	if (!access("/sys/class/drm/card0/gt_act_freq_mhz", R_OK) ||
+	    !access("/sys/class/graphics/fb0/device/drm/card0/gt_act_freq_mhz", R_OK))
 		BIC_PRESENT(BIC_GFXACTMHz);
 
 	if (!access("/sys/devices/system/cpu/cpuidle/low_power_idle_cpu_residency_us", R_OK))
