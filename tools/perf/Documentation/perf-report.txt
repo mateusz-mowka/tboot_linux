@@ -115,6 +115,8 @@ OPTIONS
 	- p_stage_cyc: On powerpc, this presents the number of cycles spent in a
 	  pipeline stage. And currently supported only on powerpc.
 	- addr: (Full) virtual address of the sampled instruction
+	- retire_lat: On X86, this reports pipeline stall of this instruction compared
+	  to the previous instruction in cycles. And currently supported only on X86
 
 	By default, comm, dso and symbol keys are used.
 	(i.e. --sort comm,dso,symbol)
@@ -571,6 +573,9 @@ include::itrace.txt[]
 	'Avg Cycles%'     - block average sampled cycles / sum of total block average
 			    sampled cycles
 	'Avg Cycles'      - block average sampled cycles
+	Event list	  - indications of precise event occurrences in LBRs
+			    one '#' indicates the selected event occurred 1 time in average.
+			    '+' means it may lost some occurrences.
 
 --skip-empty::
 	Do not print 0 results in the --stat output.

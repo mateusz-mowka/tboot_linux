@@ -2119,6 +2119,26 @@ static struct extra_reg intel_grt_extra_regs[] __read_mostly = {
 	EVENT_EXTRA_END
 };
 
+EVENT_ATTR_STR(topdown-bad-spec,       td_bad_spec_cmt,        "event=0x73,umask=0x0");
+
+static struct attribute *cmt_events_attrs[] = {
+	EVENT_PTR(td_fe_bound_tnt),
+	EVENT_PTR(td_retiring_tnt),
+	EVENT_PTR(td_bad_spec_cmt),
+	EVENT_PTR(td_be_bound_tnt),
+	NULL,
+};
+
+static struct extra_reg intel_cmt_extra_regs[] __read_mostly = {
+	/* must define OFFCORE_RSP_X first, see intel_fixup_er() */
+	INTEL_UEVENT_EXTRA_REG(0x01b7, MSR_OFFCORE_RSP_0, 0x800ff3ffffffffffull, RSP_0),
+	INTEL_UEVENT_EXTRA_REG(0x02b7, MSR_OFFCORE_RSP_1, 0xff3ffffffffffull, RSP_1),
+	INTEL_UEVENT_PEBS_LDLAT_EXTRA_REG(0x5d0),
+	INTEL_UEVENT_EXTRA_REG(0x0127, MSR_SNOOP_RSP_0, 0xffffffffffffffffull, SNOOP_0),
+	INTEL_UEVENT_EXTRA_REG(0x0227, MSR_SNOOP_RSP_1, 0xffffffffffffffffull, SNOOP_1),
+	EVENT_EXTRA_END
+};
+
 #define KNL_OT_L2_HITE		BIT_ULL(19) /* Other Tile L2 Hit */
 #define KNL_OT_L2_HITF		BIT_ULL(20) /* Other Tile L2 Hit */
 #define KNL_MCDRAM_LOCAL	BIT_ULL(21)
@@ -2201,9 +2221,11 @@ static void __intel_pmu_enable_all(int added, bool pmi)
 	intel_pmu_lbr_enable_all(pmi);
 
 	if (cpuc->fixed_ctrl_val != cpuc->active_fixed_ctrl_val) {
-		wrmsrl(MSR_ARCH_PERFMON_FIXED_CTR_CTRL, cpuc->fixed_ctrl_val);
+		wrmsrl_batch(MSR_ARCH_PERFMON_FIXED_CTR_CTRL, cpuc->fixed_ctrl_val);
 		cpuc->active_fixed_ctrl_val = cpuc->fixed_ctrl_val;
 	}
+
+	msrlist_writel();
 
 	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL,
 	       intel_ctrl & ~cpuc->intel_ctrl_guest_mask);
@@ -2425,7 +2447,7 @@ static void intel_pmu_disable_fixed(struct perf_event *event)
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	struct hw_perf_event *hwc = &event->hw;
 	int idx = hwc->idx;
-	u64 mask;
+	u64 mask = 0;
 
 	if (is_topdown_idx(idx)) {
 		struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
@@ -2437,12 +2459,19 @@ static void intel_pmu_disable_fixed(struct perf_event *event)
 		if (*(u64 *)cpuc->active_mask & INTEL_PMC_OTHER_TOPDOWN_BITS(idx))
 			return;
 		idx = INTEL_PMC_IDX_FIXED_SLOTS;
+		if (x86_pmu.attr_perf_metrics_clear)
+			mask |= 0x1ULL << 14;
 	}
 
 	intel_clear_masks(event, idx);
 
-	mask = 0xfULL << ((idx - INTEL_PMC_IDX_FIXED) * 4);
+	mask |= 0xfULL << ((idx - INTEL_PMC_IDX_FIXED) * 4);
 	cpuc->fixed_ctrl_val &= ~mask;
+}
+
+static inline void __intel_pmu_disable_event(struct hw_perf_event *hwc)
+{
+	wrmsrl_batch(hwc->config_base, hwc->config);
 }
 
 static void intel_pmu_disable_event(struct perf_event *event)
@@ -2450,14 +2479,26 @@ static void intel_pmu_disable_event(struct perf_event *event)
 	struct hw_perf_event *hwc = &event->hw;
 	int idx = hwc->idx;
 
+	/*
+	 * TODO
+	 * May optimize it a little bit later. E.g., coherent_counter_mask doesn't
+	 * change in the next sched in. We don't need to clear the mask and MSRs.
+	 */
+	if (event->attr.reload && (event == event->group_leader))
+		event->hw.coherent_counter_mask = 0;
+
 	switch (idx) {
 	case 0 ... INTEL_PMC_IDX_FIXED - 1:
 		intel_clear_masks(event, idx);
-		x86_pmu_disable_event(event);
+		__intel_pmu_disable_event(hwc);
+		if (event->attr.reload)
+			wrmsrl(MSR_IA32_PMC0_RELOAD_CFG + event->hw.idx, 0);
 		break;
 	case INTEL_PMC_IDX_FIXED ... INTEL_PMC_IDX_FIXED_BTS - 1:
 	case INTEL_PMC_IDX_METRIC_BASE ... INTEL_PMC_IDX_METRIC_END:
 		intel_pmu_disable_fixed(event);
+		if (event->attr.reload && (idx < INTEL_PMC_IDX_METRIC_BASE))
+			wrmsrl(MSR_IA32_FIXED0_RELOAD_CFG + event->hw.idx - INTEL_PMC_IDX_FIXED, 0);
 		break;
 	case INTEL_PMC_IDX_FIXED_BTS:
 		intel_pmu_disable_bts();
@@ -2509,15 +2550,15 @@ static int icl_set_topdown_event_period(struct perf_event *event)
 	 * Don't need to clear them again.
 	 */
 	if (left == x86_pmu.max_period) {
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, 0);
-		wrmsrl(MSR_PERF_METRICS, 0);
+		wrmsrl_batch(MSR_CORE_PERF_FIXED_CTR3, 0);
+		wrmsrl_batch(MSR_PERF_METRICS, 0);
 		hwc->saved_slots = 0;
 		hwc->saved_metric = 0;
 	}
 
 	if ((hwc->saved_slots) && is_slots_event(event)) {
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, hwc->saved_slots);
-		wrmsrl(MSR_PERF_METRICS, hwc->saved_metric);
+		wrmsrl_batch(MSR_CORE_PERF_FIXED_CTR3, hwc->saved_slots);
+		wrmsrl_batch(MSR_PERF_METRICS, hwc->saved_metric);
 	}
 
 	perf_event_update_userpage(event);
@@ -2662,8 +2703,8 @@ static u64 intel_update_topdown_event(struct perf_event *event, int metric_end)
 
 	if (reset) {
 		/* The fixed counter 3 has to be written before the PERF_METRICS. */
-		wrmsrl(MSR_CORE_PERF_FIXED_CTR3, 0);
-		wrmsrl(MSR_PERF_METRICS, 0);
+		wrmsrl_batch(MSR_CORE_PERF_FIXED_CTR3, 0);
+		wrmsrl_batch(MSR_PERF_METRICS, 0);
 		if (event)
 			update_saved_topdown_regs(event, 0, 0, metric_end);
 	}
@@ -2713,6 +2754,20 @@ static void intel_pmu_read_event(struct perf_event *event)
 		x86_perf_event_update(event);
 }
 
+static inline bool intel_pmu_disable_usr_rdpmc(struct perf_event *event)
+{
+	/*
+	 * RDPMC_USR_DISABLE bit is supported in V6 and up
+	 *
+	 * Disable ring 3 RDPMC for the below cases,
+	 * - System wide events
+	 * - !PERF_EVENT_FLAG_USER_READ_CNT
+	 */
+	return (x86_pmu.version >= 6) &&
+	       (!(event->attach_state & PERF_ATTACH_TASK) ||
+	       !(event->hw.flags & PERF_EVENT_FLAG_USER_READ_CNT));
+}
+
 static void intel_pmu_enable_fixed(struct perf_event *event)
 {
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
@@ -2730,6 +2785,8 @@ static void intel_pmu_enable_fixed(struct perf_event *event)
 			return;
 
 		idx = INTEL_PMC_IDX_FIXED_SLOTS;
+		if (x86_pmu.attr_perf_metrics_clear)
+			bits |= 0x1ULL << 14;
 	}
 
 	intel_set_masks(event, idx);
@@ -2761,24 +2818,102 @@ static void intel_pmu_enable_fixed(struct perf_event *event)
 		mask |= ICL_FIXED_0_ADAPTIVE << (idx * 4);
 	}
 
+	/*
+	 * RDPMC_USR_DISABLE bit
+	 */
+	if (intel_pmu_disable_usr_rdpmc(event)) {
+		bits |= FIXED_0_RDPMC_USR_DISABLE << (idx * 4);
+		mask |= FIXED_0_RDPMC_USR_DISABLE << (idx * 4);
+	}
+
 	cpuc->fixed_ctrl_val &= ~mask;
 	cpuc->fixed_ctrl_val |= bits;
 }
 
+static inline void intel_pmu_event_msr_write(unsigned int gp_msr,
+					     unsigned int fixed_msr,
+					     unsigned int idx, u64 val)
+{
+	if (idx < INTEL_PMC_IDX_FIXED)
+		wrmsrl(gp_msr + idx, val);
+	else
+		wrmsrl(fixed_msr + idx - INTEL_PMC_IDX_FIXED, val);
+}
+
+static void intel_pmu_enable_auto_reload(struct perf_event *event)
+{
+	struct perf_event *leader, *sibling;
+	struct hw_perf_event *hwc;
+	unsigned long mask;
+
+	if (!x86_pmu.num_auto_reload || !event->attr.reload)
+		return;
+
+	leader = event->group_leader;
+	hwc = &event->hw;
+
+	/*
+	 * The coherent_counter_mask only be stroed in the Leader event.
+	 * It's generated once.
+	 */
+	if (!leader->hw.coherent_counter_mask) {
+		for_each_sibling_event(sibling, leader) {
+			if (sibling->attr.reload)
+				set_bit(sibling->hw.idx, (unsigned long *)&leader->hw.coherent_counter_mask);
+		}
+	}
+
+	/*
+	 * Leader: Reload on overflow of the member counters
+	 * Members: Reload on overflow of all counters
+	 */
+	mask = leader->hw.coherent_counter_mask;
+	if (event != leader)
+		mask = leader->hw.coherent_counter_mask | (1ULL << leader->hw.idx);
+
+	intel_pmu_event_msr_write(MSR_IA32_PMC0_RELOAD_CFG,
+				  MSR_IA32_FIXED0_RELOAD_CFG,
+				  hwc->idx, mask);
+
+	intel_pmu_event_msr_write(MSR_RELOAD_PMC0,
+				  MSR_RELOAD_FIXED_CTR0,
+				  hwc->idx,
+				  (u64)(-hwc->sample_period) & x86_pmu.cntval_mask);
+}
+
+static inline void __intel_pmu_enable_event(struct hw_perf_event *hwc,
+					    u64 enable_mask)
+{
+	if (hwc->extra_reg.reg)
+		wrmsrl_batch(hwc->extra_reg.reg, hwc->extra_reg.config);
+
+	wrmsrl_batch(hwc->config_base, (hwc->config | enable_mask));
+}
 static void intel_pmu_enable_event(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
+	u64 enable_mask = ARCH_PERFMON_EVENTSEL_ENABLE;
 	int idx = hwc->idx;
 
 	if (unlikely(event->attr.precise_ip))
 		intel_pmu_pebs_enable(event);
 
 	switch (idx) {
-	case 0 ... INTEL_PMC_IDX_FIXED - 1:
+	case 0 ... 3:
+		if (event->attr.branch_events &&
+		    this_cpu_ptr(&cpu_hw_events)->lbr_users)
+			enable_mask |= ARCH_PERFMON_EVENTSEL_LBR_LOG;
+		fallthrough;
+	case 4 ... INTEL_PMC_IDX_FIXED - 1:
 		intel_set_masks(event, idx);
-		__x86_pmu_enable_event(hwc, ARCH_PERFMON_EVENTSEL_ENABLE);
+		if (intel_pmu_disable_usr_rdpmc(event))
+			enable_mask |= ARCH_PERFMON_EVENTSEL_RDPMC_USR_DISABLE;
+		intel_pmu_enable_auto_reload(event);
+		__intel_pmu_enable_event(hwc, enable_mask);
 		break;
 	case INTEL_PMC_IDX_FIXED ... INTEL_PMC_IDX_FIXED_BTS - 1:
+		intel_pmu_enable_auto_reload(event);
+		fallthrough;
 	case INTEL_PMC_IDX_METRIC_BASE ... INTEL_PMC_IDX_METRIC_END:
 		intel_pmu_enable_fixed(event);
 		break;
@@ -2819,7 +2954,7 @@ int intel_pmu_save_and_restart(struct perf_event *event)
 	 */
 	if (unlikely(event_is_checkpointed(event))) {
 		/* No race with NMIs because the counter should not be armed */
-		wrmsrl(event->hw.event_base, 0);
+		wrmsrl_batch(event->hw.event_base, 0);
 		local64_set(&event->hw.prev_count, 0);
 	}
 	return static_call(x86_pmu_set_period)(event);
@@ -2827,10 +2962,21 @@ int intel_pmu_save_and_restart(struct perf_event *event)
 
 static int intel_pmu_set_period(struct perf_event *event)
 {
+	struct hw_perf_event *hwc = &event->hw;
+	u64 value;
+	int ret;
+
 	if (unlikely(is_topdown_count(event)))
 		return static_call(intel_pmu_set_topdown_event_period)(event);
 
-	return x86_perf_event_set_period(event);
+	if (unlikely(!hwc->event_base))
+		return 0;
+
+	ret = __x86_perf_event_set_period(event, &value);
+
+	wrmsrl_batch(hwc->event_base, value);
+
+	return ret;
 }
 
 static u64 intel_pmu_update(struct perf_event *event)
@@ -3591,6 +3737,22 @@ intel_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
 		c2 = c1;
 	}
 
+	if (event->attr.branch_events) {
+		c1 = &cpuc->constraint_list[idx];
+		*c1 = *c2;
+		c1->idxmsk64 &= x86_pmu.lbr_events;
+		c1->weight = hweight64(c1->idxmsk64);
+		return c1;
+	}
+
+	if (event->attr.reload) {
+		c1 = &cpuc->constraint_list[idx];
+		*c1 = *c2;
+		c1->idxmsk64 &= x86_pmu.mask_auto_reload;
+		c1->weight = hweight64(c1->idxmsk64);
+		return c1;
+	}
+
 	if (cpuc->excl_cntrs)
 		return intel_get_excl_constraints(cpuc, event, idx, c2);
 
@@ -3765,16 +3927,24 @@ static void intel_pebs_aliases_skl(struct perf_event *event)
 	return intel_pebs_aliases_precdist(event);
 }
 
+static bool is_tsx_conflict_addr_event(struct perf_event *event)
+{
+	/* STORE_TSX_KILL event is not compatible with large PEBS */
+	return false;
+}
+
 static unsigned long intel_pmu_large_pebs_flags(struct perf_event *event)
 {
 	unsigned long flags = x86_pmu.large_pebs_flags;
 
-	if (event->attr.use_clockid)
+	if (event->attr.use_clockid && (event->attr.clockid != CLOCK_MONOTONIC))
 		flags &= ~PERF_SAMPLE_TIME;
 	if (!event->attr.exclude_kernel)
 		flags &= ~PERF_SAMPLE_REGS_USER;
 	if (event->attr.sample_regs_user & ~PEBS_GP_REGS)
 		flags &= ~(PERF_SAMPLE_REGS_USER | PERF_SAMPLE_REGS_INTR);
+	if (is_tsx_conflict_addr_event(event))
+		flags &= ~PERF_SAMPLE_PHYS_ADDR;
 	return flags;
 }
 
@@ -3879,6 +4049,31 @@ static int intel_pmu_hw_config(struct perf_event *event)
 			x86_pmu.pebs_aliases(event);
 	}
 
+	if (event->attr.branch_events) {
+		struct perf_event *leader, *sibling;
+		int num_branch_events = 0;
+
+		if (!static_cpu_has(X86_FEATURE_ARCH_LBR) ||
+		    !event->attr.precise_ip ||
+		    !x86_pmu.lbr_events ||
+		    (event->attr.config & ~INTEL_ARCH_EVENT_MASK))
+			return -EINVAL;
+
+		/*
+		 * The number of group members with branch_events attribute
+		 * cannot exceed the number of the supported counters.
+		 */
+		leader = event->group_leader;
+		if (leader->attr.branch_events)
+			num_branch_events++;
+		for_each_sibling_event(sibling, leader) {
+			if (sibling->attr.branch_events)
+				num_branch_events++;
+		}
+		if (num_branch_events > PERF_MAX_BRANCH_EVENTS)
+			return -EINVAL;
+	}
+
 	if (needs_branch_stack(event)) {
 		ret = intel_pmu_setup_lbr_filter(event);
 		if (ret)
@@ -3902,6 +4097,34 @@ static int intel_pmu_hw_config(struct perf_event *event)
 			return -EINVAL;
 
 		event->hw.flags |= PERF_X86_EVENT_PEBS_VIA_PT;
+	}
+
+	if (event->attr.reload) {
+		struct perf_event *leader = event->group_leader;
+		struct perf_event *sibling;
+		int num = 1;
+
+		/*
+		 * Leader must support auto reload as well
+		 * Limit the leader to a PEBS event.
+		 * Only sample the leader.
+		 */
+		if (!leader->attr.reload ||
+		    !leader->attr.precise_ip ||
+		    !(leader->attr.sample_type & PERF_SAMPLE_READ))
+			return -EINVAL;
+
+		/* An auto reload event must has fixed period. */
+		if (event->attr.freq || !event->attr.sample_period)
+			return -EINVAL;
+
+		for_each_sibling_event(sibling, leader) {
+			if (sibling->attr.reload)
+				num++;
+		}
+
+		if (num > x86_pmu.num_auto_reload)
+			return -EINVAL;
 	}
 
 	if ((event->attr.type == PERF_TYPE_HARDWARE) ||
@@ -4249,6 +4472,12 @@ static int hsw_hw_config(struct perf_event *event)
 static struct event_constraint counter0_constraint =
 			INTEL_ALL_EVENT_CONSTRAINT(0, 0x1);
 
+static struct event_constraint counter1_constraint =
+			INTEL_ALL_EVENT_CONSTRAINT(0, 0x2);
+
+static struct event_constraint counter0_1_constraint =
+			INTEL_ALL_EVENT_CONSTRAINT(0, 0x3);
+
 static struct event_constraint counter2_constraint =
 			EVENT_CONSTRAINT(0, 0x4, 0);
 
@@ -4257,6 +4486,12 @@ static struct event_constraint fixed0_constraint =
 
 static struct event_constraint fixed0_counter0_constraint =
 			INTEL_ALL_EVENT_CONSTRAINT(0, 0x100000001ULL);
+
+static struct event_constraint fixed0_counter0_1_constraint =
+			INTEL_ALL_EVENT_CONSTRAINT(0, 0x100000003ULL);
+
+static struct event_constraint counters_1_7_constraint =
+			INTEL_ALL_EVENT_CONSTRAINT(0, 0xfeULL);
 
 static struct event_constraint *
 hsw_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
@@ -4389,6 +4624,78 @@ adl_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
 	return &emptyconstraint;
 }
 
+static struct event_constraint *
+cmt_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
+			  struct perf_event *event)
+{
+	struct event_constraint *c;
+
+	c = intel_get_event_constraints(cpuc, idx, event);
+
+	/*
+	 * The :ppp indicates the Precise Distribution (PDist) facility, which
+	 * is only supported on the GP counter 0 & 1 and Fixed counter 0.
+	 * If a :ppp event which is not available on the above eligible counters,
+	 * error out.
+	 */
+	if (event->attr.precise_ip == 3) {
+		/* Force instruction:ppp on PMC0, 1 and Fixed counter 0 */
+		if (constraint_match(&fixed0_constraint, event->hw.config))
+			return &fixed0_counter0_1_constraint;
+
+		switch (c->idxmsk64 & 0x3ull) {
+		case 0x1:
+			return &counter0_constraint;
+		case 0x2:
+			return &counter1_constraint;
+		case 0x3:
+			return &counter0_1_constraint;
+		}
+		return &emptyconstraint;
+	}
+
+	return c;
+}
+
+static struct event_constraint *
+rwc_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
+			  struct perf_event *event)
+{
+	struct event_constraint *c;
+
+	c = spr_get_event_constraints(cpuc, idx, event);
+
+	/* The Retire Latency is not supported by the fixed counter 0. */
+	if (event->attr.precise_ip &&
+	    (event->attr.sample_type & PERF_SAMPLE_WEIGHT_TYPE) &&
+	    constraint_match(&fixed0_constraint, event->hw.config)) {
+		/*
+		 * The Instruction PDIR is only available
+		 * on the fixed counter 0. Error out for this case.
+		 */
+		if (event->attr.precise_ip == 3)
+			return &emptyconstraint;
+		return &counters_1_7_constraint;
+	}
+
+	return c;
+}
+
+static struct event_constraint *
+mtl_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
+			  struct perf_event *event)
+{
+	struct x86_hybrid_pmu *pmu = hybrid_pmu(event->pmu);
+
+	if (pmu->cpu_type == hybrid_big)
+		return rwc_get_event_constraints(cpuc, idx, event);
+	if (pmu->cpu_type == hybrid_small)
+		return cmt_get_event_constraints(cpuc, idx, event);
+
+	WARN_ON(1);
+	return &emptyconstraint;
+}
+
 static int adl_hw_config(struct perf_event *event)
 {
 	struct x86_hybrid_pmu *pmu = hybrid_pmu(event->pmu);
@@ -4445,6 +4752,7 @@ static void spr_limit_period(struct perf_event *event, s64 *left)
 
 PMU_FORMAT_ATTR(event,	"config:0-7"	);
 PMU_FORMAT_ATTR(umask,	"config:8-15"	);
+PMU_FORMAT_ATTR(umask2,	"config:8-15,40-47"); /* v6 + */
 PMU_FORMAT_ATTR(edge,	"config:18"	);
 PMU_FORMAT_ATTR(pc,	"config:19"	);
 PMU_FORMAT_ATTR(any,	"config:21"	); /* v3 + */
@@ -4452,6 +4760,7 @@ PMU_FORMAT_ATTR(inv,	"config:23"	);
 PMU_FORMAT_ATTR(cmask,	"config:24-31"	);
 PMU_FORMAT_ATTR(in_tx,  "config:32");
 PMU_FORMAT_ATTR(in_tx_cp, "config:33");
+PMU_FORMAT_ATTR(z,	"config:36"); /* v6 + */
 
 static struct attribute *intel_arch_formats_attr[] = {
 	&format_attr_event.attr,
@@ -4461,6 +4770,22 @@ static struct attribute *intel_arch_formats_attr[] = {
 	&format_attr_inv.attr,
 	&format_attr_cmask.attr,
 	NULL,
+};
+
+static struct attribute *intel_arch6_formats_attr[] = {
+	&format_attr_event.attr,
+	&format_attr_umask2.attr,
+	&format_attr_edge.attr,
+	&format_attr_pc.attr,
+	&format_attr_inv.attr,
+	&format_attr_cmask.attr,
+	&format_attr_z.attr,
+	NULL,
+};
+
+static struct attribute *any_thread_format_attr[] = {
+	&format_attr_any.attr,
+	NULL
 };
 
 ssize_t intel_event_sysfs_show(char *page, u64 config)
@@ -4513,7 +4838,7 @@ int intel_cpuc_prepare(struct cpu_hw_events *cpuc, int cpu)
 			goto err;
 	}
 
-	if (x86_pmu.flags & (PMU_FL_EXCL_CNTRS | PMU_FL_TFA)) {
+	if (x86_pmu.flags & (PMU_FL_EXCL_CNTRS | PMU_FL_TFA) || !!x86_pmu.lbr_events || x86_pmu.num_auto_reload) {
 		size_t sz = X86_PMC_IDX_MAX * sizeof(struct event_constraint);
 
 		cpuc->constraint_list = kzalloc_node(sz, GFP_KERNEL, cpu_to_node(cpu));
@@ -4561,6 +4886,25 @@ static void flip_smm_bit(void *data)
 	}
 }
 
+static void intel_pmu_check_num_counters(int *num_counters,
+					 int *num_counters_fixed,
+					 u64 *intel_ctrl, u64 fixed_mask);
+
+static void update_pmu_cap(struct x86_hybrid_pmu *pmu)
+{
+	unsigned int sub_bitmaps = cpuid_eax(ARCH_PERFMON_EXT_LEAF);
+	unsigned int eax, ebx, ecx, edx;
+
+	if (sub_bitmaps & ARCH_PERFMON_NUM_COUNTER_LEAF_BIT) {
+		cpuid_count(ARCH_PERFMON_EXT_LEAF, ARCH_PERFMON_NUM_COUNTER_LEAF,
+			    &eax, &ebx, &ecx, &edx);
+		pmu->num_counters = fls(eax);
+		pmu->num_counters_fixed = fls(ebx);
+		intel_pmu_check_num_counters(&pmu->num_counters, &pmu->num_counters_fixed,
+					     &pmu->intel_ctrl, ebx);
+	}
+}
+
 static bool init_hybrid_pmu(int cpu)
 {
 	struct cpu_hw_events *cpuc = &per_cpu(cpu_hw_events, cpu);
@@ -4585,6 +4929,9 @@ static bool init_hybrid_pmu(int cpu)
 	/* Only check and dump the PMU information for the first CPU */
 	if (!cpumask_empty(&pmu->supported_cpus))
 		goto end;
+
+	if (this_cpu_has(X86_FEATURE_ARCH_PERFMON_EXT))
+		update_pmu_cap(pmu);
 
 	if (!check_hw_exists(&pmu->pmu, pmu->num_counters, pmu->num_counters_fixed))
 		return false;
@@ -4783,17 +5130,6 @@ PMU_FORMAT_ATTR(ldlat, "config1:0-15");
 
 PMU_FORMAT_ATTR(frontend, "config1:0-23");
 
-static struct attribute *intel_arch3_formats_attr[] = {
-	&format_attr_event.attr,
-	&format_attr_umask.attr,
-	&format_attr_edge.attr,
-	&format_attr_pc.attr,
-	&format_attr_any.attr,
-	&format_attr_inv.attr,
-	&format_attr_cmask.attr,
-	NULL,
-};
-
 static struct attribute *hsw_format_attr[] = {
 	&format_attr_in_tx.attr,
 	&format_attr_in_tx_cp.attr,
@@ -4896,7 +5232,7 @@ static __initconst const struct x86_pmu intel_pmu = {
 	.put_event_constraints	= intel_put_event_constraints,
 	.pebs_aliases		= intel_pebs_aliases_core2,
 
-	.format_attrs		= intel_arch3_formats_attr,
+	.format_attrs		= intel_arch_formats_attr,
 	.events_sysfs_show	= intel_event_sysfs_show,
 
 	.cpu_prepare		= intel_pmu_cpu_prepare,
@@ -5253,10 +5589,12 @@ static struct attribute *icl_tsx_events_attrs[] = {
 EVENT_ATTR_STR(mem-stores,	mem_st_spr,	"event=0xcd,umask=0x2");
 EVENT_ATTR_STR(mem-loads-aux,	mem_ld_aux,	"event=0x03,umask=0x82");
 
+#define SPR_MEM_LD_AUX_IDX		2
+
 static struct attribute *spr_events_attrs[] = {
 	EVENT_PTR(mem_ld_hsw),
 	EVENT_PTR(mem_st_spr),
-	EVENT_PTR(mem_ld_aux),
+	NULL,
 	NULL,
 };
 
@@ -5404,11 +5742,70 @@ static DEVICE_ATTR(allow_tsx_force_abort, 0644,
 		   show_sysctl_tfa,
 		   set_sysctl_tfa);
 
+static void update_perf_metrics(void *ignored)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+
+	/*
+	 * check if perf metrics is used
+	 * and if so force schedule out for all event types all contexts
+	 */
+	if (*(u64 *)cpuc->active_mask & INTEL_PMC_MSK_TOPDOWN)
+		perf_pmu_resched(x86_get_pmu(smp_processor_id()));
+}
+
+static ssize_t perf_metrics_rdpmc_auto_clear_show(struct device *cdev,
+						  struct device_attribute *attr,
+						  char *buf)
+{
+	return snprintf(buf, 40, "%d\n", x86_pmu.attr_perf_metrics_clear);
+}
+
+static ssize_t perf_metrics_rdpmc_auto_clear_store(struct device *cdev,
+						   struct device_attribute *attr,
+						   const char *buf, size_t count)
+{
+	bool val;
+	ssize_t ret;
+
+	ret = kstrtobool(buf, &val);
+	if (ret)
+		return ret;
+
+	/* no change */
+	if (val == x86_pmu.attr_perf_metrics_clear)
+		return count;
+
+	x86_pmu.attr_perf_metrics_clear = val;
+
+	cpus_read_lock();
+	on_each_cpu(update_perf_metrics, NULL, 1);
+	cpus_read_unlock();
+
+       return count;
+}
+
+static DEVICE_ATTR_RW(perf_metrics_rdpmc_auto_clear);
+
 static struct attribute *intel_pmu_attrs[] = {
 	&dev_attr_freeze_on_smi.attr,
 	&dev_attr_allow_tsx_force_abort.attr,
+	&dev_attr_perf_metrics_rdpmc_auto_clear.attr,
 	NULL,
 };
+
+static umode_t
+td_is_visible(struct kobject *kobj, struct attribute *attr, int i)
+{
+	/*
+	 * Hide the perf metrics topdown events
+	 * if the slots is not enumerated.
+	 */
+	if (x86_pmu.num_topdown_events)
+		return (x86_pmu.intel_ctrl & INTEL_PMC_MSK_FIXED_SLOTS) ? attr->mode : 0;
+
+	return attr->mode;
+}
 
 static umode_t
 tsx_is_visible(struct kobject *kobj, struct attribute *attr, int i)
@@ -5445,6 +5842,7 @@ default_is_visible(struct kobject *kobj, struct attribute *attr, int i)
 
 static struct attribute_group group_events_td  = {
 	.name = "events",
+	.is_visible = td_is_visible,
 };
 
 static struct attribute_group group_events_mem = {
@@ -5478,6 +5876,11 @@ static struct attribute_group group_format_extra_skl = {
 	.is_visible = exra_is_visible,
 };
 
+static struct attribute_group group_format_any = {
+	.name       = "format",
+	.is_visible = exra_is_visible,
+};
+
 static struct attribute_group group_default = {
 	.attrs      = intel_pmu_attrs,
 	.is_visible = default_is_visible,
@@ -5491,6 +5894,7 @@ static const struct attribute_group *attr_update[] = {
 	&group_caps_lbr,
 	&group_format_extra,
 	&group_format_extra_skl,
+	&group_format_any,
 	&group_default,
 	NULL,
 };
@@ -5530,6 +5934,12 @@ static struct attribute *adl_hybrid_mem_attrs[] = {
 	NULL,
 };
 
+static struct attribute *mtl_hybrid_mem_attrs[] = {
+	EVENT_PTR(mem_ld_adl),
+	EVENT_PTR(mem_st_adl),
+	NULL
+};
+
 EVENT_ATTR_STR_HYBRID(tx-start,          tx_start_adl,          "event=0xc9,umask=0x1",          hybrid_big);
 EVENT_ATTR_STR_HYBRID(tx-commit,         tx_commit_adl,         "event=0xc9,umask=0x2",          hybrid_big);
 EVENT_ATTR_STR_HYBRID(tx-abort,          tx_abort_adl,          "event=0xc9,umask=0x4",          hybrid_big);
@@ -5557,20 +5967,40 @@ FORMAT_ATTR_HYBRID(offcore_rsp, hybrid_big_small);
 FORMAT_ATTR_HYBRID(ldlat,       hybrid_big_small);
 FORMAT_ATTR_HYBRID(frontend,    hybrid_big);
 
+#define ADL_HYBRID_RTM_FORMAT_ATTR	\
+	FORMAT_HYBRID_PTR(in_tx),	\
+	FORMAT_HYBRID_PTR(in_tx_cp)
+
+#define ADL_HYBRID_FORMAT_ATTR		\
+	FORMAT_HYBRID_PTR(offcore_rsp),	\
+	FORMAT_HYBRID_PTR(ldlat),	\
+	FORMAT_HYBRID_PTR(frontend)
+
 static struct attribute *adl_hybrid_extra_attr_rtm[] = {
-	FORMAT_HYBRID_PTR(in_tx),
-	FORMAT_HYBRID_PTR(in_tx_cp),
-	FORMAT_HYBRID_PTR(offcore_rsp),
-	FORMAT_HYBRID_PTR(ldlat),
-	FORMAT_HYBRID_PTR(frontend),
-	NULL,
+	ADL_HYBRID_RTM_FORMAT_ATTR,
+	ADL_HYBRID_FORMAT_ATTR,
+	NULL
 };
 
 static struct attribute *adl_hybrid_extra_attr[] = {
-	FORMAT_HYBRID_PTR(offcore_rsp),
-	FORMAT_HYBRID_PTR(ldlat),
-	FORMAT_HYBRID_PTR(frontend),
-	NULL,
+	ADL_HYBRID_FORMAT_ATTR,
+	NULL
+};
+
+PMU_FORMAT_ATTR_SHOW(snoop_rsp, "config1:0-63");
+FORMAT_ATTR_HYBRID(snoop_rsp,	hybrid_small);
+
+static struct attribute *mtl_hybrid_extra_attr_rtm[] = {
+	ADL_HYBRID_RTM_FORMAT_ATTR,
+	ADL_HYBRID_FORMAT_ATTR,
+	FORMAT_HYBRID_PTR(snoop_rsp),
+	NULL
+};
+
+static struct attribute *mtl_hybrid_extra_attr[] = {
+	ADL_HYBRID_FORMAT_ATTR,
+	FORMAT_HYBRID_PTR(snoop_rsp),
+	NULL
 };
 
 static bool is_attr_for_this_pmu(struct kobject *kobj, struct attribute *attr)
@@ -5595,6 +6025,27 @@ static inline int hybrid_find_supported_cpu(struct x86_hybrid_pmu *pmu)
 	int cpu = cpumask_first(&pmu->supported_cpus);
 
 	return (cpu >= nr_cpu_ids) ? -1 : cpu;
+}
+
+static umode_t hybrid_td_is_visible(struct kobject *kobj,
+					struct attribute *attr, int i)
+{
+	struct device *dev = kobj_to_dev(kobj);
+	struct x86_hybrid_pmu *pmu =
+		 container_of(dev_get_drvdata(dev), struct x86_hybrid_pmu, pmu);
+
+	if (!is_attr_for_this_pmu(kobj, attr))
+		return 0;
+
+	/* Only check the big core which supports perf metrics */
+	if (pmu->cpu_type == hybrid_big)
+		return (pmu->intel_ctrl & INTEL_PMC_MSK_FIXED_SLOTS) ? attr->mode : 0;
+
+	/*TODO: Check the enumeration here. For now, always enable */
+	if (attr == &dev_attr_perf_metrics_rdpmc_auto_clear.attr)
+		return attr->mode;
+
+	return attr->mode;
 }
 
 static umode_t hybrid_tsx_is_visible(struct kobject *kobj,
@@ -5623,7 +6074,7 @@ static umode_t hybrid_format_is_visible(struct kobject *kobj,
 
 static struct attribute_group hybrid_group_events_td  = {
 	.name		= "events",
-	.is_visible	= hybrid_events_is_visible,
+	.is_visible	= hybrid_td_is_visible,
 };
 
 static struct attribute_group hybrid_group_events_mem = {
@@ -5668,6 +6119,7 @@ static const struct attribute_group *hybrid_attr_update[] = {
 	&group_caps_gen,
 	&group_caps_lbr,
 	&hybrid_group_format_extra,
+	&group_format_any,
 	&group_default,
 	&hybrid_group_cpus,
 	NULL,
@@ -5792,6 +6244,17 @@ static void intel_pmu_check_hybrid_pmus(u64 fixed_mask)
 	}
 }
 
+static __always_inline bool is_mtl(u8 x86_model)
+{
+	return (x86_model == INTEL_FAM6_METEORLAKE) ||
+	       (x86_model == INTEL_FAM6_METEORLAKE_L);
+}
+
+static inline int intel_pmu_addr_offset(int index, bool eventsel)
+{
+	return 4 * index;
+}
+
 __init int intel_pmu_init(void)
 {
 	struct attribute **extra_skl_attr = &empty_attrs;
@@ -5802,6 +6265,7 @@ __init int intel_pmu_init(void)
 	union cpuid10_edx edx;
 	union cpuid10_eax eax;
 	union cpuid10_ebx ebx;
+	unsigned int cpuid33_eax, cpuid33_ebx, cpuid33_ecx, cpuid33_edx;
 	unsigned int fixed_mask;
 	bool pmem = false;
 	int version, i;
@@ -5836,9 +6300,33 @@ __init int intel_pmu_init(void)
 
 	x86_pmu.version			= version;
 	x86_pmu.num_counters		= eax.split.num_counters;
-	x86_pmu.cntval_bits		= eax.split.bit_width;
-	x86_pmu.cntval_mask		= (1ULL << eax.split.bit_width) - 1;
 
+	/*
+	 * TODO:
+	 * Update cpuid33 enumeration code when we have a clear define for the new leaf.
+	 */
+	if (version >= 6) {
+		cpuid(33, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
+		x86_pmu.rdpmc_usr = cpuid33_eax & 1;
+		if (cpuid33_edx >= 2) {
+			cpuid_count(33, 2, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
+			x86_pmu.mask_auto_reload = cpuid33_eax | ((u64)cpuid33_ebx << 32);
+			x86_pmu.num_auto_reload = fls(cpuid33_eax) + fls(cpuid33_ebx);
+		}
+		if (cpuid33_edx > 0) {
+			cpuid_count(33, 1, &cpuid33_eax, &cpuid33_ebx, &cpuid33_ecx, &cpuid33_edx);
+			x86_pmu.num_counters = fls(cpuid33_eax);
+			fixed_mask = cpuid33_ebx;
+		}
+
+		if (WARN_ONCE(x86_pmu.num_counters > MAX_PEBS_EVENTS,
+		    "hw perf events (%d) > MAX_PEBS_EVENTS (%d), clipping!\n",
+		    x86_pmu.num_counters, MAX_PEBS_EVENTS))
+			x86_pmu.num_counters = MAX_PEBS_EVENTS;
+	}
+
+	x86_pmu.cntval_mask		= (1ULL << eax.split.bit_width) - 1;
+	x86_pmu.cntval_bits		= eax.split.bit_width;
 	x86_pmu.events_maskl		= ebx.full;
 	x86_pmu.events_mask_len		= eax.split.mask_length;
 
@@ -5878,11 +6366,16 @@ __init int intel_pmu_init(void)
 
 	x86_add_quirk(intel_arch_events_quirk); /* Install first, so it runs last */
 
-	if (version >= 5) {
+	group_format_any.attrs = &empty_attrs;
+	if (version >= 5)
 		x86_pmu.intel_cap.anythread_deprecated = edx.split.anythread_deprecated;
-		if (x86_pmu.intel_cap.anythread_deprecated)
-			pr_cont(" AnyThread deprecated, ");
-	}
+	if (x86_pmu.intel_cap.anythread_deprecated)
+		pr_cont(" AnyThread deprecated, ");
+	else if (version >= 3)
+		group_format_any.attrs = any_thread_format_attr;
+
+	if (version >= 6)
+		x86_pmu.format_attrs = intel_arch6_formats_attr;
 
 	/*
 	 * Install the hw-cache-events table:
@@ -6043,7 +6536,7 @@ __init int intel_pmu_init(void)
 	case INTEL_FAM6_ATOM_TREMONT_D:
 	case INTEL_FAM6_ATOM_TREMONT:
 	case INTEL_FAM6_ATOM_TREMONT_L:
-		x86_pmu.late_ack = true;
+		x86_pmu.mid_ack = true;
 		memcpy(hw_cache_event_ids, glp_hw_cache_event_ids,
 		       sizeof(hw_cache_event_ids));
 		memcpy(hw_cache_extra_regs, tnt_hw_cache_extra_regs,
@@ -6097,6 +6590,38 @@ __init int intel_pmu_init(void)
 		extra_attr = nhm_format_attr;
 		pr_cont("Gracemont events, ");
 		name = "gracemont";
+		break;
+
+	case INTEL_FAM6_GRANDRIDGE:
+	case INTEL_FAM6_SIERRAFOREST_X:
+		x86_pmu.mid_ack = true;
+		memcpy(hw_cache_event_ids, glp_hw_cache_event_ids,
+		       sizeof(hw_cache_event_ids));
+		memcpy(hw_cache_extra_regs, tnt_hw_cache_extra_regs,
+		       sizeof(hw_cache_extra_regs));
+		hw_cache_event_ids[C(ITLB)][C(OP_READ)][C(RESULT_ACCESS)] = -1;
+
+		x86_pmu.event_constraints = intel_slm_event_constraints;
+		x86_pmu.pebs_constraints = intel_grt_pebs_event_constraints;
+		x86_pmu.extra_regs = intel_cmt_extra_regs;
+		/*
+		 * It's recommended to use CPU_CLK_UNHALTED.CORE_P + NPEBS
+		 * for precise cycles.
+		 */
+		x86_pmu.pebs_aliases = NULL;
+		x86_pmu.pebs_prec_dist = true;
+		x86_pmu.lbr_pt_coexist = true;
+		x86_pmu.pebs_block = true;
+		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
+		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
+		x86_pmu.flags |= PMU_FL_PEBS_ALL;
+		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
+		x86_pmu.get_event_constraints = cmt_get_event_constraints;
+		td_attr = cmt_events_attrs;
+		extra_attr = nhm_format_attr;
+		intel_pmu_pebs_data_source_cmt();
+		pr_cont("Crestmont events, ");
+		name = "Crestmont";
 		break;
 
 	case INTEL_FAM6_WESTMERE:
@@ -6407,6 +6932,11 @@ __init int intel_pmu_init(void)
 
 	case INTEL_FAM6_SAPPHIRERAPIDS_X:
 	case INTEL_FAM6_EMERALDRAPIDS_X:
+		x86_pmu.flags |= PMU_FL_MEM_LOADS_AUX;
+		spr_events_attrs[SPR_MEM_LD_AUX_IDX] = EVENT_PTR(mem_ld_aux);
+		fallthrough;
+	case INTEL_FAM6_GRANITERAPIDS_X:
+	case INTEL_FAM6_GRANITERAPIDS_D:
 		pmem = true;
 		x86_pmu.late_ack = true;
 		memcpy(hw_cache_event_ids, spr_hw_cache_event_ids, sizeof(hw_cache_event_ids));
@@ -6422,7 +6952,7 @@ __init int intel_pmu_init(void)
 		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
 		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
 		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
-		x86_pmu.flags |= PMU_FL_MEM_LOADS_AUX;
+
 
 		x86_pmu.hw_config = hsw_hw_config;
 		x86_pmu.get_event_constraints = spr_get_event_constraints;
@@ -6449,6 +6979,8 @@ __init int intel_pmu_init(void)
 	case INTEL_FAM6_RAPTORLAKE:
 	case INTEL_FAM6_RAPTORLAKE_P:
 	case INTEL_FAM6_RAPTORLAKE_S:
+	case INTEL_FAM6_METEORLAKE:
+	case INTEL_FAM6_METEORLAKE_L:
 		/*
 		 * Alder Lake has 2 types of CPU, core and atom.
 		 *
@@ -6468,9 +7000,7 @@ __init int intel_pmu_init(void)
 		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
 		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
 		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
-		x86_pmu.flags |= PMU_FL_MEM_LOADS_AUX;
 		x86_pmu.lbr_pt_coexist = true;
-		intel_pmu_pebs_data_source_adl();
 		x86_pmu.pebs_latency_data = adl_latency_data_small;
 		x86_pmu.num_topdown_events = 8;
 		static_call_update(intel_pmu_update_topdown_event,
@@ -6557,8 +7087,227 @@ __init int intel_pmu_init(void)
 		pmu->event_constraints = intel_slm_event_constraints;
 		pmu->pebs_constraints = intel_grt_pebs_event_constraints;
 		pmu->extra_regs = intel_grt_extra_regs;
-		pr_cont("Alderlake Hybrid events, ");
-		name = "alderlake_hybrid";
+		if (is_mtl(boot_cpu_data.x86_model)) {
+			x86_pmu.pebs_latency_data = mtl_latency_data_small;
+			extra_attr = boot_cpu_has(X86_FEATURE_RTM) ?
+				mtl_hybrid_extra_attr_rtm : mtl_hybrid_extra_attr;
+			mem_attr = mtl_hybrid_mem_attrs;
+			intel_pmu_pebs_data_source_mtl();
+			x86_pmu.get_event_constraints = mtl_get_event_constraints;
+			pmu->extra_regs = intel_cmt_extra_regs;
+			pr_cont("Meteorlake Hybrid events, ");
+			name = "meteorlake_hybrid";
+		} else {
+			x86_pmu.flags |= PMU_FL_MEM_LOADS_AUX;
+			intel_pmu_pebs_data_source_adl();
+			pr_cont("Alderlake Hybrid events, ");
+			name = "alderlake_hybrid";
+		}
+		break;
+
+	case INTEL_FAM6_LUNARLAKE_M:
+
+		x86_pmu.hybrid_pmu = kcalloc(X86_HYBRID_NUM_PMUS,
+					     sizeof(struct x86_hybrid_pmu),
+					     GFP_KERNEL);
+		if (!x86_pmu.hybrid_pmu)
+			return -ENOMEM;
+		static_branch_enable(&perf_is_hybrid);
+		x86_pmu.num_hybrid_pmus = X86_HYBRID_NUM_PMUS;
+
+		x86_pmu.pebs_aliases = NULL;
+		x86_pmu.pebs_prec_dist = true;
+		x86_pmu.pebs_block = true;
+		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
+		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
+		x86_pmu.flags |= PMU_FL_PEBS_ALL;
+		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
+		x86_pmu.lbr_pt_coexist = true;
+		intel_pmu_pebs_data_source_mtl();
+		x86_pmu.num_topdown_events = 8;
+		static_call_update(intel_pmu_update_topdown_event,
+				   &adl_update_topdown_event);
+		static_call_update(intel_pmu_set_topdown_event_period,
+				   &adl_set_topdown_event_period);
+
+		x86_pmu.filter = intel_pmu_filter;
+		x86_pmu.get_event_constraints = mtl_get_event_constraints;
+		x86_pmu.hw_config = adl_hw_config;
+		x86_pmu.limit_period = spr_limit_period;
+		/*
+		 * The rtm_abort_event is used to check whether to enable GPRs
+		 * for the RTM abort event. Atom doesn't have the RTM abort
+		 * event. There is no harmful to set it in the common
+		 * x86_pmu.rtm_abort_event.
+		 */
+		x86_pmu.rtm_abort_event = X86_CONFIG(.event=0xc9, .umask=0x04);
+#ifdef CONFIG_X86_SHADOW_STACK
+		if (boot_cpu_has(X86_FEATURE_SHSTK))
+			x86_pmu.store_shadow_stack_user = intel_pmu_store_shadow_stack_user;
+#endif
+
+		td_attr = adl_hybrid_events_attrs;
+		mem_attr = adl_hybrid_mem_attrs;
+		tsx_attr = adl_hybrid_tsx_attrs;
+		extra_attr = boot_cpu_has(X86_FEATURE_RTM) ?
+			adl_hybrid_extra_attr_rtm : adl_hybrid_extra_attr;
+
+		/* Initialize big core specific PerfMon capabilities.*/
+		pmu = &x86_pmu.hybrid_pmu[X86_HYBRID_PMU_CORE_IDX];
+		pmu->name = "cpu_core";
+		pmu->cpu_type = hybrid_big;
+		pmu->late_ack = true;
+		pmu->num_counters = x86_pmu.num_counters;
+		pmu->num_counters_fixed = x86_pmu.num_counters_fixed + 1;
+		pmu->max_pebs_events = min_t(unsigned, MAX_PEBS_EVENTS, pmu->num_counters);
+		pmu->unconstrained = (struct event_constraint)
+					__EVENT_CONSTRAINT(0, (1ULL << pmu->num_counters) - 1,
+							   0, pmu->num_counters, 0, 0);
+		pmu->intel_cap.capabilities = x86_pmu.intel_cap.capabilities;
+		pmu->intel_cap.perf_metrics = 1;
+		pmu->intel_cap.pebs_output_pt_available = 0;
+
+		memcpy(pmu->hw_cache_event_ids, spr_hw_cache_event_ids, sizeof(pmu->hw_cache_event_ids));
+		memcpy(pmu->hw_cache_extra_regs, spr_hw_cache_extra_regs, sizeof(pmu->hw_cache_extra_regs));
+		pmu->event_constraints = intel_spr_event_constraints;
+		pmu->pebs_constraints = intel_spr_pebs_event_constraints;
+		pmu->extra_regs = intel_spr_extra_regs;
+
+		/* Initialize Atom core specific PerfMon capabilities.*/
+		pmu = &x86_pmu.hybrid_pmu[X86_HYBRID_PMU_ATOM_IDX];
+		pmu->name = "cpu_atom";
+		pmu->cpu_type = hybrid_small;
+		pmu->mid_ack = true;
+		pmu->num_counters = x86_pmu.num_counters;
+		pmu->num_counters_fixed = x86_pmu.num_counters_fixed;
+		pmu->max_pebs_events = x86_pmu.max_pebs_events;
+		pmu->unconstrained = (struct event_constraint)
+					__EVENT_CONSTRAINT(0, (1ULL << pmu->num_counters) - 1,
+							   0, pmu->num_counters, 0, 0);
+		pmu->intel_cap.capabilities = x86_pmu.intel_cap.capabilities;
+		pmu->intel_cap.perf_metrics = 0;
+		pmu->intel_cap.pebs_output_pt_available = 1;
+
+		memcpy(pmu->hw_cache_event_ids, glp_hw_cache_event_ids, sizeof(pmu->hw_cache_event_ids));
+		memcpy(pmu->hw_cache_extra_regs, tnt_hw_cache_extra_regs, sizeof(pmu->hw_cache_extra_regs));
+		pmu->hw_cache_event_ids[C(ITLB)][C(OP_READ)][C(RESULT_ACCESS)] = -1;
+		pmu->event_constraints = intel_slm_event_constraints;
+		pmu->pebs_constraints = intel_grt_pebs_event_constraints;
+		pmu->extra_regs = intel_cmt_extra_regs;
+		pr_cont("Lunar Lake Hybrid events, ");
+		name = "lunarlake_hybrid";
+		break;
+
+	case INTEL_FAM6_ARROWLAKE_S:
+
+		x86_pmu.hybrid_pmu = kcalloc(X86_HYBRID_NUM_PMUS,
+					     sizeof(struct x86_hybrid_pmu),
+					     GFP_KERNEL);
+		if (!x86_pmu.hybrid_pmu)
+			return -ENOMEM;
+		static_branch_enable(&perf_is_hybrid);
+		x86_pmu.num_hybrid_pmus = X86_HYBRID_NUM_PMUS_PLUS;
+
+		x86_pmu.pebs_aliases = NULL;
+		x86_pmu.pebs_prec_dist = true;
+		x86_pmu.pebs_block = true;
+		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
+		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
+		x86_pmu.flags |= PMU_FL_PEBS_ALL;
+		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
+		x86_pmu.lbr_pt_coexist = true;
+		intel_pmu_pebs_data_source_arl();
+		x86_pmu.num_topdown_events = 8;
+		static_call_update(intel_pmu_update_topdown_event,
+				   &adl_update_topdown_event);
+		static_call_update(intel_pmu_set_topdown_event_period,
+				   &adl_set_topdown_event_period);
+
+		x86_pmu.filter = intel_pmu_filter;
+		x86_pmu.get_event_constraints = mtl_get_event_constraints;
+		x86_pmu.hw_config = adl_hw_config;
+		x86_pmu.limit_period = spr_limit_period;
+		/*
+		 * The rtm_abort_event is used to check whether to enable GPRs
+		 * for the RTM abort event. Atom doesn't have the RTM abort
+		 * event. There is no harmful to set it in the common
+		 * x86_pmu.rtm_abort_event.
+		 */
+		x86_pmu.rtm_abort_event = X86_CONFIG(.event=0xc9, .umask=0x04);
+
+		td_attr = adl_hybrid_events_attrs;
+		mem_attr = adl_hybrid_mem_attrs;
+		tsx_attr = adl_hybrid_tsx_attrs;
+		extra_attr = boot_cpu_has(X86_FEATURE_RTM) ?
+			adl_hybrid_extra_attr_rtm : adl_hybrid_extra_attr;
+
+		/* Initialize big core specific PerfMon capabilities.*/
+		pmu = &x86_pmu.hybrid_pmu[X86_HYBRID_PMU_CORE_IDX];
+		pmu->name = "cpu_core";
+		pmu->cpu_type = hybrid_big;
+		pmu->late_ack = true;
+		pmu->num_counters = x86_pmu.num_counters;
+		pmu->num_counters_fixed = x86_pmu.num_counters_fixed + 1;
+		pmu->max_pebs_events = min_t(unsigned, MAX_PEBS_EVENTS, pmu->num_counters);
+		pmu->unconstrained = (struct event_constraint)
+					__EVENT_CONSTRAINT(0, (1ULL << pmu->num_counters) - 1,
+							   0, pmu->num_counters, 0, 0);
+		pmu->intel_cap.capabilities = x86_pmu.intel_cap.capabilities;
+		pmu->intel_cap.perf_metrics = 1;
+		pmu->intel_cap.pebs_output_pt_available = 0;
+
+		memcpy(pmu->hw_cache_event_ids, spr_hw_cache_event_ids, sizeof(pmu->hw_cache_event_ids));
+		memcpy(pmu->hw_cache_extra_regs, spr_hw_cache_extra_regs, sizeof(pmu->hw_cache_extra_regs));
+		pmu->event_constraints = intel_spr_event_constraints;
+		pmu->pebs_constraints = intel_spr_pebs_event_constraints;
+		pmu->extra_regs = intel_spr_extra_regs;
+
+		/* Initialize Atom core specific PerfMon capabilities.*/
+		pmu = &x86_pmu.hybrid_pmu[X86_HYBRID_PMU_ATOM_IDX];
+		pmu->name = "cpu_atom";
+		pmu->cpu_type = hybrid_small;
+		pmu->mid_ack = true;
+		pmu->num_counters = x86_pmu.num_counters;
+		pmu->num_counters_fixed = x86_pmu.num_counters_fixed;
+		pmu->max_pebs_events = x86_pmu.max_pebs_events;
+		pmu->unconstrained = (struct event_constraint)
+					__EVENT_CONSTRAINT(0, (1ULL << pmu->num_counters) - 1,
+							   0, pmu->num_counters, 0, 0);
+		pmu->intel_cap.capabilities = x86_pmu.intel_cap.capabilities;
+		pmu->intel_cap.perf_metrics = 0;
+		pmu->intel_cap.pebs_output_pt_available = 1;
+
+		memcpy(pmu->hw_cache_event_ids, glp_hw_cache_event_ids, sizeof(pmu->hw_cache_event_ids));
+		memcpy(pmu->hw_cache_extra_regs, tnt_hw_cache_extra_regs, sizeof(pmu->hw_cache_extra_regs));
+		pmu->hw_cache_event_ids[C(ITLB)][C(OP_READ)][C(RESULT_ACCESS)] = -1;
+		pmu->event_constraints = intel_slm_event_constraints;
+		pmu->pebs_constraints = intel_grt_pebs_event_constraints;
+		pmu->extra_regs = intel_cmt_extra_regs;
+
+		/* Initialize Atom core specific PerfMon capabilities.*/
+		pmu = &x86_pmu.hybrid_pmu[X86_HYBRID_PMU_ATOM2_IDX];
+		pmu->name = "cpu_atom2";
+		pmu->cpu_type = hybrid_small;
+		pmu->mid_ack = true;
+		pmu->num_counters = x86_pmu.num_counters;
+		pmu->num_counters_fixed = x86_pmu.num_counters_fixed;
+		pmu->max_pebs_events = x86_pmu.max_pebs_events;
+		pmu->unconstrained = (struct event_constraint)
+					__EVENT_CONSTRAINT(0, (1ULL << pmu->num_counters) - 1,
+							   0, pmu->num_counters, 0, 0);
+		pmu->intel_cap.capabilities = x86_pmu.intel_cap.capabilities;
+		pmu->intel_cap.perf_metrics = 0;
+		pmu->intel_cap.pebs_output_pt_available = 1;
+
+		memcpy(pmu->hw_cache_event_ids, glp_hw_cache_event_ids, sizeof(pmu->hw_cache_event_ids));
+		memcpy(pmu->hw_cache_extra_regs, tnt_hw_cache_extra_regs, sizeof(pmu->hw_cache_extra_regs));
+		pmu->hw_cache_event_ids[C(ITLB)][C(OP_READ)][C(RESULT_ACCESS)] = -1;
+		pmu->event_constraints = intel_slm_event_constraints;
+		pmu->pebs_constraints = intel_grt_pebs_event_constraints;
+		pmu->extra_regs = intel_cmt_extra_regs;
+
+		pr_cont("Arrow Lake Hybrid events, ");
+		name = "arrowlake_hybrid";
 		break;
 
 	default:
@@ -6620,10 +7369,6 @@ __init int intel_pmu_init(void)
 				     &x86_pmu.intel_ctrl,
 				     (u64)fixed_mask);
 
-	/* AnyThread may be deprecated on arch perfmon v5 or later */
-	if (x86_pmu.intel_cap.anythread_deprecated)
-		x86_pmu.format_attrs = intel_arch_formats_attr;
-
 	intel_pmu_check_event_constraints(x86_pmu.event_constraints,
 					  x86_pmu.num_counters,
 					  x86_pmu.num_counters_fixed,
@@ -6667,11 +7412,21 @@ __init int intel_pmu_init(void)
 		pr_cont("full-width counters, ");
 	}
 
+	if ((version >= 6) && (check_msr(MSR_IA32_V6_PMC0, 0xffffUL))) {
+		x86_pmu.max_period = x86_pmu.cntval_mask >> 1;
+		x86_pmu.perfctr = MSR_IA32_V6_PMC0;
+		x86_pmu.eventsel = MSR_IA32_V6_EVNTSEL0;
+		x86_pmu.addr_offset = intel_pmu_addr_offset;
+	}
+
 	if (!is_hybrid() && x86_pmu.intel_cap.perf_metrics)
 		x86_pmu.intel_ctrl |= 1ULL << GLOBAL_CTRL_EN_PERF_METRICS;
 
 	if (is_hybrid())
 		intel_pmu_check_hybrid_pmus((u64)fixed_mask);
+
+	if (x86_pmu.intel_cap.pebs_timing_info)
+		x86_pmu.flags |= PMU_FL_RETIRE_LATENCY;
 
 	intel_aux_output_init();
 

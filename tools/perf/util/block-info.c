@@ -11,6 +11,7 @@
 #include "srcline.h"
 #include "evlist.h"
 #include "hist.h"
+#include "strbuf.h"
 #include "ui/browsers/hists.h"
 
 static struct block_header_column {
@@ -40,7 +41,11 @@ static struct block_header_column {
 	[PERF_HPP_REPORT__BLOCK_DSO] = {
 		.name = "Shared Object",
 		.width = 20,
-	}
+	},
+	[PERF_HPP_REPORT__BLOCK_BRANCH_EVENT] = {
+		.name = "Unknown Event",
+		.width = 13,
+	},
 };
 
 struct block_info *block_info__get(struct block_info *bi)
@@ -96,6 +101,15 @@ int64_t block_info__cmp(struct perf_hpp_fmt *fmt __maybe_unused,
 	return __block_info__cmp(left, right);
 }
 
+static void init_branch_events(struct block_info *bi, struct cyc_hist *ch)
+{
+	for (int i = 0; i < PERF_MAX_BRANCH_EVENTS; i++) {
+		bi->event_occurs[i] = (u32)((float)ch->event_occurs[i] /
+					    (float)ch->num + 0.5);
+		bi->max_occurs[i] = ch->max_occurs[i];
+	}
+}
+
 static void init_block_info(struct block_info *bi, struct symbol *sym,
 			    struct cyc_hist *ch, int offset,
 			    u64 total_cycles)
@@ -108,6 +122,7 @@ static void init_block_info(struct block_info *bi, struct symbol *sym,
 	bi->num = ch->num;
 	bi->num_aggr = ch->num_aggr;
 	bi->total_cycles = total_cycles;
+	init_branch_events(bi, ch);
 
 	memcpy(bi->cycles_spark, ch->cycles_spark,
 	       NUM_SPARKS * sizeof(u64));
@@ -167,6 +182,12 @@ static int block_column_header(struct perf_hpp_fmt *fmt,
 			       int *span __maybe_unused)
 {
 	struct block_fmt *block_fmt = container_of(fmt, struct block_fmt, fmt);
+	struct evsel *evsel = block_fmt->evsel;
+
+	if (evsel) {
+		return scnprintf(hpp->buf, hpp->size, "%*s",
+				 block_fmt->width, evsel->name);
+	}
 
 	return scnprintf(hpp->buf, hpp->size, "%*s", block_fmt->width,
 			 block_fmt->header);
@@ -326,14 +347,53 @@ static int block_dso_entry(struct perf_hpp_fmt *fmt, struct perf_hpp *hpp,
 			 "[unknown]");
 }
 
+static int block_branch_event_entry(struct perf_hpp_fmt *fmt,
+                                   struct perf_hpp *hpp,
+                                   struct hist_entry *he)
+{
+	struct block_fmt *block_fmt = container_of(fmt, struct block_fmt, fmt);
+	struct block_info *bi = he->block_info;
+	struct evsel *evsel = block_fmt->evsel;
+	struct strbuf buf;
+	int ret;
+
+	if (evsel->core.idx >= PERF_MAX_BRANCH_EVENTS) {
+		return scnprintf(hpp->buf, hpp->size, "%*s",
+				 block_fmt->width, "n/a");
+	}
+
+	if (bi->event_occurs[evsel->core.idx] == 0) {
+		return scnprintf(hpp->buf, hpp->size, "%*s",
+				 block_fmt->width, "-");
+	}
+
+	if (strbuf_init(&buf, 64) < 0)
+		return -1;
+
+	for (unsigned int i = 0; i < bi->event_occurs[evsel->core.idx]; i++)
+		strbuf_addch(&buf, '#');
+
+	if (bi->max_occurs[evsel->core.idx])
+		strbuf_addch(&buf, '+');
+
+	ret = scnprintf(hpp->buf, hpp->size, "%*s", block_fmt->width, buf.buf);
+	strbuf_release(&buf);
+	return ret;
+}
+
 static void init_block_header(struct block_fmt *block_fmt)
 {
 	struct perf_hpp_fmt *fmt = &block_fmt->fmt;
+	struct evsel *evsel = block_fmt->evsel;
 
 	BUG_ON(block_fmt->idx >= PERF_HPP_REPORT__BLOCK_MAX_INDEX);
 
-	block_fmt->header = block_columns[block_fmt->idx].name;
-	block_fmt->width = block_columns[block_fmt->idx].width;
+	if (evsel && evsel->name) {
+		block_fmt->width = strlen(evsel->name);
+	} else {
+		block_fmt->header = block_columns[block_fmt->idx].name;
+		block_fmt->width = block_columns[block_fmt->idx].width;
+	}
 
 	fmt->header = block_column_header;
 	fmt->width = block_column_width;
@@ -369,6 +429,9 @@ static void hpp_register(struct block_fmt *block_fmt, int idx,
 	case PERF_HPP_REPORT__BLOCK_DSO:
 		fmt->entry = block_dso_entry;
 		break;
+	case PERF_HPP_REPORT__BLOCK_BRANCH_EVENT:
+		fmt->entry = block_branch_event_entry;
+		break;
 	default:
 		return;
 	}
@@ -379,40 +442,66 @@ static void hpp_register(struct block_fmt *block_fmt, int idx,
 
 static void register_block_columns(struct perf_hpp_list *hpp_list,
 				   struct block_fmt *block_fmts,
-				   int *block_hpps, int nr_hpps)
+				   int *block_hpps, int nr_hpps,
+				   struct evlist *evlist)
 {
-	for (int i = 0; i < nr_hpps; i++)
+	struct evsel *evsel;
+	int i;
+
+	for (i = 0; i < nr_hpps; i++) {
+		if (block_hpps[i] != PERF_HPP_REPORT__BLOCK_BRANCH_EVENT)
+			hpp_register(&block_fmts[i], block_hpps[i], hpp_list);
+		else
+			break;
+	}
+
+	while (i < nr_hpps) {
+		if (block_hpps[i] != PERF_HPP_REPORT__BLOCK_BRANCH_EVENT)
+			break;
+
+		evlist__for_each_entry(evlist, evsel) {
+			if (i >= nr_hpps)
+				break;
+
+			if (evsel->core.attr.branch_events) {
+				block_fmts[i].evsel = evsel;
+				hpp_register(&block_fmts[i], block_hpps[i], hpp_list);
+				i++;
+			}
+		}
+		break;
+	}
+
+	for (; i < nr_hpps; i++)
 		hpp_register(&block_fmts[i], block_hpps[i], hpp_list);
 }
 
 static void init_block_hist(struct block_hist *bh, struct block_fmt *block_fmts,
-			    int *block_hpps, int nr_hpps)
+			    int *block_hpps, int nr_hpps, struct evlist *evlist)
 {
 	__hists__init(&bh->block_hists, &bh->block_list);
 	perf_hpp_list__init(&bh->block_list);
 	bh->block_list.nr_header_lines = 1;
 
 	register_block_columns(&bh->block_list, block_fmts,
-			       block_hpps, nr_hpps);
+			       block_hpps, nr_hpps, evlist);
 
 	/* Sort by the first fmt */
 	perf_hpp_list__register_sort_field(&bh->block_list, &block_fmts[0].fmt);
 }
 
-static int process_block_report(struct hists *hists,
+static int process_block_report(struct evsel *evsel,
 				struct block_report *block_report,
 				u64 total_cycles, int *block_hpps,
-				int nr_hpps)
+				int nr_hpps, struct evlist *evlist)
 {
+	struct hists *hists = evsel__hists(evsel);
 	struct rb_node *next = rb_first_cached(&hists->entries);
 	struct block_hist *bh = &block_report->hist;
 	struct hist_entry *he;
 
-	if (nr_hpps > PERF_HPP_REPORT__BLOCK_MAX_INDEX)
-		return -1;
-
 	block_report->nr_fmts = nr_hpps;
-	init_block_hist(bh, block_report->fmts, block_hpps, nr_hpps);
+	init_block_hist(bh, block_report->fmts, block_hpps, nr_hpps, evlist);
 
 	while (next) {
 		he = rb_entry(next, struct hist_entry, rb_node);
@@ -430,24 +519,56 @@ static int process_block_report(struct hists *hists,
 	return 0;
 }
 
+static int block_hpps_init(int *block_hpps, int hpps_max, int hpps_nr,
+			   struct evlist *evlist)
+{
+	int branch_events_nr = 0, i;
+	struct evsel *pos;
+
+	evlist__for_each_entry(evlist, pos) {
+		if (pos->core.attr.branch_events)
+			branch_events_nr++;
+	}
+
+	/*
+	 * 2 hpps for PERF_HPP_REPORT__BLOCK_RANGE + PERF_HPP_REPORT__BLOCK_DSO
+	 */
+	if (hpps_nr + branch_events_nr + 2 > hpps_max)
+		return -1;
+
+	for (i = hpps_nr; i < hpps_nr + branch_events_nr; i++)
+		block_hpps[i] = PERF_HPP_REPORT__BLOCK_BRANCH_EVENT;
+
+	block_hpps[i] = PERF_HPP_REPORT__BLOCK_RANGE;
+	block_hpps[++i] = PERF_HPP_REPORT__BLOCK_DSO;
+	return i;
+}
+
 struct block_report *block_info__create_report(struct evlist *evlist,
-					       u64 total_cycles,
-					       int *block_hpps, int nr_hpps,
-					       int *nr_reps)
+					       u64 total_cycles, int *nr_reps)
 {
 	struct block_report *block_reports;
-	int nr_hists = evlist->core.nr_entries, i = 0;
+	int nr_hists = evlist->core.nr_entries, i = 0, nr_hpps;
 	struct evsel *pos;
+	int block_hpps[PERF_HPP_REPORT__BLOCK_MAX_INDEX] = {
+		PERF_HPP_REPORT__BLOCK_TOTAL_CYCLES_PCT,
+		PERF_HPP_REPORT__BLOCK_LBR_CYCLES,
+		PERF_HPP_REPORT__BLOCK_CYCLES_PCT,
+		PERF_HPP_REPORT__BLOCK_AVG_CYCLES,
+	};
+
+	nr_hpps = block_hpps_init(block_hpps, PERF_HPP_REPORT__BLOCK_MAX_INDEX,
+				  4, evlist);
+	if (nr_hpps <= 0)
+		return NULL;
 
 	block_reports = calloc(nr_hists, sizeof(struct block_report));
 	if (!block_reports)
 		return NULL;
 
 	evlist__for_each_entry(evlist, pos) {
-		struct hists *hists = evsel__hists(pos);
-
-		process_block_report(hists, &block_reports[i], total_cycles,
-				     block_hpps, nr_hpps);
+		process_block_report(pos, &block_reports[i], total_cycles,
+				     block_hpps, nr_hpps, evlist);
 		i++;
 	}
 

@@ -290,6 +290,15 @@ extern int get_device_system_crosststamp(
 			struct system_device_crosststamp *xtstamp);
 
 /*
+ * Fast NMI safe way to convert a given timestamp to clock monotonic
+ */
+extern int get_mono_fast_from_given_time(int (*get_time_fn)
+					      (struct system_counterval_t *sys_counterval,
+					      void *ctx),
+					 void *ctx,
+					 u64 *mono_ns);
+
+/*
  * Simultaneously snapshot realtime and monotonic raw clocks
  */
 extern void ktime_get_snapshot(struct system_time_snapshot *systime_snapshot);

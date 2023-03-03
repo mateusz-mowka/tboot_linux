@@ -1032,6 +1032,8 @@ static void evsel__apply_config_terms(struct evsel *evsel,
 			break;
 		case EVSEL__CONFIG_TERM_CFG_CHG:
 			break;
+		case EVSEL__CONFIG_TERM_RELOAD:
+			attr->reload = term->val.reload ? 1 : 0;
 		default:
 			break;
 		}
@@ -3069,7 +3071,8 @@ int evsel__open_strerror(struct evsel *evsel, struct target *target,
 		break;
 	case ENODATA:
 		return scnprintf(msg, size, "Cannot collect data source with the load latency event alone. "
-				 "Please add an auxiliary event in front of the load latency event.");
+				 "Please add an auxiliary event in front of the load latency event. "
+				 "For example, -e {mem-loads-aux,%s}.", evsel__name(evsel));
 	default:
 		break;
 	}

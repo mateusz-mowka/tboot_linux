@@ -4,6 +4,7 @@
 
 #include <linux/types.h>
 #include <linux/refcount.h>
+#include <linux/perf_event.h>
 #include "hist.h"
 #include "symbol.h"
 #include "sort.h"
@@ -19,14 +20,20 @@ struct block_info {
 	u64			total_cycles;
 	int			num;
 	int			num_aggr;
+	int			branch_events;
+	u32			event_occurs[PERF_MAX_BRANCH_EVENTS];
+	u8			max_occurs[PERF_MAX_BRANCH_EVENTS];
 	refcount_t		refcnt;
 };
+
+struct evsel;
 
 struct block_fmt {
 	struct perf_hpp_fmt	fmt;
 	int			idx;
 	int			width;
 	const char		*header;
+	struct evsel		*evsel;
 	u64			total_cycles;
 	u64			block_cycles;
 };
@@ -38,8 +45,12 @@ enum {
 	PERF_HPP_REPORT__BLOCK_AVG_CYCLES,
 	PERF_HPP_REPORT__BLOCK_RANGE,
 	PERF_HPP_REPORT__BLOCK_DSO,
-	PERF_HPP_REPORT__BLOCK_MAX_INDEX
+	PERF_HPP_REPORT__BLOCK_FIX_MAX_INDEX,
+	PERF_HPP_REPORT__BLOCK_BRANCH_EVENT,
 };
+
+#define PERF_HPP_REPORT__BLOCK_MAX_INDEX \
+	(PERF_HPP_REPORT__BLOCK_FIX_MAX_INDEX + PERF_MAX_BRANCH_EVENTS)
 
 struct block_report {
 	struct block_hist	hist;
@@ -71,9 +82,7 @@ int block_info__process_sym(struct hist_entry *he, struct block_hist *bh,
 			    u64 *block_cycles_aggr, u64 total_cycles);
 
 struct block_report *block_info__create_report(struct evlist *evlist,
-					       u64 total_cycles,
-					       int *block_hpps, int nr_hpps,
-					       int *nr_reps);
+					       u64 total_cycles, int *nr_reps);
 
 void block_info__free_report(struct block_report *reps, int nr_reps);
 

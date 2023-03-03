@@ -17,6 +17,7 @@
 #include <asm/fpu/xstate.h>
 #include <asm/intel_ds.h>
 #include <asm/cpu.h>
+#include <asm/msr-list.h>
 
 /* To enable MSR tracing please use the generic trace points. */
 
@@ -35,15 +36,17 @@
  * per-core reg tables.
  */
 enum extra_reg_type {
-	EXTRA_REG_NONE  = -1,	/* not used */
+	EXTRA_REG_NONE		= -1, /* not used */
 
-	EXTRA_REG_RSP_0 = 0,	/* offcore_response_0 */
-	EXTRA_REG_RSP_1 = 1,	/* offcore_response_1 */
-	EXTRA_REG_LBR   = 2,	/* lbr_select */
-	EXTRA_REG_LDLAT = 3,	/* ld_lat_threshold */
-	EXTRA_REG_FE    = 4,    /* fe_* */
+	EXTRA_REG_RSP_0		= 0,  /* offcore_response_0 */
+	EXTRA_REG_RSP_1		= 1,  /* offcore_response_1 */
+	EXTRA_REG_LBR		= 2,  /* lbr_select */
+	EXTRA_REG_LDLAT		= 3,  /* ld_lat_threshold */
+	EXTRA_REG_FE		= 4,  /* fe_* */
+	EXTRA_REG_SNOOP_0	= 5,  /* snoop response 0 */
+	EXTRA_REG_SNOOP_1	= 6,  /* snoop response 1 */
 
-	EXTRA_REG_MAX		/* number of entries needed */
+	EXTRA_REG_MAX		      /* number of entries needed */
 };
 
 struct event_constraint {
@@ -470,6 +473,10 @@ struct cpu_hw_events {
 	__EVENT_CONSTRAINT(c, n, INTEL_ARCH_EVENT_MASK|X86_ALL_EVENT_FLAGS, \
 			  HWEIGHT(n), 0, PERF_X86_EVENT_PEBS_LAT_HYBRID)
 
+#define INTEL_TSX_CONFLICT_ADDR_CONSTRAINT(c, n)	\
+	__EVENT_CONSTRAINT(c, n, INTEL_ARCH_EVENT_MASK|X86_ALL_EVENT_FLAGS, \
+			  HWEIGHT(n), 0, PERF_X86_EVENT_TSX_CONFLICT_ADDR)
+
 /* Event constraint, but match on all event flags too. */
 #define INTEL_FLAGS_EVENT_CONSTRAINT(c, n) \
 	EVENT_CONSTRAINT(c, n, ARCH_PERFMON_EVENTSEL_EVENT|X86_ALL_EVENT_FLAGS)
@@ -608,6 +615,7 @@ union perf_capabilities {
 		u64     pebs_baseline:1;
 		u64	perf_metrics:1;
 		u64	pebs_output_pt_available:1;
+		u64	pebs_timing_info:1;
 		u64	anythread_deprecated:1;
 	};
 	u64	capabilities;
@@ -648,7 +656,8 @@ enum {
 	x86_lbr_exclusive_max,
 };
 
-#define PERF_PEBS_DATA_SOURCE_MAX	0x10
+#define PERF_PEBS_DATA_SOURCE_MAX	0x20
+#define PERF_PEBS_DATA_SOURCE_MASK	(PERF_PEBS_DATA_SOURCE_MAX - 1)
 
 struct x86_hybrid_pmu {
 	struct pmu			pmu;
@@ -728,8 +737,10 @@ enum hybrid_pmu_type {
 
 #define X86_HYBRID_PMU_ATOM_IDX		0
 #define X86_HYBRID_PMU_CORE_IDX		1
+#define X86_HYBRID_PMU_ATOM2_IDX	2
 
 #define X86_HYBRID_NUM_PMUS		2
+#define X86_HYBRID_NUM_PMUS_PLUS	3
 
 /*
  * struct x86_pmu - generic x86 pmu
@@ -797,6 +808,7 @@ struct x86_pmu {
 	 */
 	int		attr_rdpmc_broken;
 	int		attr_rdpmc;
+	int		attr_perf_metrics_clear;
 	struct attribute **format_attrs;
 
 	ssize_t		(*events_sysfs_show)(char *page, u64 config);
@@ -822,6 +834,10 @@ struct x86_pmu {
 	u64			intel_ctrl;
 	union perf_capabilities intel_cap;
 
+	/*
+	 * RDPMC
+	 */
+	unsigned int	rdpmc_usr		:1;
 	/*
 	 * Intel DebugStore bits
 	 */
@@ -879,6 +895,7 @@ struct x86_pmu {
 	unsigned int	lbr_mispred:1;
 	unsigned int	lbr_timed_lbr:1;
 	unsigned int	lbr_br_type:1;
+	unsigned int	lbr_events:4;
 
 	void		(*lbr_reset)(void);
 	void		(*lbr_read)(struct cpu_hw_events *cpuc);
@@ -894,6 +911,12 @@ struct x86_pmu {
 	 * Intel perf metrics
 	 */
 	int		num_topdown_events;
+
+	/*
+	 * Intel Auto-reload
+	 */
+	int		num_auto_reload;
+	u64		mask_auto_reload;
 
 	/*
 	 * perf task context (i.e. struct perf_event_pmu_context::task_ctx_data)
@@ -1002,6 +1025,7 @@ do {									\
 #define PMU_FL_PAIR		0x40 /* merge counters for large incr. events */
 #define PMU_FL_INSTR_LATENCY	0x80 /* Support Instruction Latency in PEBS Memory Info Record */
 #define PMU_FL_MEM_LOADS_AUX	0x100 /* Require an auxiliary event for the complete memory info */
+#define PMU_FL_RETIRE_LATENCY	0x200 /* Support Retire Latency in PEBS */
 
 #define EVENT_VAR(_id)  event_attr_##_id
 #define EVENT_PTR(_id) &event_attr_##_id.attr.attr
@@ -1068,6 +1092,7 @@ DECLARE_PER_CPU(struct cpu_hw_events, cpu_hw_events);
 DECLARE_PER_CPU(u64 [X86_PMC_IDX_MAX], pmc_prev_left);
 
 int x86_perf_event_set_period(struct perf_event *event);
+int __x86_perf_event_set_period(struct perf_event *event, u64 *value);
 
 /*
  * Generalized hw caching related hw_event table, filled
@@ -1488,6 +1513,8 @@ int intel_pmu_drain_bts_buffer(void);
 
 u64 adl_latency_data_small(struct perf_event *event, u64 status);
 
+u64 mtl_latency_data_small(struct perf_event *event, u64 status);
+
 extern struct event_constraint intel_core2_pebs_event_constraints[];
 
 extern struct event_constraint intel_atom_pebs_event_constraints[];
@@ -1598,6 +1625,12 @@ void intel_pmu_pebs_data_source_skl(bool pmem);
 void intel_pmu_pebs_data_source_adl(void);
 
 void intel_pmu_pebs_data_source_grt(void);
+
+void intel_pmu_pebs_data_source_mtl(void);
+
+void intel_pmu_pebs_data_source_arl(void);
+
+void intel_pmu_pebs_data_source_cmt(void);
 
 int intel_pmu_setup_lbr_filter(struct perf_event *event);
 

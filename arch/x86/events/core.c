@@ -827,6 +827,7 @@ static void perf_sched_init(struct perf_sched *sched, struct event_constraint **
 	sched->state.event	= idx;		/* start with min weight */
 	sched->state.weight	= wmin;
 	sched->state.unassigned	= num;
+	sched->state.counter	= INTEL_PMC_IDX_FIXED;
 }
 
 static void perf_sched_save_state(struct perf_sched *sched)
@@ -851,7 +852,7 @@ static bool perf_sched_restore_state(struct perf_sched *sched)
 	sched->state.used &= ~BIT_ULL(sched->state.counter);
 
 	/* try the next one */
-	sched->state.counter++;
+	sched->state.counter--;
 
 	return true;
 }
@@ -863,6 +864,7 @@ static bool perf_sched_restore_state(struct perf_sched *sched)
 static bool __perf_sched_find_counter(struct perf_sched *sched)
 {
 	struct event_constraint *c;
+	u64 idxmsk;
 	int idx;
 
 	if (!sched->state.unassigned)
@@ -886,13 +888,15 @@ static bool __perf_sched_find_counter(struct perf_sched *sched)
 		}
 	}
 
-	/* Grab the first unused counter starting with idx */
-	idx = sched->state.counter;
-	for_each_set_bit_from(idx, c->idxmsk, INTEL_PMC_IDX_FIXED) {
+	/* Grab the first unused counter in a reverse order */
+	idxmsk = c->idxmsk64 & ((1ULL << INTEL_PMC_IDX_FIXED) - 1);
+	while ((idx = find_last_bit((unsigned long *)&idxmsk, sched->state.counter)) < sched->state.counter) {
 		u64 mask = BIT_ULL(idx);
 
 		if (c->flags & PERF_X86_EVENT_PAIR)
 			mask |= mask << 1;
+
+		idxmsk &= ~mask;
 
 		if (sched->state.used & mask)
 			continue;
@@ -949,7 +953,7 @@ static bool perf_sched_next_event(struct perf_sched *sched)
 		c = sched->constraints[sched->state.event];
 	} while (c->weight != sched->state.weight);
 
-	sched->state.counter = 0;	/* start with first counter */
+	sched->state.counter = INTEL_PMC_IDX_FIXED;
 
 	return true;
 }
@@ -1162,7 +1166,7 @@ static int collect_events(struct cpu_hw_events *cpuc, struct perf_event *leader,
 	int num_counters = hybrid(cpuc->pmu, num_counters);
 	int num_counters_fixed = hybrid(cpuc->pmu, num_counters_fixed);
 	struct perf_event *event;
-	int n, max_count;
+	int i, n, max_count;
 
 	max_count = num_counters + num_counters_fixed;
 
@@ -1171,23 +1175,35 @@ static int collect_events(struct cpu_hw_events *cpuc, struct perf_event *leader,
 	if (!cpuc->n_events)
 		cpuc->pebs_output = 0;
 
-	if (!cpuc->is_fake && leader->attr.precise_ip) {
-		/*
-		 * For PEBS->PT, if !aux_event, the group leader (PT) went
-		 * away, the group was broken down and this singleton event
-		 * can't schedule any more.
-		 */
-		if (is_pebs_pt(leader) && !leader->aux_event)
-			return -EINVAL;
+	if (!cpuc->is_fake) {
+		if (leader->attr.precise_ip) {
+			/*
+			 * For PEBS->PT, if !aux_event, the group leader (PT) went
+			 * away, the group was broken down and this singleton event
+			 * can't schedule any more.
+			 */
+			if (is_pebs_pt(leader) && !leader->aux_event)
+				return -EINVAL;
+
+			/*
+			 * pebs_output: 0: no PEBS so far, 1: PT, 2: DS
+			 */
+			if (cpuc->pebs_output &&
+			    cpuc->pebs_output != is_pebs_pt(leader) + 1)
+				return -EINVAL;
+
+			cpuc->pebs_output = is_pebs_pt(leader) + 1;
+		}
 
 		/*
-		 * pebs_output: 0: no PEBS so far, 1: PT, 2: DS
+		 * Only support one active group with branch events
 		 */
-		if (cpuc->pebs_output &&
-		    cpuc->pebs_output != is_pebs_pt(leader) + 1)
-			return -EINVAL;
-
-		cpuc->pebs_output = is_pebs_pt(leader) + 1;
+		if (leader->attr.branch_events) {
+			for (i = 0; i < cpuc->n_events; i++) {
+				if (cpuc->event_list[i]->group_leader != leader->group_leader)
+					return -EINVAL;
+			}
+		}
 	}
 
 	if (is_x86_event(leader)) {
@@ -1364,15 +1380,12 @@ DEFINE_PER_CPU(u64 [X86_PMC_IDX_MAX], pmc_prev_left);
  * Set the next IRQ period, based on the hwc->period_left value.
  * To be called with the event disabled in hw:
  */
-int x86_perf_event_set_period(struct perf_event *event)
+int __x86_perf_event_set_period(struct perf_event *event, u64 *value)
 {
 	struct hw_perf_event *hwc = &event->hw;
 	s64 left = local64_read(&hwc->period_left);
 	s64 period = hwc->sample_period;
-	int ret = 0, idx = hwc->idx;
-
-	if (unlikely(!hwc->event_base))
-		return 0;
+	int ret = 0;
 
 	/*
 	 * If we are way outside a reasonable range then just skip forward:
@@ -1401,7 +1414,7 @@ int x86_perf_event_set_period(struct perf_event *event)
 
 	static_call_cond(x86_pmu_limit_period)(event, &left);
 
-	this_cpu_write(pmc_prev_left[idx], left);
+	this_cpu_write(pmc_prev_left[hwc->idx], left);
 
 	/*
 	 * The hw event starts counting from this event offset,
@@ -1409,16 +1422,36 @@ int x86_perf_event_set_period(struct perf_event *event)
 	 */
 	local64_set(&hwc->prev_count, (u64)-left);
 
-	wrmsrl(hwc->event_base, (u64)(-left) & x86_pmu.cntval_mask);
+	*value = (u64)(-left) & x86_pmu.cntval_mask;
+
+	perf_event_update_userpage(event);
+
+	return ret;
+}
+
+/*
+ * Set the next IRQ period, based on the hwc->period_left value.
+ * To be called with the event disabled in hw:
+ */
+int x86_perf_event_set_period(struct perf_event *event)
+{
+	struct hw_perf_event *hwc = &event->hw;
+	u64 value;
+	int ret;
+
+	if (unlikely(!hwc->event_base))
+		return 0;
+
+	ret = __x86_perf_event_set_period(event, &value);
+
+	wrmsrl(hwc->event_base, value);
 
 	/*
 	 * Sign extend the Merge event counter's upper 16 bits since
 	 * we currently declare a 48-bit counter width
 	 */
 	if (is_counter_pair(hwc))
-		wrmsrl(x86_pmu_event_addr(idx + 1), 0xffff);
-
-	perf_event_update_userpage(event);
+		wrmsrl(x86_pmu_event_addr(hwc->idx + 1), 0xffff);
 
 	return ret;
 }

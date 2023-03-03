@@ -46,6 +46,7 @@ struct dmar_drhd_unit {
 	u8	include_all:1;
 	u8	gfx_dedicated:1;	/* graphic dedicated	*/
 	struct intel_iommu *iommu;
+	unsigned long reg_size;		/* size of register set */
 };
 
 struct dmar_pci_path {

@@ -1917,6 +1917,7 @@ static struct txbit {
 	{ PERF_TXN_CONFLICT,       "CON ",       0 },
 	{ PERF_TXN_CAPACITY_WRITE, "CAP-WRITE ", 1 },
 	{ PERF_TXN_CAPACITY_READ,  "CAP-READ ",  0 },
+	{ PERF_TXN_INSUSPEND,      "INSUSPEND ", 0 },
 	{ 0, NULL, 0 }
 };
 
@@ -2132,6 +2133,8 @@ static struct sort_dimension common_sort_dimensions[] = {
 	DIM(SORT_LOCAL_PIPELINE_STAGE_CYC, "local_p_stage_cyc", sort_local_p_stage_cyc),
 	DIM(SORT_GLOBAL_PIPELINE_STAGE_CYC, "p_stage_cyc", sort_global_p_stage_cyc),
 	DIM(SORT_ADDR, "addr", sort_addr),
+	DIM(SORT_LOCAL_RETIRE_LAT, "local_retire_lat", sort_local_p_stage_cyc),
+	DIM(SORT_GLOBAL_RETIRE_LAT, "retire_lat", sort_global_p_stage_cyc),
 };
 
 #undef DIM

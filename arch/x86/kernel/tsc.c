@@ -1322,6 +1322,12 @@ struct system_counterval_t convert_art_ns_to_tsc(u64 art_ns)
 }
 EXPORT_SYMBOL(convert_art_ns_to_tsc);
 
+struct system_counterval_t set_tsc_system_counterval(u64 tsc)
+{
+	return (struct system_counterval_t) { .cs = &clocksource_tsc,
+					      .cycles = tsc};
+}
+EXPORT_SYMBOL(set_tsc_system_counterval);
 
 static void tsc_refine_calibration_work(struct work_struct *work);
 static DECLARE_DELAYED_WORK(tsc_irqwork, tsc_refine_calibration_work);

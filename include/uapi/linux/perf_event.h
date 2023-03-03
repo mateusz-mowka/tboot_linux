@@ -324,8 +324,9 @@ enum {
 	PERF_TXN_CONFLICT       = (1 << 5), /* Conflict abort */
 	PERF_TXN_CAPACITY_WRITE = (1 << 6), /* Capacity write abort */
 	PERF_TXN_CAPACITY_READ  = (1 << 7), /* Capacity read abort */
+	PERF_TXN_INSUSPEND      = (1 << 8), /* While in a suspend region abort */
 
-	PERF_TXN_MAX	        = (1 << 8), /* non-ABI */
+	PERF_TXN_MAX	        = (1 << 9), /* non-ABI */
 
 	/* bits 32..63 are reserved for the abort code */
 
@@ -455,7 +456,9 @@ struct perf_event_attr {
 				inherit_thread :  1, /* children only inherit if cloned with CLONE_THREAD */
 				remove_on_exec :  1, /* event is removed from task on exec */
 				sigtrap        :  1, /* send synchronous SIGTRAP on event */
-				__reserved_1   : 26;
+				branch_events  :  1, /* include branch events */
+				reload         :  1, /* auto counter reload */
+				__reserved_1   : 24;
 
 	union {
 		__u32		wakeup_events;	  /* wakeup every n events */
@@ -1336,7 +1339,9 @@ union perf_mem_data_src {
 #define PERF_MEM_LVLNUM_L2	0x02 /* L2 */
 #define PERF_MEM_LVLNUM_L3	0x03 /* L3 */
 #define PERF_MEM_LVLNUM_L4	0x04 /* L4 */
-/* 5-0x8 available */
+/* 5-0x6 available */
+#define PERF_MEM_LVLNUM_HBM	0x07 /* HBM */
+#define PERF_MEM_LVLNUM_MMIO	0x08 /* MMIO */
 #define PERF_MEM_LVLNUM_CXL	0x09 /* CXL */
 #define PERF_MEM_LVLNUM_IO	0x0a /* I/O */
 #define PERF_MEM_LVLNUM_ANY_CACHE 0x0b /* Any cache */
@@ -1391,6 +1396,7 @@ union perf_mem_data_src {
 #define PERF_MEM_S(a, s) \
 	(((__u64)PERF_MEM_##a##_##s) << PERF_MEM_##a##_SHIFT)
 
+#define PERF_MAX_BRANCH_EVENTS	4
 /*
  * single taken branch record layout:
  *
@@ -1420,7 +1426,8 @@ struct perf_branch_entry {
 		spec:2,     /* branch speculation info */
 		new_type:4, /* additional branch type */
 		priv:3,     /* privilege level */
-		reserved:31;
+		events:8,   /* TODO */
+		reserved:23;
 };
 
 union perf_sample_weight {

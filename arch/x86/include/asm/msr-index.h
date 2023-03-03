@@ -189,6 +189,9 @@
 #define MSR_TURBO_RATIO_LIMIT1		0x000001ae
 #define MSR_TURBO_RATIO_LIMIT2		0x000001af
 
+#define MSR_SNOOP_RSP_0			0x00001328
+#define MSR_SNOOP_RSP_1			0x00001329
+
 #define MSR_LBR_SELECT			0x000001c8
 #define MSR_LBR_TOS			0x000001c9
 
@@ -213,6 +216,8 @@
 #define LBR_INFO_CYCLES			0xffff
 #define LBR_INFO_BR_TYPE_OFFSET		56
 #define LBR_INFO_BR_TYPE		(0xfull << LBR_INFO_BR_TYPE_OFFSET)
+#define LBR_INFO_EVENTS_OFFSET		32
+#define LBR_INFO_EVENTS			(0xffull << LBR_INFO_EVENTS_OFFSET)
 
 #define MSR_ARCH_LBR_CTL		0x000014ce
 #define ARCH_LBR_CTL_MASK		0x7f000e
@@ -509,10 +514,18 @@
 /* Alternative perfctr range with full access. */
 #define MSR_IA32_PMC0			0x000004c1
 
+/* Alternative perfctr range with full access for PerfMon V6+. */
+#define MSR_IA32_V6_PMC0		0x00001900
+#define MSR_IA32_V6_EVNTSEL0		0x00001901
+#define MSR_IA32_V6_PMC0_RELOAD		0x00001902
+#define MSR_IA32_V6_EVNTSEL0_EXT	0x00001903
+
 /* Auto-reload via MSR instead of DS area */
 #define MSR_RELOAD_PMC0			0x000014c1
 #define MSR_RELOAD_FIXED_CTR0		0x00001309
 
+#define MSR_IA32_PMC0_RELOAD_CFG	0x00002528
+#define MSR_IA32_FIXED0_RELOAD_CFG	0x00002464
 /*
  * AMD64 MSRs. Not complete. See the architecture manual for a more
  * complete list.
@@ -908,6 +921,7 @@
 
 
 #define MSR_TSX_FORCE_ABORT		0x0000010F
+#define MSR_TSX_CONFLICT_ADDR		0x0000FFFF	/* Fake address */
 
 #define MSR_TFA_RTM_FORCE_ABORT_BIT	0
 #define MSR_TFA_RTM_FORCE_ABORT		BIT_ULL(MSR_TFA_RTM_FORCE_ABORT_BIT)

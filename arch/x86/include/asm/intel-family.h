@@ -123,7 +123,9 @@
 #define INTEL_FAM6_METEORLAKE		0xAC
 #define INTEL_FAM6_METEORLAKE_L		0xAA
 
-#define INTEL_FAM6_LUNARLAKE_M		0xBD
+#define INTEL_FAM6_LUNARLAKE_M		0xBD	/* Lion Cove / Skymont */
+
+#define INTEL_FAM6_ARROWLAKE_S		0xC6	/* Lion Cove / Skymont / Crestmont */
 
 /* "Small Core" Processors (Atom/E-Core) */
 

@@ -431,12 +431,17 @@ static void update_fast_timekeeper(const struct tk_read_base *tkr,
 	memcpy(base + 1, base, sizeof(*base));
 }
 
+static __always_inline u64 fast_tk_get_delta_ns_from_cycles(struct tk_read_base *tkr,
+							    u64 cycles)
+{
+	u64 delta = clocksource_delta(cycles, tkr->cycle_last, tkr->mask);
+
+	return timekeeping_delta_to_ns(tkr, delta);
+}
+
 static __always_inline u64 fast_tk_get_delta_ns(struct tk_read_base *tkr)
 {
-	u64 delta, cycles = tk_clock_read(tkr);
-
-	delta = clocksource_delta(cycles, tkr->cycle_last, tkr->mask);
-	return timekeeping_delta_to_ns(tkr, delta);
+	return fast_tk_get_delta_ns_from_cycles(tkr, tk_clock_read(tkr));
 }
 
 static __always_inline u64 __ktime_get_fast_ns(struct tk_fast *tkf)
@@ -1302,6 +1307,63 @@ int get_device_system_crosststamp(int (*get_time_fn)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(get_device_system_crosststamp);
+
+/**
+ * get_mono_fast_from_given_time - Fast NMI safe access to convert a given
+ *				    timestamp to clock monotonic
+ * @get_time_fn:	Callback to get the given time and its clocksource
+ * @ctx:		Context passed to get_time_fn()
+ * @mono_ns:		The monotonic time of the given time
+ */
+int notrace get_mono_fast_from_given_time(int (*get_time_fn)
+						(struct system_counterval_t *sys_counterval,
+						void *ctx),
+					  void *ctx,
+					  u64 *mono_ns)
+{
+	struct system_counterval_t system_counterval;
+	struct tk_fast *tkf = &tk_fast_mono;
+	u64 cycles, now, interval_start;
+	struct tk_read_base *tkr;
+	unsigned int seq;
+	int ret;
+
+	do {
+		seq = raw_read_seqcount_latch(&tkf->seq);
+		tkr = tkf->base + (seq & 0x01);
+
+		ret = get_time_fn(&system_counterval, ctx);
+		if (ret)
+			return ret;
+
+		/*
+		 * Verify that the clocksource associated with the given
+		 * timestamp is the same as the currently installed
+		 * timekeeper clocksource
+		 */
+		if (tkr->clock != system_counterval.cs)
+			return -EOPNOTSUPP;
+		cycles = system_counterval.cycles;
+
+		/*
+		 * Check whether the given timestamp is on the current
+		 * timekeeping interval.
+		 */
+		now = tk_clock_read(tkr);
+		interval_start = tkr->cycle_last;
+		if (!cycle_between(interval_start, cycles, now))
+			return -EOPNOTSUPP;
+
+		now = ktime_to_ns(tkr->base);
+		now += fast_tk_get_delta_ns_from_cycles(tkr, cycles);
+
+	} while (read_seqcount_latch_retry(&tkf->seq, seq));
+
+	*mono_ns = now;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(get_mono_fast_from_given_time);
 
 /**
  * do_settimeofday64 - Sets the time of day.
