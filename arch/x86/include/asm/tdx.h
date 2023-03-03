@@ -29,6 +29,18 @@
 
 #endif
 
+#define TDX_NON_RECOVERABLE_BIT		62
+/*
+ * Error with the non-recoverable bit cleared indicates that the error is
+ * likely recoverable (e.g. due to lock busy in TDX module), and the seamcall
+ * can be retried.
+ */
+#define TDX_SEAMCALL_ERR_RECOVERABLE(err) \
+	(err >> TDX_NON_RECOVERABLE_BIT == 0x2)
+
+/* The max number of seamcall retries */
+#define TDX_SEAMCALL_RETRY_MAX	10000
+
 #ifndef __ASSEMBLY__
 
 /* TDX supported page sizes from the TDX module ABI. */
@@ -135,7 +147,8 @@ struct tdsysinfo_struct {
 	u16	build_num;
 	u16	minor_version;
 	u16	major_version;
-	u8	reserved0[14];
+	u8	sys_rd;
+	u8	reserved0[13];
 	/* Memory Info */
 	u16	max_tdmrs;
 	u16	max_reserved_per_tdmr;
@@ -175,8 +188,8 @@ u32 tdx_get_num_keyid(void);
 int tdx_keyid_alloc(void);
 void tdx_keyid_free(int keyid);
 
-u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9,
-	       struct tdx_module_output *out);
+u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10,
+	       u64 r11, u64 r12, u64 r13, struct tdx_module_output *out);
 #else	/* !CONFIG_INTEL_TDX_HOST */
 struct tdsysinfo_struct;
 static inline const struct tdsysinfo_struct *tdx_get_sysinfo(void) { return NULL; }
@@ -186,6 +199,15 @@ static inline u32 tdx_get_num_keyid(void) { return 0; }
 static inline int tdx_keyid_alloc(void) { return -EOPNOTSUPP; }
 static inline void tdx_keyid_free(int keyid) { }
 #endif	/* CONFIG_INTEL_TDX_HOST */
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+int tdx_module_update(bool live_update, bool *recoverable);
+#else /* !CONFIG_INTEL_TDX_MODULE_UPDATE */
+static inline int tdx_module_update(bool live_update, bool *recoverable)
+{
+	return -EOPNOTSUPP;
+}
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */
 
 #endif /* !__ASSEMBLY__ */
 #endif /* _ASM_X86_TDX_H */

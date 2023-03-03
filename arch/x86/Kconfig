@@ -1995,6 +1995,20 @@ config INTEL_TDX_HOST
 
 	  If unsure, say N.
 
+config INTEL_TDX_MODULE_UPDATE
+	bool "TDX module loading support"
+	depends on INTEL_TDX_HOST
+	depends on CRYPTO=y
+	depends on CRYPTO_SHA512=y
+	depends on SYSFS
+	help
+	  Intel TDX module provides interfaces for VMM to manage TDs. It acts
+	  as the trust intermediary to help implement security policies,
+	  actions and necessary mitigations for the TDs. This option enables
+	  kernel to load TDX module updates at runtime.
+
+	  If unsure, say N.
+
 config INTEL_TDX_HOST_DEBUG_MEMORY_CORRUPT
 	bool "Intel Trust Domain Extensions (TDX) host debug memory corruption"
 	default n

@@ -117,6 +117,7 @@ int kvm_handle_page_fault(struct kvm_vcpu *vcpu, u64 error_code,
 				u64 fault_address, char *insn, int insn_len);
 
 int kvm_mmu_load(struct kvm_vcpu *vcpu);
+void kvm_mmu_load_pending_pgd(struct kvm_vcpu *vcpu);
 void kvm_mmu_unload(struct kvm_vcpu *vcpu);
 void kvm_mmu_free_obsolete_roots(struct kvm_vcpu *vcpu);
 void kvm_mmu_sync_roots(struct kvm_vcpu *vcpu);
@@ -124,8 +125,10 @@ void kvm_mmu_sync_prev_roots(struct kvm_vcpu *vcpu);
 
 static inline int kvm_mmu_reload(struct kvm_vcpu *vcpu)
 {
-	if (likely(vcpu->arch.mmu->root.hpa != INVALID_PAGE))
+	if (likely(vcpu->arch.mmu->root.hpa != INVALID_PAGE)) {
+		kvm_mmu_load_pending_pgd(vcpu);
 		return 0;
+	}
 
 	return kvm_mmu_load(vcpu);
 }
@@ -157,6 +160,14 @@ static inline void kvm_mmu_load_pgd(struct kvm_vcpu *vcpu)
 
 kvm_pfn_t kvm_mmu_map_tdp_page(struct kvm_vcpu *vcpu, gpa_t gpa,
 			       u32 error_code, int max_level);
+
+#ifdef CONFIG_HAVE_KVM_RESTRICTED_MEM
+int kvm_mmu_map_private_page(struct kvm *kvm, gfn_t gfn);
+
+int kvm_prealloc_private_pages(struct kvm *kvm);
+
+int kvm_restore_private_pages(struct kvm *kvm, gfn_t gfn_max);
+#endif
 
 /*
  * Check if a given access (described through the I/D, W/R and U/S bits of a

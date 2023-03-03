@@ -540,9 +540,32 @@ enum kvm_tdx_cmd_id {
 	KVM_TDX_INIT_VCPU,
 	KVM_TDX_INIT_MEM_REGION,
 	KVM_TDX_FINALIZE_VM,
+	KVM_TDX_SERVTD_PREBIND,
+	KVM_TDX_SERVTD_BIND,
+	KVM_TDX_SET_MIGRATION_INFO,
+	KVM_TDX_GET_MIGRATION_INFO,
+	KVM_TDX_MIG_EXPORT_STATE_IMMUTABLE,
+	KVM_TDX_MIG_IMPORT_STATE_IMMUTABLE,
+	KVM_TDX_MIG_EXPORT_MEM,
+	KVM_TDX_MIG_IMPORT_MEM,
+	KVM_TDX_MIG_EXPORT_TRACK,
+	KVM_TDX_MIG_IMPORT_TRACK,
+	KVM_TDX_MIG_EXPORT_PAUSE,
+	KVM_TDX_MIG_EXPORT_STATE_TD,
+	KVM_TDX_MIG_IMPORT_STATE_TD,
+	KVM_TDX_MIG_EXPORT_STATE_VP,
+	KVM_TDX_MIG_IMPORT_STATE_VP,
+	KVM_TDX_MIG_EXPORT_ABORT,
 
 	KVM_TDX_CMD_NR_MAX,
 };
+
+/*
+ * Userspace can request to finish the  TD initialization at a later stage,
+ * e.g. after the TD and vCPU states are improted for the destination TD in
+ * the live migration case.
+ */
+#define KVM_TDX_INIT_VM_F_POST_INIT	1
 
 struct kvm_tdx_cmd {
 	/* enum kvm_tdx_cmd_id */
@@ -633,4 +656,59 @@ struct kvm_rw_memory {
 	__u64 len;
 	__u64 ubuf;
 };
+
+enum kvm_tdx_servtd_type {
+	KVM_TDX_SERVTD_TYPE_MIGTD = 0,
+
+	KVM_TDX_SERVTD_TYPE_MAX,
+};
+
+/* A SHA384 hash takes up 48 bytes (Table 5.7, TDX module ABI Spec) */
+#define KVM_TDX_SERVTD_HASH_SIZE 48
+
+struct kvm_tdx_servtd {
+#define KVM_TDX_SERVTD_VERSION	0
+	__u8  version;
+	__u8  pad[5];
+	__u16 type;
+	__u64 attr;
+	union {
+		/* KVM_TDX_SERVTD_PREBIND */
+		__u8  hash[KVM_TDX_SERVTD_HASH_SIZE];
+		/* KVM_TDX_SERVTD_BIND */
+		__u32 pid;
+	};
+};
+
+struct kvm_tdx_set_migration_info {
+#define KVM_TDX_SET_MIGRATION_INFO_VERSION	0
+	__u8  version;
+	__u8  is_src;
+	__u8  pad[2];
+	__u32 vsock_port;
+};
+
+struct kvm_tdx_get_migration_info {
+#define KVM_TDX_GET_MIGRATION_INFO_VERSION	0
+	__u8  version;
+	__u8  premig_done;
+	__u8  pad[6];
+};
+
+#define KVM_DEV_TDX_MIG_ATTR	0x1
+
+struct kvm_dev_tdx_mig_attr {
+#define KVM_DEV_TDX_MIG_ATTR_VERSION	0
+	__u32 version;
+/* 4KB buffer can hold 512 entries at most */
+#define TDX_MIG_BUF_LIST_PAGES_MAX		512
+	__u32 buf_list_pages;
+	__u32 max_migs;
+};
+
+#define TDX_MIG_STREAM_MBMD_MAP_OFFSET		0
+#define TDX_MIG_STREAM_GPA_LIST_MAP_OFFSET	1
+#define TDX_MIG_STREAM_MAC_LIST_MAP_OFFSET	2
+#define TDX_MIG_STREAM_BUF_LIST_MAP_OFFSET	4
+
 #endif /* _ASM_X86_KVM_H */

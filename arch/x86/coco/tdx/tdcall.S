@@ -61,9 +61,13 @@
  * @rdx (RDX)          - Input parameter 2, moved to RDX
  * @r8  (RCX)          - Input parameter 3, moved to R8
  * @r9  (R8)           - Input parameter 4, moved to R9
+ * @r10 (R9)           - Input parameter 5, moved to R10
+ * @r11 (stack param 1)- Input parameter 6, moved to R11
+ * @r12 (stack param 2)- Input parameter 7, moved to R12
+ * @r13 (stack param 3)- Input parameter 8, moved to R13
  *
- * @out (R9)           - struct tdx_module_output pointer
- *                       stored temporarily in R12 (not
+ * @out (stack param 4)- struct tdx_module_output pointer
+ *                       stored temporarily in R15 (not
  *                       shared with the TDX module). It
  *                       can be NULL.
  *
@@ -77,7 +81,7 @@ SYM_FUNC_START(__tdx_module_call)
 SYM_FUNC_END(__tdx_module_call)
 
 /*
- * __tdx_hypercall() - Make hypercalls to a TDX VMM using TDVMCALL leaf
+ * __do_tdx_hypercall() - Make hypercalls to a TDX VMM using TDVMCALL leaf
  * of TDCALL instruction
  *
  * Transforms values in  function call argument struct tdx_hypercall_args @args
@@ -109,14 +113,14 @@ SYM_FUNC_END(__tdx_module_call)
  *
  *-------------------------------------------------------------------------
  *
- * __tdx_hypercall() function ABI:
+ * __do_tdx_hypercall() function ABI:
  *
  * @args  (RDI)        - struct tdx_hypercall_args for input and output
  * @flags (RSI)        - TDX_HCALL_* flags
  *
  * On successful completion, return the hypercall error code.
  */
-SYM_FUNC_START(__tdx_hypercall)
+SYM_FUNC_START(__do_tdx_hypercall)
 	FRAME_BEGIN
 
 	/* Save callee-saved GPRs as mandated by the x86_64 ABI */
@@ -202,4 +206,4 @@ SYM_FUNC_START(__tdx_hypercall)
 	/* __tdx_hypercall_failed never returns */
 	REACHABLE
 	jmp .Lpanic
-SYM_FUNC_END(__tdx_hypercall)
+SYM_FUNC_END(__do_tdx_hypercall)

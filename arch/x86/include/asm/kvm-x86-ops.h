@@ -107,6 +107,8 @@ KVM_X86_OP_OPTIONAL(remove_private_spte)
 KVM_X86_OP_OPTIONAL(zap_private_spte)
 KVM_X86_OP_OPTIONAL(unzap_private_spte)
 KVM_X86_OP_OPTIONAL(drop_private_spte)
+KVM_X86_OP_OPTIONAL(write_block_private_pages)
+KVM_X86_OP_OPTIONAL(restore_private_page)
 KVM_X86_OP(has_wbinvd_exit)
 KVM_X86_OP(get_l2_tsc_offset)
 KVM_X86_OP(get_l2_tsc_multiplier)
@@ -154,6 +156,8 @@ KVM_X86_OP(complete_emulated_msr)
 KVM_X86_OP(vcpu_deliver_sipi_vector)
 KVM_X86_OP(vcpu_deliver_init)
 KVM_X86_OP_OPTIONAL_RET0(vcpu_get_apicv_inhibit_reasons);
+KVM_X86_OP_OPTIONAL_RET0(update_fw)
+KVM_X86_OP_OPTIONAL_RET0(match_fw)
 
 #undef KVM_X86_OP
 #undef KVM_X86_OP_OPTIONAL

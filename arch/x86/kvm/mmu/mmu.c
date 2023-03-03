@@ -1802,6 +1802,7 @@ bool kvm_unmap_gfn_range(struct kvm *kvm, struct kvm_gfn_range *range)
 
 	return flush;
 }
+EXPORT_SYMBOL_GPL(kvm_unmap_gfn_range);
 
 bool kvm_set_spte_gfn(struct kvm *kvm, struct kvm_gfn_range *range)
 {
@@ -3658,14 +3659,6 @@ static int handle_abnormal_pfn(struct kvm_vcpu *vcpu, struct kvm_page_fault *fau
 static bool page_fault_can_be_fast(struct kvm *kvm, struct kvm_page_fault *fault)
 {
 	/*
-	 * TDX private mapping doesn't support fast page fault because the EPT
-	 * entry is read/written with TDX SEAMCALLs instead of direct memory
-	 * access.
-	 */
-	if (kvm_is_private_gpa(kvm, fault->addr))
-		return false;
-
-	/*
 	 * Page faults with reserved bits set, i.e. faults on MMIO SPTEs, only
 	 * reach the common page fault handler if the SPTE has an invalid MMIO
 	 * generation number.  Refreshing the MMIO generation needs to go down
@@ -3699,14 +3692,31 @@ static bool page_fault_can_be_fast(struct kvm *kvm, struct kvm_page_fault *fault
 	return fault->write;
 }
 
+static void kvm_write_unblock_private_page(struct kvm *kvm,
+					   gfn_t gfn, int level)
+{
+	/*
+	 * Sanity check. When reaching here, write_unblock_private_page should
+	 * have been supported.
+	 */
+	if (!kvm_x86_ops.write_unblock_private_page) {
+		pr_warn("write_unblock_private_page not supported\n");
+		return;
+	}
+
+	kvm_x86_ops.write_unblock_private_page(kvm, gfn, level);
+}
+
 /*
  * Returns true if the SPTE was fixed successfully. Otherwise,
  * someone else modified the SPTE from its original value.
  */
 static bool
 fast_pf_fix_direct_spte(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault,
-			u64 *sptep, u64 old_spte, u64 new_spte)
+			u64 *sptep, u64 old_spte, u64 new_spte, int level)
 {
+	gfn_t gfn = fault->gfn;
+
 	/*
 	 * Theoretically we could also set dirty bit (and flush TLB) here in
 	 * order to eliminate unnecessary PML logging. See comments in
@@ -3722,8 +3732,12 @@ fast_pf_fix_direct_spte(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault,
 	if (!try_cmpxchg64(sptep, &old_spte, new_spte))
 		return false;
 
-	if (is_writable_pte(new_spte) && !is_writable_pte(old_spte))
-		mark_page_dirty_in_slot(vcpu->kvm, fault->slot, fault->gfn);
+	if (is_writable_pte(new_spte) && !is_writable_pte(old_spte)) {
+		if (fault->is_private)
+			kvm_write_unblock_private_page(vcpu->kvm, gfn, level);
+
+		mark_page_dirty_in_slot(vcpu->kvm, fault->slot, gfn);
+	}
 
 	return true;
 }
@@ -3754,6 +3768,9 @@ static u64 *fast_pf_get_last_sptep(struct kvm_vcpu *vcpu, gpa_t gpa, u64 *spte)
 	struct kvm_shadow_walk_iterator iterator;
 	u64 old_spte;
 	u64 *sptep = NULL;
+
+	/* Only support tdp_mmu for fast private page fault currently */
+	WARN_ON_ONCE(kvm_is_private_gpa(vcpu->kvm, gpa));
 
 	for_each_shadow_entry_lockless(vcpu, gpa, iterator, old_spte) {
 		sptep = iterator.sptep;
@@ -3859,7 +3876,8 @@ static int fast_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault)
 		 * since the gfn is not stable for indirect shadow page. See
 		 * Documentation/virt/kvm/locking.rst to get more detail.
 		 */
-		if (fast_pf_fix_direct_spte(vcpu, fault, sptep, spte, new_spte)) {
+		if (fast_pf_fix_direct_spte(vcpu, fault, sptep, spte,
+					    new_spte, sp->role.level)) {
 			ret = RET_PF_FIXED;
 			break;
 		}
@@ -4972,6 +4990,134 @@ kvm_pfn_t kvm_mmu_map_tdp_page(struct kvm_vcpu *vcpu, gpa_t gpa,
 }
 EXPORT_SYMBOL_GPL(kvm_mmu_map_tdp_page);
 
+static int kvm_slot_prealloc_private_pages(struct kvm_memory_slot *memslot)
+{
+	int idx, ret = 0;
+	struct kvm *kvm = memslot->kvm;
+	struct kvm_vcpu *vcpu = kvm_get_vcpu(kvm, 0);
+	unsigned long npages = memslot->npages;
+	gfn_t start = memslot->base_gfn;
+	gfn_t end = memslot->base_gfn + npages;
+	gpa_t gpa = gfn_to_gpa(memslot->base_gfn);
+	u64 attrs = KVM_MEMORY_ATTRIBUTE_READ |
+		    KVM_MEMORY_ATTRIBUTE_WRITE |
+		    KVM_MEMORY_ATTRIBUTE_EXECUTE |
+		    KVM_MEMORY_ATTRIBUTE_PRIVATE;
+	kvm_pfn_t pfn;
+
+	if (mutex_lock_killable(&vcpu->mutex))
+		return -EINTR;
+
+	vcpu_load(vcpu);
+	idx = srcu_read_lock(&kvm->srcu);
+
+	kvm_mmu_reload(vcpu);
+
+	KVM_BUG_ON(kvm_vm_set_memory_attributes(kvm, attrs, start, end), kvm);
+	while (npages) {
+		if (signal_pending(current)) {
+			ret = -ERESTARTSYS;
+			break;
+		}
+
+		if (need_resched())
+			cond_resched();
+
+
+		pfn = kvm_mmu_map_tdp_page(vcpu, gpa, PFERR_WRITE_MASK,
+					   PG_LEVEL_4K);
+		if (is_error_noslot_pfn(pfn) || kvm->vm_bugged) {
+			pr_err("%s: failed, noslot_pfn=%d, vm_bugged=%d\n",
+				__func__, is_error_noslot_pfn(pfn), kvm->vm_bugged);
+			ret = -EFAULT;
+			break;
+		}
+
+		gpa += PAGE_SIZE;
+		npages--;
+	}
+
+	srcu_read_unlock(&kvm->srcu, idx);
+	vcpu_put(vcpu);
+
+	mutex_unlock(&vcpu->mutex);
+
+	return ret;
+}
+
+#ifdef CONFIG_HAVE_KVM_RESTRICTED_MEM
+int kvm_mmu_map_private_page(struct kvm *kvm, gfn_t gfn)
+{
+	struct kvm_vcpu *vcpu = kvm_get_vcpu(kvm, 0);
+	gpa_t gpa = gfn_to_gpa(gfn);
+	kvm_pfn_t pfn;
+
+	if (!is_tdp_mmu_enabled(kvm))
+		return -EOPNOTSUPP;
+
+	pfn = kvm_mmu_map_tdp_page(vcpu, gpa, PFERR_WRITE_MASK, PG_LEVEL_4K);
+	if (is_error_noslot_pfn(pfn) || kvm->vm_bugged) {
+		pr_err("%s: failed, noslot_pfn=%d, vm_bugged=%d\n",
+			__func__, is_error_noslot_pfn(pfn), kvm->vm_bugged);
+		return -EFAULT;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(kvm_mmu_map_private_page);
+
+int kvm_prealloc_private_pages(struct kvm *kvm)
+{
+	struct kvm_memory_slot *memslot;
+	struct kvm_memslots *slots = kvm_memslots(kvm);
+	int bkt, ret = 0;
+
+	kvm_for_each_memslot(memslot, bkt, slots) {
+		if (!memslot->restricted_file)
+			continue;
+
+		ret = kvm_slot_prealloc_private_pages(memslot);
+		if (ret) {
+			pr_err("%s: failed\n", __func__);
+			break;
+		}
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(kvm_prealloc_private_pages);
+
+static int kvm_slot_restore_private_pages(struct kvm_memory_slot *slot, gfn_t gfn_max)
+{
+	if (!is_tdp_mmu_enabled(slot->kvm))
+		return -EOPNOTSUPP;
+
+	return kvm_tdp_mmu_restore_private_pages(slot, gfn_max);
+}
+
+int kvm_restore_private_pages(struct kvm *kvm, gfn_t gfn_max)
+{
+	struct kvm_memory_slot *memslot;
+	struct kvm_memslots *slots = kvm_memslots(kvm);
+	int bkt, ret = 0;
+
+	kvm_for_each_memslot(memslot, bkt, slots) {
+		if (!memslot->restricted_file)
+			continue;
+
+		ret = kvm_slot_restore_private_pages(memslot, gfn_max);
+		if (ret) {
+			pr_err("%s: failed\n", __func__);
+			break;
+		}
+	}
+
+	kvm_flush_remote_tlbs_with_address(kvm, 0, gfn_max);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(kvm_restore_private_pages);
+#endif
+
 static void nonpaging_init_context(struct kvm_mmu *context)
 {
 	context->page_fault = nonpaging_page_fault;
@@ -5941,6 +6087,15 @@ out:
 	return r;
 }
 EXPORT_SYMBOL(kvm_mmu_load);
+
+void kvm_mmu_load_pending_pgd(struct kvm_vcpu *vcpu)
+{
+	if (!vcpu->load_mmu_pgd_pending)
+		return;
+
+	kvm_mmu_load_pgd(vcpu);
+}
+EXPORT_SYMBOL_GPL(kvm_mmu_load_pending_pgd);
 
 static void __kvm_mmu_unload(struct kvm_vcpu *vcpu, u32 roots_to_free)
 {

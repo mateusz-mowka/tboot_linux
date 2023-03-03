@@ -8,6 +8,50 @@
 #include "pmu_intel.h"
 #include "tdx_ops.h"
 
+extern bool enable_tdx;
+
+struct tdx_binding_slot_migtd {
+	/* Is migration source VM */
+	uint8_t	 is_src;
+	/* vsock port for MigTD to connect to host */
+	uint32_t vsock_port;
+};
+
+enum tdx_binding_slot_state {
+	/* Slot is available for a new user */
+	TDX_BINDING_SLOT_STATE_INIT = 0,
+	/* Slot is used, and servtd is pre-bound */
+	TDX_BINDING_SLOT_STATE_PREBOUND = 1,
+	/* Slot is used, and a servtd instance is bound */
+	TDX_BINDING_SLOT_STATE_BOUND = 2,
+	/* Slot is used, and holds all the info. Ready for pre-migration */
+	TDX_BINDING_SLOT_STATE_PREMIG_WAIT = 3,
+	/* Slot is used, and the pre-migration setup is in progress */
+	TDX_BINDING_SLOT_STATE_PREMIG_PROGRESS = 4,
+	/* Slot is used, and the pre-migration setup is done */
+	TDX_BINDING_SLOT_STATE_PREMIG_DONE = 5,
+
+	TDX_BINDING_SLOT_STATE_UNKNOWN
+};
+
+struct tdx_binding_slot {
+	enum tdx_binding_slot_state state;
+	/* Identify the user TD and the binding slot */
+	uint64_t handle;
+	/* UUID of the user TD */
+	uint8_t  uuid[32];
+	/* Idx to servtd's usertd_binding_slots array */
+	uint16_t req_id;
+	/* The servtd that the slot is bound to */
+	struct kvm_tdx *servtd_tdx;
+	/*
+	 * Data specific to MigTD.
+	 * Futher type specific data can be added with union.
+	 */
+	struct tdx_binding_slot_migtd migtd_data;
+};
+
+#define SERVTD_SLOTS_MAX 32
 struct kvm_tdx {
 	struct kvm kvm;
 
@@ -21,6 +65,7 @@ struct kvm_tdx {
 
 	hpa_t source_pa;
 
+	bool td_initialized;
 	bool finalized;
 	atomic_t tdh_mem_track;
 
@@ -28,6 +73,40 @@ struct kvm_tdx {
 
 	/* TDP MMU */
 	bool has_range_blocked;
+
+	/*
+	 * Pointer to an array of tdx binding slots. Each servtd type has one
+	 * binding slot in the array, and the slot is indexed using the servtd
+	 * type. Each binding slot corresponds to an entry in the binding table
+	 * held by TDCS (see TDX module v1.5 Base Architecture Spec, 13.2.1).
+	 */
+	struct tdx_binding_slot binding_slots[KVM_TDX_SERVTD_TYPE_MAX];
+
+	/*
+	 * Used when being a servtd. A servtd can be bound to multiple user
+	 * TDs. Each entry in the array is a pointer to the user TD's binding
+	 * slot.
+	 */
+	struct tdx_binding_slot *usertd_binding_slots[SERVTD_SLOTS_MAX];
+
+	/*
+	 * The lock is on the servtd side, so when a user TD needs to lock,
+	 * it should lock the one from the service TD that it has bound to,
+	 * e.g. tdx_binding_slot->servtd_tdx->binding_slot_lock.
+	 *
+	 * The lock is used for two synchronization puporses:
+	 * #1 insertion and removal of a binding slot to the
+	 *    usertd_binding_slots array by different user TDs;
+	 * #2 read and write to the fields of a binding slot.
+	 *
+	 * In theory, #1 and #2 are two independent synchronization usages
+	 * and can use two separate locks. But those operations are neither
+	 * frequent nor in performance critical path, so simply use one lock
+	 * for the two purposes.
+	 */
+	spinlock_t binding_slot_lock;
+
+	void *mig_state;
 };
 
 union tdx_exit_reason {
@@ -114,6 +193,104 @@ struct vcpu_tdx {
 	struct lbr_desc lbr_desc;
 
 	unsigned long dr6;
+};
+
+/* Table 3-42, GHCI spec */
+struct tdvmcall_service {
+	guid_t   guid;
+	/* Length of the hdr and payload */
+	uint32_t length;
+	uint32_t status;
+	uint8_t  data[0];
+};
+
+enum tdvmcall_service_id {
+	TDVMCALL_SERVICE_ID_QUERY,
+	TDVMCALL_SERVICE_ID_MIGTD,
+
+	TDVMCALL_SERVICE_ID_UNKNOWN,
+};
+
+enum tdvmcall_service_status {
+	TDVMCALL_SERVICE_S_RETURNED = 0x0,
+
+	TDVMCALL_SERVICE_S_UNSUPP = 0xFFFFFFFE,
+};
+
+struct tdvmcall_service_query {
+#define TDVMCALL_SERVICE_QUERY_VERSION	0
+	uint8_t version;
+#define TDVMCALL_SERVICE_CMD_QUERY	0
+	uint8_t cmd;
+#define TDVMCALL_SERVICE_QUERY_S_SUPPORTED	0
+#define TDVMCALL_SERVICE_QUERY_S_UNSUPPORTED	1
+	uint8_t status;
+	uint8_t rsvd;
+	guid_t  guid;
+};
+
+/* PI Spec: vol 3, 5.6 GUID extension HOB */
+struct hob_generic_hdr {
+#define HOB_TYPE_GUID_EXTENSION	0x0004
+	uint16_t type;
+	/* Length of the payload */
+	uint16_t length;
+	uint32_t rsvd;
+};
+
+struct hob_guid_type_hdr {
+	struct hob_generic_hdr		generic_hdr;
+	guid_t				guid;
+	uint8_t				data[0];
+};
+
+struct migtd_basic_info {
+	struct hob_guid_type_hdr	hob_hdr;
+	uint64_t			req_id;
+	bool				src;
+	uint32_t			cpu_version;
+	uint8_t				usertd_uuid[32];
+	uint64_t			binding_handle;
+	uint64_t			policy_id;
+	uint64_t			comm_id;
+};
+
+struct migtd_socket_info {
+	struct hob_guid_type_hdr	hob_hdr;
+	uint64_t			comm_id;
+	uint64_t			migtd_cid;
+	uint32_t			channel_port;
+	uint32_t			quote_service_port;
+};
+
+struct migtd_policy_info {
+	struct hob_guid_type_hdr	hob_hdr;
+	uint64_t			policy_id;
+	uint32_t			policy_size;
+	uint8_t				pad[4];
+	uint8_t				policy_data[0];
+};
+
+struct migtd_all_info {
+	struct migtd_basic_info		basic;
+	struct migtd_socket_info	socket;
+	struct migtd_policy_info	policy;
+};
+
+struct tdvmcall_service_migtd {
+#define TDVMCALL_SERVICE_MIGTD_WAIT_VERSION	0
+#define TDVMCALL_SERVICE_MIGTD_REPORT_VERSION	0
+	uint8_t version;
+#define TDVMCALL_SERVICE_MIGTD_CMD_SHUTDOWN	0
+#define TDVMCALL_SERVICE_MIGTD_CMD_WAIT		1
+#define TDVMCALL_SERVICE_MIGTD_CMD_REPORT	2
+	uint8_t cmd;
+#define TDVMCALL_SERVICE_MIGTD_OP_NOOP		0
+#define TDVMCALL_SERVICE_MIGTD_OP_START_MIG	1
+	uint8_t operation;
+#define TDVMCALL_SERVICE_MIGTD_STATUS_SUCC	0
+	uint8_t status;
+	uint8_t data[0];
 };
 
 static inline bool is_td(struct kvm *kvm)
@@ -268,6 +445,20 @@ static __always_inline int pg_level_to_tdx_sept_level(enum pg_level level)
 	WARN_ON_ONCE(level == PG_LEVEL_NONE);
 	return level - 1;
 }
+
+void tdx_reclaim_td_page(unsigned long td_page_pa);
+
+void tdx_track(struct kvm_tdx *kvm_tdx);
+
+int tdx_td_post_init(struct kvm_tdx *kvm_tdx);
+
+void tdx_add_vcpu_association(struct vcpu_tdx *tdx, int cpu);
+
+void tdx_flush_vp_on_cpu(struct kvm_vcpu *vcpu);
+
+int tdx_td_vcpu_setup(struct kvm_vcpu *vcpu);
+
+void tdx_td_vcpu_post_init(struct vcpu_tdx *tdx);
 
 #else
 struct kvm_tdx {

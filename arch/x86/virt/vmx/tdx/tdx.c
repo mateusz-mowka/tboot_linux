@@ -7,6 +7,7 @@
 
 #define pr_fmt(fmt)	"tdx: " fmt
 
+#include <crypto/hash.h>
 #include <linux/types.h>
 #include <linux/cache.h>
 #include <linux/init.h>
@@ -22,6 +23,8 @@
 #include <linux/pfn.h>
 #include <linux/align.h>
 #include <linux/sort.h>
+#include <linux/firmware.h>
+#include <linux/platform_device.h>
 #include <asm/pgtable_types.h>
 #include <asm/msr.h>
 #include <asm/cpu.h>
@@ -45,19 +48,32 @@ struct tdx_memblock {
 
 static u32 tdx_keyid_start __ro_after_init;
 static u32 nr_tdx_keyids __ro_after_init;
+static u64 tdx_features0;
 
 static enum tdx_module_status_t tdx_module_status;
 /* Prevent concurrent attempts on TDX detection and initialization */
 static DEFINE_MUTEX(tdx_module_lock);
 
 #ifdef CONFIG_SYSFS
+static bool sysfs_registered;
 static int tdx_module_sysfs_init(void);
 #else
+#define sysfs_registered 0
 static inline int tdx_module_sysfs_init(void) { return 0; }
 #endif
 
 /* All TDX-usable memory regions */
 static LIST_HEAD(tdx_memlist);
+
+struct tdmr_info_list {
+	struct tdmr_info *first_tdmr;
+	int tdmr_sz;
+	int max_tdmrs;
+	int nr_tdmrs;	/* Actual number of TDMRs */
+	int pamt_entry_size;
+};
+
+struct tdmr_info_list tdmr_list;
 
 /* TDX module global KeyID.  Used in TDH.SYS.CONFIG ABI. */
 u32 tdx_global_keyid __read_mostly;
@@ -262,6 +278,77 @@ bool platform_tdx_enabled(void)
 	return !!nr_tdx_keyids;
 }
 
+static int vmcs_load(u64 vmcs_pa)
+{
+	asm_volatile_goto("1: vmptrld %0\n\t"
+			  ".byte 0x2e\n\t" /* branch not taken hint */
+			  "jna %l[error]\n\t"
+			  _ASM_EXTABLE(1b, %l[fault])
+			  : : "m" (vmcs_pa) : "cc" : error, fault);
+	return 0;
+
+error:
+	pr_err("vmptrld failed: %llx\n", vmcs_pa);
+	return -EIO;
+fault:
+	pr_err("vmptrld faulted\n");
+	return -EIO;
+}
+
+static int vmcs_store(u64 *vmcs_pa)
+{
+	int ret = -EIO;
+
+	asm volatile("1: vmptrst %0\n\t"
+		     "mov $0, %1\n\t"
+		     "2:\n\t"
+		     _ASM_EXTABLE(1b, 2b)
+		     : "=m" (*vmcs_pa), "+r" (ret) : :);
+
+	if (ret)
+		pr_err("vmptrst faulted\n");
+
+	return ret;
+}
+
+#define INVALID_VMCS	-1ULL
+/*
+ * Invoke a SEAMLDR seamcall
+ *
+ * Return 0 on success. SEAMCALL completion status is passed to callers
+ * via @sret. @sret may be invalid if the return value isn't 0.
+ */
+static int __seamldr_seamcall(u64 fn, u64 rcx, u64 rdx, u64 r8, u64 r9,
+			      struct tdx_module_output *out, u64 *sret)
+{
+	int ret;
+	u64 vmcs;
+	unsigned long flags;
+
+	/*
+	 * SEAMRET from P-SEAMLDR invalidates the current-VMCS pointer.
+	 * Save/restore it across P-SEAMLDR seamcalls so that other VMX
+	 * instructions won't fail due to an invalid current-VMCS.
+	 *
+	 * Disable interrupt to prevent SMP call functions from seeing the
+	 * invalid current-VMCS.
+	 */
+	local_irq_save(flags);
+	ret = vmcs_store(&vmcs);
+	if (ret)
+		goto out;
+
+	*sret = __seamcall(fn, rcx, rdx, r8, r9, 0, 0, 0, 0, out);
+
+	/* Restore current-VMCS pointer */
+	if (vmcs != INVALID_VMCS)
+		ret = vmcs_load(vmcs);
+
+out:
+	local_irq_restore(flags);
+	return ret;
+}
+
 /*
  * Wrapper of __seamcall() to convert SEAMCALL leaf function error code
  * to kernel error code.  @seamcall_ret and @out contain the SEAMCALL
@@ -272,8 +359,15 @@ static int seamcall(u64 fn, u64 rcx, u64 rdx, u64 r8, u64 r9,
 		    u64 *seamcall_ret, struct tdx_module_output *out)
 {
 	u64 sret;
+	int err;
 
-	sret = __seamcall(fn, rcx, rdx, r8, r9, out);
+	if (fn & P_SEAMLDR_SEAMCALL_BASE) {
+		err = __seamldr_seamcall(fn, rcx, rdx, r8, r9, out, &sret);
+		if (err)
+			return err;
+	} else {
+		sret = __seamcall(fn, rcx, rdx, r8, r9, 0, 0, 0, 0, out);
+	}
 
 	/* Save SEAMCALL return code if the caller wants it */
 	if (seamcall_ret)
@@ -362,6 +456,14 @@ static int __tdx_get_sysinfo(struct tdsysinfo_struct *sysinfo,
 		sysinfo->attributes,	sysinfo->vendor_id,
 		sysinfo->major_version, sysinfo->minor_version,
 		sysinfo->build_date,	sysinfo->build_num);
+
+	ret = seamcall(TDH_SYS_RD, 0, TDX_MD_FEATURES0, 0, 0, NULL, &out);
+	if (!ret)
+		tdx_features0 = out.r8;
+	else
+		tdx_features0 = 0;
+	pr_info("TDX module: features0: %llx\n", tdx_features0);
+
 	tdx_module_sysfs_init();
 
 	/* R9 contains the actual entries written to the CMR array. */
@@ -457,13 +559,6 @@ err:
 	return ret;
 }
 
-struct tdmr_info_list {
-	struct tdmr_info *first_tdmr;
-	int tdmr_sz;
-	int max_tdmrs;
-	int nr_tdmrs;	/* Actual number of TDMRs */
-};
-
 /* Calculate the actual TDMR size */
 static int tdmr_size_single(u16 max_reserved_per_tdmr)
 {
@@ -506,6 +601,7 @@ static int alloc_tdmr_list(struct tdmr_info_list *tdmr_list,
 	tdmr_list->tdmr_sz = tdmr_sz;
 	tdmr_list->max_tdmrs = sysinfo->max_tdmrs;
 	tdmr_list->nr_tdmrs = 0;
+	tdmr_list->pamt_entry_size = sysinfo->pamt_entry_size;
 
 	return 0;
 }
@@ -514,6 +610,8 @@ static void free_tdmr_list(struct tdmr_info_list *tdmr_list)
 {
 	free_pages_exact(tdmr_list->first_tdmr,
 			tdmr_list->max_tdmrs * tdmr_list->tdmr_sz);
+	tdmr_list->nr_tdmrs = 0;
+	tdmr_list->pamt_entry_size = 0;
 }
 
 /* Get the TDMR from the list at the given index. */
@@ -1212,7 +1310,25 @@ static void tdx_trace_seamcalls(u64 level)
 	}
 }
 
-static int init_tdx_module(void)
+static int allocate_and_construct_tdmrs(struct list_head *tmb_list,
+					struct tdmr_info_list *tdmr_list,
+					struct tdsysinfo_struct *sysinfo)
+{
+	int ret;
+
+	if (tdmr_list->nr_tdmrs)
+		return 0;
+
+	/* Allocate enough space for constructing TDMRs */
+	ret = alloc_tdmr_list(tdmr_list, sysinfo);
+	if (ret)
+		return ret;
+
+	/* Cover all TDX-usable memory regions in TDMRs */
+	return construct_tdmrs(tmb_list, tdmr_list, sysinfo);
+}
+
+static int init_tdx_module_common(void)
 {
 	/*
 	 * @tdsysinfo and @cmr_array are used in TDH.SYS.INFO SEAMCALL ABI.
@@ -1221,7 +1337,6 @@ static int init_tdx_module(void)
 	 */
 	struct cmr_info cmr_array[MAX_CMRS] __aligned(CMR_INFO_ARRAY_ALIGNMENT);
 	struct tdsysinfo_struct *sysinfo = &PADDED_STRUCT(tdsysinfo);
-	struct tdmr_info_list tdmr_list;
 	u64 tsx_ctrl;
 	int ret;
 
@@ -1231,7 +1346,7 @@ static int init_tdx_module(void)
 	tsx_ctrl_restore(tsx_ctrl);
 	preempt_enable();
 	if (ret)
-		goto out;
+		return ret;
 
 	if (trace_boot_seamcalls)
 		tdx_trace_seamcalls(DEBUGCONFIG_TRACE_ALL);
@@ -1241,9 +1356,17 @@ static int init_tdx_module(void)
 	/* Logical-cpu scope initialization */
 	ret = tdx_module_init_cpus();
 	if (ret)
-		goto out;
+		return ret;
 
-	ret = __tdx_get_sysinfo(sysinfo, cmr_array);
+	return __tdx_get_sysinfo(sysinfo, cmr_array);
+}
+
+static int init_tdx_module(void)
+{
+	struct tdsysinfo_struct *sysinfo = &PADDED_STRUCT(tdsysinfo);
+	int ret;
+
+	ret = init_tdx_module_common();
 	if (ret)
 		goto out;
 
@@ -1263,13 +1386,7 @@ static int init_tdx_module(void)
 	if (ret)
 		goto out;
 
-	/* Allocate enough space for constructing TDMRs */
-	ret = alloc_tdmr_list(&tdmr_list, sysinfo);
-	if (ret)
-		goto out_free_tdx_mem;
-
-	/* Cover all TDX-usable memory regions in TDMRs */
-	ret = construct_tdmrs(&tdx_memlist, &tdmr_list, sysinfo);
+	ret = allocate_and_construct_tdmrs(&tdx_memlist, &tdmr_list, sysinfo);
 	if (ret)
 		goto out_free_tdmrs;
 
@@ -1326,15 +1443,15 @@ out_free_pamts:
 		pr_info("%lu pages allocated for PAMT.\n",
 				tdmrs_count_pamt_pages(&tdmr_list));
 out_free_tdmrs:
-	/*
-	 * Free the space for the TDMRs no matter the initialization is
-	 * successful or not.  They are not needed anymore after the
-	 * module initialization.
-	 */
-	free_tdmr_list(&tdmr_list);
-out_free_tdx_mem:
-	if (ret)
+	if (ret) {
+		/*
+		 * Free the space for the TDMRs no matter the initialization is
+		 * successful or not.  They are not needed anymore after the
+		 * module initialization.
+		 */
+		free_tdmr_list(&tdmr_list);
 		free_tdx_memlist(&tdx_memlist);
+	}
 out:
 	/*
 	 * @tdx_memlist is written here and read at memory hotplug time.
@@ -1344,11 +1461,15 @@ out:
 	return ret;
 }
 
-static int __tdx_enable(void)
+static int init_tdx_module_via_handoff_data(void);
+static int __tdx_enable(bool preserving)
 {
 	int ret;
 
-	ret = init_tdx_module();
+	if (preserving)
+		ret = init_tdx_module_via_handoff_data();
+	else
+		ret = init_tdx_module();
 	if (ret) {
 		pr_err_once("initialization failed (%d)\n", ret);
 		tdx_module_status = TDX_MODULE_ERROR;
@@ -1390,7 +1511,7 @@ int tdx_enable(void)
 
 	switch (tdx_module_status) {
 	case TDX_MODULE_UNKNOWN:
-		ret = __tdx_enable();
+		ret = __tdx_enable(false);
 		break;
 	case TDX_MODULE_INITIALIZED:
 		/* Already initialized, great, tell the caller. */
@@ -1514,9 +1635,405 @@ static int tdx_module_sysfs_init(void)
 	if (!tdx_module_kobj)
 		return -EINVAL;
 
+	if (sysfs_registered)
+		return 0;
+
 	ret = sysfs_create_group(tdx_module_kobj, &tdx_module_attr_group);
 	if (ret)
 		pr_err("Sysfs exporting tdx module attributes failed %d\n", ret);
+	sysfs_registered = true;
 	return ret;
 }
 #endif
+
+#ifdef CONFIG_INTEL_TDX_MODULE_UPDATE
+static struct p_seamldr_info p_seamldr_info;
+
+static bool can_preserve_td(const struct seam_sigstruct *sigstruct)
+{
+	u64 ret;
+
+	lockdep_assert_held(&tdx_module_lock);
+
+	ret = seamcall(P_SEAMCALL_SEAMLDR_INFO, __pa(&p_seamldr_info), 0, 0, 0,
+		       NULL, NULL);
+	if (ret) {
+		pr_err("Failed to get p_seamldr_info\n");
+		return false;
+	}
+
+	if (!p_seamldr_info.num_remaining_updates) {
+		pr_err("TD-preserving: No remaining update slot\n");
+		return false;
+	}
+
+	if (!(tdx_features0 & TDX_FEATURES0_TD_PRES)) {
+		pr_err("TD-preserving: TDX module doesn't support\n");
+		return false;
+	}
+
+	/*
+	 * Cannot create handoff data if the existing module hasn't
+	 * been initialized.
+	 */
+	if (tdx_module_status != TDX_MODULE_INITIALIZED) {
+		pr_err("TD-preserving: TDX module hasn't been initialized\n");
+		return false;
+	}
+
+	if (sigstruct->seamsvn < p_seamldr_info.tcb_info.tcb_svn.seamsvn) {
+		pr_err("TD-preserving: Cannot downgrade SEAMSVN\n");
+		return false;
+	}
+
+	if (!sigstruct->num_handoff_pages) {
+		pr_err("TD-preserving: New module doesn't support TD-preserving\n");
+		return false;
+	}
+
+	return true;
+}
+
+static inline int get_pamt_entry_size(const struct seam_sigstruct *sig)
+{
+	WARN_ON_ONCE(sig->pamt_entry_size_4K != sig->pamt_entry_size_2M ||
+		     sig->pamt_entry_size_4K != sig->pamt_entry_size_1G);
+	/* Per TDX loader spec, 0 means PAMT entry size is 16 bytes. */
+	return sig->pamt_entry_size_4K ? : 16;
+}
+
+static void free_seamldr_params(struct seamldr_params *params)
+{
+	int i;
+
+	for (i = 0; i < params->num_module_pages; i++)
+		free_page((unsigned long)__va(params->mod_pages_pa_list[i]));
+	free_page((unsigned long)__va(params->sigstruct_pa));
+	free_page((unsigned long)params);
+}
+
+/* Allocate and populate a seamldr_params */
+static struct seamldr_params *alloc_seamldr_params(const void *module, int module_size,
+						   const void *sig, int sig_size,
+						   bool live_update)
+{
+	struct seamldr_params *params;
+	unsigned long page;
+	int i;
+
+	BUILD_BUG_ON(sizeof(struct seamldr_params) != PAGE_SIZE);
+	if ((module_size >> PAGE_SHIFT) > SEAMLDR_MAX_NR_MODULE_PAGES ||
+	    sig_size != SEAMLDR_SIGSTRUCT_SIZE)
+		return ERR_PTR(-EINVAL);
+
+	/* Check if PAMTs can be reused */
+	if (tdmr_list.pamt_entry_size &&
+	    (tdmr_list.pamt_entry_size != get_pamt_entry_size(sig))) {
+		pr_err("Cannot reuse PAMTs: entry size old %d new %d\n",
+		       tdmr_list.pamt_entry_size, get_pamt_entry_size(sig));
+		return ERR_PTR(-EINVAL);
+	}
+
+	params = (struct seamldr_params *)get_zeroed_page(GFP_KERNEL);
+	if (!params)
+		return ERR_PTR(-ENOMEM);
+
+	if (live_update)
+		params->scenario = SEAMLDR_SCENARIO_UPDATE;
+	else
+		params->scenario = SEAMLDR_SCENARIO_LOAD;
+	params->num_module_pages = module_size >> PAGE_SHIFT;
+
+	/*
+	 * Module binary can take up to 496 pages. These pages needn't be
+	 * contiguous. Allocate pages one-by-one to reduce the possibility
+	 * of failure. Note that this allocation is very rare and so
+	 * performance isn't critical.
+	 */
+	for (i = 0; i < params->num_module_pages; i++) {
+		page = __get_free_page(GFP_KERNEL);
+		if (!page)
+			goto free;
+		memcpy((void *)page, module + (i << PAGE_SHIFT),
+		       min((int)PAGE_SIZE, module_size - (i << PAGE_SHIFT)));
+		params->mod_pages_pa_list[i] = __pa(page);
+	}
+
+	page = __get_free_page(GFP_KERNEL);
+	if (!page)
+		goto free;
+	memcpy((void *)page, sig, sig_size);
+	params->sigstruct_pa = __pa(page);
+
+	return params;
+free:
+	free_seamldr_params(params);
+	return ERR_PTR(-ENOMEM);
+}
+
+static bool seamldr_recoverable_error(u64 sret)
+{
+	return sret == P_SEAMCALL_NO_ENTROPY;
+}
+
+struct install_args {
+	const struct seamldr_params *params;
+	u64 sret;
+};
+
+static void do_seamldr_install(void *data)
+{
+	struct install_args *args = data;
+	int ret;
+
+	ret = __seamldr_seamcall(P_SEAMCALL_SEAMLDR_INSTALL, __pa(args->params),
+				 0, 0, 0, NULL, &args->sret);
+	if (ret)
+		args->sret = ret;
+}
+
+/*
+ * Load a TDX module into SEAM range.
+ *
+ * TDX module loading may fail due to no enough entropy to generate random
+ * number. Retry can solve the problem.
+ */
+static int seamldr_install(const struct seamldr_params *params)
+{
+	int cpu, retry = 3;
+	struct install_args args = { .params = params };
+
+retry:
+	/*
+	 * Don't use on_each_cpu() since P-SEAMLDR seamcalls can be invoked
+	 * by only one CPU at a time.
+	 */
+	for_each_online_cpu(cpu) {
+		smp_call_function_single(cpu, do_seamldr_install, &args, true);
+		if (args.sret)
+			break;
+	}
+
+	if (seamldr_recoverable_error(args.sret) && retry--)
+		goto retry;
+
+	if (args.sret) {
+		pr_err("SEAMLDR.INSTALL failed. Error %llx\n", args.sret);
+		return -EIO;
+	}
+	return 0;
+}
+
+static int verify_hash(const void *module, int module_size,
+		       const void *expected_hash)
+{
+	SHASH_DESC_ON_STACK(shash, tfm);
+	struct crypto_shash *tfm;
+	u8 hash[48];
+	int ret;
+
+	tfm = crypto_alloc_shash("sha384", 0, CRYPTO_ALG_ASYNC);
+	if (IS_ERR(tfm)) {
+		pr_err("No tfm created\n");
+		return PTR_ERR(tfm);
+	}
+
+	shash->tfm = tfm;
+	ret = crypto_shash_digest(shash, module, module_size, hash);
+	if (ret) {
+		pr_err("cannot generate digest %d\n", ret);
+		crypto_free_shash(tfm);
+		return ret;
+	}
+
+	if (memcmp(hash, expected_hash, 48)) {
+		pr_err("Hash verification failed\n");
+		ret = -EINVAL;
+	}
+
+	crypto_free_shash(tfm);
+	return ret;
+}
+
+static int determine_handoff_version(const struct seam_sigstruct *sig)
+{
+	struct tdx_module_output out;
+	u16 module_hv, min_update_hv;
+	bool no_downgrade;
+	int ret;
+
+	/*
+	 * TDX module can generate handoff for any version between its
+	 * [min_update_hv, module_hv]. But if no_downgrade is set, TDX
+	 * module can generate handoff for version == module_hv only.
+	 * Retrieve these three values from current TDX module,
+	 * compare them with the supported handoff version carried
+	 * in the new module's seam_sigstruct, then decide the proper
+	 * handoff version.
+	 */
+	ret = seamcall(TDH_SYS_RD, 0, TDX_MD_MODULE_HV, 0, 0, NULL, &out);
+	if (!ret)
+		module_hv = out.r8;
+	else
+		return ret;
+
+	ret = seamcall(TDH_SYS_RD, 0, TDX_MD_MIN_UPDATE_HV, 0, 0, NULL, &out);
+	if (!ret)
+		min_update_hv = out.r8;
+	else
+		return ret;
+
+	ret = seamcall(TDH_SYS_RD, 0, TDX_MD_NO_DOWNGRADE, 0, 0, NULL, &out);
+	if (!ret)
+		no_downgrade = out.r8;
+	else
+		return ret;
+
+	if (no_downgrade)
+		min_update_hv = module_hv;
+
+	/* The supported handoff version doesn't overlap */
+	if (module_hv < sig->min_update_hv || min_update_hv > sig->module_hv) {
+		pr_err("Unsupported handoff versions [%d, %d]. Supported versions [%d, %d].\n",
+			sig->min_update_hv, sig->module_hv, min_update_hv, module_hv);
+		return -EINVAL;
+	}
+
+	/* Use the highest handoff version supported by both modules */
+	return min(module_hv, sig->module_hv);
+}
+
+/*
+ * Shut down TDX module and prepare handoff data for the next TDX module.
+ * Following a successful TDH_SYS_SHUTDOWN, further TDX module APIs will
+ * fail.
+ */
+static int tdx_prepare_handoff_data(const struct seam_sigstruct *sig)
+{
+	int ret;
+
+	/* tdx_module_status is protected by tdx_module_lock */
+	lockdep_assert_held(&tdx_module_lock);
+
+	ret = determine_handoff_version(sig);
+	if (ret < 0)
+		return ret;
+
+	return seamcall(TDH_SYS_SHUTDOWN, ret, 0, 0, 0, NULL, NULL);
+}
+
+static int init_tdx_module_via_handoff_data(void)
+{
+	int ret;
+
+	ret = init_tdx_module_common();
+	if (ret)
+		return ret;
+
+	ret = seamcall(TDH_SYS_UPDATE, 0, 0, 0, 0, NULL, NULL);
+	if (ret)
+		pr_info("Failed to load handoff data");
+
+	return ret;
+}
+
+/*
+ * @recoverable is used to tell the caller if the old TDX module still works after
+ * an update failure.
+ */
+int tdx_module_update(bool live_update, bool *recoverable)
+{
+	int ret;
+	struct seamldr_params *params;
+	/* Fake device for request_firmware */
+	struct platform_device *tdx_pdev;
+	const struct firmware *module, *sig;
+	const struct seam_sigstruct *seam_sig;
+
+	tdx_pdev = platform_device_register_simple("tdx", -1, NULL, 0);
+	if (IS_ERR(tdx_pdev))
+		return PTR_ERR(tdx_pdev);
+
+	ret = request_firmware_direct(&module, "intel-seam/libtdx.bin",
+				      &tdx_pdev->dev);
+	if (ret)
+		goto unregister;
+
+	ret = request_firmware_direct(&sig, "intel-seam/libtdx.bin.sigstruct",
+				      &tdx_pdev->dev);
+	if (ret)
+		goto release_module;
+
+	seam_sig = (void *)sig->data;
+	*recoverable = true;
+	params = alloc_seamldr_params(module->data, module->size, sig->data, sig->size,
+				      live_update);
+	if (IS_ERR(params)) {
+		ret = PTR_ERR(params);
+		goto release_sig;
+	}
+
+	ret = verify_hash(module->data, module->size, seam_sig->seamhash);
+	if (ret)
+		goto free;
+
+	/* Prevent TDX module initialization */
+	mutex_lock(&tdx_module_lock);
+	/*
+	 * Loading TDX module requires invoking SEAMCALLs on all CPUs.
+	 * Bail out if some CPUs are offline.
+	 */
+	cpus_read_lock();
+	if (disabled_cpus || num_online_cpus() != num_processors) {
+		ret = -EPERM;
+		goto unlock;
+	}
+
+	/* Check if TD-preserving is supported */
+	if (live_update && !can_preserve_td(seam_sig)) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	if (live_update) {
+		ret = tdx_prepare_handoff_data(seam_sig);
+		if (ret)
+			goto unlock;
+
+		/* the old module is already shutdown */
+		*recoverable = false;
+	}
+
+	ret = seamldr_install(params);
+	/* Initialize TDX module after a successful update */
+	if (!ret) {
+		/*
+		 * The old module has been overridden by the new one. Any
+		 * failure after this point is unrecoverable.
+		 */
+		*recoverable = false;
+		tdx_module_status = TDX_MODULE_UNKNOWN;
+		ret = __tdx_enable(live_update);
+	}
+
+unlock:
+	cpus_read_unlock();
+	mutex_unlock(&tdx_module_lock);
+free:
+	free_seamldr_params(params);
+
+release_sig:
+	release_firmware(sig);
+release_module:
+	release_firmware(module);
+unregister:
+	platform_device_unregister(tdx_pdev);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(tdx_module_update);
+#else /* CONFIG_INTEL_TDX_MODULE_UPDATE */
+static int init_tdx_module_via_handoff_data(void)
+{
+	return -EOPNOTSUPP;
+}
+#endif /* CONFIG_INTEL_TDX_MODULE_UPDATE */

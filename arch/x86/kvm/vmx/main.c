@@ -9,7 +9,7 @@
 #include "pmu.h"
 #include "tdx.h"
 
-static bool enable_tdx __ro_after_init = IS_ENABLED(CONFIG_INTEL_TDX_HOST);
+bool enable_tdx = IS_ENABLED(CONFIG_INTEL_TDX_HOST);
 module_param_named(tdx, enable_tdx, bool, 0444);
 
 static bool vt_is_vm_type_supported(unsigned long type)
@@ -28,6 +28,10 @@ static void vt_hardware_disable(void)
 static __init int vt_hardware_setup(void)
 {
 	int ret;
+
+	/* Need to be set before vmx_hardware setup */
+	if (enable_tdx)
+		enable_pml = false;
 
 	ret = vmx_hardware_setup();
 	if (ret)
@@ -924,6 +928,27 @@ static bool vt_check_apicv_inhibit_reasons(struct kvm *kvm,
 	return vmx_check_apicv_inhibit_reasons(kvm, reason);
 }
 
+static bool is_tdx_module(struct kvm_firmware *fw)
+{
+	return fw->id == KVM_FIRMWARE_TDX_MODULE;
+}
+
+static int vt_update_fw(struct kvm_firmware *fw, bool live_update)
+{
+	if (is_tdx_module(fw))
+		return tdx_update_fw(live_update);
+
+	return 0;
+}
+
+static bool vt_match_fw(struct kvm *kvm, struct kvm_firmware *fw)
+{
+	if (is_td(kvm) && is_tdx_module(fw))
+		return true;
+
+	return false;
+}
+
 struct kvm_x86_ops vt_x86_ops __initdata = {
 	.name = KBUILD_MODNAME,
 
@@ -1078,6 +1103,9 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.dev_mem_enc_ioctl = tdx_dev_ioctl,
 	.mem_enc_ioctl = vt_mem_enc_ioctl,
 	.vcpu_mem_enc_ioctl = vt_vcpu_mem_enc_ioctl,
+
+	.update_fw = vt_update_fw,
+	.match_fw = vt_match_fw,
 };
 
 struct kvm_x86_init_ops vt_init_ops __initdata = {
@@ -1102,18 +1130,6 @@ static int __init vt_init(void)
 	 */
 	hv_init_evmcs();
 
-	r = kvm_x86_vendor_init(&vt_init_ops);
-	if (r)
-		return r;
-
-	r = vmx_init();
-	if (r)
-		goto err_vmx_init;
-
-	r = tdx_init();
-	if (r)
-		goto err_tdx_init;
-
 	/*
 	 * Common KVM initialization _must_ come last, after this, /dev/kvm is
 	 * exposed to userspace!
@@ -1129,6 +1145,19 @@ static int __init vt_init(void)
 		vcpu_align = max_t(unsigned int, vcpu_align,
 				   __alignof__(struct vcpu_tdx));
 	}
+
+	r = kvm_x86_vendor_init(&vt_init_ops);
+	if (r)
+		return r;
+
+	r = vmx_init();
+	if (r)
+		goto err_vmx_init;
+
+	r = tdx_init();
+	if (r)
+		goto err_tdx_init;
+
 	r = kvm_init(vcpu_size, vcpu_align, THIS_MODULE);
 	if (r)
 		goto err_kvm_init;

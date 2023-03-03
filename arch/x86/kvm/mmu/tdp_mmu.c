@@ -638,6 +638,26 @@ static int __must_check handle_private_zapped_spte(struct kvm *kvm, gfn_t gfn,
 	return ret;
 }
 
+static int private_spte_change_flags(struct kvm *kvm, gfn_t gfn, u64 old_spte,
+				     u64 new_spte, int level)
+{
+	bool was_writable = is_writable_pte(old_spte);
+	bool is_writable = is_writable_pte(new_spte);
+
+	/* Write block. TODO: Optimize with batching */
+	if (was_writable && !is_writable) {
+		/* Sanity check: should be 4KB only */
+		KVM_BUG_ON(level != PG_LEVEL_4K, kvm);
+		static_call(kvm_x86_write_block_private_pages)(kvm,
+							(gfn_t *)&gfn, 1);
+	}
+
+	/* Write unblock should have been handled by the fast page fault */
+	WARN_ON_ONCE(!was_writable && is_writable);
+
+	return 0;
+}
+
 static int __must_check handle_changed_private_spte(struct kvm *kvm, gfn_t gfn,
 						    u64 old_spte, u64 new_spte,
 						    int level)
@@ -667,9 +687,13 @@ static int __must_check handle_changed_private_spte(struct kvm *kvm, gfn_t gfn,
 			if (!ret)
 				ret = static_call(kvm_x86_split_private_spt)(kvm, gfn,
 									     level, private_spt);
-		} else if (is_leaf)
+		} else if (is_leaf) {
+			if (was_present)
+				return private_spte_change_flags(kvm, gfn,
+						old_spte, new_spte, level);
+
 			ret = static_call(kvm_x86_set_private_spte)(kvm, gfn, level, new_pfn);
-		else {
+		} else {
 			private_spt = get_private_spt(gfn, new_spte, level);
 			KVM_BUG_ON(!private_spt, kvm);
 			ret = static_call(kvm_x86_link_private_spt)(kvm, gfn, level, private_spt);
@@ -729,6 +753,8 @@ static int __must_check __handle_changed_spte(struct kvm *kvm, int as_id, gfn_t 
 	bool pfn_changed = old_pfn != new_pfn;
 	bool was_private_zapped = is_private_zapped_spte(old_spte);
 	bool is_private_zapped = is_private_zapped_spte(new_spte);
+	bool was_writable = is_writable_pte(old_spte);
+	bool is_writable = is_writable_pte(new_spte);
 
 	WARN_ON(level > PT64_ROOT_MAX_LEVEL);
 	WARN_ON(level < PG_LEVEL_4K);
@@ -827,13 +853,15 @@ static int __must_check __handle_changed_spte(struct kvm *kvm, int as_id, gfn_t 
 	if (is_private &&
 	    /* Ignore change of software only bits. e.g. host_writable */
 	    (was_leaf != is_leaf || was_present != is_present || pfn_changed ||
-	     was_private_zapped != is_private_zapped)) {
+	     was_private_zapped != is_private_zapped || was_writable != is_writable)) {
 		KVM_BUG_ON(was_private_zapped && is_private_zapped, kvm);
 		/*
-		 * When write lock is held, leaf pte should be zapping or
-		 * prohibiting.  Not directly was_present=1 -> zero EPT entry.
+		 * When write lock is held, leaf pte should be zapping,
+		 * prohibiting or changing write permission, rather than
+		 * was_present=1 (i.e. zeroing EPT entry).
 		 */
-		KVM_BUG_ON(!shared && is_leaf && !is_private_zapped, kvm);
+		KVM_BUG_ON(!shared && is_leaf && !is_private_zapped &&
+			   (was_writable == is_writable), kvm);
 		return handle_changed_private_spte(kvm, gfn, old_spte, new_spte, role.level);
 	}
 	return 0;
@@ -2531,6 +2559,56 @@ bool kvm_tdp_mmu_write_protect_gfn(struct kvm *kvm,
 	return spte_set;
 }
 
+static int kvm_tdp_mmu_restore_one_private_page(struct kvm *kvm,
+						struct kvm_mmu_page *root,
+						gfn_t gfn)
+{
+	struct tdp_iter iter;
+	u64 new_spte;
+	int ret;
+
+	for_each_tdp_pte_min_level(iter, root, PG_LEVEL_4K, gfn, gfn + 1) {
+		if (!is_writable_pte(iter.old_spte)) {
+			new_spte = iter.old_spte | PT_WRITABLE_MASK;
+			kvm_tdp_mmu_write_spte(iter.sptep, iter.old_spte,
+					       new_spte, iter.level);
+		}
+		ret = static_call(kvm_x86_restore_private_page)(kvm, gfn);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+int kvm_tdp_mmu_restore_private_pages(struct kvm_memory_slot *slot,
+				      gfn_t gfn_max)
+{
+	struct kvm *kvm = slot->kvm;
+	struct kvm_mmu_page *root;
+	gfn_t gfn, gfn_end;
+	int ret;
+
+	gfn_end = slot->base_gfn + slot->npages;
+	if (gfn_end > gfn_max)
+		gfn_end = gfn_max;
+
+	for (gfn = slot->base_gfn; gfn < gfn_end; gfn++) {
+		/* Skip shared pages */
+		if (!kvm_mem_is_private(kvm, gfn))
+			continue;
+
+		for_each_tdp_mmu_root(kvm, root, slot->as_id) {
+			ret = kvm_tdp_mmu_restore_one_private_page(kvm,
+								   root, gfn);
+			if (ret)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
 int kvm_tdp_mmu_map_private(struct kvm *kvm,
 			    gfn_t *startp, gfn_t end, bool map_private)
 {
@@ -2612,13 +2690,11 @@ u64 *kvm_tdp_mmu_fast_pf_get_last_sptep(struct kvm_vcpu *vcpu, u64 addr,
 {
 	struct tdp_iter iter;
 	struct kvm_mmu *mmu = vcpu->arch.mmu;
-	gfn_t gfn = addr >> PAGE_SHIFT;
+	bool is_private = kvm_is_private_gpa(vcpu->kvm, addr);
+	gfn_t gfn = gpa_to_gfn(addr) & ~kvm_gfn_shared_mask(vcpu->kvm);
 	tdp_ptep_t sptep = NULL;
 
-	/* fast page fault for private GPA isn't supported. */
-	WARN_ON_ONCE(kvm_is_private_gpa(vcpu->kvm, addr));
-
-	tdp_mmu_for_each_pte(iter, mmu, false, gfn, gfn + 1) {
+	tdp_mmu_for_each_pte(iter, mmu, is_private, gfn, gfn + 1) {
 		*spte = iter.old_spte;
 		sptep = iter.sptep;
 	}

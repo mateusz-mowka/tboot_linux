@@ -38,6 +38,8 @@
 #include <asm/hyperv-tlfs.h>
 #include <asm/sgx.h>
 
+struct kvm_firmware;
+
 #define __KVM_HAVE_ARCH_VCPU_DEBUGFS
 #define __KVM_HAVE_ARCH_SET_MEMORY_ATTRIBUTES
 
@@ -116,6 +118,8 @@
 #define KVM_REQ_HV_TLB_FLUSH \
 	KVM_ARCH_REQ_FLAGS(32, KVM_REQUEST_WAIT | KVM_REQUEST_NO_WAKEUP)
 #define KVM_REQ_MEMORY_MCE		KVM_ARCH_REQ(33)
+#define KVM_REQ_FW_UPDATE \
+	KVM_ARCH_REQ_FLAGS(35, KVM_REQUEST_WAIT | KVM_REQUEST_NO_WAKEUP)
 
 #define KVM_REQ_SLEEP \
 	KVM_ARCH_REQ_FLAGS(34, KVM_REQUEST_WAIT | KVM_REQUEST_NO_WAKEUP)
@@ -1732,6 +1736,10 @@ struct kvm_x86_ops {
 				    kvm_pfn_t pfn);
 	int (*zap_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level);
 	int (*unzap_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level);
+	void (*write_block_private_pages)(struct kvm *kvm, gfn_t *gfns,
+					  uint32_t num);
+	void (*write_unblock_private_page)(struct kvm *kvm, gfn_t gfn, int level);
+	int (*restore_private_page)(struct kvm *kvm, gfn_t gfn);
 
 	/*
 	 * The following five operations are only for legacy MMU.
@@ -1827,6 +1835,9 @@ struct kvm_x86_ops {
 	 * Returns vCPU specific APICv inhibit reasons
 	 */
 	unsigned long (*vcpu_get_apicv_inhibit_reasons)(struct kvm_vcpu *vcpu);
+
+	int (*update_fw)(struct kvm_firmware *fw, bool live_update);
+	bool (*match_fw)(struct kvm *kvm, struct kvm_firmware *fw);
 };
 
 struct kvm_x86_nested_ops {

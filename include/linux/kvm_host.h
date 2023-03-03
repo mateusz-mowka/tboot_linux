@@ -335,8 +335,10 @@ struct kvm_vcpu {
 	int vcpu_id; /* id given by userspace at creation */
 	int vcpu_idx; /* index in kvm->vcpus array */
 	int ____srcu_idx; /* Don't use this directly.  You've been warned. */
+	int ____fw_srcu_idx; /* Don't use this directly.  You've been warned. */
 #ifdef CONFIG_PROVE_RCU
 	int srcu_depth;
+	int fw_srcu_depth;
 #endif
 	int mode;
 	u64 requests;
@@ -386,6 +388,7 @@ struct kvm_vcpu {
 #endif
 	bool preempted;
 	bool ready;
+	bool load_mmu_pgd_pending;
 	struct kvm_vcpu_arch arch;
 	struct kvm_vcpu_stat stat;
 	char stats_id[KVM_STATS_NAME_SIZE];
@@ -829,6 +832,11 @@ struct kvm {
 	char stats_id[KVM_STATS_NAME_SIZE];
 #ifdef __KVM_HAVE_READONLY_MEM
 	bool readonly_mem_unsupported;
+#endif
+
+#ifdef CONFIG_HAVE_KVM_FIRMWARE
+	struct kvm_firmware *fw;
+	struct list_head fw_list;
 #endif
 };
 
@@ -2218,6 +2226,8 @@ static inline bool kvm_is_visible_memslot(struct kvm_memory_slot *memslot)
 struct kvm_vcpu *kvm_get_running_vcpu(void);
 struct kvm_vcpu * __percpu *kvm_get_running_vcpus(void);
 
+struct kvm *kvm_get_target_kvm(pid_t pid);
+
 #ifdef CONFIG_HAVE_KVM_IRQ_BYPASS
 bool kvm_arch_has_irq_bypass(void);
 int kvm_arch_irq_bypass_add_producer(struct irq_bypass_consumer *,
@@ -2375,5 +2385,32 @@ static inline int kvm_restricted_mem_get_pfn(struct kvm_memory_slot *slot,
 
 void kvm_arch_memory_mce(struct kvm *kvm);
 #endif /* CONFIG_HAVE_KVM_RESTRICTED_MEM */
+
+#define KVM_FIRMWARE_TDX_MODULE		0
+struct kvm_firmware {
+	int id;				/* Identity of the firmware */
+
+	spinlock_t lock;		/* Protect vm_list */
+	struct list_head vm_list;	/* Guests associated with this firmware */
+
+	struct srcu_struct srcu;	/* Protect activities relying the firmware */
+	bool update;			/* Is this firmware being updated? */
+	struct completion completion;	/* Wait for firmware update completion */
+};
+
+int kvm_update_fw(struct kvm_firmware *fw);
+
+#ifdef CONFIG_HAVE_KVM_FIRMWARE
+struct kvm_firmware *kvm_register_fw(int fw_id);
+int kvm_unregister_fw(struct kvm_firmware *kvm_fw);
+void kvm_vcpu_fw_update(struct kvm_vcpu *vcpu);
+#else
+static inline struct kvm_firmware *kvm_register_fw(int fw_id) { return NULL; }
+static inline int kvm_unregister_fw(struct kvm_firmware *kvm_fw) { return 0; }
+static inline void kvm_vcpu_fw_update(struct kvm_vcpu *vcpu) {}
+#endif
+
+int hardware_enable_all(void);
+void hardware_disable_all(void);
 
 #endif

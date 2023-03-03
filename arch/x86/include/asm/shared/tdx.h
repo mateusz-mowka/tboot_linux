@@ -26,6 +26,12 @@
 #define TDVMCALL_SETUP_NOTIFY_INTR	0x10004
 #define TDVMCALL_GET_QUOTE		0x10002
 
+#define TDX_HYPERCALL_RETRY_MAX		10000
+#define TDX_HYPERCALL_STATUS_MASK	0xFFFFFFFF00000000ULL
+
+#define TDX_OPERAND_BUSY		0x8000020000000000ULL
+#define TDX_OPERAND_BUSY_HOST_PRIORITY	0x8000020400000000ULL
+
 #ifndef __ASSEMBLY__
 
 /*
@@ -44,7 +50,23 @@ struct tdx_hypercall_args {
 };
 
 /* Used to request services from the VMM */
-u64 __tdx_hypercall(struct tdx_hypercall_args *args, unsigned long flags);
+u64 __do_tdx_hypercall(struct tdx_hypercall_args *args, unsigned long flags);
+
+static inline u64 __tdx_hypercall(struct tdx_hypercall_args *args, unsigned long flags)
+{
+	u64 err, retries = 0;
+
+	do {
+		err = __do_tdx_hypercall(args, flags);
+		if (likely(!err) || retries++ > TDX_HYPERCALL_RETRY_MAX)
+			break;
+
+		err &= TDX_HYPERCALL_STATUS_MASK;
+	} while (err == TDX_OPERAND_BUSY ||
+		 err == TDX_OPERAND_BUSY_HOST_PRIORITY);
+
+	return err;
+}
 
 /*
  * Wrapper for standard use of __tdx_hypercall with no output aside from
@@ -80,10 +102,13 @@ struct tdx_module_output {
 	u64 r9;
 	u64 r10;
 	u64 r11;
+	u64 r12;
+	u64 r13;
 };
 
 /* Used to communicate with the TDX module */
 u64 __tdx_module_call(u64 fn, u64 rcx, u64 rdx, u64 r8, u64 r9,
+		      u64 r10, u64 r11, u64 r12, u64 r13,
 		      struct tdx_module_output *out);
 
 void tdx_accept_memory(phys_addr_t start, phys_addr_t end);

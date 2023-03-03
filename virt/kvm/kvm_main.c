@@ -61,6 +61,7 @@
 #include "async_pf.h"
 #include "kvm_mm.h"
 #include "vfio.h"
+#include "firmware.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/kvm.h>
@@ -138,8 +139,6 @@ static int kvm_no_compat_open(struct inode *inode, struct file *file)
 #define KVM_COMPAT(c)	.compat_ioctl	= kvm_no_compat_ioctl,	\
 			.open		= kvm_no_compat_open
 #endif
-static int hardware_enable_all(void);
-static void hardware_disable_all(void);
 
 static void kvm_io_bus_destroy(struct kvm_io_bus *bus);
 
@@ -897,10 +896,12 @@ static void kvm_mmu_notifier_release(struct mmu_notifier *mn,
 				     struct mm_struct *mm)
 {
 	struct kvm *kvm = mmu_notifier_to_kvm(mn);
-	int idx;
+	int idx, fw_idx;
 
 	idx = srcu_read_lock(&kvm->srcu);
+	fw_idx = kvm_get_fw(kvm);
 	kvm_flush_shadow_all(kvm);
+	kvm_put_fw(kvm, fw_idx);
 	srcu_read_unlock(&kvm->srcu, idx);
 }
 
@@ -962,7 +963,7 @@ static void kvm_restrictedmem_invalidate_begin(struct restrictedmem_notifier *no
 	struct kvm *kvm = slot->kvm;
 	gfn_t gfn_start, gfn_end;
 	struct kvm_gfn_range gfn_range;
-	int idx;
+	int idx, fw_idx;
 
 	if (!restrictedmem_range_is_valid(slot, start, end,
 					  &gfn_start, &gfn_end))
@@ -976,6 +977,7 @@ static void kvm_restrictedmem_invalidate_begin(struct restrictedmem_notifier *no
 	gfn_range.flags = KVM_GFN_RANGE_FLAGS_RESTRICTED_MEM;
 
 	idx = srcu_read_lock(&kvm->srcu);
+	fw_idx = kvm_get_fw(kvm);
 	KVM_MMU_LOCK(kvm);
 
 	kvm_mmu_invalidate_begin(kvm);
@@ -984,6 +986,7 @@ static void kvm_restrictedmem_invalidate_begin(struct restrictedmem_notifier *no
 		kvm_flush_remote_tlbs(kvm);
 
 	KVM_MMU_UNLOCK(kvm);
+	kvm_put_fw(kvm, fw_idx);
 	srcu_read_unlock(&kvm->srcu, idx);
 }
 
@@ -995,14 +998,17 @@ static void kvm_restrictedmem_invalidate_end(struct restrictedmem_notifier *noti
 						    notifier);
 	struct kvm *kvm = slot->kvm;
 	gfn_t gfn_start, gfn_end;
+	int fw_idx;
 
 	if (!restrictedmem_range_is_valid(slot, start, end,
 					  &gfn_start, &gfn_end))
 		return;
 
+	fw_idx = kvm_get_fw(kvm);
 	KVM_MMU_LOCK(kvm);
 	kvm_mmu_invalidate_end(kvm);
 	KVM_MMU_UNLOCK(kvm);
+	kvm_put_fw(kvm, fw_idx);
 }
 
 static void kvm_restrictedmem_error(struct restrictedmem_notifier *notifier,
@@ -1011,7 +1017,12 @@ static void kvm_restrictedmem_error(struct restrictedmem_notifier *notifier,
 	struct kvm_memory_slot *slot = container_of(notifier,
 						    struct kvm_memory_slot,
 						    notifier);
+	struct kvm *kvm = slot->kvm;
+	int fw_idx;
+
+	fw_idx = kvm_get_fw(kvm);
 	kvm_arch_memory_mce(slot->kvm);
+	kvm_put_fw(kvm, fw_idx);
 }
 
 static struct restrictedmem_notifier_ops kvm_restrictedmem_notifier_ops = {
@@ -1108,6 +1119,14 @@ static inline void kvm_restrictedmem_unregister(struct kvm_memory_slot *slot)
 	WARN_ON_ONCE(1);
 }
 
+int kvm_vm_set_memory_attributes(struct kvm *kvm, u64 attributes,
+					       gfn_t start, gfn_t end)
+{
+	WARN_ON_ONCE(1);
+
+	return -EOPNOTSUPP;
+}
+
 #endif /* CONFIG_HAVE_KVM_RESTRICTED_MEM */
 
 #ifdef CONFIG_HAVE_KVM_PM_NOTIFIER
@@ -1115,9 +1134,14 @@ static int kvm_pm_notifier_call(struct notifier_block *bl,
 				unsigned long state,
 				void *unused)
 {
+	int ret, fw_idx;
 	struct kvm *kvm = container_of(bl, struct kvm, pm_notifier);
 
-	return kvm_arch_pm_notifier(kvm, state);
+	fw_idx = kvm_get_fw(kvm);
+	ret = kvm_arch_pm_notifier(kvm, state);
+	kvm_put_fw(kvm, fw_idx);
+
+	return ret;
 }
 
 static void kvm_init_pm_notifier(struct kvm *kvm)
@@ -1433,6 +1457,7 @@ static struct kvm *kvm_create_vm(unsigned long type, const char *fdname)
 
 	preempt_notifier_inc();
 	kvm_init_pm_notifier(kvm);
+	kvm_attach_fw(kvm);
 
 	return kvm;
 
@@ -1480,9 +1505,10 @@ static void kvm_destroy_devices(struct kvm *kvm)
 
 static void kvm_destroy_vm(struct kvm *kvm)
 {
-	int i;
+	int i, fw_idx;
 	struct mm_struct *mm = kvm->mm;
 
+	fw_idx = kvm_get_fw(kvm);
 	kvm_destroy_pm_notifier(kvm);
 	kvm_uevent_notify_change(KVM_EVENT_DESTROY_VM, kvm);
 	kvm_destroy_vm_debugfs(kvm);
@@ -1527,6 +1553,8 @@ static void kvm_destroy_vm(struct kvm *kvm)
 #endif
 	cleanup_srcu_struct(&kvm->irq_srcu);
 	cleanup_srcu_struct(&kvm->srcu);
+	kvm_put_fw(kvm, fw_idx);
+	kvm_detach_fw(kvm);
 	kvm_arch_free_vm(kvm);
 	preempt_notifier_dec();
 	hardware_disable_all();
@@ -1843,6 +1871,13 @@ static int kvm_prepare_memory_region(struct kvm *kvm,
 			if (kvm_dirty_log_manual_protect_and_init_set(kvm))
 				bitmap_set(new->dirty_bitmap, 0, new->npages);
 		}
+	}
+
+	if (change == KVM_MR_FLAGS_ONLY && (new->flags & KVM_MEM_PRIVATE)) {
+		memcpy(&new->notifier,
+		       &old->notifier, sizeof(struct restrictedmem_notifier));
+		kvm_restrictedmem_unregister((struct kvm_memory_slot *)old);
+		kvm_restrictedmem_register(new);
 	}
 
 	r = kvm_arch_prepare_memory_region(kvm, old, new, change);
@@ -2220,9 +2255,6 @@ int __kvm_set_memory_region(struct kvm *kvm,
 		if ((kvm->nr_memslot_pages + npages) < kvm->nr_memslot_pages)
 			return -EINVAL;
 	} else { /* Modify an existing slot. */
-		/* Private memslots are immutable, they can only be deleted. */
-		if (mem->flags & KVM_MEM_PRIVATE)
-			return -EINVAL;
 		if ((mem->userspace_addr != old->userspace_addr) ||
 		    (npages != old->npages) ||
 		    ((mem->flags ^ old->flags) & KVM_MEM_READONLY))
@@ -3834,7 +3866,11 @@ bool kvm_vcpu_block(struct kvm_vcpu *vcpu)
 			break;
 
 		waited = true;
+		vcpu_put(vcpu);
+		kvm_vcpu_put_fw(vcpu);
 		schedule();
+		kvm_vcpu_get_fw(vcpu);
+		vcpu_load(vcpu);
 	}
 
 	preempt_disable();
@@ -4447,16 +4483,19 @@ static long kvm_vcpu_ioctl(struct file *filp,
 	if (unlikely(_IOC_TYPE(ioctl) != KVMIO))
 		return -EINVAL;
 
+	kvm_vcpu_get_fw(vcpu);
 	/*
 	 * Some architectures have vcpu ioctls that are asynchronous to vcpu
 	 * execution; mutex_lock() would break them.
 	 */
 	r = kvm_arch_vcpu_async_ioctl(filp, ioctl, arg);
 	if (r != -ENOIOCTLCMD)
-		return r;
+		goto put_fw;
 
-	if (mutex_lock_killable(&vcpu->mutex))
-		return -EINTR;
+	if (mutex_lock_killable(&vcpu->mutex)) {
+		r = -EINTR;
+		goto put_fw;
+	}
 	switch (ioctl) {
 	case KVM_RUN: {
 		struct pid *oldpid;
@@ -4640,6 +4679,8 @@ out:
 	mutex_unlock(&vcpu->mutex);
 	kfree(fpu);
 	kfree(kvm_sregs);
+put_fw:
+	kvm_vcpu_put_fw(vcpu);
 	return r;
 }
 
@@ -4784,12 +4825,14 @@ int kvm_register_device_ops(const struct kvm_device_ops *ops, u32 type)
 	kvm_device_ops_table[type] = ops;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(kvm_register_device_ops);
 
 void kvm_unregister_device_ops(u32 type)
 {
 	if (kvm_device_ops_table[type] != NULL)
 		kvm_device_ops_table[type] = NULL;
 }
+EXPORT_SYMBOL_GPL(kvm_unregister_device_ops);
 
 static int kvm_ioctl_create_device(struct kvm *kvm,
 				   struct kvm_create_device *cd)
@@ -4908,6 +4951,7 @@ static long kvm_vm_ioctl_check_extension_generic(struct kvm *kvm, long arg)
 #endif
 	case KVM_CAP_BINARY_STATS_FD:
 	case KVM_CAP_SYSTEM_EVENT_DATA:
+	case KVM_CAP_DEVICE_CTRL:
 		return 1;
 	default:
 		break;
@@ -5151,10 +5195,11 @@ static long kvm_vm_ioctl(struct file *filp,
 {
 	struct kvm *kvm = filp->private_data;
 	void __user *argp = (void __user *)arg;
-	int r;
+	int r, fw_idx;
 
 	if (kvm->mm != current->mm || kvm->vm_dead)
 		return -EIO;
+	fw_idx = kvm_get_fw(kvm);
 	switch (ioctl) {
 	case KVM_CREATE_VCPU:
 		r = kvm_vm_ioctl_create_vcpu(kvm, arg);
@@ -5377,6 +5422,7 @@ static long kvm_vm_ioctl(struct file *filp,
 		r = kvm_arch_vm_ioctl(filp, ioctl, arg);
 	}
 out:
+	kvm_put_fw(kvm, fw_idx);
 	return r;
 }
 
@@ -5652,7 +5698,7 @@ static void hardware_disable_all_nolock(void)
 		on_each_cpu(hardware_disable_nolock, NULL, 1);
 }
 
-static void hardware_disable_all(void)
+void hardware_disable_all(void)
 {
 	cpus_read_lock();
 	mutex_lock(&kvm_lock);
@@ -5661,7 +5707,7 @@ static void hardware_disable_all(void)
 	cpus_read_unlock();
 }
 
-static int hardware_enable_all(void)
+int hardware_enable_all(void)
 {
 	atomic_t failed = ATOMIC_INIT(0);
 	int r = 0;
@@ -6394,6 +6440,28 @@ struct kvm_vcpu * __percpu *kvm_get_running_vcpus(void)
 {
         return &kvm_running_vcpu;
 }
+
+/*
+ * kvm_get_target_kvm - get the target kvm from vm_list using pid
+ *
+ * Returns: the target kvm struct on success, NULL if not found.
+ */
+struct kvm *kvm_get_target_kvm(pid_t pid)
+{
+	struct kvm *kvm, *target_kvm = NULL;
+
+	mutex_lock(&kvm_lock);
+	list_for_each_entry(kvm, &vm_list, vm_list) {
+		if (kvm->userspace_pid == pid) {
+			target_kvm = kvm;
+			break;
+		}
+	}
+	mutex_unlock(&kvm_lock);
+
+	return target_kvm;
+}
+EXPORT_SYMBOL_GPL(kvm_get_target_kvm);
 
 #ifdef CONFIG_GUEST_PERF_EVENTS
 static unsigned int kvm_guest_state(void)
