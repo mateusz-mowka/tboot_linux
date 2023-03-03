@@ -14,6 +14,7 @@ struct telem_header {
 	u8	access_type;
 	u16	size;
 	u32	guid;
+	u32	tele_id;
 	u32	base_offset;
 };
 
@@ -101,6 +102,20 @@ int pmt_telem_get_endpoint_info(int devid,
  */
 struct telem_endpoint *pmt_telem_find_and_register_endpoint(struct pci_dev *pcidev,
 				u32 guid, u16 pos);
+
+/**
+ * pmt_telem_register_fixed_endpoint() - Get a telemetry endpoint from
+ * pci_dev device, fixed telemetry id, and pos
+ * @pdev:     PCI device inside the Intel vsec
+ * @tele_id:  Telemetry id of the telemetry space
+ * @pos:      Instance of the guid in case of multiple instances
+ *
+ * Return:
+ * * endpoint    - On success returns pointer to the telemetry endpoint
+ * * -ENXIO      - telemetry endpoint not found
+ */
+struct telem_endpoint *pmt_telem_register_fixed_endpoint(struct pci_dev *pcidev,
+				u32 tele_id, u16 pos);
 
 /**
  * pmt_telem_read() - Read qwords from counter sram using sample id

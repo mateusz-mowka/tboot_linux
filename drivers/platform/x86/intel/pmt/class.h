@@ -35,7 +35,9 @@ struct intel_pmt_header {
 	u32	base_offset;
 	u32	size;
 	u32	guid;
+	u32	tele_id;
 	u8	access_type;
+	u8	telem_type;
 };
 
 struct intel_pmt_entry {
