@@ -1138,8 +1138,22 @@ access_error(unsigned long error_code, struct vm_area_struct *vma)
 				       (error_code & X86_PF_INSTR), foreign))
 		return 1;
 
+	/*
+	 * Shadow stack accesses (PF_SHSTK=1) are only permitted to
+	 * shadow stack VMAs. All other accesses result in an error.
+	 */
+	if (error_code & X86_PF_SHSTK) {
+		if (unlikely(!(vma->vm_flags & VM_SHADOW_STACK)))
+			return 1;
+		if (unlikely(!(vma->vm_flags & VM_WRITE)))
+			return 1;
+		return 0;
+	}
+
 	if (error_code & X86_PF_WRITE) {
 		/* write, present and write, not present: */
+		if (unlikely(vma->vm_flags & VM_SHADOW_STACK))
+			return 1;
 		if (unlikely(!(vma->vm_flags & VM_WRITE)))
 			return 1;
 		return 0;
@@ -1331,6 +1345,30 @@ void do_user_addr_fault(struct pt_regs *regs,
 
 	perf_sw_event(PERF_COUNT_SW_PAGE_FAULTS, 1, regs, address);
 
+	/*
+	 * When a page becomes COW it changes from a shadow stack permission
+	 * page (Write=0,Dirty=1) to (Write=0,Dirty=0,CoW=1), which is simply
+	 * read-only to the CPU. When shadow stack is enabled, a RET would
+	 * normally pop the shadow stack by reading it with a "shadow stack
+	 * read" access. However, in the COW case the shadow stack memory does
+	 * not have shadow stack permissions, it is read-only. So it will
+	 * generate a fault.
+	 *
+	 * For conventionally writable pages, a read can be serviced with a
+	 * read only PTE, and COW would not have to happen. But for shadow
+	 * stack, there isn't the concept of read-only shadow stack memory.
+	 * If it is shadow stack permission, it can be modified via CALL and
+	 * RET instructions. So COW needs to happen before any memory can be
+	 * mapped with shadow stack permissions.
+	 *
+	 * Shadow stack accesses (read or write) need to be serviced with
+	 * shadow stack permission memory, so in the case of a shadow stack
+	 * read access, treat it as a WRITE fault so both COW will happen and
+	 * the write fault path will tickle maybe_mkwrite() and map the memory
+	 * shadow stack.
+	 */
+	if (error_code & X86_PF_SHSTK)
+		flags |= FAULT_FLAG_WRITE;
 	if (error_code & X86_PF_WRITE)
 		flags |= FAULT_FLAG_WRITE;
 	if (error_code & X86_PF_INSTR)

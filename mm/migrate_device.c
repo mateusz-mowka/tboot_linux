@@ -645,7 +645,9 @@ static void migrate_vma_insert_page(struct migrate_vma *migrate,
 			goto abort;
 		}
 		entry = mk_pte(page, vma->vm_page_prot);
-		if (vma->vm_flags & VM_WRITE)
+		if (is_shstk_write(vma->vm_flags))
+			entry = pte_mkwrite_shstk(pte_mkdirty(entry));
+		else if (vma->vm_flags & VM_WRITE)
 			entry = pte_mkwrite(pte_mkdirty(entry));
 	}
 

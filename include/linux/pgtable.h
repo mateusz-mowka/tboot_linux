@@ -532,6 +532,34 @@ static inline pte_t pte_sw_mkyoung(pte_t pte)
 #define pte_sw_mkyoung	pte_sw_mkyoung
 #endif
 
+#ifndef pte_mkwrite_shstk
+static inline pte_t pte_mkwrite_shstk(pte_t pte)
+{
+	return pte;
+}
+#endif
+
+#ifndef pte_shstk
+static inline bool pte_shstk(pte_t pte)
+{
+	return false;
+}
+#endif
+
+#ifndef pmd_shstk
+static inline bool pmd_shstk(pmd_t pte)
+{
+	return false;
+}
+#endif
+
+#ifndef pmd_mkwrite_shstk
+static inline pmd_t pmd_mkwrite_shstk(pmd_t pmd)
+{
+	return pmd;
+}
+#endif
+
 #ifndef __HAVE_ARCH_PMDP_SET_WRPROTECT
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 static inline void pmdp_set_wrprotect(struct mm_struct *mm,
@@ -1563,6 +1591,13 @@ static inline bool arch_has_pfn_modify_check(void)
 	return false;
 }
 #endif /* !_HAVE_ARCH_PFN_MODIFY_ALLOWED */
+
+#ifndef is_shstk_write
+static inline bool is_shstk_write(unsigned long vm_flags)
+{
+	return false;
+}
+#endif
 
 /*
  * Architecture PAGE_KERNEL_* fallbacks

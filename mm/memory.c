@@ -1377,6 +1377,8 @@ again:
 				continue;
 			ptent = ptep_get_and_clear_full(mm, addr, pte,
 							tlb->fullmm);
+			VM_WARN_ON_ONCE(!(vma->vm_flags & VM_SHADOW_STACK) &&
+					pte_shstk(ptent));
 			tlb_remove_tlb_entry(tlb, pte, addr);
 			zap_install_uffd_wp_if_needed(vma, addr, pte, details,
 						      ptent);
@@ -4091,7 +4093,10 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 
 	entry = mk_pte(page, vma->vm_page_prot);
 	entry = pte_sw_mkyoung(entry);
-	if (vma->vm_flags & VM_WRITE)
+
+	if (is_shstk_write(vma->vm_flags))
+		entry = pte_mkwrite_shstk(pte_mkdirty(entry));
+	else if (vma->vm_flags & VM_WRITE)
 		entry = pte_mkwrite(pte_mkdirty(entry));
 
 	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd, vmf->address,
