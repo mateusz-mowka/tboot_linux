@@ -57,8 +57,10 @@ static const char * const scan_test_status[] = {
 	[IFS_INTERRUPTED_DURING_EXECUTION] = "Interrupt occurred prior to SCAN start",
 };
 
-static void message_not_tested(struct device *dev, int cpu, union ifs_status status)
+static void message_not_tested(struct device *dev, int cpu, u64 status_data)
 {
+	union ifs_status status = (union ifs_status)status_data;
+
 	if (status.error_code < ARRAY_SIZE(scan_test_status)) {
 		dev_info(dev, "CPU(s) %*pbl: SCAN operation did not start. %s\n",
 			 cpumask_pr_args(cpu_smt_mask(cpu)),
@@ -76,9 +78,10 @@ static void message_not_tested(struct device *dev, int cpu, union ifs_status sta
 	}
 }
 
-static void message_fail(struct device *dev, int cpu, union ifs_status status)
+static void message_fail(struct device *dev, int cpu, u64 status_data)
 {
 	struct ifs_data *ifsd = ifs_get_data(dev);
+	union ifs_status status = (union ifs_status)status_data;
 
 	/*
 	 * control_error is set when the microcode runs into a problem
@@ -103,8 +106,9 @@ static void message_fail(struct device *dev, int cpu, union ifs_status status)
 	}
 }
 
-static bool can_restart(union ifs_status status)
+static bool can_restart(u64 status_data)
 {
+	union ifs_status status = (union ifs_status)status_data;
 	enum ifs_status_err_code err_code = status.error_code;
 
 	/* Signature for chunk is bad, or scan test failed */
@@ -159,6 +163,69 @@ static int doscan(void *data)
 	return 0;
 }
 
+static void ifs_test_core_gen2(int cpu, struct device *dev)
+{
+	union ifs_scan_gen2 activate;
+	union ifs_status_gen2 status;
+	unsigned long timeout;
+	struct ifs_data *ifsd;
+	u64 msrvals[2];
+	int retries;
+
+	ifsd = ifs_get_data(dev);
+
+	activate.delay = IFS_THREAD_WAIT;
+	activate.sigmce = 0;
+	activate.start = 0;
+	activate.stop = ifsd->valid_chunks - 1;
+
+	timeout = jiffies + HZ / 2;
+	retries = MAX_IFS_RETRIES;
+
+	while (activate.start <= activate.stop) {
+		if (time_after(jiffies, timeout)) {
+			status.error_code = IFS_SW_TIMEOUT;
+			break;
+		}
+
+		msrvals[0] = activate.data;
+		stop_core_cpuslocked(cpu, doscan, msrvals);
+
+		status.data = msrvals[1];
+
+		trace_ifs_status(cpu, activate.start, activate.stop, status.data);
+
+		/* Some cases can be retried, give up for others */
+		if (!can_restart(status.data))
+			break;
+
+		if (status.chunk_num == activate.start) {
+			/* Check for forward progress */
+			if (--retries == 0) {
+				if (status.error_code == IFS_NO_ERROR)
+					status.error_code = IFS_SW_PARTIAL_COMPLETION;
+				break;
+			}
+		} else {
+			retries = MAX_IFS_RETRIES;
+			activate.start = status.chunk_num;
+		}
+	}
+
+	/* Update status for this core */
+	ifsd->scan_details = status.data;
+
+	if (status.control_error || status.signature_error) {
+		ifsd->status = SCAN_TEST_FAIL;
+		message_fail(dev, cpu, status.data);
+	} else if (status.error_code) {
+		ifsd->status = SCAN_NOT_TESTED;
+		message_not_tested(dev, cpu, status.data);
+	} else {
+		ifsd->status = SCAN_TEST_PASS;
+	}
+}
+
 /*
  * Use stop_core_cpuslocked() to synchronize writing to MSR_ACTIVATE_SCAN
  * on all threads of the core to be tested. Loop if necessary to complete
@@ -196,10 +263,10 @@ static void ifs_test_core(int cpu, struct device *dev)
 
 		status.data = msrvals[1];
 
-		trace_ifs_status(cpu, activate, status);
+		trace_ifs_status(cpu, activate.start, activate.stop, status.data);
 
 		/* Some cases can be retried, give up for others */
-		if (!can_restart(status))
+		if (!can_restart(status.data))
 			break;
 
 		if (status.chunk_num == activate.start) {
@@ -220,13 +287,83 @@ static void ifs_test_core(int cpu, struct device *dev)
 
 	if (status.control_error || status.signature_error) {
 		ifsd->status = SCAN_TEST_FAIL;
-		message_fail(dev, cpu, status);
+		message_fail(dev, cpu, status.data);
 	} else if (status.error_code) {
 		ifsd->status = SCAN_NOT_TESTED;
-		message_not_tested(dev, cpu, status);
+		message_not_tested(dev, cpu, status.data);
 	} else {
 		ifsd->status = SCAN_TEST_PASS;
 	}
+}
+
+static int do_array_test(void *data)
+{
+	int cpu = smp_processor_id();
+	u64 *msrs = data;
+	int first;
+
+	/*
+	 * Only one logical CPU on a core needs to trigger the Array test via MSR write.
+	 * Even so we have observed that tests take considerably long to complete if an
+	 * alternate mechanism like stop_one_cpu() is used instead of stop_core_cpuslocked()
+	 * possibly due to sibling thread kicking the test out of the loop.
+	 */
+	first = cpumask_first(cpu_smt_mask(cpu));
+
+	if (cpu == first) {
+		wrmsrl(MSR_ARRAY_BIST, msrs[0]);
+		/* Pass back the result of the scan */
+		rdmsrl(MSR_ARRAY_BIST, msrs[1]);
+	}
+
+	return 0;
+}
+
+static void ifs_array_test_core(int cpu, struct device *dev)
+{
+	union ifs_array_status status;
+	union ifs_array activate;
+	bool timed_out = false;
+	struct ifs_data *ifsd;
+	unsigned long timeout;
+	u64 msrvals[2];
+
+	ifsd = ifs_get_data(dev);
+
+	activate.data = 0;
+	activate.array_bitmask = ~0U;
+	activate.sigmce = 0;
+	timeout = jiffies + HZ / 2;
+
+	do {
+		if (time_after(jiffies, timeout)) {
+			timed_out = true;
+			break;
+		}
+
+		msrvals[0] = activate.data;
+
+		stop_core_cpuslocked(cpu, do_array_test, msrvals);
+		status.data = msrvals[1];
+
+		trace_ifs_array(cpu, activate, status);
+
+		if (status.passfail)
+			break;
+
+		activate.array_bitmask = status.array_bitmask;
+		activate.array_bank = status.array_bank;
+
+	} while (status.array_bitmask);
+
+	ifsd->scan_details = status.data;
+
+	if (status.passfail)
+		ifsd->status = SCAN_TEST_FAIL;
+	else if (timed_out || status.array_bitmask)
+		ifsd->status = SCAN_NOT_TESTED;
+	else
+		ifsd->status = SCAN_TEST_PASS;
 }
 
 /*
@@ -236,6 +373,7 @@ static void ifs_test_core(int cpu, struct device *dev)
  */
 int do_core_test(int cpu, struct device *dev)
 {
+	struct ifs_data *ifsd = ifs_get_data(dev);
 	int ret = 0;
 
 	/* Prevent CPUs from being taken offline during the scan test */
@@ -247,7 +385,20 @@ int do_core_test(int cpu, struct device *dev)
 		goto out;
 	}
 
-	ifs_test_core(cpu, dev);
+	switch (ifsd->integrity_cap_bit) {
+	case MSR_INTEGRITY_CAPS_ARRAY_BIST_BIT:
+		ifs_array_test_core(cpu, dev);
+		break;
+	case MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT:
+		if (ifsd->test_gen == 0)
+			ifs_test_core(cpu, dev);
+		else
+			ifs_test_core_gen2(cpu, dev);
+		break;
+	default:
+		return -EINVAL;
+	}
+
 out:
 	cpus_read_unlock();
 	return ret;

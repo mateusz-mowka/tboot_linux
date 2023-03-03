@@ -127,12 +127,14 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 
+#define MSR_ARRAY_BIST				0x00000105
 #define MSR_COPY_SCAN_HASHES			0x000002c2
 #define MSR_SCAN_HASHES_STATUS			0x000002c3
 #define MSR_AUTHENTICATE_AND_COPY_CHUNK		0x000002c4
 #define MSR_CHUNKS_AUTHENTICATION_STATUS	0x000002c5
 #define MSR_ACTIVATE_SCAN			0x000002c6
 #define MSR_SCAN_STATUS				0x000002c7
+#define MSR_SAF_CTRL				0x000002cb
 #define SCAN_NOT_TESTED				0
 #define SCAN_TEST_PASS				1
 #define SCAN_TEST_FAIL				2
@@ -151,6 +153,19 @@ union ifs_scan_hashes_status {
 	};
 };
 
+union ifs_scan_hashes_status_gen2 {
+	u64	data;
+	struct {
+		u32	chunk_size	:16;
+		u32	num_chunks	:16;
+		u32	error_code	:8;
+		u32	chunks_in_stride :9;
+		u32	rsvd		:2;
+		u32	max_core_limit	:12;
+		u32	valid		:1;
+	};
+};
+
 /* MSR_CHUNKS_AUTH_STATUS bit fields */
 union ifs_chunks_auth_status {
 	u64	data;
@@ -163,6 +178,16 @@ union ifs_chunks_auth_status {
 	};
 };
 
+union ifs_chunks_auth_status_gen2 {
+	u64	data;
+	struct {
+		u32	valid_chunks	:16;
+		u32	total_chunks	:16;
+		u32	error_code	:8;
+		u32	rsvd		:24;
+	};
+};
+
 /* MSR_ACTIVATE_SCAN bit fields */
 union ifs_scan {
 	u64	data;
@@ -170,6 +195,16 @@ union ifs_scan {
 		u32	start	:8;
 		u32	stop	:8;
 		u32	rsvd	:16;
+		u32	delay	:31;
+		u32	sigmce	:1;
+	};
+};
+
+union ifs_scan_gen2 {
+	u64	data;
+	struct {
+		u32	start	:16;
+		u32	stop	:16;
 		u32	delay	:31;
 		u32	sigmce	:1;
 	};
@@ -186,6 +221,40 @@ union ifs_status {
 		u32	rsvd2			:22;
 		u32	control_error		:1;
 		u32	signature_error		:1;
+	};
+};
+
+union ifs_status_gen2 {
+	u64	data;
+	struct {
+		u32	chunk_num		:16;
+		u32	chunk_stop_index	:16;
+		u32	error_code		:8;
+		u32	rsvd2			:22;
+		u32	control_error		:1;
+		u32	signature_error		:1;
+	};
+};
+
+/* MSR_ARRAY_BIST bit fields */
+union ifs_array {
+	u64	data;
+	struct {
+		u32	array_bitmask		:32;
+		u32	array_bank		:16;
+		u32	rsvd			:15;
+		u32	sigmce			:1;
+	};
+};
+
+/* MSR_ARRAY_BIST_STATUS bit fields */
+union ifs_array_status {
+	u64	data;
+	struct {
+		u32	array_bitmask		:32;
+		u32	array_bank		:16;
+		u32	rsvd			:15;
+		u32	passfail		:1;
 	};
 };
 
@@ -209,6 +278,8 @@ union ifs_status {
  * @scan_details: opaque scan status code from h/w
  * @cur_batch: number indicating the currently loaded test file
  * @test_num: number indicating the test type
+ * @test_gen: test generation revision
+ * @chunk_size: size of a test chunk
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -221,6 +292,8 @@ struct ifs_data {
 	u64	scan_details;
 	u32	cur_batch;
 	int	test_num;
+	u32	test_gen;
+	u32	chunk_size;
 };
 
 struct ifs_work {
@@ -244,5 +317,6 @@ static inline struct ifs_data *ifs_get_data(struct device *dev)
 int ifs_load_firmware(struct device *dev);
 int do_core_test(int cpu, struct device *dev);
 const struct attribute_group **ifs_get_groups(void);
+const struct attribute_group **ifs_get_array_groups(void);
 
 #endif
