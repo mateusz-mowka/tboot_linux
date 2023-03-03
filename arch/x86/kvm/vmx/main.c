@@ -1106,6 +1106,8 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 
 	.update_fw = vt_update_fw,
 	.match_fw = vt_match_fw,
+
+	.ioasid_bind = vmx_ioasid_bind,
 };
 
 struct kvm_x86_init_ops vt_init_ops __initdata = {

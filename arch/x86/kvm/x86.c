@@ -9645,6 +9645,9 @@ static int __kvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
 
 	if (!kvm_cpu_cap_has(X86_FEATURE_XSAVES))
 		kvm_caps.supported_xss = 0;
+        
+	if (!kvm_pasid_supported())
+                kvm_cpu_cap_clear(X86_FEATURE_ENQCMD);
 
 	if (!kvm_pasid_supported())
                 kvm_cpu_cap_clear(X86_FEATURE_ENQCMD);
