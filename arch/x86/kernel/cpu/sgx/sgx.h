@@ -28,12 +28,27 @@
 
 /* Pages on free list */
 #define SGX_EPC_PAGE_IS_FREE		BIT(1)
+/* VA page */
+#define SGX_EPC_PAGE_VA			BIT(2)
+/* Pages allocated for KVM guest */
+#define SGX_EPC_PAGE_KVM_GUEST		BIT(3)
+/*
+ * Pages, failed to be zapped (EREMOVED)
+ * by SGX CPUSVN update process.
+ */
+#define SGX_EPC_PAGE_ZAP_TRACKED	BIT(4)
+/*
+ * Pages, the associated enclave is being
+ * released while SGX CPUSVN update is
+ * running.
+ */
+#define SGX_EPC_PAGE_IN_RELEASE		BIT(5)
 
 struct sgx_epc_page {
 	unsigned int section;
 	u16 flags;
 	u16 poison;
-	struct sgx_encl_page *owner;
+	void *owner;
 	struct list_head list;
 };
 
@@ -59,6 +74,7 @@ struct sgx_epc_section {
 	void *virt_addr;
 	struct sgx_epc_page *pages;
 	struct sgx_numa_node *node;
+	u64 size;
 };
 
 extern struct sgx_epc_section sgx_epc_sections[SGX_MAX_EPC_SECTIONS];
@@ -103,5 +119,10 @@ static inline int __init sgx_vepc_init(void)
 #endif
 
 void sgx_update_lepubkeyhash(u64 *lepubkeyhash);
+
+extern struct srcu_struct sgx_lock_epc_srcu;
+bool sgx_epc_is_locked(void);
+void sgx_zap_wakeup(void);
+void sgx_zap_abort(void);
 
 #endif /* _X86_SGX_H */

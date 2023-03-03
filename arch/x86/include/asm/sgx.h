@@ -26,23 +26,26 @@
 #define SGX_CPUID_EPC_SECTION	0x1
 /* The bitmask for the EPC section type. */
 #define SGX_CPUID_EPC_MASK	GENMASK(3, 0)
+/* EUPDATESVN presence indication */
+#define SGX_CPUID_EUPDATESVN	BIT(10)
 
 enum sgx_encls_function {
-	ECREATE	= 0x00,
-	EADD	= 0x01,
-	EINIT	= 0x02,
-	EREMOVE	= 0x03,
-	EDGBRD	= 0x04,
-	EDGBWR	= 0x05,
-	EEXTEND	= 0x06,
-	ELDU	= 0x08,
-	EBLOCK	= 0x09,
-	EPA	= 0x0A,
-	EWB	= 0x0B,
-	ETRACK	= 0x0C,
-	EAUG	= 0x0D,
-	EMODPR	= 0x0E,
-	EMODT	= 0x0F,
+	ECREATE		= 0x00,
+	EADD		= 0x01,
+	EINIT		= 0x02,
+	EREMOVE		= 0x03,
+	EDGBRD		= 0x04,
+	EDGBWR		= 0x05,
+	EEXTEND		= 0x06,
+	ELDU		= 0x08,
+	EBLOCK		= 0x09,
+	EPA		= 0x0A,
+	EWB		= 0x0B,
+	ETRACK		= 0x0C,
+	EAUG		= 0x0D,
+	EMODPR		= 0x0E,
+	EMODT		= 0x0F,
+	EUPDATESVN	= 0x18,
 };
 
 /**
@@ -73,6 +76,11 @@ enum sgx_encls_function {
  *				public key does not match IA32_SGXLEPUBKEYHASH.
  * %SGX_PAGE_NOT_MODIFIABLE:	The EPC page cannot be modified because it
  *				is in the PENDING or MODIFIED state.
+ * %SGX_INSUFFICIENT_ENTROPY:	Insufficient entropy in RNG.
+ * %SGX_EPC_NOT_READY:		EPC is not ready for SVN update.
+ * %SGX_NO_UPDATE:		EUPDATESVN was successful, but CPUSVN was not
+ *				updated because current SVN was not newer than
+ *				CPUSVN.
  * %SGX_UNMASKED_EVENT:		An unmasked event, e.g. INTR, was received
  */
 enum sgx_return_code {
@@ -81,6 +89,9 @@ enum sgx_return_code {
 	SGX_CHILD_PRESENT		= 13,
 	SGX_INVALID_EINITTOKEN		= 16,
 	SGX_PAGE_NOT_MODIFIABLE		= 20,
+	SGX_INSUFFICIENT_ENTROPY	= 29,
+	SGX_EPC_NOT_READY		= 30,
+	SGX_NO_UPDATE			= 31,
 	SGX_UNMASKED_EVENT		= 128,
 };
 
@@ -409,6 +420,20 @@ struct sgx_sigstruct {
  * Do not put any hardware-defined SGX structure representations below this
  * comment!
  */
+struct sgx_kvm_notifier;
+
+struct sgx_kvm_notifier_ops {
+	void (*halt)(struct sgx_kvm_notifier *notifier);
+	void (*resume)(struct sgx_kvm_notifier *notifier);
+};
+
+struct sgx_kvm_notifier {
+	struct list_head list;
+	const struct sgx_kvm_notifier_ops *ops;
+};
+
+extern void sgx_kvm_notifier_register(struct sgx_kvm_notifier *notifier);
+extern void sgx_kvm_notifier_unregister(struct sgx_kvm_notifier *notifier);
 
 #ifdef CONFIG_X86_SGX_KVM
 int sgx_virt_ecreate(struct sgx_pageinfo *pageinfo, void __user *secs,
@@ -419,5 +444,17 @@ int sgx_virt_einit(void __user *sigstruct, void __user *token,
 
 int sgx_set_attribute(unsigned long *allowed_attributes,
 		      unsigned int attribute_fd);
+
+#ifdef CONFIG_X86_SGX
+extern void sgx_update_cpusvn_intel(void);
+void sgx_kvm_notifier_halt(void);
+void sgx_kvm_notifier_resume(void);
+extern bool sysfs_svnupdate_enabled(void);
+#else
+static inline void sgx_update_cpusvn_intel(void) {}
+static inline void sgx_kvm_notifier_halt(void) {}
+static inline void sgx_kvm_notifier_resume(void) {}
+static inline bool sysfs_svnupdate_enabled(void) { return false; }
+#endif
 
 #endif /* _ASM_X86_SGX_H */

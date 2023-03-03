@@ -60,6 +60,7 @@
 #include <asm/cpu_device_id.h>
 #include <asm/uv/uv.h>
 #include <asm/sigframe.h>
+#include <asm/sgx.h>
 #include <asm/traps.h>
 #include <asm/sev.h>
 
@@ -2312,6 +2313,19 @@ void microcode_check(void)
 	struct cpuinfo_x86 info;
 
 	perf_check_microcode();
+
+	/*
+	 * SGX attestation incorporates the microcode versions of all processors
+	 * on the system and is affected by microcode updates. So, update SGX
+	 * attestation metric (called CPUSVN) to ensure enclaves attest to the
+	 * new version after microcode update.
+	 *
+	 * If add "svnupdate" to kernel boot parameter, the CPUSVN update procedure
+	 * could only be called by writing to sysfs.
+	 */
+	if (!sysfs_svnupdate_enabled() && IS_ENABLED(CONFIG_X86_SGX) &&
+	    (cpuid_eax(SGX_CPUID) & SGX_CPUID_EUPDATESVN))
+		sgx_update_cpusvn_intel();
 
 	/* Reload CPUID max function as it might've changed. */
 	info.cpuid_level = cpuid_eax(0);

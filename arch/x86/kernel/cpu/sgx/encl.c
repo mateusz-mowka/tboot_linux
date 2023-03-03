@@ -415,6 +415,7 @@ static vm_fault_t sgx_vma_fault(struct vm_fault *vmf)
 	unsigned long phys_addr;
 	struct sgx_encl *encl;
 	vm_fault_t ret;
+	int srcu_idx;
 
 	encl = vma->vm_private_data;
 
@@ -437,11 +438,18 @@ static vm_fault_t sgx_vma_fault(struct vm_fault *vmf)
 	    (!xa_load(&encl->page_array, PFN_DOWN(addr))))
 		return sgx_encl_eaug_page(vma, encl, addr);
 
+	srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+	if (sgx_epc_is_locked()) {
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
+		return VM_FAULT_SIGBUS;
+	}
+
 	mutex_lock(&encl->lock);
 
 	entry = sgx_encl_load_page_in_vma(encl, addr, vma->vm_flags);
 	if (IS_ERR(entry)) {
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 
 		if (PTR_ERR(entry) == -EBUSY)
 			return VM_FAULT_NOPAGE;
@@ -454,12 +462,14 @@ static vm_fault_t sgx_vma_fault(struct vm_fault *vmf)
 	ret = vmf_insert_pfn(vma, addr, PFN_DOWN(phys_addr));
 	if (ret != VM_FAULT_NOPAGE) {
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 
 		return VM_FAULT_SIGBUS;
 	}
 
 	sgx_encl_test_and_clear_young(vma->vm_mm, entry);
 	mutex_unlock(&encl->lock);
+	srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 
 	return VM_FAULT_NOPAGE;
 }
@@ -612,6 +622,7 @@ static int sgx_vma_access(struct vm_area_struct *vma, unsigned long addr,
 	struct sgx_encl_page *entry = NULL;
 	char data[sizeof(unsigned long)];
 	unsigned long align;
+	int srcu_idx;
 	int offset;
 	int cnt;
 	int ret = 0;
@@ -628,6 +639,12 @@ static int sgx_vma_access(struct vm_area_struct *vma, unsigned long addr,
 		return -EFAULT;
 
 	for (i = 0; i < len; i += cnt) {
+		srcu_idx = srcu_read_lock(&sgx_lock_epc_srcu);
+		if (sgx_epc_is_locked()) {
+			ret = -EBUSY;
+			goto out;
+		}
+
 		entry = sgx_encl_reserve_page(encl, (addr + i) & PAGE_MASK,
 					      vma->vm_flags);
 		if (IS_ERR(entry)) {
@@ -655,6 +672,7 @@ static int sgx_vma_access(struct vm_area_struct *vma, unsigned long addr,
 
 out:
 		mutex_unlock(&encl->lock);
+		srcu_read_unlock(&sgx_lock_epc_srcu, srcu_idx);
 
 		if (ret)
 			break;
@@ -743,6 +761,12 @@ void sgx_encl_release(struct kref *ref)
 	/* Detect EPC page leak's. */
 	WARN_ON_ONCE(encl->secs_child_cnt);
 	WARN_ON_ONCE(encl->secs.epc_page);
+
+	/*
+	 * EPC pages were freed and EREMOVE was executed. Wake
+	 * up any zappers which were waiting for this.
+	 */
+	sgx_zap_wakeup();
 
 	kfree(encl);
 }
@@ -1210,6 +1234,7 @@ void sgx_zap_enclave_ptes(struct sgx_encl *encl, unsigned long addr)
 
 /**
  * sgx_alloc_va_page() - Allocate a Version Array (VA) page
+ * @va_page: struct sgx_va_page connected to this VA page
  * @reclaim: Reclaim EPC pages directly if none available. Enclave
  *           mutex should not be held if this is set.
  *
@@ -1219,12 +1244,13 @@ void sgx_zap_enclave_ptes(struct sgx_encl *encl, unsigned long addr)
  *   a VA page,
  *   -errno otherwise
  */
-struct sgx_epc_page *sgx_alloc_va_page(bool reclaim)
+struct sgx_epc_page *sgx_alloc_va_page(struct sgx_va_page *va_page,
+				       bool reclaim)
 {
 	struct sgx_epc_page *epc_page;
 	int ret;
 
-	epc_page = sgx_alloc_epc_page(NULL, reclaim);
+	epc_page = sgx_alloc_epc_page(va_page, reclaim);
 	if (IS_ERR(epc_page))
 		return ERR_CAST(epc_page);
 
@@ -1234,6 +1260,8 @@ struct sgx_epc_page *sgx_alloc_va_page(bool reclaim)
 		sgx_encl_free_epc_page(epc_page);
 		return ERR_PTR(-EFAULT);
 	}
+
+	epc_page->flags |= SGX_EPC_PAGE_VA;
 
 	return epc_page;
 }
@@ -1296,8 +1324,14 @@ void sgx_encl_free_epc_page(struct sgx_epc_page *page)
 	WARN_ON_ONCE(page->flags & SGX_EPC_PAGE_RECLAIMER_TRACKED);
 
 	ret = __eremove(sgx_get_epc_virt_addr(page));
-	if (WARN_ONCE(ret, EREMOVE_ERROR_MESSAGE, ret, ret))
+	if (WARN_ONCE(ret, EREMOVE_ERROR_MESSAGE, ret, ret)) {
+		/*
+		 * The EREMOVE failed. If a CPUSVN is in progress,
+		 * it is now expected to fail. Notify it.
+		 */
+		sgx_zap_abort();
 		return;
+	}
 
 	sgx_free_epc_page(page);
 }

@@ -36,6 +36,7 @@
 #include <asm/kvm_page_track.h>
 #include <asm/kvm_vcpu_regs.h>
 #include <asm/hyperv-tlfs.h>
+#include <asm/sgx.h>
 
 #define __KVM_HAVE_ARCH_VCPU_DEBUGFS
 #define __KVM_HAVE_ARCH_SET_MEMORY_ATTRIBUTES
@@ -115,6 +116,9 @@
 #define KVM_REQ_HV_TLB_FLUSH \
 	KVM_ARCH_REQ_FLAGS(32, KVM_REQUEST_WAIT | KVM_REQUEST_NO_WAKEUP)
 #define KVM_REQ_MEMORY_MCE		KVM_ARCH_REQ(33)
+
+#define KVM_REQ_SLEEP \
+	KVM_ARCH_REQ_FLAGS(34, KVM_REQUEST_WAIT | KVM_REQUEST_NO_WAKEUP)
 
 #define CR0_RESERVED_BITS                                               \
 	(~(unsigned long)(X86_CR0_PE | X86_CR0_MP | X86_CR0_EM | X86_CR0_TS \
@@ -1061,6 +1065,8 @@ struct kvm_vcpu_arch {
 #if IS_ENABLED(CONFIG_HYPERV)
 	hpa_t hv_root_tdp;
 #endif
+
+	bool pause;
 };
 
 /*
@@ -1401,6 +1407,10 @@ struct kvm_arch {
 
 	/* Guest can access the SGX PROVISIONKEY. */
 	bool sgx_provisioning_allowed;
+#ifdef CONFIG_X86_SGX_KVM
+	struct sgx_kvm_notifier sgx_notifier;
+	struct mutex sgx_notifier_lock;
+#endif
 
 	struct kvm_pmu_event_filter __rcu *pmu_event_filter;
 	struct task_struct *nx_huge_page_recovery_thread;
@@ -2292,6 +2302,8 @@ static inline int kvm_cpu_get_apicid(int mps_cpu)
 	return BAD_APICID;
 #endif
 }
+
+extern int kvm_set_guest_paused(struct kvm_vcpu *vcpu);
 
 int memslot_rmap_alloc(struct kvm_memory_slot *slot, unsigned long npages);
 
