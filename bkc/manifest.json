@@ -1,0 +1,759 @@
+{
+    "metadata": {
+        "kernel_cycle": "v6.2",
+        "jira_epic": "NEXT-3177"
+    },
+    "master_branch": {
+        "branch": "master",
+        "contributor": [],
+        "enabled": true,
+        "name": "Linus Upstream",
+        "repourl": "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git",
+        "status": "public",
+        "stuck_at_ref": "",
+        "use_latest_tag": true,
+        "tag": "v6.2",
+        "rev": "c9c3395d5e3dcc6daee66c6908354d47bf98cb0c"
+    },
+    "topic_branches": [
+        {
+            "branch": "intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_KVM_INTEL_TDX_SEAM_BACKDOOR",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_TDX_HOST",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Isaku Yamahata",
+                    "email": "isaku.yamahata@intel.com"
+                }
+            ],
+            "description": "TDX KVM support",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Isaku Yamahata",
+                    "email": "isaku.yamahata@intel.com"
+                }
+            ],
+            "jira": "NEXT-3206",
+            "name": "tdx_kvm_support",
+            "repourl": "https://github.com/intel-innersource/virtualization.hypervisors.tdx.linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Isaku Yamahata",
+                    "email": "isaku.yamahata@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "8605954d580914c8f845d1adf14a127356121acc"
+        },
+        {
+            "branch": "guest-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_INTEL_TDX_GUEST",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Sathyanarayanan Kuppuswamy",
+                    "email": "sathyanarayanan.kuppuswamy@linux.intel.com"
+                }
+            ],
+            "description": "TDX Guest support",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Prajwal Karur Mohan",
+                    "email": "prajwal.karur.mohan@intel.com"
+                }
+            ],
+            "jira": "NEXT-3208",
+            "name": "tdx_guest",
+            "repourl": "https://github.com/intel/tdx.git",
+            "sdl_contact": [
+                {
+                    "name": "Prajwal Karur Mohan",
+                    "email": "prajwal.karur.mohan@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "a9fe7e5b76f30be16e10d52a91a7a4328bb2d085"
+        },
+        {
+            "branch": "v6.2-rc4-kvm-arch-lbr-cet-rebase",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Weijiang Yang",
+                    "email": "weijiang.yang@intel.com"
+                }
+            ],
+            "description": "KVM: Arch LBR and CET features",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Weijiang Yang",
+                    "email": "weijiang.yang@intel.com"
+                }
+            ],
+            "jira": "NEXT-3220",
+            "name": "kvm_arch_lbr_cet",
+            "repourl": "https://github.com/intel-sandbox/weijiang.linux.kvm.git",
+            "sdl_contact": [
+                {
+                    "name": "Weijiang Yang",
+                    "email": "weijiang.yang@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "ffd36634a712a8ae5365bb6a6fb9dfb31f349bd4"
+        },
+        {
+            "branch": "dev-v6.2-rc3-sgxseamless",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_X86_SGX",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_X86_SGX_KVM",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_MICROCODE_LATE_LOADING",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Qian Wen",
+                    "email": "qian.wen@linux.intel.com"
+                }
+            ],
+            "description": "SGX bootless support",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Jun Nakajima",
+                    "email": "jun.nakajima@intel.com"
+                }
+            ],
+            "jira": "NEXT-3225",
+            "name": "microcode_sgx",
+            "repourl": "https://github.com/wenqian77/os.linux.intelnext.kernel.git",
+            "sdl_contact": [
+                {
+                    "name": "Cathy Zhang",
+                    "email": "cathy.zhang@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "856c08458ea30f3ebbebfa1b12f418f317c4945a"
+        },
+        {
+            "branch": "perf-intel-next",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Kan Liang",
+                    "email": "kan.liang@intel.com"
+                }
+            ],
+            "description": "This pull request introduces the Linux perf PMU support for PMU core and uncore support on MTL, LNL, ARL, EMR, GNR, GRR, SRF. It also has fixes for the SPR uncore support, IOMMU PerfMon and MSRL.",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Beeman Strong",
+                    "email": "beeman.strong@intel.com"
+                },
+                {
+                    "name": "Ahmad Yasin",
+                    "email": "ahmad.yasin@intel.com"
+                },
+                {
+                    "name": "Jeremiah D. Williamson",
+                    "email": "jeremiah.d.williamson@intel.com"
+                }
+            ],
+            "jira": "NEXT-3216",
+            "name": "perf",
+            "repourl": "https://github.com/intel-innersource/os.linux.perf.intel-next.git",
+            "sdl_contact": [
+                {
+                    "name": "Andi Kleen",
+                    "email": "andi.kleen@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "07899f84aa176dc25ee6111f46c1b476bd89a5e0"
+        },
+        {
+            "branch": "user_shstk_on_v6.2-rc4",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_X86_USER_SHADOW_STACK",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Rick Edgecombe",
+                    "email": "rick.p.edgecombe@intel.com"
+                }
+            ],
+            "description": "Shadow stack feature",
+            "enabled": true,
+            "ip_owner": [],
+            "jira": "NEXT-3232",
+            "name": "shadow_stacks",
+            "repourl": "https://github.com/intel-sandbox/rpedgeco.linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Rick Edgecombe",
+                    "email": "rick.p.edgecombe@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "957d335ebd0672a1a921d85584c353b40919e0d4"
+        },
+        {
+            "branch": "prm_v6.2_for_intel_next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_ACPI_DEBUGGER",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_ACPI_DEBUGGER_USER",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Aubrey Li",
+                    "email": "aubrey.li@intel.com"
+                }
+            ],
+            "description": "PRM runtime update support for Intel PRM-capable platform",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Sinha, Ankit",
+                    "email": "ankit.sinha@intel.com"
+                }
+            ],
+            "jira": "NEXT-3251",
+            "name": "prm_linux_support",
+            "repourl": "https://github.com/intel-sandbox/aubrey-linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Li, Aubrey",
+                    "email": "aubrey.li@intel.com"
+                },
+                {
+                    "name": "Williams, Dan J",
+                    "email": "dan.j.williams@intel.com"
+                },
+                {
+                    "name": "Raj, Ashok",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "a4157e8e6d107606e54ea5e7732357229ad4a1b7"
+        },
+        {
+            "branch": "edac-for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_ACPI_ADXL",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_EDAC_DEBUG",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_EDAC_SKX",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_EDAC_I10NM",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_EDAC_IGEN6",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_EDAC_IEH",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_PCIEPORTBUS",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_PCIEAER",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_PCIE_PME",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_PCIEAER_INJECT",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_ACPI_APEI_PCIEAER",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_ACPI_APEI_EINJ",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Qiuxu Zhou",
+                    "email": "qiuxu.zhuo@intel.com"
+                }
+            ],
+            "description": "EDAC for SPR and IEH for TGL",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Ahmad, Annie",
+                    "email": "quarat-ul-ann.ahmad@intel.com"
+                },
+                {
+                    "name": "Revuelta, Julian J",
+                    "email": "julian.j.revuelta@intel.com"
+                },
+                {
+                    "name": "Radjai, Amir",
+                    "email": "amir.radjai@intel.com"
+                },
+                {
+                    "name": "Levy, Tomer",
+                    "email": "tomer.levy@intel.com"
+                }
+            ],
+            "jira": "NEXT-3204",
+            "name": "edac",
+            "repourl": "https://github.com/intel-sandbox/qzhuo-linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Tony Luck",
+                    "email": "tony.luck@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "22ade685d705a20dcb7a5e01fda58109c1c951d6"
+        },
+        {
+            "branch": "tpmi_intel_next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_INTEL_VSEC",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_TPMI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_TPMI_PEM",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_SPEED_SELECT_TPMI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_UNCORE_FREQ_CONTROL_TPMI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_PMT_TELEMETRY",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_SPEED_SELECT_INTERFACE",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_UNCORE_FREQ_CONTROL",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_PMT_CLASS",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_RAPL_TPMI",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_TPMI_POWER_DOMAINS",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Srinivas Pandruvada",
+                    "email": "srinivas.pandruvada@intel.com"
+                }
+            ],
+            "description": "Intel TPMI MFD driver",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Chen, Stanley",
+                    "email": "stanley.chen@intel.com"
+                }
+            ],
+            "jira": "NEXT-3200",
+            "name": "tpmi",
+            "repourl": "https://github.com/intel-sandbox/spandruv.linux.git",
+            "sdl_contact": [
+                {
+                    "name": "Charles Prestopine",
+                    "email": "charles.d.prestopine@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "da3fb854602ea0aafe3b56fdbcbbe44a5fb5493d"
+        },
+        {
+            "branch": "for-intel-next",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_INTEL_TDX_MODULE_UPDATE",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Chenyi Qiang",
+                    "email": "chenyi.qiang@intel.com"
+                },
+                {
+                    "name": "Wei Wang",
+                    "email": "wei.w.wang@intel.com"
+                },
+                {
+                    "name": "Gao Chao",
+                    "email": "chao.gao@intel.com"
+                }
+            ],
+            "description": "Adds the KVM support for TDX 1.5 features including TD preserving and TD live migration.",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Caspi Dror",
+                    "email": "dror.caspi@intel.com"
+                }
+            ],
+            "jira": "NEXT-3254",
+            "name": "kvm_tdx_1_5",
+            "repourl": "https://github.com/intel-sandbox/cqiang-tdx-kvm.git",
+            "sdl_contact": [
+                {
+                    "name": "Chenyi Qiang",
+                    "email": "chenyi.qiang@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "5a8f46b1acadaf31b5aa9f8e19e2aa857a5f97a4"
+        },
+        {
+            "branch": "fyu/idxd.vdev.6.2",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_VFIO_DEVICE_IDXD",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_IOMMUFD",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_IMS_MSI",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_IMS_MSI_ARRAY",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_IOMMUFD_TEST",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_FAULT_INJECTION",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_VFIO_CONTAINER",
+                    "value": "n"
+                },
+                {
+                    "name": "CONFIG_IOMMUFD_VFIO_CONTAINER",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Fenghua Yu",
+                    "email": "fenghua.yu@intel.com"
+                },
+                {
+                    "name": "Yi Sun",
+                    "email": "yi.sun@intel.com"
+                },
+                {
+                    "name": "Jacob Pan",
+                    "email": "jacob.jun.pan@intel.com"
+                }
+            ],
+            "description": "SIOV/VFIO/PASID/IDXD enabling",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Chao Peng",
+                    "email": "chao.p.peng@intel.com"
+                }
+            ],
+            "jira": "NEXT-3258",
+            "name": "siov_vfio_iommufd_pasid_idxd",
+            "repourl": "https://github.com/intel-sandbox/idxd",
+            "sdl_contact": [
+                {
+                    "name": "Chao Peng",
+                    "email": "chao.p.peng@intel.com"
+                }
+            ],
+            "status": "public",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "d251c71565f884d7d0a7c1a4d06b2ffc20734c96"
+        },
+        {
+            "branch": "siov_vfio_iommufd_pasid_idxd_fixup",
+            "branch_type": "expiring",
+            "config_options": [],
+            "contributor": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "description": "SIOV/VFIO/PASID/IDXD enabling fixup for tdx_kvm",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "jira": "NEXT-3261",
+            "name": "siov_vfio_iommufd_pasid_idxd_fixup",
+            "repourl": "https://github.com/intel-sandbox/otc_power_kernel",
+            "sdl_contact": [
+                {
+                    "name": "Kyle Pelton",
+                    "email": "kyle.d.pelton@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "cecf55707fea2cbad665af907ca62ca908e1ee65"
+        },
+        {
+            "branch": "dlb2-for-intel-next-v6.2-rc7",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_INTEL_DLB2",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_DLB2_DATAPATH",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_INTEL_DLB2_SIOV",
+                    "value": "n"
+                },
+                {
+                    "name": "CONFIG_INTEL_IOMMU",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_VFIO",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_VFIO_MDEV",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_VFIO_MDEV_DEVICE",
+                    "value": "y"
+                },
+                {
+                    "name": "CONFIG_PCI_IOV",
+                    "value": "y"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Mike Ximing Chen",
+                    "email": "mike.ximing.chen@intel.com"
+                }
+            ],
+            "description": "The dlb2 driver is a kernel module that supports configuration and use of the DLB 2.0 device",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Niall Mcdonnell",
+                    "email": "niall.mcdonnell@intel.com"
+                }
+            ],
+            "jira": "NEXT-3264",
+            "name": "dlb2",
+            "repourl": "https://github.com/intel-innersource/drivers.scheduling.dynamic-load-balancer.upstreamed-dlb-linux-driver.git",
+            "sdl_contact": [
+                {
+                    "name": "Randy Carpenter",
+                    "email": "randy.b.carpenter@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "5c055b70c7f6a001dd98b760d506ab0483b6d97d"
+        },
+        {
+            "branch": "for_intel_nxt_v6.2",
+            "branch_type": "expiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_INTEL_IFS",
+                    "value": "m"
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Jithu Joseph",
+                    "email": "jithu.joseph@intel.com"
+                }
+            ],
+            "description": "Enable In Field Scan device driver",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Philip Abraham",
+                    "email": "philip.abraham@intel.com"
+                }
+            ],
+            "jira": "NEXT-3211",
+            "name": "In Field Scan",
+            "repourl": "https://github.com/intel-sandbox/drivers.saf.git",
+            "sdl_contact": [
+                {
+                    "name": "Ashok Raj",
+                    "email": "ashok.raj@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "b1f03d65f3a9943136fa4b43a008d0d43d613ec5"
+        },
+        {
+            "branch": "for-intel-next",
+            "branch_type": "internal nonexpiring",
+            "config_options": [
+                {
+                    "name": "CONFIG_INTEL_RAPL",
+                    "value": "m"
+                },
+                {
+                    "name": "CONFIG_INTEL_TCC_COOLING",
+                    "value": "m "
+                }
+            ],
+            "contributor": [
+                {
+                    "name": "Rui Zhang",
+                    "email": "rui.zhang@intel.com"
+                }
+            ],
+            "description": "intel_rapl/intel_idle/thermal/turbostat support for AlderLake/RaptorLake/MeteorLake and GNR",
+            "enabled": true,
+            "ip_owner": [
+                {
+                    "name": "Evelyn Fields",
+                    "email": "evelyn.fields@intel.com"
+                }
+            ],
+            "jira": "NEXT-3186",
+            "name": "rapl/idle",
+            "repourl": "https://github.com/intel-sandbox/rzhang1.git",
+            "sdl_contact": [
+                {
+                    "name": "Charles D Prestopine",
+                    "email": "charles.d.prestopine@intel.com"
+                }
+            ],
+            "status": "intel confidential",
+            "stuck_at_ref": "",
+            "last_enabled": "v6.2",
+            "rev": "d857942d5a89483d53bc092a8d4dcf090aef5d2e"
+        }
+    ]
+}

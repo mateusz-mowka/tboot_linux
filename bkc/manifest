@@ -1,0 +1,220 @@
+#Linux upstream
+https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git v6.2 master c9c3395d5e3dcc6daee66c6908354d47bf98cb0c
+
+#Topic Branch: tdx_kvm_support
+#Classification: public
+#Description: TDX KVM support
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3206
+#Contributor: Isaku Yamahata <isaku.yamahata@intel.com>
+#Branch Type: expiring
+#Ip Owner: Isaku Yamahata <isaku.yamahata@intel.com>
+#SDL Contact: Isaku Yamahata <isaku.yamahata@intel.com>
+#Config Options:
+#	CONFIG_KVM_INTEL_TDX_SEAM_BACKDOOR=y
+#	CONFIG_INTEL_TDX_HOST=y
+https://github.com/intel-innersource/virtualization.hypervisors.tdx.linux.git intel-next 8605954d580914c8f845d1adf14a127356121acc
+
+#Topic Branch: tdx_guest
+#Classification: public
+#Description: TDX Guest support
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3208
+#Contributor: Sathyanarayanan Kuppuswamy <sathyanarayanan.kuppuswamy@linux.intel.com>
+#Branch Type: expiring
+#Ip Owner: Prajwal Karur Mohan <prajwal.karur.mohan@intel.com>
+#SDL Contact: Prajwal Karur Mohan <prajwal.karur.mohan@intel.com>
+#Config Options:
+#	CONFIG_INTEL_TDX_GUEST=y
+https://github.com/intel/tdx.git guest-next a9fe7e5b76f30be16e10d52a91a7a4328bb2d085
+
+#Topic Branch: kvm_arch_lbr_cet
+#Classification: public
+#Description: KVM: Arch LBR and CET features
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3220
+#Contributor: Weijiang Yang <weijiang.yang@intel.com>
+#Branch Type: expiring
+#Ip Owner: Weijiang Yang <weijiang.yang@intel.com>
+#SDL Contact: Weijiang Yang <weijiang.yang@intel.com>
+#Config Options: N/A
+https://github.com/intel-sandbox/weijiang.linux.kvm.git v6.2-rc4-kvm-arch-lbr-cet-rebase ffd36634a712a8ae5365bb6a6fb9dfb31f349bd4
+
+#Topic Branch: microcode_sgx
+#Classification: intel confidential
+#Description: SGX bootless support
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3225
+#Contributor: Qian Wen <qian.wen@linux.intel.com>
+#Branch Type: expiring
+#Ip Owner: Jun Nakajima <jun.nakajima@intel.com>
+#SDL Contact: Cathy Zhang <cathy.zhang@intel.com>
+#Config Options:
+#	CONFIG_X86_SGX=y
+#	CONFIG_X86_SGX_KVM=y
+#	CONFIG_MICROCODE_LATE_LOADING=y
+https://github.com/wenqian77/os.linux.intelnext.kernel.git dev-v6.2-rc3-sgxseamless 856c08458ea30f3ebbebfa1b12f418f317c4945a
+
+#Topic Branch: perf
+#Classification: intel confidential
+#Description: This pull request introduces the Linux perf PMU support for PMU core and uncore support on MTL, LNL, ARL, EMR, GNR, GRR, SRF. It also has fixes for the SPR uncore support, IOMMU PerfMon and MSRL.
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3216
+#Contributor: Kan Liang <kan.liang@intel.com>
+#Branch Type: expiring
+#Ip Owner: Beeman Strong <beeman.strong@intel.com>, Ahmad Yasin <ahmad.yasin@intel.com>, Jeremiah D. Williamson <jeremiah.d.williamson@intel.com>
+#SDL Contact: Andi Kleen <andi.kleen@intel.com>
+#Config Options: N/A
+https://github.com/intel-innersource/os.linux.perf.intel-next.git perf-intel-next 07899f84aa176dc25ee6111f46c1b476bd89a5e0
+
+#Topic Branch: shadow_stacks
+#Classification: public
+#Description: Shadow stack feature
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3232
+#Contributor: Rick Edgecombe <rick.p.edgecombe@intel.com>
+#Branch Type: expiring
+#Ip Owner: 
+#SDL Contact: Rick Edgecombe <rick.p.edgecombe@intel.com>
+#Config Options:
+#	CONFIG_X86_USER_SHADOW_STACK=y
+https://github.com/intel-sandbox/rpedgeco.linux.git user_shstk_on_v6.2-rc4 957d335ebd0672a1a921d85584c353b40919e0d4
+
+#Topic Branch: prm_linux_support
+#Classification: intel confidential
+#Description: PRM runtime update support for Intel PRM-capable platform
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3251
+#Contributor: Aubrey Li <aubrey.li@intel.com>
+#Branch Type: expiring
+#Ip Owner: Sinha, Ankit <ankit.sinha@intel.com>
+#SDL Contact: Li, Aubrey <aubrey.li@intel.com>, Williams, Dan J <dan.j.williams@intel.com>, Raj, Ashok <ashok.raj@intel.com>
+#Config Options:
+#	CONFIG_ACPI_DEBUGGER=y
+#	CONFIG_ACPI_DEBUGGER_USER=m
+https://github.com/intel-sandbox/aubrey-linux.git prm_v6.2_for_intel_next a4157e8e6d107606e54ea5e7732357229ad4a1b7
+
+#Topic Branch: edac
+#Classification: intel confidential
+#Description: EDAC for SPR and IEH for TGL
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3204
+#Contributor: Qiuxu Zhou <qiuxu.zhuo@intel.com>
+#Branch Type: expiring
+#Ip Owner: Ahmad, Annie <quarat-ul-ann.ahmad@intel.com>, Revuelta, Julian J <julian.j.revuelta@intel.com>, Radjai, Amir <amir.radjai@intel.com>, Levy, Tomer <tomer.levy@intel.com>
+#SDL Contact: Tony Luck <tony.luck@intel.com>
+#Config Options:
+#	CONFIG_ACPI_ADXL=y
+#	CONFIG_EDAC_DEBUG=y
+#	CONFIG_EDAC_SKX=m
+#	CONFIG_EDAC_I10NM=m
+#	CONFIG_EDAC_IGEN6=m
+#	CONFIG_EDAC_IEH=m
+#	CONFIG_PCIEPORTBUS=y
+#	CONFIG_PCIEAER=y
+#	CONFIG_PCIE_PME=y
+#	CONFIG_PCIEAER_INJECT=m
+#	CONFIG_ACPI_APEI_PCIEAER=y
+#	CONFIG_ACPI_APEI_EINJ=m
+https://github.com/intel-sandbox/qzhuo-linux.git edac-for-intel-next 22ade685d705a20dcb7a5e01fda58109c1c951d6
+
+#Topic Branch: tpmi
+#Classification: intel confidential
+#Description: Intel TPMI MFD driver
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3200
+#Contributor: Srinivas Pandruvada <srinivas.pandruvada@intel.com>
+#Branch Type: expiring
+#Ip Owner: Chen, Stanley <stanley.chen@intel.com>
+#SDL Contact: Charles Prestopine <charles.d.prestopine@intel.com>
+#Config Options:
+#	CONFIG_INTEL_VSEC=m
+#	CONFIG_INTEL_TPMI=m
+#	CONFIG_INTEL_TPMI_PEM=m
+#	CONFIG_INTEL_SPEED_SELECT_TPMI=m
+#	CONFIG_INTEL_UNCORE_FREQ_CONTROL_TPMI=m
+#	CONFIG_INTEL_PMT_TELEMETRY=m
+#	CONFIG_INTEL_SPEED_SELECT_INTERFACE=m
+#	CONFIG_INTEL_UNCORE_FREQ_CONTROL=m
+#	CONFIG_INTEL_PMT_CLASS=m
+#	CONFIG_INTEL_RAPL_TPMI=m
+#	CONFIG_INTEL_TPMI_POWER_DOMAINS=m
+https://github.com/intel-sandbox/spandruv.linux.git tpmi_intel_next da3fb854602ea0aafe3b56fdbcbbe44a5fb5493d
+
+#Topic Branch: kvm_tdx_1_5
+#Classification: intel confidential
+#Description: Adds the KVM support for TDX 1.5 features including TD preserving and TD live migration.
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3254
+#Contributor: Chenyi Qiang <chenyi.qiang@intel.com>, Wei Wang <wei.w.wang@intel.com>, Gao Chao <chao.gao@intel.com>
+#Branch Type: expiring
+#Ip Owner: Caspi Dror <dror.caspi@intel.com>
+#SDL Contact: Chenyi Qiang <chenyi.qiang@intel.com>
+#Config Options:
+#	CONFIG_INTEL_TDX_MODULE_UPDATE=y
+https://github.com/intel-sandbox/cqiang-tdx-kvm.git for-intel-next 5a8f46b1acadaf31b5aa9f8e19e2aa857a5f97a4
+
+#Topic Branch: siov_vfio_iommufd_pasid_idxd
+#Classification: public
+#Description: SIOV/VFIO/PASID/IDXD enabling
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3258
+#Contributor: Fenghua Yu <fenghua.yu@intel.com>, Yi Sun <yi.sun@intel.com>, Jacob Pan <jacob.jun.pan@intel.com>
+#Branch Type: expiring
+#Ip Owner: Chao Peng <chao.p.peng@intel.com>
+#SDL Contact: Chao Peng <chao.p.peng@intel.com>
+#Config Options:
+#	CONFIG_VFIO_DEVICE_IDXD=m
+#	CONFIG_IOMMUFD=y
+#	CONFIG_IMS_MSI=y
+#	CONFIG_IMS_MSI_ARRAY=y
+#	CONFIG_IOMMUFD_TEST=y
+#	CONFIG_FAULT_INJECTION=y
+#	CONFIG_VFIO_CONTAINER=n
+#	CONFIG_IOMMUFD_VFIO_CONTAINER=y
+https://github.com/intel-sandbox/idxd fyu/idxd.vdev.6.2 d251c71565f884d7d0a7c1a4d06b2ffc20734c96
+
+#Topic Branch: siov_vfio_iommufd_pasid_idxd_fixup
+#Classification: intel confidential
+#Description: SIOV/VFIO/PASID/IDXD enabling fixup for tdx_kvm
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3261
+#Contributor: Kyle Pelton <kyle.d.pelton@intel.com>
+#Branch Type: expiring
+#Ip Owner: Kyle Pelton <kyle.d.pelton@intel.com>
+#SDL Contact: Kyle Pelton <kyle.d.pelton@intel.com>
+#Config Options: N/A
+https://github.com/intel-sandbox/otc_power_kernel siov_vfio_iommufd_pasid_idxd_fixup cecf55707fea2cbad665af907ca62ca908e1ee65
+
+#Topic Branch: dlb2
+#Classification: intel confidential
+#Description: The dlb2 driver is a kernel module that supports configuration and use of the DLB 2.0 device
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3264
+#Contributor: Mike Ximing Chen <mike.ximing.chen@intel.com>
+#Branch Type: expiring
+#Ip Owner: Niall Mcdonnell <niall.mcdonnell@intel.com>
+#SDL Contact: Randy Carpenter <randy.b.carpenter@intel.com>
+#Config Options:
+#	CONFIG_INTEL_DLB2=m
+#	CONFIG_INTEL_DLB2_DATAPATH=y
+#	CONFIG_INTEL_DLB2_SIOV=n
+#	CONFIG_INTEL_IOMMU=y
+#	CONFIG_VFIO=y
+#	CONFIG_VFIO_MDEV=y
+#	CONFIG_VFIO_MDEV_DEVICE=y
+#	CONFIG_PCI_IOV=y
+https://github.com/intel-innersource/drivers.scheduling.dynamic-load-balancer.upstreamed-dlb-linux-driver.git dlb2-for-intel-next-v6.2-rc7 5c055b70c7f6a001dd98b760d506ab0483b6d97d
+
+#Topic Branch: In Field Scan
+#Classification: intel confidential
+#Description: Enable In Field Scan device driver
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3211
+#Contributor: Jithu Joseph <jithu.joseph@intel.com>
+#Branch Type: expiring
+#Ip Owner: Philip Abraham <philip.abraham@intel.com>
+#SDL Contact: Ashok Raj <ashok.raj@intel.com>
+#Config Options:
+#	CONFIG_INTEL_IFS=m
+https://github.com/intel-sandbox/drivers.saf.git for_intel_nxt_v6.2 b1f03d65f3a9943136fa4b43a008d0d43d613ec5
+
+#Topic Branch: rapl/idle
+#Classification: intel confidential
+#Description: intel_rapl/intel_idle/thermal/turbostat support for AlderLake/RaptorLake/MeteorLake and GNR
+#Jira: https://jira.devtools.intel.com/browse/NEXT-3186
+#Contributor: Rui Zhang <rui.zhang@intel.com>
+#Branch Type: internal nonexpiring
+#Ip Owner: Evelyn Fields <evelyn.fields@intel.com>
+#SDL Contact: Charles D Prestopine <charles.d.prestopine@intel.com>
+#Config Options:
+#	CONFIG_INTEL_RAPL=m
+#	CONFIG_INTEL_TCC_COOLING=m 
+https://github.com/intel-sandbox/rzhang1.git for-intel-next d857942d5a89483d53bc092a8d4dcf090aef5d2e
+
