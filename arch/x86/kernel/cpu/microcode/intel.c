@@ -373,6 +373,16 @@ static inline void print_ucode(struct ucode_cpu_info *uci)
 }
 #endif
 
+static noinline void prof_native_wrmsr(unsigned long bits)
+{
+	native_wrmsrl(MSR_IA32_UCODE_WRITE, bits);
+}
+
+static noinline void prof_wrmsrl(unsigned long bits)
+{
+	wrmsrl(MSR_IA32_UCODE_WRITE, bits);
+}
+
 static int apply_microcode_early(struct ucode_cpu_info *uci, bool early)
 {
 	struct microcode_intel *mc;
@@ -400,7 +410,7 @@ static int apply_microcode_early(struct ucode_cpu_info *uci, bool early)
 	native_wbinvd();
 
 	/* write microcode via MSR 0x79 */
-	native_wrmsrl(MSR_IA32_UCODE_WRITE, (unsigned long)mc->bits);
+	prof_native_wrmsr((unsigned long)mc->bits);
 
 	rev = intel_get_microcode_revision();
 	if (rev != mc->hdr.rev)
@@ -611,7 +621,7 @@ static enum ucode_state apply_microcode_intel(int cpu)
 	native_wbinvd();
 
 	/* write microcode via MSR 0x79 */
-	wrmsrl(MSR_IA32_UCODE_WRITE, (unsigned long)mc->bits);
+	prof_wrmsrl((unsigned long)mc->bits);
 
 	rev = intel_get_microcode_revision();
 
