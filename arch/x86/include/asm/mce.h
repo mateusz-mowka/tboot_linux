@@ -71,6 +71,19 @@
  */
 #define MCACOD		  0xefff     /* MCA Error Code */
 
+/*
+ * The cache hierachy compound error code encoding in MCACOD
+ * is:
+ *	000F 0001 RRRR TT LL
+ * where RRRR is the type of action (read/write/fetch) TT is
+ * the transaction type (instruction/data) and LL is the cache
+ * level (counting from zero).
+ * The software recoverable action required (SRAR) codes
+ * apply to both cache level 0 and cache level 1 reported
+ * errors. This define masks out the low LL bit.
+ */
+#define MCACOD_AR	0xeffe
+
 /* Architecturally defined codes from SDM Vol. 3B Chapter 15 */
 #define MCACOD_SCRUB	0x00C0	/* 0xC0-0xCF Memory Scrubbing */
 #define MCACOD_SCRUBMSK	0xeff0	/* Skip bit 12 ('F' bit) */
