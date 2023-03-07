@@ -1,6 +1,10 @@
 INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 ------------------------------------------------------------------------
 
+SRF PO bkc-v1.1
+===============
+1. Add TDX 1.5 feature support.
+
 SRF PO bkc-v1.0
 ===============
 1. Add KVM MSRLIST CPUID enabling support.
