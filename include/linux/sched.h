@@ -1491,7 +1491,8 @@ struct task_struct {
 	u64				mce_addr;
 	__u64				mce_ripv : 1,
 					mce_whole_page : 1,
-					__mce_reserved : 62;
+					mce_addr_is_virtual : 1,
+					__mce_reserved : 61;
 	struct callback_head		mce_kill_me;
 	int				mce_count;
 #endif

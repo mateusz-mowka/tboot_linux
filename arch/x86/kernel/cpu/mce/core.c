@@ -494,6 +494,22 @@ int mce_usable_address(struct mce *m)
 }
 EXPORT_SYMBOL_GPL(mce_usable_address);
 
+static int mce_addr_is_virtual(struct mce *m)
+{
+	if (!(m->status & MCI_STATUS_ADDRV))
+		return 0;
+
+	/* Checks after this one are Intel/Zhaoxin-specific: */
+	if (boot_cpu_data.x86_vendor != X86_VENDOR_INTEL &&
+	    boot_cpu_data.x86_vendor != X86_VENDOR_ZHAOXIN)
+		return 0;
+
+	if (!(m->status & MCI_STATUS_MISCV))
+		return 0;
+
+	return MCI_MISC_ADDR_MODE(m->misc) == MCI_MISC_ADDR_LINEAR;
+}
+
 bool mce_is_memory_error(struct mce *m)
 {
 	switch (m->cpuvendor) {
@@ -1360,6 +1376,7 @@ static void queue_task_work(struct mce *m, char *msg, void (*func)(struct callba
 	/* First call, save all the details */
 	if (count == 1) {
 		current->mce_addr = m->addr & MCI_ADDR_PHYSADDR;
+		current->mce_addr_is_virtual = mce_addr_is_virtual(m);
 		current->mce_ripv = !!(m->mcgstatus & MCG_STATUS_RIPV);
 		current->mce_whole_page = whole_page(m);
 		current->mce_kill_me.func = func;
