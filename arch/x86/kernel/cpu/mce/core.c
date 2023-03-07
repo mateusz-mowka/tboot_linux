@@ -1326,6 +1326,20 @@ static void kill_me_now(struct callback_head *ch)
 	force_sig(SIGBUS);
 }
 
+static int get_phys_pfn(unsigned long addr, unsigned long *pfn)
+{
+	struct page *page;
+	int ret;
+
+	ret = get_user_pages_fast(addr, 1, 0, &page);
+	if (ret != 1)
+		return ret;
+	*pfn = page_to_pfn(page);
+	put_page(page);
+
+	return 0;
+}
+
 static void kill_me_maybe(struct callback_head *cb)
 {
 	struct task_struct *p = container_of(cb, struct task_struct, mce_kill_me);
@@ -1337,6 +1351,13 @@ static void kill_me_maybe(struct callback_head *cb)
 
 	if (!p->mce_ripv)
 		flags |= MF_MUST_KILL;
+
+	if (p->mce_addr_is_virtual) {
+		if (get_phys_pfn(p->mce_addr, &pfn))
+			goto fail;
+	} else {
+		pfn = (p->mce_addr & MCI_ADDR_PHYSADDR) >> PAGE_SHIFT;
+	}
 
 	ret = memory_failure(p->mce_addr >> PAGE_SHIFT, flags);
 	if (!ret) {
@@ -1354,7 +1375,7 @@ static void kill_me_maybe(struct callback_head *cb)
 	 */
 	if (ret == -EHWPOISON || ret == -EOPNOTSUPP)
 		return;
-
+fail:
 	pr_err("Memory error not recovered");
 	kill_me_now(cb);
 }
