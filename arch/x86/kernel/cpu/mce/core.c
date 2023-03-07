@@ -1360,7 +1360,6 @@ static void queue_task_work(struct mce *m, char *msg, void (*func)(struct callba
 	/* First call, save all the details */
 	if (count == 1) {
 		current->mce_addr = m->addr & MCI_ADDR_PHYSADDR;
-		current->mce_kflags = m->kflags;
 		current->mce_ripv = !!(m->mcgstatus & MCG_STATUS_RIPV);
 		current->mce_whole_page = whole_page(m);
 		current->mce_kill_me.func = func;
