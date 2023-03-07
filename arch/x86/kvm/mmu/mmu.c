@@ -4187,7 +4187,11 @@ static int mmu_alloc_shadow_roots(struct kvm_vcpu *vcpu)
 	hpa_t root;
 
 	root_pgd = mmu->get_guest_pgd(vcpu);
-	root_gfn = root_pgd >> PAGE_SHIFT;
+	/*
+	* The guest PGD has already been checked for validity, unconditionally
+	* strip non-address bits when computing the GFN.
+	*/
+	root_gfn = (root_pgd & __PT_BASE_ADDR_MASK) >> PAGE_SHIFT;
 
 	if (mmu_check_root(vcpu, root_gfn))
 		return 1;

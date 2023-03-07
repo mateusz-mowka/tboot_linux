@@ -779,6 +779,12 @@ struct kvm_vcpu_arch {
 	unsigned long cr0_guest_owned_bits;
 	unsigned long cr2;
 	unsigned long cr3;
+	/*
+	 * Bits in CR3 used to enable certain features. These bits are allowed
+	 * to be set in CR3 when vCPU supports the features. When shadow paging
+	 * is used, these bits should be kept as they are in the shadow CR3.
+	 */
+	u64 cr3_ctrl_bits;
 	unsigned long cr4;
 	unsigned long cr4_guest_owned_bits;
 	unsigned long cr4_guest_rsvd_bits;
