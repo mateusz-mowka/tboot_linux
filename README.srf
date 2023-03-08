@@ -4,6 +4,9 @@ INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 SRF PO bkc-v1.1
 ===============
 1. Add TDX 1.5 feature support.
+2. TDX 1.5 compatibility fix for TDX module >= 0.18 releases.
+3. Support for new uncore unit MSF_SBO.
+4. Match config-SRF with config-GNR from GNR-BKC-V2.1 release.
 
 SRF PO bkc-v1.0
 ===============
