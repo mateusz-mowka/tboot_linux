@@ -116,13 +116,10 @@ out:
 static ioasid_t idxd_vdcm_get_pasid(struct vdcm_idxd *vidxd,
 				    ioasid_t pasid)
 {
-	ioasid_t vdev_pasid = INVALID_IOASID;
-
 	if (pasid_valid(pasid))
 		return pasid;
 
-	vdev_pasid = vfio_device_get_pasid(&vidxd->vdev);
-	return vdev_pasid;
+	return vidxd->pasid;
 }
 
 static void idxd_vdcm_unbind_iommufd(struct vfio_device *vdev)
