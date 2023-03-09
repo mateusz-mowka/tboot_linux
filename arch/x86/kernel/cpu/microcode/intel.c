@@ -45,7 +45,7 @@ static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 
 /* Current microcode patch used in early patching on the APs. */
 static struct microcode_intel *intel_ucode_patch;
-static int ucode_size;
+static int intel_ucode_size;
 
 /* last level cache size per core */
 static int llc_size_per_core;
@@ -259,7 +259,7 @@ scan_microcode(void *data, size_t size, struct ucode_cpu_info *uci, bool save)
 		}
 
 		if (save) {
-			save_microcode_patch(&intel_ucode_patch, &ucode_size, uci, data, mc_size);
+			save_microcode_patch(&intel_ucode_patch, &intel_ucode_size, uci, data, mc_size);
 			goto next;
 		}
 
@@ -363,7 +363,7 @@ static void save_mc_for_early(struct ucode_cpu_info *uci, u8 *mc, unsigned int s
 
 	mutex_lock(&x86_cpu_microcode_mutex);
 
-	save_microcode_patch(&intel_ucode_patch, &ucode_size, uci, mc, size);
+	save_microcode_patch(&intel_ucode_patch, &intel_ucode_size, uci, mc, size);
 	show_saved_mc(mc);
 
 	mutex_unlock(&x86_cpu_microcode_mutex);
