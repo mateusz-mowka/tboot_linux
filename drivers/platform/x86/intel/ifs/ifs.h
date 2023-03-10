@@ -135,6 +135,8 @@
 #define MSR_ACTIVATE_SCAN			0x000002c6
 #define MSR_SCAN_STATUS				0x000002c7
 #define MSR_SAF_CTRL				0x000002cb
+#define MSR_ARRAY_TRIGGER			0x000002d6
+#define MSR_ARRAY_STATUS			0x000002d7
 #define SCAN_NOT_TESTED				0
 #define SCAN_TEST_PASS				1
 #define SCAN_TEST_FAIL				2
@@ -280,6 +282,7 @@ union ifs_array_status {
  * @test_num: number indicating the test type
  * @test_gen: test generation revision
  * @chunk_size: size of a test chunk
+ * @array_gen: test generation of array test
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -294,6 +297,7 @@ struct ifs_data {
 	int	test_num;
 	u32	test_gen;
 	u32	chunk_size;
+	u32	array_gen;
 };
 
 struct ifs_work {
