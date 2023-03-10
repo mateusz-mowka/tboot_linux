@@ -1083,7 +1083,7 @@ void __init tdx_early_init(void)
 static int __init tdx_arch_init(void)
 {
 	struct irq_alloc_info info;
-	const cpumask_t *cpus_ptr;
+	cpumask_t saved_cpumask;
 	struct irq_cfg *cfg;
 	int cpu;
 
@@ -1099,7 +1099,7 @@ static int __init tdx_arch_init(void)
 	 */
 	cpu = get_cpu();
 
-	cpus_ptr = current->cpus_ptr;
+	cpumask_copy(&saved_cpumask, current->cpus_ptr);
 
 	info.mask = cpumask_of(cpu);
 
@@ -1136,7 +1136,7 @@ static int __init tdx_arch_init(void)
 	}
 
 init_failed:
-	set_cpus_allowed_ptr(current, cpus_ptr);
+	set_cpus_allowed_ptr(current, &saved_cpumask);
 	return 0;
 }
 arch_initcall(tdx_arch_init);
