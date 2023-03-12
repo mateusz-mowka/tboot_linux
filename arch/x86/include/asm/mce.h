@@ -70,6 +70,7 @@
  * in this #define.
  */
 #define MCACOD		  0xefff     /* MCA Error Code */
+#define MCACOD_MASK_LL    0xeffe     /* MCA Error Code (Ignore level subfield) */
 
 /* Architecturally defined codes from SDM Vol. 3B Chapter 15 */
 #define MCACOD_SCRUB	0x00C0	/* 0xC0-0xCF Memory Scrubbing */
