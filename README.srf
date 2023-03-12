@@ -1,6 +1,13 @@
 INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 ------------------------------------------------------------------------
 
+SRF PO bkc-v1.2
+===============
+1. MCE panic fix for Data load and Instruction fetch errors.
+   HSD: https://hsdes.intel.com/resource/14018758500
+2. PMU core event counter fix.
+   HSD: https://hsdes.intel.com/resource/22016779904
+
 SRF PO bkc-v1.1
 ===============
 1. Add TDX 1.5 feature support.
