@@ -76,11 +76,24 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 
 static void intel_nested_detach_dev_pasid(struct device *dev, ioasid_t pasid)
 {
-	struct iommu_domain *domain = iommu_get_domain_for_dev_pasid(dev, pasid, 0);
+	struct iommu_domain *domain;
 	struct device_domain_info *info = dev_iommu_priv_get(dev);
-	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
+	struct dmar_domain *dmar_domain;
 	struct intel_iommu *iommu = info->iommu;
 	unsigned long flags;
+
+	/*
+	 * Unluckily, domain for pasid PASID_RID2PASID isn't linked to group
+	 * pasid array.
+	 */
+	if (pasid == PASID_RID2PASID) {
+		domain = &info->domain->domain;
+		WARN_ON(domain->type != IOMMU_DOMAIN_NESTED);
+	} else {
+		domain = iommu_get_domain_for_dev_pasid(dev, pasid, 0);
+	}
+
+	dmar_domain = to_dmar_domain(domain);
 
 	intel_pasid_tear_down_entry(iommu, dev, pasid, false);
 	/* Revist: Need to drain the prq when PR is support. */
