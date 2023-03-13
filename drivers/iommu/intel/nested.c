@@ -26,6 +26,9 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 	int ret = 0;
 	unsigned long flags;
 
+	if (pasid == PASID_RID2PASID && info->domain)
+		device_block_translation(dev);
+
 	if (!info->domain)
 		info->domain = dmar_domain;
 
@@ -42,9 +45,6 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 		dev_err_ratelimited(dev, "Failed to enable PASID capability, return %d\n", ret);
 		return ret;
 	}
-
-	if (pasid == PASID_RID2PASID && info->domain)
-		device_block_translation(dev);
 
 	/* Is s2_domain compatible with this IOMMU? */
 	ret = prepare_domain_attach_device(&dmar_domain->s2_domain->domain, dev);
