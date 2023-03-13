@@ -98,6 +98,12 @@ static int intel_nested_attach_dev(struct iommu_domain *domain,
 	return intel_nested_attach_dev_pasid(domain, dev, PASID_RID2PASID);
 }
 
+static void intel_nested_detach_dev(struct iommu_domain *domain,
+				   struct device *dev)
+{
+	intel_nested_detach_dev_pasid(dev, PASID_RID2PASID);
+}
+
 static void intel_nested_domain_free(struct iommu_domain *domain)
 {
 	kfree(to_dmar_domain(domain));
@@ -150,6 +156,7 @@ static void intel_nested_iotlb_sync_user(struct iommu_domain *domain,
 
 static const struct iommu_domain_ops intel_nested_domain_ops = {
 	.attach_dev		= intel_nested_attach_dev,
+	.detach_dev		= intel_nested_detach_dev,
 	.iotlb_sync_user	= intel_nested_iotlb_sync_user,
 	.free			= intel_nested_domain_free,
 	.enforce_cache_coherency = intel_iommu_enforce_cache_coherency,
