@@ -227,6 +227,8 @@ struct x86_emulate_ops {
 	int (*leave_smm)(struct x86_emulate_ctxt *ctxt);
 	void (*triple_fault)(struct x86_emulate_ctxt *ctxt);
 	int (*set_xcr)(struct x86_emulate_ctxt *ctxt, u32 index, u64 xcr);
+
+	u64 (*untag_addr)(struct x86_emulate_ctxt *ctxt, u64 addr, u64 flags);
 };
 
 typedef u32 __attribute__((vector_size(64))) sz512_t;

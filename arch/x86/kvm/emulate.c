@@ -689,7 +689,8 @@ static __always_inline int __linearize(struct x86_emulate_ctxt *ctxt,
 				       struct segmented_address addr,
 				       unsigned *max_size, unsigned size,
 				       bool write, bool fetch,
-				       enum x86emul_mode mode, ulong *linear)
+				       enum x86emul_mode mode, ulong *linear,
+				       u64 untag_flags)
 {
 	struct desc_struct desc;
 	bool usable;
@@ -702,6 +703,7 @@ static __always_inline int __linearize(struct x86_emulate_ctxt *ctxt,
 	*max_size = 0;
 	switch (mode) {
 	case X86EMUL_MODE_PROT64:
+		la = ctxt->ops->untag_addr(ctxt, la, untag_flags);
 		*linear = la;
 		va_bits = ctxt_virt_addr_bits(ctxt);
 		if (!__is_canonical_address(la, va_bits))
@@ -759,7 +761,7 @@ static int linearize(struct x86_emulate_ctxt *ctxt,
 {
 	unsigned max_size;
 	return __linearize(ctxt, addr, &max_size, size, write, false,
-			   ctxt->mode, linear);
+			   ctxt->mode, linear, 0);
 }
 
 static inline int assign_eip(struct x86_emulate_ctxt *ctxt, ulong dst)
@@ -772,7 +774,12 @@ static inline int assign_eip(struct x86_emulate_ctxt *ctxt, ulong dst)
 
 	if (ctxt->op_bytes != sizeof(unsigned long))
 		addr.ea = dst & ((1UL << (ctxt->op_bytes << 3)) - 1);
-	rc = __linearize(ctxt, addr, &max_size, 1, false, true, ctxt->mode, &linear);
+	/*
+	 * LAM does not apply to addresses used for instruction fetches
+	 * or to those that specify the targets of jump and call instructions
+	 */
+	rc = __linearize(ctxt, addr, &max_size, 1, false, true, ctxt->mode,
+	                 &linear, KVM_X86_UNTAG_ADDR_SKIP_LAM);
 	if (rc == X86EMUL_CONTINUE)
 		ctxt->_eip = addr.ea;
 	return rc;
@@ -907,9 +914,12 @@ static int __do_insn_fetch_bytes(struct x86_emulate_ctxt *ctxt, int op_size)
 	 * __linearize is called with size 0 so that it does not do any
 	 * boundary check itself.  Instead, we use max_size to check
 	 * against op_size.
+	 *
+	 * LAM does not apply to addresses used for instruction fetches
+	 * or to those that specify the targets of jump and call instructions
 	 */
 	rc = __linearize(ctxt, addr, &max_size, 0, false, true, ctxt->mode,
-			 &linear);
+			 &linear, KVM_X86_UNTAG_ADDR_SKIP_LAM);
 	if (unlikely(rc != X86EMUL_CONTINUE))
 		return rc;
 
@@ -3550,8 +3560,11 @@ static int em_invlpg(struct x86_emulate_ctxt *ctxt)
 {
 	int rc;
 	ulong linear;
+	unsigned max_size;
 
-	rc = linearize(ctxt, ctxt->src.addr.mem, 1, false, &linear);
+	/* skip untag for invlpg since LAM is not applied to invlpg */
+	rc = __linearize(ctxt, ctxt->src.addr.mem, &max_size, 1, false, false,
+			 ctxt->mode, &linear, KVM_X86_UNTAG_ADDR_SKIP_LAM);
 	if (rc == X86EMUL_CONTINUE)
 		ctxt->ops->invlpg(ctxt, linear);
 	/* Disable writeback. */
