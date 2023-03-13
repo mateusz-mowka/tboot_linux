@@ -98,10 +98,20 @@ void vfio_iommufd_physical_unbind(struct vfio_device *vdev)
 {
 	lockdep_assert_held(&vdev->dev_set->lock);
 
-	if (vdev->iommufd_attached)
-		__vfio_iommufd_detach(vdev);
-	iommufd_device_unbind(vdev->iommufd_device);
-	vdev->iommufd_device = NULL;
+	if(vdev->iommufd_device){
+		struct vfio_pci_hwpt *hwpt;
+		unsigned long index;
+
+		xa_for_each (&vdev->pasid_xa, index, hwpt) {
+			iommufd_device_detach(vdev->iommufd_device, hwpt->pasid);
+			kfree(hwpt);
+		}
+		xa_destroy(&vdev->pasid_xa);
+		if(vdev->iommufd_attached)
+			__vfio_iommufd_detach(vdev);
+		iommufd_device_unbind(vdev->iommufd_device);
+		vdev->iommufd_device = NULL;
+	}
 }
 EXPORT_SYMBOL_GPL(vfio_iommufd_physical_unbind);
 
