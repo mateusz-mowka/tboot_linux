@@ -74,6 +74,9 @@ struct kvm_firmware;
 #define KVM_X86_NOTIFY_VMEXIT_VALID_BITS	(KVM_X86_NOTIFY_VMEXIT_ENABLED | \
 						 KVM_X86_NOTIFY_VMEXIT_USER)
 
+/* flags for kvm_x86_ops::untag_addr() */
+#define KVM_X86_UNTAG_ADDR_SKIP_LAM	_BITULL(0)
+
 /* x86-specific vcpu->requests bit members */
 #define KVM_REQ_MIGRATE_TIMER		KVM_ARCH_REQ(0)
 #define KVM_REQ_REPORT_TPR_ACCESS	KVM_ARCH_REQ(1)
@@ -1671,6 +1674,8 @@ struct kvm_x86_ops {
 	bool (*get_if_flag)(struct kvm_vcpu *vcpu);
 	unsigned long (*get_cr2)(struct kvm_vcpu *vcpu);
 	unsigned long (*get_xcr)(struct kvm_vcpu *vcpu, int index);
+
+	u64 (*untag_addr)(struct kvm_vcpu *vcpu, u64 la, u64 flags);
 
 	void (*flush_tlb_all)(struct kvm_vcpu *vcpu);
 	void (*flush_tlb_current)(struct kvm_vcpu *vcpu);

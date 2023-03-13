@@ -4704,6 +4704,11 @@ static int svm_vm_init(struct kvm *kvm)
 	return 0;
 }
 
+static u64 svm_untag_addr(struct kvm_vcpu *vcpu, u64 addr, u64 flags)
+{
+	return addr;
+}
+
 static struct kvm_x86_ops svm_x86_ops __initdata = {
 	.name = KBUILD_MODNAME,
 
@@ -4756,6 +4761,8 @@ static struct kvm_x86_ops svm_x86_ops __initdata = {
 	.get_if_flag = svm_get_if_flag,
 	.get_cr2 = kvm_get_cr2,
 	.get_xcr = kvm_get_xcr,
+
+	.untag_addr = svm_untag_addr,
 
 	.flush_tlb_all = svm_flush_tlb_current,
 	.flush_tlb_current = svm_flush_tlb_current,

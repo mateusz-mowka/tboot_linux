@@ -8065,6 +8065,63 @@ static u64 vmx_get_perf_capabilities(void)
 	return perf_cap;
 }
 
+#define LAM_S57_EN_MASK (X86_CR4_LAM_SUP | X86_CR4_LA57)
+
+static inline int lam_sign_extend_bit(bool user, struct kvm_vcpu *vcpu)
+{
+	u64 cr3, cr4;
+
+	if (user) {
+		cr3 = kvm_read_cr3(vcpu);
+		if (!!(cr3 & X86_CR3_LAM_U57))
+			return 56;
+		if (!!(cr3 & X86_CR3_LAM_U48))
+			return 47;
+	} else {
+		cr4 = kvm_read_cr4_bits(vcpu, LAM_S57_EN_MASK);
+		if (cr4 == LAM_S57_EN_MASK)
+			return 56;
+		if (!!(cr4 & X86_CR4_LAM_SUP))
+			return 47;
+	}
+	return -1;
+}
+
+/*
+ * Only called in 64-bit mode.
+ *
+ * Metadata bits are [62:48] in LAM48 and [62:57] in LAM57. Mask metadata in
+ * pointers by sign-extending the value of bit 47 (LAM48) or 56 (LAM57).
+ * The resulting address after untagging isn't guaranteed to be canonical.
+ * Callers should perform the original canonical check and raise #GP/#SS if the
+ * address is non-canonical.
+ */
+u64 vmx_untag_addr(struct kvm_vcpu *vcpu, u64 addr, u64 flags)
+{
+	int sign_ext_bit;
+
+	/*
+	 * Instead of calling relatively expensive guest_cpuid_has(), just check
+	 * LAM_U48 in cr3_ctrl_bits. If not set, vCPU doesn't supports LAM.
+	 */
+	if (!(vcpu->arch.cr3_ctrl_bits & X86_CR3_LAM_U48) ||
+	    !!(flags & KVM_X86_UNTAG_ADDR_SKIP_LAM))
+		return addr;
+
+	if(!is_64_bit_mode(vcpu)){
+		WARN_ONCE(1, "Only be called in 64-bit mode");
+		return addr;
+	}
+
+	sign_ext_bit = lam_sign_extend_bit(!(addr >> 63), vcpu);
+
+	if (sign_ext_bit < 0)
+		return addr;
+
+	return (sign_extend64(addr, sign_ext_bit) & ~BIT_ULL(63)) |
+	       (addr & BIT_ULL(63));
+}
+
 static __init void vmx_set_cpu_caps(void)
 {
 	kvm_set_cpu_caps();

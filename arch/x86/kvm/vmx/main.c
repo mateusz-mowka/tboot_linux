@@ -1038,6 +1038,8 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.get_cr2 = vt_get_cr2,
 	.get_xcr = vt_get_xcr,
 
+	.untag_addr = vmx_untag_addr,
+
 	.flush_tlb_all = vt_flush_tlb_all,
 	.flush_tlb_current = vt_flush_tlb_current,
 	.tlb_remote_flush = vt_tlb_remote_flush,

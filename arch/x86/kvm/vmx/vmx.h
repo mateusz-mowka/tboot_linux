@@ -425,6 +425,8 @@ int vmx_ioasid_bind(struct kvm_vcpu *vcpu, struct kvm_bind_pasid *pb);
 u64 vmx_get_l2_tsc_offset(struct kvm_vcpu *vcpu);
 u64 vmx_get_l2_tsc_multiplier(struct kvm_vcpu *vcpu);
 
+u64 vmx_untag_addr(struct kvm_vcpu *vcpu, u64 addr, u64 flags);
+
 static inline void vmx_set_intercept_for_msr(struct kvm_vcpu *vcpu, u32 msr,
 					     int type, bool value)
 {
