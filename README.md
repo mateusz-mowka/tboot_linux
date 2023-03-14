@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v1.8
+----------------
+8.  KVM: TDX: Fix the private/shared check of gfn
+	https://jira.devtools.intel.com/browse/LFE-7263
+
 emr-bkc-6.2-v1.7
 ----------------
 7. iommufd: detach all hwpts before device unbind
