@@ -7,6 +7,10 @@ SRF PO bkc-v1.2
    HSD: https://hsdes.intel.com/resource/14018758500
 2. PMU core event counter fix.
    HSD: https://hsdes.intel.com/resource/22016779904
+3. Intel SST tool fix.
+   HSD:https://hsdes.intel.com/resource/16019627423
+   HSD:https://hsdes.intel.com/resource/16019865009
+
 
 SRF PO bkc-v1.1
 ===============
