@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v1.7
+----------------
+7. iommufd: detach all hwpts before device unbind
+	https://jira.devtools.intel.com/browse/LFE-7250
+
 emr-bkc-6.2-v1.6
 ----------------
 6. CONFIG_X86_KERNEL_IBT=y
