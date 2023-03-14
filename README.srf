@@ -10,7 +10,8 @@ SRF PO bkc-v1.2
 3. Intel SST tool fix.
    HSD:https://hsdes.intel.com/resource/16019627423
    HSD:https://hsdes.intel.com/resource/16019865009
-
+4. Add in-field driver support for SRF platform.
+   jira: https://jira.devtools.intel.com/browse/LFE-718
 
 SRF PO bkc-v1.1
 ===============
