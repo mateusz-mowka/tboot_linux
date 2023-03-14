@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v1.6
+----------------
+6. CONFIG_X86_KERNEL_IBT=y
+	https://jira.devtools.intel.com/browse/LFE-7224
+
 emr-bkc-6.2-v1.5
 ----------------
 5. Fix an issue reported in https://jira.devtools.intel.com/browse/LFE-4901 that host ping/SSH VM failed while performing SRIOV VF NIC passthrough to VM with scalable mode vIOMMU while qemu command adds "iommufd=iommufd0"
