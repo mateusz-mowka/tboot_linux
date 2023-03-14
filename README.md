@@ -13,6 +13,10 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v1.9
+----------------
+9.  Fix bug for TDX init in guest: correct cpus_mask
+
 emr-bkc-6.2-v1.8
 ----------------
 8.  KVM: TDX: Fix the private/shared check of gfn
