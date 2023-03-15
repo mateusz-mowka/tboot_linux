@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v1.11
+----------------
+11. vfio: Fix bind/unbind mismatch
+	https://jira.devtools.intel.com/browse/LFE-6622
+
 emr-bkc-6.2-v1.10
 ----------------
 10. vtd: iommu: Skip invalid list node when flush device iotlb
