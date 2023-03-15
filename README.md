@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v1.10
+----------------
+10. vtd: iommu: Skip invalid list node when flush device iotlb
+	https://jira.devtools.intel.com/browse/LFE-7082 
+
 emr-bkc-6.2-v1.9
 ----------------
 9.  Fix bug for TDX init in guest: correct cpus_mask
