@@ -270,13 +270,13 @@ EXPORT_SYMBOL(tty_termios_copy_hw);
  *	between the two termios structures, or a speed change is needed.
  */
 
-int tty_termios_hw_change(const struct ktermios *a, const struct ktermios *b)
+bool tty_termios_hw_change(const struct ktermios *a, const struct ktermios *b)
 {
 	if (a->c_ispeed != b->c_ispeed || a->c_ospeed != b->c_ospeed)
-		return 1;
+		return true;
 	if ((a->c_cflag ^ b->c_cflag) & ~(HUPCL | CREAD | CLOCAL))
-		return 1;
-	return 0;
+		return true;
+	return false;
 }
 EXPORT_SYMBOL(tty_termios_hw_change);
 
@@ -467,6 +467,7 @@ static int set_termios(struct tty_struct *tty, void __user *arg, int opt)
 	struct ktermios tmp_termios;
 	struct tty_ldisc *ld;
 	int retval = tty_check_change(tty);
+	long timeout;
 
 	if (retval)
 		return retval;
@@ -500,27 +501,51 @@ static int set_termios(struct tty_struct *tty, void __user *arg, int opt)
 	tmp_termios.c_ispeed = tty_termios_input_baud_rate(&tmp_termios);
 	tmp_termios.c_ospeed = tty_termios_baud_rate(&tmp_termios);
 
-	ld = tty_ldisc_ref(tty);
-
-	if (ld != NULL) {
-		if ((opt & TERMIOS_FLUSH) && ld->ops->flush_buffer)
-			ld->ops->flush_buffer(tty);
-		tty_ldisc_deref(ld);
-	}
-
-	if (opt & TERMIOS_WAIT) {
-		tty_wait_until_sent(tty, 0);
-		if (signal_pending(current))
+	if (opt & (TERMIOS_FLUSH|TERMIOS_WAIT)) {
+		timeout = wait_event_interruptible_timeout(tty->write_wait,
+							   !tty_chars_in_buffer(tty),
+							   MAX_SCHEDULE_TIMEOUT);
+		if (timeout <= 0)
 			return -ERESTARTSYS;
-	}
 
-	tty_set_termios(tty, &tmp_termios);
+		if (tty_write_lock(tty, 0) < 0)
+			return -ERESTARTSYS;
+
+		/* Racing writer? */
+		if (waitqueue_active(&tty->write_wait) || tty_chars_in_buffer(tty))
+			goto write_lock_restart;
+
+		ld = tty_ldisc_ref(tty);
+		if (ld != NULL) {
+			if ((opt & TERMIOS_FLUSH) && ld->ops->flush_buffer)
+				ld->ops->flush_buffer(tty);
+			tty_ldisc_deref(ld);
+		}
+
+		if (opt & TERMIOS_WAIT) {
+			if (tty->ops->wait_until_sent)
+				tty->ops->wait_until_sent(tty, 0);
+
+			if (signal_pending(current))
+				goto write_lock_restart;
+		}
+
+		tty_set_termios(tty, &tmp_termios);
+
+		tty_write_unlock(tty);
+	} else {
+		tty_set_termios(tty, &tmp_termios);
+	}
 
 	/* FIXME: Arguably if tmp_termios == tty->termios AND the
 	   actual requested termios was not tmp_termios then we may
 	   want to return an error as no user requested change has
 	   succeeded */
 	return 0;
+
+write_lock_restart:
+	tty_write_unlock(tty);
+	return -ERESTARTSYS;
 }
 
 static void copy_termios(struct tty_struct *tty, struct ktermios *kterm)

@@ -29,6 +29,8 @@
 
 #include <linux/irq.h>
 #include <linux/uaccess.h>
+#include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
 
 /*
  * This is used to lock changes in serial line configuration.
@@ -169,9 +171,9 @@ uart_update_mctrl(struct uart_port *port, unsigned int set, unsigned int clear)
 #define uart_set_mctrl(port, set)	uart_update_mctrl(port, set, 0)
 #define uart_clear_mctrl(port, clear)	uart_update_mctrl(port, 0, clear)
 
-static void uart_port_dtr_rts(struct uart_port *uport, int raise)
+static void uart_port_dtr_rts(struct uart_port *uport, bool active)
 {
-	if (raise)
+	if (active)
 		uart_set_mctrl(uport, TIOCM_DTR | TIOCM_RTS);
 	else
 		uart_clear_mctrl(uport, TIOCM_DTR | TIOCM_RTS);
@@ -182,7 +184,7 @@ static void uart_port_dtr_rts(struct uart_port *uport, int raise)
  * will be serialised by the per-port mutex.
  */
 static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
-		int init_hw)
+			     bool init_hw)
 {
 	struct uart_port *uport = uart_port_check(state);
 	unsigned long flags;
@@ -239,7 +241,7 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 		 * port is open and ready to respond.
 		 */
 		if (init_hw && C_BAUD(tty))
-			uart_port_dtr_rts(uport, 1);
+			uart_port_dtr_rts(uport, true);
 	}
 
 	/*
@@ -254,7 +256,7 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 }
 
 static int uart_startup(struct tty_struct *tty, struct uart_state *state,
-		int init_hw)
+			bool init_hw)
 {
 	struct tty_port *port = &state->port;
 	int retval;
@@ -290,7 +292,7 @@ static void uart_shutdown(struct tty_struct *tty, struct uart_state *state)
 		set_bit(TTY_IO_ERROR, &tty->flags);
 
 	if (tty_port_initialized(port)) {
-		tty_port_set_initialized(port, 0);
+		tty_port_set_initialized(port, false);
 
 		/*
 		 * Turn off DTR and RTS early.
@@ -302,7 +304,7 @@ static void uart_shutdown(struct tty_struct *tty, struct uart_state *state)
 		}
 
 		if (!tty || C_HUPCL(tty))
-			uart_port_dtr_rts(uport, 0);
+			uart_port_dtr_rts(uport, false);
 
 		uart_port_shutdown(port);
 	}
@@ -312,7 +314,7 @@ static void uart_shutdown(struct tty_struct *tty, struct uart_state *state)
 	 * a DCD drop (hangup) at just the right time.  Clear suspended bit so
 	 * we don't try to resume a port that has been shutdown.
 	 */
-	tty_port_set_suspended(port, 0);
+	tty_port_set_suspended(port, false);
 
 	/*
 	 * Do not free() the transmit buffer page under the port lock since
@@ -696,6 +698,95 @@ static void uart_send_xchar(struct tty_struct *tty, char ch)
 	uart_port_deref(port);
 }
 
+/**
+ * uart_xmit_sg_prep - Setup scatterlist from the circular xmit buffer and prep DMA Tx
+ *
+ * @up: uart_port structure describing the port
+ * @chan: DMA Tx channel
+ * @dev: device for DMA mapping, if NULL, derived from @chan
+ * @sgl: scatterlist used for setup
+ * @nents: scatterlist entries (1-2)
+ * @prep_flags: flags to pass for dmaengine_prep_slave_sg()
+ *
+ * Converts xmit circular buffer into scatterlist and prepares it for DMA Tx over
+ * @chan. Takes into account the wraps within the circular buffer.
+ *
+ * Return:
+ * * On success: descriptior for DMA Tx. @nents updated to number of used entries.
+ * * On failure: error wrapped with ERR_PTR().
+ */
+struct dma_async_tx_descriptor *uart_xmit_sg_prep(struct uart_port *up, struct dma_chan *chan,
+						  struct device *dev,
+						  struct scatterlist *sgl, int *nents,
+						  unsigned long prep_flags)
+{
+	struct circ_buf *xmit = &up->state->xmit;
+	struct dma_async_tx_descriptor *desc;
+	int tail = READ_ONCE(xmit->tail);
+	int head = READ_ONCE(xmit->head);
+	unsigned int len;
+	int ret;
+	int n;
+
+	WARN_ON_ONCE(*nents < 1 || *nents > 2);
+
+	n = *nents;
+	if (tail < head || head == 0 || n == 1) {
+		n = 1;
+		len = CIRC_CNT_TO_END(head, tail, UART_XMIT_SIZE);
+
+		sg_init_one(sgl, xmit->buf + tail, len);
+	} else {
+		sg_init_table(sgl, n);
+		sg_set_buf(sgl, xmit->buf + tail, UART_XMIT_SIZE - tail);
+		sg_set_buf(sgl + 1, xmit->buf, head);
+	}
+
+	if (!dev)
+		dev = chan->device->dev;
+
+	ret = dma_map_sg(dev, sgl, n, DMA_TO_DEVICE);
+	if (!ret) {
+		ret = -ENOMEM;
+		goto err;
+	}
+	/* The second part not mapped? */
+	if (ret < n)
+		sg_dma_len(sgl + 1) = 0;
+
+	desc = dmaengine_prep_slave_sg(chan, sgl, ret, DMA_MEM_TO_DEV, prep_flags);
+	if (!desc) {
+		ret = -EBUSY;
+		goto unmap;
+	}
+
+	*nents = n;
+	return desc;
+
+unmap:
+	dma_unmap_sg(dev, sgl, n, DMA_TO_DEVICE);
+err:
+	return ERR_PTR(ret);
+}
+EXPORT_SYMBOL_GPL(uart_xmit_sg_prep);
+
+/**
+ * uart_xmit_sg_complete - Account bytes Tx'ed with scatterlist @sgl
+ * @up: uart_port structure describing the port
+ * @sgl: scatterlist that was used for Tx
+ * @nents: scatterlist entries
+ *
+ * Advances tail of the xmit buffer and accounts the Tx'ed bytes.
+ */
+void uart_xmit_sg_complete(struct uart_port *up, struct scatterlist *sgl, int nents)
+{
+	int i;
+
+	for (i = 0; i < nents; i++, sgl++)
+		uart_xmit_advance(up, sg_dma_len(sgl));
+}
+EXPORT_SYMBOL_GPL(uart_xmit_sg_complete);
+
 static void uart_throttle(struct tty_struct *tty)
 {
 	struct uart_state *state = tty->driver_data;
@@ -997,7 +1088,7 @@ static int uart_set_info(struct tty_struct *tty, struct tty_port *port,
 			uart_change_speed(tty, state, NULL);
 		}
 	} else {
-		retval = uart_startup(tty, state, 1);
+		retval = uart_startup(tty, state, true);
 		if (retval == 0)
 			tty_port_set_initialized(port, true);
 		if (retval > 0)
@@ -1165,7 +1256,7 @@ static int uart_do_autoconfig(struct tty_struct *tty, struct uart_state *state)
 		 */
 		uport->ops->config_port(uport, flags);
 
-		ret = uart_startup(tty, state, 1);
+		ret = uart_startup(tty, state, true);
 		if (ret == 0)
 			tty_port_set_initialized(port, true);
 		if (ret > 0)
@@ -1725,7 +1816,7 @@ static void uart_tty_port_shutdown(struct tty_port *port)
 	 * a DCD drop (hangup) at just the right time.  Clear suspended bit so
 	 * we don't try to resume a port that has been shutdown.
 	 */
-	tty_port_set_suspended(port, 0);
+	tty_port_set_suspended(port, false);
 
 	/*
 	 * Free the transmit buffer.
@@ -1827,7 +1918,7 @@ static void uart_hangup(struct tty_struct *tty)
 		spin_lock_irqsave(&port->lock, flags);
 		port->count = 0;
 		spin_unlock_irqrestore(&port->lock, flags);
-		tty_port_set_active(port, 0);
+		tty_port_set_active(port, false);
 		tty_port_tty_set(port, NULL);
 		if (uport && !uart_console(uport))
 			uart_change_pm(state, UART_PM_STATE_OFF);
@@ -1861,7 +1952,7 @@ static void uart_port_shutdown(struct tty_port *port)
 	}
 }
 
-static int uart_carrier_raised(struct tty_port *port)
+static bool uart_carrier_raised(struct tty_port *port)
 {
 	struct uart_state *state = container_of(port, struct uart_state, port);
 	struct uart_port *uport;
@@ -1875,18 +1966,17 @@ static int uart_carrier_raised(struct tty_port *port)
 	 * continue and not sleep
 	 */
 	if (WARN_ON(!uport))
-		return 1;
+		return true;
 	spin_lock_irq(&uport->lock);
 	uart_enable_ms(uport);
 	mctrl = uport->ops->get_mctrl(uport);
 	spin_unlock_irq(&uport->lock);
 	uart_port_deref(uport);
-	if (mctrl & TIOCM_CAR)
-		return 1;
-	return 0;
+
+	return mctrl & TIOCM_CAR;
 }
 
-static void uart_dtr_rts(struct tty_port *port, int raise)
+static void uart_dtr_rts(struct tty_port *port, bool active)
 {
 	struct uart_state *state = container_of(port, struct uart_state, port);
 	struct uart_port *uport;
@@ -1894,7 +1984,7 @@ static void uart_dtr_rts(struct tty_port *port, int raise)
 	uport = uart_port_ref(state);
 	if (!uport)
 		return;
-	uart_port_dtr_rts(uport, raise);
+	uart_port_dtr_rts(uport, active);
 	uart_port_deref(uport);
 }
 
@@ -1943,9 +2033,9 @@ static int uart_port_activate(struct tty_port *port, struct tty_struct *tty)
 	/*
 	 * Start up the serial port.
 	 */
-	ret = uart_startup(tty, state, 0);
+	ret = uart_startup(tty, state, false);
 	if (ret > 0)
-		tty_port_set_active(port, 1);
+		tty_port_set_active(port, true);
 
 	return ret;
 }
@@ -2349,8 +2439,8 @@ int uart_suspend_port(struct uart_driver *drv, struct uart_port *uport)
 		int tries;
 		unsigned int mctrl;
 
-		tty_port_set_suspended(port, 1);
-		tty_port_set_initialized(port, 0);
+		tty_port_set_suspended(port, true);
+		tty_port_set_initialized(port, false);
 
 		spin_lock_irq(&uport->lock);
 		ops->stop_tx(uport);
@@ -2461,7 +2551,7 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 					uart_rs485_config(uport);
 				ops->start_tx(uport);
 				spin_unlock_irq(&uport->lock);
-				tty_port_set_initialized(port, 1);
+				tty_port_set_initialized(port, true);
 			} else {
 				/*
 				 * Failed to resume - maybe hardware went away?
@@ -2472,7 +2562,7 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 			}
 		}
 
-		tty_port_set_suspended(port, 0);
+		tty_port_set_suspended(port, false);
 	}
 
 	mutex_unlock(&port->mutex);
@@ -3258,11 +3348,11 @@ EXPORT_SYMBOL(uart_match_port);
 /**
  * uart_handle_dcd_change - handle a change of carrier detect state
  * @uport: uart_port structure for the open port
- * @status: new carrier detect status, nonzero if active
+ * @active: new carrier detect status
  *
  * Caller must hold uport->lock.
  */
-void uart_handle_dcd_change(struct uart_port *uport, unsigned int status)
+void uart_handle_dcd_change(struct uart_port *uport, bool active)
 {
 	struct tty_port *port = &uport->state->port;
 	struct tty_struct *tty = port->tty;
@@ -3274,7 +3364,7 @@ void uart_handle_dcd_change(struct uart_port *uport, unsigned int status)
 		ld = tty_ldisc_ref(tty);
 		if (ld) {
 			if (ld->ops->dcd_change)
-				ld->ops->dcd_change(tty, status);
+				ld->ops->dcd_change(tty, active);
 			tty_ldisc_deref(ld);
 		}
 	}
@@ -3282,7 +3372,7 @@ void uart_handle_dcd_change(struct uart_port *uport, unsigned int status)
 	uport->icount.dcd++;
 
 	if (uart_dcd_enabled(uport)) {
-		if (status)
+		if (active)
 			wake_up_interruptible(&port->open_wait);
 		else if (tty)
 			tty_hangup(tty);
@@ -3293,11 +3383,11 @@ EXPORT_SYMBOL_GPL(uart_handle_dcd_change);
 /**
  * uart_handle_cts_change - handle a change of clear-to-send state
  * @uport: uart_port structure for the open port
- * @status: new clear to send status, nonzero if active
+ * @active: new clear-to-send status
  *
  * Caller must hold uport->lock.
  */
-void uart_handle_cts_change(struct uart_port *uport, unsigned int status)
+void uart_handle_cts_change(struct uart_port *uport, bool active)
 {
 	lockdep_assert_held_once(&uport->lock);
 
@@ -3305,13 +3395,13 @@ void uart_handle_cts_change(struct uart_port *uport, unsigned int status)
 
 	if (uart_softcts_mode(uport)) {
 		if (uport->hw_stopped) {
-			if (status) {
+			if (active) {
 				uport->hw_stopped = 0;
 				uport->ops->start_tx(uport);
 				uart_write_wakeup(uport);
 			}
 		} else {
-			if (!status) {
+			if (!active) {
 				uport->hw_stopped = 1;
 				uport->ops->stop_tx(uport);
 			}

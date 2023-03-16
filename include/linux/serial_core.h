@@ -642,6 +642,15 @@ static inline void uart_xmit_advance(struct uart_port *up, unsigned int chars)
 	up->icount.tx += chars;
 }
 
+struct dma_chan;
+struct scatterlist;
+
+struct dma_async_tx_descriptor *uart_xmit_sg_prep(struct uart_port *up, struct dma_chan *chan,
+						  struct device *dev,
+						  struct scatterlist *sgl, int *nents,
+						  unsigned long prep_flags);
+void uart_xmit_sg_complete(struct uart_port *up, struct scatterlist *sgl, int nents);
+
 struct module;
 struct tty_driver;
 
@@ -896,10 +905,8 @@ static inline bool uart_softcts_mode(struct uart_port *uport)
  * The following are helper functions for the low level drivers.
  */
 
-extern void uart_handle_dcd_change(struct uart_port *uport,
-		unsigned int status);
-extern void uart_handle_cts_change(struct uart_port *uport,
-		unsigned int status);
+extern void uart_handle_dcd_change(struct uart_port *uport, bool active);
+extern void uart_handle_cts_change(struct uart_port *uport, bool active);
 
 extern void uart_insert_char(struct uart_port *port, unsigned int status,
 		 unsigned int overrun, unsigned int ch, unsigned int flag);

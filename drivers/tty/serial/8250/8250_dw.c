@@ -420,8 +420,12 @@ static u32 dw8250_rzn1_get_dmacr_burst(int max_burst)
 static void dw8250_prepare_tx_dma(struct uart_8250_port *p)
 {
 	struct uart_port *up = &p->port;
+	struct circ_buf *xmit = &up->state->xmit;
 	struct uart_8250_dma *dma = p->dma;
 	u32 val;
+
+	dma->tx_nents = 1;
+	dma->tx_size = CIRC_CNT_TO_END(xmit->head, xmit->tail, UART_XMIT_SIZE);
 
 	dw8250_writel_ext(up, RZN1_UART_TDMACR, 0);
 	val = dw8250_rzn1_get_dmacr_burst(dma->txconf.dst_maxburst) |
