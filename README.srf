@@ -1,6 +1,12 @@
 INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 ------------------------------------------------------------------------
 
+SRF PO bkc-v1.3
+===============
+1. MCE linear address support.
+   HSD: https://hsdes.intel.com/resource/22016966908
+
+
 SRF PO bkc-v1.2
 ===============
 1. MCE panic fix for Data load and Instruction fetch errors.
