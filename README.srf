@@ -16,6 +16,8 @@ SRF PO bkc-v1.2
    jira: https://jira.devtools.intel.com/browse/LFE-7289
 6. Add Intel IDLE support for SRF platform.
    jira: https://jira.devtools.intel.com/browse/LFE-7267
+7. Fix LASS vsyscall issue.
+   jira: https://jira.devtools.intel.com/browse/LFE-7251
 
 SRF PO bkc-v1.1
 ===============
