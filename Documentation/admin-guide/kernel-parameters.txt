@@ -6795,14 +6795,10 @@
 			versions of glibc use these calls.  Because these
 			functions are at fixed addresses, they make nice
 			targets for exploits that can control RIP.
-			In newer versions of Intel platforms that come with
-			LASS(Linear Address Space separation) protection,
-			vsyscall is disabled by default. Enabling vsyscall
-			via the parameter overrides LASS protection.
 
-			emulate     [default if not LASS capable] Vsyscalls
-				    turn into traps and are emulated reasonably
-				    safely.  The vsyscall page is readable.
+			emulate     [default] Vsyscalls turn into traps and are
+			            emulated reasonably safely.  The vsyscall
+				    page is readable.
 
 			xonly       Vsyscalls turn into traps and are
 			            emulated reasonably safely.  The vsyscall
