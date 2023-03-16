@@ -63,12 +63,6 @@ static int __init vsyscall_setup(char *str)
 		else
 			return -EINVAL;
 
-		if (cpu_feature_enabled(X86_FEATURE_LASS) &&
-		    vsyscall_mode != NONE) {
-			setup_clear_cpu_cap(X86_FEATURE_LASS);
-			pr_warn("LASS disabled by command line enabling vsyscall\n");
-		}
-
 		return 0;
 	}
 
@@ -385,14 +379,6 @@ void __init map_vsyscall(void)
 	extern char __vsyscall_page;
 	unsigned long physaddr_vsyscall = __pa_symbol(&__vsyscall_page);
 
-	/*
-	 * When LASS is on, vsyscall triggers a #GP fault,
-	 * so that force vsyscall_mode to NONE.
-	 */
-	if (cpu_feature_enabled(X86_FEATURE_LASS)) {
-		vsyscall_mode = NONE;
-		return;
-	}
 	/*
 	 * For full emulation, the page needs to exist for real.  In
 	 * execute-only mode, there is no PTE at all backing the vsyscall
