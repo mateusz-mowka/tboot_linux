@@ -2,13 +2,15 @@
 #ifndef _INTEL_PMT_CLASS_H
 #define _INTEL_PMT_CLASS_H
 
-#include <linux/xarray.h>
-#include <linux/types.h>
 #include <linux/bits.h>
 #include <linux/err.h>
 #include <linux/io.h>
+#include <linux/ioport.h>
+#include <linux/types.h>
+#include <linux/xarray.h>
 
 #include "../vsec.h"
+#include "telemetry.h"
 
 /* PMT access types */
 #define ACCESS_BARID		2
@@ -18,7 +20,29 @@
 #define GET_BIR(v)		((v) & GENMASK(2, 0))
 #define GET_ADDRESS(v)		((v) & GENMASK(31, 3))
 
+struct pci_dev;
+
+struct telem_endpoint {
+	struct pci_dev		*parent;
+	struct telem_header	header;
+	struct device		*dev;
+	void __iomem		*base;
+	bool			present;
+	struct kref		kref;
+};
+
+struct intel_pmt_header {
+	u32	base_offset;
+	u32	size;
+	u32	guid;
+	u32	tele_id;
+	u8	access_type;
+	u8	telem_type;
+};
+
 struct intel_pmt_entry {
+	struct telem_endpoint	*ep;
+	struct intel_pmt_header	header;
 	struct bin_attribute	pmt_bin_attr;
 	struct kobject		*kobj;
 	void __iomem		*disc_table;
@@ -29,23 +53,18 @@ struct intel_pmt_entry {
 	int			devid;
 };
 
-struct intel_pmt_header {
-	u32	base_offset;
-	u32	size;
-	u32	guid;
-	u8	access_type;
-};
-
 struct intel_pmt_namespace {
 	const char *name;
 	struct xarray *xa;
 	const struct attribute_group *attr_grp;
 	int (*pmt_header_decode)(struct intel_pmt_entry *entry,
-				 struct intel_pmt_header *header,
-				 struct device *dev);
+				 struct device *dev, struct resource *disc_res);
 };
 
 bool intel_pmt_is_early_client_hw(struct device *dev);
+int intel_pmt_populate_entry(struct intel_pmt_entry *entry,
+			     struct intel_vsec_device *intel_vsec_dev,
+			     struct resource *disc_res);
 int intel_pmt_dev_create(struct intel_pmt_entry *entry,
 			 struct intel_pmt_namespace *ns,
 			 struct intel_vsec_device *dev, int idx);

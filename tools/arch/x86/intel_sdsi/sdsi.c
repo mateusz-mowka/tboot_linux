@@ -13,14 +13,18 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <gcrypt.h>
+#include <keyutils.h>	// libkeyutils-dev
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <sys/stat.h>
 #include <sys/types.h>
+
+#include "sdsi_spdm.h"
 
 #ifndef __packed
 #define __packed __attribute__((packed))
@@ -182,6 +186,21 @@ enum command {
 	CMD_STATE_CERT,
 	CMD_PROV_AKC,
 	CMD_PROV_CAP,
+	CMD_VERIFY,
+	CMD_ADD_KEY,
+	CMD_MEASUREMENT,
+};
+
+enum cert_slot {
+	CERT_SLOT_STATE,
+	CERT_SLOT_METER,
+};
+
+enum meas_slot {
+	MEAS_SLOT_COUNT,
+	MEAS_SLOT_STATE,
+	MEAS_SLOT_METER,
+	MEAS_SLOT_ALL = 0xFF,
 };
 
 static void sdsi_list_devices(void)
@@ -255,7 +274,6 @@ static int sdsi_read_reg(struct sdsi_dev *s)
 	if (ret)
 		return ret;
 
-	/* Print register info for this guid */
 	printf("\n");
 	printf("Socket information for device %s\n", s->dev_name);
 	printf("\n");
@@ -448,7 +466,6 @@ static int sdsi_state_cert_show(struct sdsi_dev *s)
 
 	sc = (struct state_certificate *)buf;
 
-	/* Print register info for this guid */
 	printf("\n");
 	printf("State certificate for device %s\n", s->dev_name);
 	printf("\n");
@@ -506,6 +523,218 @@ static int sdsi_state_cert_show(struct sdsi_dev *s)
 
 		offset += blob_size;
 	};
+
+	return 0;
+}
+
+static int sdsi_verify(struct sdsi_dev *s, int slot_no)
+{
+	struct sdsi_spdm_handle *hndl;
+	struct sdsi_spdm_device *spdm_dev, *spdm_dev_list;
+	bool device_found = false;
+	int ret;
+
+	/* Initialize netlink connection */
+	hndl = sdsi_spdm_init();
+	if (!hndl)
+		return -1;
+
+	/* Get list of devices */
+	ret = sdsi_spdm_get_devices(hndl, &spdm_dev_list);
+	if (ret)
+		goto finish;
+
+	if (!spdm_dev_list)
+		return -1;
+
+	spdm_dev = spdm_dev_list;
+	while (spdm_dev->id != -1) {
+		if (strncmp(spdm_dev->name, s->dev_name, strlen(s->dev_name)) == 0) {
+			device_found = true;
+			break;
+		}
+		spdm_dev++;
+	}
+
+	if (!device_found) {
+		fprintf(stderr, "Could not find device %s to verify\n",
+			s->dev_name);
+		ret = -1;
+		goto free_spdm_dev_list;
+	}
+
+	spdm_dev->cert_slot_no = slot_no;
+	ret = sdsi_spdm_authorize(hndl, spdm_dev);
+	if (ret) {
+		fprintf(stderr, "Authorization failed\n");
+		goto free_spdm_dev_list;
+	} else {
+		puts("Device authorization successful");
+
+		if (spdm_dev->cert_chain) {
+			uint32_t *buf = (uint32_t *)spdm_dev->cert_chain;
+			size_t i;
+
+			puts("Device Certficate:");
+			for (i = 0; i < spdm_dev->cert_chain_size / 4; i++)
+				printf("\t%08x\n", buf[i]);
+			if (spdm_dev->cert_chain_size % 4)
+				printf("\t%08x\n", buf[i]);
+		}
+	}
+
+free_spdm_dev_list:
+	free(spdm_dev_list);
+finish:
+	sdsi_spdm_exit(hndl);
+
+	return ret;
+}
+
+static int sdsi_get_measurements(struct sdsi_dev *s, int slot_no, bool sign)
+{
+	struct sdsi_spdm_handle *hndl;
+	struct sdsi_spdm_device *spdm_dev, *spdm_dev_list;
+	bool device_found = false;
+	int ret, i;
+
+	hndl = sdsi_spdm_init();
+	if (!hndl)
+		return -1;
+
+	ret = sdsi_spdm_get_devices(hndl, &spdm_dev_list);
+	if (ret)
+		goto finish;
+
+	if (!spdm_dev_list)
+		return -1;
+
+
+	/* Find matching device */
+	spdm_dev = spdm_dev_list;
+	while (spdm_dev->id != -1) {
+		if (strncmp(spdm_dev->name, s->dev_name, strlen(s->dev_name)) == 0) {
+			device_found = true;
+			break;
+		}
+		spdm_dev++;
+	}
+
+	if (!device_found) {
+		fprintf(stderr, "Could not find device %s to get measurement\n",
+			spdm_dev->name);
+		ret = -1;
+		goto free_spdm_dev_list;
+	}
+
+	/* Select measurement index and sign request */
+	spdm_dev->meas_slot_index = slot_no;
+	spdm_dev->sign_meas = sign;
+
+	/* Call into driver to get measurement */
+	ret = sdsi_spdm_get_measurement(hndl, spdm_dev);
+	if (ret) {
+		fprintf(stderr, "Get measurements failed\n");
+		goto free_spdm_dev_list;
+	}
+
+	/* Display Measurement Data */
+	printf("%sMeasurement for %s configuration, size %ld:\n",
+	       spdm_dev->sign_meas ? "Signed " : "",
+	       slot_no == 0 ? "State" : "Meter", spdm_dev->meas_size);
+	printf("\t");
+	for (i = spdm_dev->meas_size - 1; i >= 0; i--)
+		printf("%02x", spdm_dev->meas[i]);
+	puts("");
+
+	/* Done with measurement data */
+	free(spdm_dev->meas);
+
+	/* Print the measurement signature that was signed by the device */
+	if (spdm_dev->meas_sig) {
+		printf("Signature, size %ld:\n\t", spdm_dev->meas_sig_size);
+		for (i = spdm_dev->meas_sig_size - 1; i >= 0; i--)
+			printf("%02x", spdm_dev->meas_sig[i]);
+
+		/* Done with signature */
+		free(spdm_dev->meas_sig);
+	}
+
+	/* Print the transcript that was recorded by the kernel */
+	if (spdm_dev->meas_ts) {
+		uint32_t *buf = (uint32_t *)spdm_dev->meas_ts;
+		size_t i;
+
+		printf("\nTranscript, size %ld:\n", spdm_dev->meas_ts_size);
+		for (i = 0; i < spdm_dev->meas_ts_size / 4; i++)
+			printf("\t%08x\n", buf[i]);
+		if (spdm_dev->meas_ts_size % 4 == 3)
+			printf("\t%06x\n", buf[i] & 0xFFFFFF);
+		else if (spdm_dev->meas_ts_size % 4 == 2)
+			printf("\t%04x\n", buf[i] & 0xFFFF);
+		else if (spdm_dev->meas_ts_size % 4 == 1)
+			printf("\t%02x\n", buf[i] & 0xFF);
+
+		/* Done with transcript */
+		free(spdm_dev->meas_ts);
+	}
+
+free_spdm_dev_list:
+	free(spdm_dev_list);
+finish:
+	sdsi_spdm_exit(hndl);
+
+	return ret;
+}
+
+static int sdsi_add_key(const char *keyfile)
+{
+	key_serial_t kst;
+	struct stat st;
+	int ret, fd;
+	off_t size;
+	char buf[4096];
+
+	fd = open(keyfile, O_RDONLY);
+	if (fd == -1) {
+		fprintf(stderr, "Error: Could not open keyfile %s: %s\n", keyfile, strerror(errno));
+		return errno;
+	}
+
+	ret = stat(keyfile, &st);
+	if (ret == -1) {
+		fprintf(stderr, "Error: Could not get size of keyfile %s: %s\n", keyfile, strerror(errno));
+		close(fd);
+		return errno;
+	}
+
+	size = st.st_size;
+	if (size == 0) {
+		fprintf(stderr, "Error: The keyfile %s is empty\n", keyfile);
+		close(fd);
+		return -1;
+	} else if (size > 4096) {
+		fprintf(stderr, "Error: The keyfile size is > 4096\n");
+		close(fd);
+		return -1;
+	}
+
+	size = read(fd, buf, size);
+	if (size == -1) {
+		fprintf(stderr, "Error: Could not read keyfile %s: %s\n", keyfile, strerror(errno));
+		close(fd);
+		return errno;
+	}
+
+	kst = add_key("asymmetric", SDSI_ROOT_CERT_NAME, buf, size,
+		      KEY_SPEC_USER_KEYRING);
+	if (kst == -1) {
+		fprintf(stderr, "Error: Could not add key: %s\n",
+			strerror(errno));
+		return errno;
+	}
+
+	printf("Key %s add SUCCESS. Entry in /proc/keys\n", keyfile);
 
 	return 0;
 }
@@ -725,30 +954,40 @@ static void sdsi_free_dev(struct sdsi_dev *s)
 
 static void usage(char *prog)
 {
-	printf("Usage: %s [-l] [-d DEVNO [-i] [-s] [-m] [-a FILE] [-c FILE]]\n", prog);
+	printf("Usage: %s [-l] [-d DEVNO [-i] [-s] [-m] [-a FILE] [-c FILE] [-v SLOTNO] [-M state|meter]]\n"
+	       "          [-k KEY_FILE]\n", prog);
 }
 
 static void show_help(void)
 {
 	printf("Commands:\n");
-	printf("  %-18s\t%s\n", "-l, --list",           "list available On Demand devices");
-	printf("  %-18s\t%s\n", "-d, --devno DEVNO",    "On Demand device number");
+	printf("  %-18s\t%s\n", "-l, --list",           "list available sdsi devices");
+	printf("  %-18s\t%s\n", "-d, --devno DEVNO",    "sdsi device number");
 	printf("  %-18s\t%s\n", "-i, --info",           "show socket information");
-	printf("  %-18s\t%s\n", "-s, --state",          "show state certificate");
-	printf("  %-18s\t%s\n", "-m, --meter",          "show meter certificate");
+	printf("  %-18s\t%s\n", "-s, --state",          "show state certificate data");
+	printf("  %-18s\t%s\n", "-m, --meter",          "show meter certificate data");
 	printf("  %-18s\t%s\n", "-a, --akc FILE",       "provision socket with AKC FILE");
 	printf("  %-18s\t%s\n", "-c, --cap FILE>",      "provision socket with CAP FILE");
+	printf("  %-18s\t%s\n", "-v, --verify SLOTNO",  "verify certificate chain of select slot");
+	printf("  %-18s\t%s\n", "-M, --measurement",    "get SDSi firmware measurements");
+	printf("  %-18s\t%s\n", "    state",            "    get state measurement");
+	printf("  %-18s\t%s\n", "    state+",           "    get signed state measurement");
+	printf("  %-18s\t%s\n", "    meter",            "    get meter measurement");
+	printf("  %-18s\t%s\n", "    meter+",           "    get signed meter measurement");
+	printf("  %-18s\t%s\n", "-k, --key KEY_FILE",   "add root key");
 }
 
 int main(int argc, char *argv[])
 {
-	char bin_file[PATH_MAX], *dev_no = NULL;
-	bool device_selected = false;
+	char bin_file[PATH_MAX], keyfile[PATH_MAX], *dev_no = NULL;
+	bool device_selected = false, sign = false;
 	char *progname;
 	enum command command = -1;
 	struct sdsi_dev *s;
-	int ret = 0, opt;
-	int option_index = 0;
+	int option_index = 0, opt;
+	int meas_slot_no = -1, cert_slot_no = -1;
+	int ret = 0;
+	size_t len;
 
 	static struct option long_options[] = {
 		{"akc",		required_argument,	0, 'a'},
@@ -756,17 +995,24 @@ int main(int argc, char *argv[])
 		{"devno",	required_argument,	0, 'd'},
 		{"help",	no_argument,		0, 'h'},
 		{"info",	no_argument,		0, 'i'},
+		{"key",		required_argument,	0, 'k'},
 		{"list",	no_argument,		0, 'l'},
+		{"measurement",	required_argument,	0, 'M'},
 		{"meter",	no_argument,		0, 'm'},
 		{"state",	no_argument,		0, 's'},
+		{"verify",	required_argument,	0, 'v'},
 		{0,		0,			0, 0 }
 	};
 
 
 	progname = argv[0];
 
-	while ((opt = getopt_long_only(argc, argv, "+a:c:d:hilms", long_options,
+	while ((opt = getopt_long_only(argc, argv, "+a:c:d:hik:lmM:sv:", long_options,
 			&option_index)) != -1) {
+		/*
+		 * All cases must specify a command or perform and action and
+		 * immediately exit the program.
+		 */
 		switch (opt) {
 		case 'd':
 			dev_no = optarg;
@@ -787,7 +1033,7 @@ int main(int argc, char *argv[])
 		case 'a':
 		case 'c':
 			if (!access(optarg, F_OK) == 0) {
-				fprintf(stderr, "Could not open file '%s': %s\n", optarg,
+				fprintf(stderr, "Could not access file '%s': %s\n", optarg,
 					strerror(errno));
 				return -1;
 			}
@@ -798,6 +1044,45 @@ int main(int argc, char *argv[])
 			}
 
 			command = (opt == 'a') ? CMD_PROV_AKC : CMD_PROV_CAP;
+			break;
+		case 'M':
+			len = strlen(optarg);
+			if (!strncmp(optarg, "meter", 5))
+			       meas_slot_no = MEAS_SLOT_METER;
+			else if (!strncmp(optarg, "state", 5))
+			       meas_slot_no = MEAS_SLOT_STATE;
+			else {
+				fprintf(stderr, "Invalid option for -%c\n", opt);
+				return -1;
+			}
+
+			if (len == 6 && optarg[len - 1] == '+')
+				sign = true;
+
+			command = CMD_MEASUREMENT;
+			break;
+		case 'v':
+			cert_slot_no = strtol(optarg, NULL, 10);
+			if (cert_slot_no != 0 && cert_slot_no != 1) {
+				fprintf(stderr, "Avialable slots are 0 and 1\n");
+				return -1;
+			}
+
+			command = CMD_VERIFY;
+			break;
+		case 'k':
+			if (!access(optarg, F_OK) == 0) {
+				fprintf(stderr, "Could not access file '%s': %s\n", optarg,
+					strerror(errno));
+				return -1;
+			}
+
+			if (!realpath(optarg, keyfile)) {
+				perror("realpath");
+				return -1;
+			}
+
+			command = CMD_ADD_KEY;
 			break;
 		case 'h':
 			usage(progname);
@@ -830,6 +1115,12 @@ int main(int argc, char *argv[])
 		case CMD_PROV_CAP:
 			ret = sdsi_provision_cap(s, bin_file);
 			break;
+		case CMD_VERIFY:
+			ret = sdsi_verify(s, cert_slot_no);
+			break;
+		case CMD_MEASUREMENT:
+			ret = sdsi_get_measurements(s, meas_slot_no, sign);
+			break;
 		default:
 			fprintf(stderr, "No command specified\n");
 			return -1;
@@ -838,8 +1129,12 @@ int main(int argc, char *argv[])
 		sdsi_free_dev(s);
 
 	} else {
-		fprintf(stderr, "No device specified\n");
-		return -1;
+		if (command == CMD_ADD_KEY) {
+			ret = sdsi_add_key(keyfile);
+		} else {
+			fprintf(stderr, "No device specified\n");
+			return -1;
+		}
 	}
 
 	return ret;

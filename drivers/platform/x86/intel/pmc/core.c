@@ -66,7 +66,17 @@ static inline void pmc_core_reg_write(struct pmc_dev *pmcdev, int reg_offset,
 
 static inline u64 pmc_core_adjust_slp_s0_step(struct pmc_dev *pmcdev, u32 value)
 {
-	return (u64)value * pmcdev->map->slp_s0_res_counter_step;
+	/* ADL PCH does not have the SLP_S0 counter and LPM Residency counters are
+	 * used as a workaround which uses 30.5 usec tick. All other client
+	 * programs have the legacy SLP_S0 residency counter that is using the 122
+	 * usec tick.
+	 */
+	const int lpm_adj_x2 = pmcdev->map->lpm_res_counter_step_x2;
+
+	if (pmcdev->map == &adl_reg_map)
+		return (u64)value * GET_X2_COUNTER((u64)lpm_adj_x2);
+	else
+		return (u64)value * pmcdev->map->slp_s0_res_counter_step;
 }
 
 static int set_etr3(struct pmc_dev *pmcdev)
@@ -887,7 +897,7 @@ static bool pmc_core_pri_verify(u32 lpm_pri, u8 *mode_order)
 	return true;
 }
 
-static void pmc_core_get_low_power_modes(struct platform_device *pdev)
+void pmc_core_get_low_power_modes(struct platform_device *pdev)
 {
 	struct pmc_dev *pmcdev = platform_get_drvdata(pdev);
 	u8 pri_order[LPM_MAX_NUM_MODES] = LPM_DEFAULT_PRI;
@@ -935,6 +945,26 @@ static void pmc_core_get_low_power_modes(struct platform_device *pdev)
 
 		pmcdev->lpm_en_modes[i++] = mode;
 	}
+}
+
+int get_primary_reg_base(struct pmc_dev *pmcdev)
+{
+	u64 slp_s0_addr;
+
+	if (lpit_read_residency_count_address(&slp_s0_addr)) {
+		pmcdev->base_addr = PMC_BASE_ADDR_DEFAULT;
+
+		if (page_is_ram(PHYS_PFN(pmcdev->base_addr)))
+			return -ENODEV;
+	} else {
+		pmcdev->base_addr = slp_s0_addr - pmcdev->map->slp_s0_offset;
+	}
+
+	pmcdev->regbase = ioremap(pmcdev->base_addr,
+				  pmcdev->map->regmap_length);
+	if (!pmcdev->regbase)
+		return -ENOMEM;
+	return 0;
 }
 
 static void pmc_core_dbgfs_unregister(struct pmc_dev *pmcdev)
@@ -1019,6 +1049,7 @@ static const struct x86_cpu_id intel_pmc_core_ids[] = {
 	X86_MATCH_INTEL_FAM6_MODEL(COMETLAKE_L,		cnp_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(TIGERLAKE_L,		tgl_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(TIGERLAKE,		tgl_core_init),
+	X86_MATCH_INTEL_FAM6_MODEL(ATOM_TREMONT_D,	cnp_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(ATOM_TREMONT,	tgl_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(ATOM_TREMONT_L,	icl_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(ROCKETLAKE,		tgl_core_init),
@@ -1030,6 +1061,7 @@ static const struct x86_cpu_id intel_pmc_core_ids[] = {
 	X86_MATCH_INTEL_FAM6_MODEL(RAPTORLAKE_S,	adl_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(METEORLAKE,          mtl_core_init),
 	X86_MATCH_INTEL_FAM6_MODEL(METEORLAKE_L,	mtl_core_init),
+	X86_MATCH_INTEL_FAM6_MODEL(LAKEFIELD,		lkf_core_init),
 	{}
 };
 
@@ -1089,8 +1121,8 @@ static int pmc_core_probe(struct platform_device *pdev)
 	static bool device_initialized;
 	struct pmc_dev *pmcdev;
 	const struct x86_cpu_id *cpu_id;
-	void (*core_init)(struct pmc_dev *pmcdev);
-	u64 slp_s0_addr;
+	int (*core_init)(struct pmc_dev *pmcdev);
+	int ret;
 
 	if (device_initialized)
 		return -ENODEV;
@@ -1106,7 +1138,7 @@ static int pmc_core_probe(struct platform_device *pdev)
 	if (!cpu_id)
 		return -ENODEV;
 
-	core_init = (void  (*)(struct pmc_dev *))cpu_id->driver_data;
+	core_init = (int (*)(struct pmc_dev *))cpu_id->driver_data;
 
 	/*
 	 * Coffee Lake has CPU ID of Kaby Lake and Cannon Lake PCH. So here
@@ -1117,28 +1149,13 @@ static int pmc_core_probe(struct platform_device *pdev)
 		core_init = cnp_core_init;
 
 	mutex_init(&pmcdev->lock);
-	core_init(pmcdev);
-
-
-	if (lpit_read_residency_count_address(&slp_s0_addr)) {
-		pmcdev->base_addr = PMC_BASE_ADDR_DEFAULT;
-
-		if (page_is_ram(PHYS_PFN(pmcdev->base_addr)))
-			return -ENODEV;
-	} else {
-		pmcdev->base_addr = slp_s0_addr - pmcdev->map->slp_s0_offset;
+	ret = core_init(pmcdev);
+	if (ret) {
+		mutex_destroy(&pmcdev->lock);
+		return ret;
 	}
 
-	pmcdev->regbase = ioremap(pmcdev->base_addr,
-				  pmcdev->map->regmap_length);
-	if (!pmcdev->regbase)
-		return -ENOMEM;
-
-	if (pmcdev->core_configure)
-		pmcdev->core_configure(pmcdev);
-
 	pmcdev->pmc_xram_read_bit = pmc_core_check_read_lock_bit(pmcdev);
-	pmc_core_get_low_power_modes(pdev);
 	pmc_core_do_dmi_quirks(pmcdev);
 
 	pmc_core_dbgfs_register(pmcdev);
@@ -1157,6 +1174,12 @@ static int pmc_core_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	mutex_destroy(&pmcdev->lock);
 	iounmap(pmcdev->regbase);
+
+	if (pmcdev->ssram_pcidev) {
+		pci_dev_put(pmcdev->ssram_pcidev);
+		pci_disable_device(pmcdev->ssram_pcidev);
+	}
+
 	return 0;
 }
 
