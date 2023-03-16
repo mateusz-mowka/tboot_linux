@@ -767,7 +767,7 @@ static int apply_microcode_early(struct ucode_cpu_info *uci, bool early)
 	struct microcode_intel *mc;
 	u32 rev;
 
-	mc = find_patch();
+	mc = uci->mc;
 	if (!mc)
 		return 0;
 
@@ -832,7 +832,6 @@ int __init save_microcode_in_initrd_intel(void)
  */
 static struct microcode_intel *__load_ucode_intel(struct ucode_cpu_info *uci)
 {
-	struct microcode_intel *patch;
 	static const char *path;
 	struct cpio_data cp;
 	bool use_pa;
@@ -845,12 +844,6 @@ static struct microcode_intel *__load_ucode_intel(struct ucode_cpu_info *uci)
 		use_pa	  = false;
 	}
 
-	/*
-	 * One is saved already, just return it
-	 */
-	if (intel_ucode_patch)
-		return intel_ucode_patch;
-
 	/* try built-in microcode first */
 	if (!load_builtin_intel_microcode(&cp))
 		cp = find_microcode_in_initrd(path, use_pa);
@@ -862,36 +855,54 @@ static struct microcode_intel *__load_ucode_intel(struct ucode_cpu_info *uci)
 	intel_cpu_collect_info(uci);
 	pr_info("Proceeding with scan_microcode\n");
 
-	patch = scan_microcode(cp.data, cp.size, uci, false);
-
-	/*
-	 * Save it, to return for AP ucode lookups
-	 */
-	intel_ucode_patch = patch;
-
-	return patch;
+	return scan_microcode(cp.data, cp.size, uci, false);
 }
 
-void load_ucode_intel(bool bsp)
+static void load_ucode_intel_bsp(void)
 {
 	struct microcode_intel *patch;
 	struct ucode_cpu_info uci;
 
-	if (bsp)
-	pr_info("Load ucode %s\n", bsp ? "BSP" : "AP");
-
 	patch = __load_ucode_intel(&uci);
-	pr_info("%s: early loading %s patch\n", __func__, patch ? "found" : "didnt");
-
 	if (!patch)
 		return;
 
-	if (bsp)
-		intel_ucode_patch = patch;
-
 	uci.mc = patch;
 
-	apply_microcode_early(&uci, bsp);
+	apply_microcode_early(&uci, true);
+}
+
+static void load_ucode_intel_ap(void)
+{
+	struct microcode_intel *patch, **iup;
+	struct ucode_cpu_info uci;
+
+	if (IS_ENABLED(CONFIG_X86_32))
+		iup = (struct microcode_intel **) __pa_nodebug(&intel_ucode_patch);
+	else
+		iup = &intel_ucode_patch;
+
+	if (!*iup) {
+		patch = __load_ucode_intel(&uci);
+		if (!patch)
+			return;
+
+		*iup = patch;
+	}
+
+	uci.mc = *iup;
+
+	apply_microcode_early(&uci, true);
+}
+
+void load_ucode_intel(bool bsp)
+{
+	pr_info("Load ucode for %s\n", bsp ? "BSP" : "AP");
+
+	if (bsp)
+		load_ucode_intel_bsp();
+	else
+		load_ucode_intel_ap();
 }
 
 void reload_ucode_intel(void)
