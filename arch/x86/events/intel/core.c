@@ -2119,14 +2119,15 @@ static struct extra_reg intel_grt_extra_regs[] __read_mostly = {
 	EVENT_EXTRA_END
 };
 
+EVENT_ATTR_STR(topdown-retiring,       td_retiring_cmt,        "event=0x72,umask=0x0");
 EVENT_ATTR_STR(topdown-bad-spec,       td_bad_spec_cmt,        "event=0x73,umask=0x0");
 
 static struct attribute *cmt_events_attrs[] = {
 	EVENT_PTR(td_fe_bound_tnt),
-	EVENT_PTR(td_retiring_tnt),
+	EVENT_PTR(td_retiring_cmt),
 	EVENT_PTR(td_bad_spec_cmt),
 	EVENT_PTR(td_be_bound_tnt),
-	NULL,
+	NULL
 };
 
 static struct extra_reg intel_cmt_extra_regs[] __read_mostly = {
@@ -5130,6 +5131,8 @@ PMU_FORMAT_ATTR(ldlat, "config1:0-15");
 
 PMU_FORMAT_ATTR(frontend, "config1:0-23");
 
+PMU_FORMAT_ATTR(snoop_rsp, "config1:0-63");
+
 static struct attribute *hsw_format_attr[] = {
 	&format_attr_in_tx.attr,
 	&format_attr_in_tx_cp.attr,
@@ -5146,6 +5149,13 @@ static struct attribute *nhm_format_attr[] = {
 
 static struct attribute *slm_format_attr[] = {
 	&format_attr_offcore_rsp.attr,
+	NULL
+};
+
+static struct attribute *cmt_format_attr[] = {
+	&format_attr_offcore_rsp.attr,
+	&format_attr_ldlat.attr,
+	&format_attr_snoop_rsp.attr,
 	NULL
 };
 
@@ -5987,7 +5997,6 @@ static struct attribute *adl_hybrid_extra_attr[] = {
 	NULL
 };
 
-PMU_FORMAT_ATTR_SHOW(snoop_rsp, "config1:0-63");
 FORMAT_ATTR_HYBRID(snoop_rsp,	hybrid_small);
 
 static struct attribute *mtl_hybrid_extra_attr_rtm[] = {
@@ -6613,17 +6622,16 @@ __init int intel_pmu_init(void)
 		x86_pmu.lbr_pt_coexist = true;
 		x86_pmu.pebs_block = true;
 		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
-		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
-		x86_pmu.flags |= PMU_FL_PEBS_ALL;
 		x86_pmu.flags |= PMU_FL_INSTR_LATENCY;
-		x86_pmu.get_event_constraints = cmt_get_event_constraints;
+		intel_pmu_pebs_data_source_cmt();
 		x86_pmu.pebs_latency_data = mtl_latency_data_small;
+		x86_pmu.get_event_constraints = cmt_get_event_constraints;
+		x86_pmu.limit_period = spr_limit_period;
 		td_attr = cmt_events_attrs;
 		mem_attr = grt_mem_attrs;
-		extra_attr = nhm_format_attr;
-		intel_pmu_pebs_data_source_cmt();
+		extra_attr = cmt_format_attr;
 		pr_cont("Crestmont events, ");
-		name = "Crestmont";
+		name = "crestmont";
 		break;
 
 	case INTEL_FAM6_WESTMERE:
