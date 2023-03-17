@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v2.1
+----------------
+12. iommufd: remove wrong area in iopt while domain attached
+	https://jira.devtools.intel.com/browse/LFE-4915
+
 emr-bkc-6.2-v1.11
 ----------------
 11. vfio: Fix bind/unbind mismatch
