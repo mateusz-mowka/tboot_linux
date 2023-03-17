@@ -101,6 +101,8 @@ static int sched_domain_debug_one(struct sched_domain *sd, int cpu, int level,
 		if (group->sgc->capacity != SCHED_CAPACITY_SCALE)
 			printk(KERN_CONT " cap=%lu", group->sgc->capacity);
 
+		printk(KERN_CONT " flags=%x", group->flags);
+
 		if (group == sd->groups && sd->child &&
 		    !cpumask_equal(sched_domain_span(sd->child),
 				   sched_group_span(group))) {
@@ -669,6 +671,19 @@ DEFINE_PER_CPU(struct sched_domain __rcu *, sd_numa);
 DEFINE_PER_CPU(struct sched_domain __rcu *, sd_asym_packing);
 DEFINE_PER_CPU(struct sched_domain __rcu *, sd_asym_cpucapacity);
 DEFINE_STATIC_KEY_FALSE(sched_asym_cpucapacity);
+
+#ifdef CONFIG_IPC_CLASSES
+DEFINE_STATIC_KEY_FALSE(sched_ipcc);
+
+void sched_enable_ipc_classes(void)
+{
+	static_branch_enable_cpuslocked(&sched_ipcc);
+#ifdef CONFIG_SCHED_DEBUG
+	static_branch_enable_cpuslocked(&sched_ipcc_debug_idle_lb);
+	static_branch_enable_cpuslocked(&sched_ipcc_debug_busy_lb);
+#endif
+}
+#endif
 
 static void update_top_cache_domain(int cpu)
 {
@@ -1642,6 +1657,12 @@ sd_init(struct sched_domain_topology_level *tl,
 		atomic_inc(&sd->shared->ref);
 		atomic_set(&sd->shared->nr_busy_cpus, sd_weight);
 	}
+
+	/* The sched groups in a Die domain should not spread tasks. */
+	if ((sd->flags & SD_ASYM_PACKING) &&
+	    !(sd->flags & SD_SHARE_PKG_RESOURCES) &&
+	    sd->child)
+		sd->child->flags &= ~SD_PREFER_SIBLING;
 
 	sd->private = sdd;
 

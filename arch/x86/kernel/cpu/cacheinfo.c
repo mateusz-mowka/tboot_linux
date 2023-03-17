@@ -18,6 +18,7 @@
 #include <linux/pci.h>
 #include <linux/stop_machine.h>
 
+#include <asm/intel-family.h>
 #include <asm/cpufeature.h>
 #include <asm/cacheinfo.h>
 #include <asm/amd_nb.h>
@@ -176,7 +177,18 @@ struct _cpuid4_info_regs {
 	struct amd_northbridge *nb;
 };
 
-static unsigned short num_cache_leaves;
+static DEFINE_PER_CPU(unsigned short, num_cache_leaves);
+
+static inline unsigned short get_num_cache_leaves(unsigned int cpu)
+{
+	return per_cpu(num_cache_leaves, cpu);
+}
+
+static inline void
+set_num_cache_leaves(unsigned short nr_leaves, unsigned int cpu)
+{
+	per_cpu(num_cache_leaves, cpu) = nr_leaves;
+}
 
 /* AMD doesn't have CPUID4. Emulate it here to report the same
    information to the user.  This makes some assumptions about the machine:
@@ -716,19 +728,32 @@ void cacheinfo_hygon_init_llc_id(struct cpuinfo_x86 *c, int cpu)
 void init_amd_cacheinfo(struct cpuinfo_x86 *c)
 {
 
+	unsigned int cpu = c->cpu_index;
+
 	if (boot_cpu_has(X86_FEATURE_TOPOEXT)) {
-		num_cache_leaves = find_num_cache_leaves(c);
+		set_num_cache_leaves(find_num_cache_leaves(c), cpu);
 	} else if (c->extended_cpuid_level >= 0x80000006) {
 		if (cpuid_edx(0x80000006) & 0xf000)
-			num_cache_leaves = 4;
+			set_num_cache_leaves(4, cpu);
 		else
-			num_cache_leaves = 3;
+			set_num_cache_leaves(3, cpu);
 	}
 }
 
 void init_hygon_cacheinfo(struct cpuinfo_x86 *c)
 {
-	num_cache_leaves = find_num_cache_leaves(c);
+	set_num_cache_leaves(find_num_cache_leaves(c), c->cpu_index);
+}
+
+static bool intel_has_asym_num_cache_leaves(void)
+{
+	switch (boot_cpu_data.x86_model) {
+	case INTEL_FAM6_METEORLAKE:
+	case INTEL_FAM6_METEORLAKE_L:
+		return true;
+	default:
+		return false;
+	}
 }
 
 void init_intel_cacheinfo(struct cpuinfo_x86 *c)
@@ -738,24 +763,33 @@ void init_intel_cacheinfo(struct cpuinfo_x86 *c)
 	unsigned int new_l1d = 0, new_l1i = 0; /* Cache sizes from cpuid(4) */
 	unsigned int new_l2 = 0, new_l3 = 0, i; /* Cache sizes from cpuid(4) */
 	unsigned int l2_id = 0, l3_id = 0, num_threads_sharing, index_msb;
-#ifdef CONFIG_SMP
 	unsigned int cpu = c->cpu_index;
-#endif
 
 	if (c->cpuid_level > 3) {
-		static int is_initialized;
+		int leaves = get_num_cache_leaves(cpu);
 
-		if (is_initialized == 0) {
-			/* Init num_cache_leaves from boot CPU */
-			num_cache_leaves = find_num_cache_leaves(c);
-			is_initialized++;
+		/*
+		 * There should be at least one leaf. A non-zero value means
+		 * that the number of leaves has been initialized.
+		 */
+		if (!leaves) {
+			/*
+			 * Most CPUs enumerate the same number of cache leaves.
+			 * Use the boot CPU data in those cases.
+			 */
+			if (intel_has_asym_num_cache_leaves() || c == &boot_cpu_data)
+				leaves = find_num_cache_leaves(c);
+			else
+				leaves = get_num_cache_leaves(boot_cpu_data.cpu_index);
+
+			set_num_cache_leaves(leaves, cpu);
 		}
 
 		/*
 		 * Whenever possible use cpuid(4), deterministic cache
 		 * parameters cpuid leaf to find the cache details
 		 */
-		for (i = 0; i < num_cache_leaves; i++) {
+		for (i = 0; i < get_num_cache_leaves(cpu); i++) {
 			struct _cpuid4_info_regs this_leaf = {};
 			int retval;
 
@@ -791,14 +825,14 @@ void init_intel_cacheinfo(struct cpuinfo_x86 *c)
 	 * Don't use cpuid2 if cpuid4 is supported. For P4, we use cpuid2 for
 	 * trace cache
 	 */
-	if ((num_cache_leaves == 0 || c->x86 == 15) && c->cpuid_level > 1) {
+	if ((!get_num_cache_leaves(cpu) || c->x86 == 15) && c->cpuid_level > 1) {
 		/* supports eax=2  call */
 		int j, n;
 		unsigned int regs[4];
 		unsigned char *dp = (unsigned char *)regs;
 		int only_trace = 0;
 
-		if (num_cache_leaves != 0 && c->x86 == 15)
+		if (get_num_cache_leaves(cpu) && c->x86 == 15)
 			only_trace = 1;
 
 		/* Number of times to iterate */
@@ -1003,12 +1037,12 @@ int init_cache_level(unsigned int cpu)
 {
 	struct cpu_cacheinfo *this_cpu_ci = get_cpu_cacheinfo(cpu);
 
-	if (!num_cache_leaves)
+	if (!get_num_cache_leaves(cpu))
 		return -ENOENT;
 	if (!this_cpu_ci)
 		return -EINVAL;
 	this_cpu_ci->num_levels = 3;
-	this_cpu_ci->num_leaves = num_cache_leaves;
+	this_cpu_ci->num_leaves = get_num_cache_leaves(cpu);
 	return 0;
 }
 

@@ -1054,6 +1054,7 @@ struct rq {
 	int			active_balance;
 	int			push_cpu;
 	struct cpu_stop_work	active_balance_work;
+	struct multi_stop_data  multi_stop_data;
 
 	/* CPU of this runqueue: */
 	int			cpu;
@@ -1708,6 +1709,10 @@ static inline int sched_numa_find_closest(const struct cpumask *cpus, int cpu)
 {
 	return nr_cpu_ids;
 }
+#endif
+
+#if defined(CONFIG_IPC_CLASSES) || defined(CONFIG_NUMA_BALANCING)
+void __migrate_swap_task(struct task_struct *p, int cpu);
 #endif
 
 #ifdef CONFIG_NUMA_BALANCING
@@ -2525,6 +2530,98 @@ void arch_scale_freq_tick(void)
 {
 }
 #endif
+
+#ifdef CONFIG_SCHED_DEBUG
+DECLARE_STATIC_KEY_FALSE(sched_ipcc_debug_idle_lb);
+DECLARE_STATIC_KEY_FALSE(sched_ipcc_debug_busy_lb);
+
+static inline bool sched_ipcc_idle_lb_enabled(void)
+{
+	return static_branch_unlikely(&sched_ipcc_debug_idle_lb);
+}
+
+static inline bool sched_ipcc_busy_lb_enabled(void)
+{
+	return static_branch_unlikely(&sched_ipcc_debug_busy_lb);
+}
+
+#else /* CONFIG_SCHED_DEBUG */
+
+#ifdef CONFIG_IPC_CLASSES
+#define sched_ipcc_idle_lb_enabled() 1
+#define sched_ipcc_busy_lb_enabled() 1
+#else
+#define sched_ipcc_idle_lb_enabled() 0
+#define sched_ipcc_busy_lb_enabled() 0
+#endif
+
+#endif /* CONFIG_SCHED_DEBUG */
+
+#ifdef CONFIG_IPC_CLASSES
+DECLARE_STATIC_KEY_FALSE(sched_ipcc);
+
+static inline bool sched_ipcc_enabled(void)
+{
+	return static_branch_unlikely(&sched_ipcc);
+}
+
+#ifndef arch_update_ipcc
+/**
+ * arch_update_ipcc() - Update the IPC class of the current task
+ * @curr:		The current task
+ *
+ * Request that the IPC classification of @curr is updated.
+ *
+ * Returns: none
+ */
+static __always_inline
+void arch_update_ipcc(struct task_struct *curr)
+{
+}
+#endif
+
+#ifndef arch_get_ipcc_score
+
+#define SCHED_IPCC_SCORE_SCALE (1L << SCHED_FIXEDPOINT_SHIFT)
+/**
+ * arch_get_ipcc_score() - Get the IPC score of a class of task
+ * @ipcc:	The IPC class
+ * @cpu:	A CPU number
+ *
+ * The IPC performance scores reflects (but it is not identical to) the number
+ * of instructions retired per cycle for a given IPC class. It is a linear and
+ * abstract metric. Higher scores reflect better performance.
+ *
+ * The IPC score can be normalized with respect to the class, i, with the
+ * highest IPC score on the CPU, c, with highest performance:
+ *
+ *            IPC(i, c)
+ *  ------------------------------------ * SCHED_IPCC_SCORE_SCALE
+ *     max(IPC(i, c) : (i, c))
+ *
+ * Scheduling schemes that want to use the IPC score along with other
+ * normalized metrics for scheduling (e.g., CPU capacity) may need to normalize
+ * it.
+ *
+ * Other scheduling schemes (e.g., asym_packing) do not need normalization.
+ *
+ * Returns the performance score of an IPC class, @ipcc, when running on @cpu.
+ * Error when either @ipcc or @cpu are invalid.
+ */
+static __always_inline
+unsigned long arch_get_ipcc_score(unsigned short ipcc, int cpu)
+{
+	return SCHED_IPCC_SCORE_SCALE;
+}
+#endif
+#else /* CONFIG_IPC_CLASSES */
+
+#define arch_get_ipcc_score(ipcc, cpu) (-EINVAL)
+#define arch_update_ipcc(curr)
+
+static inline bool sched_ipcc_enabled(void) { return false; }
+
+#endif /* CONFIG_IPC_CLASSES */
 
 #ifndef arch_scale_freq_capacity
 /**

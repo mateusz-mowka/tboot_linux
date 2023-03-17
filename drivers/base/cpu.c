@@ -619,11 +619,240 @@ static void __init cpu_register_vulnerabilities(void)
 static inline void cpu_register_vulnerabilities(void) { }
 #endif
 
+static ssize_t cpulist_show(struct device *device,
+			    struct device_attribute *attr,
+			    char *buf)
+{
+	struct cpumask *mask = dev_get_drvdata(device);
+
+	if (!mask)
+		return -EINVAL;
+
+	return cpumap_print_to_pagebuf(true, buf, mask);
+}
+
+static ssize_t cpumap_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	struct cpumask *mask = dev_get_drvdata(device);
+
+	if (!mask)
+		return -EINVAL;
+
+	return cpumap_print_to_pagebuf(false, buf, mask);
+}
+
+static DEVICE_ATTR_RO(cpumap);
+static DEVICE_ATTR_RO(cpulist);
+
+static struct attribute *cpu_type_attrs[] = {
+	&dev_attr_cpumap.attr,
+	&dev_attr_cpulist.attr,
+	NULL
+};
+
+static const struct attribute_group cpu_type_attr_group = {
+	.attrs = cpu_type_attrs,
+};
+
+static const struct attribute_group *cpu_type_attr_groups[] = {
+	&cpu_type_attr_group,
+	NULL,
+};
+
+/* Root device for the cpu_type sysfs entries */
+static struct device *cpu_type_device;
+/*
+ * An array of cpu_type devices. One per each type of supported CPU micro-
+ * architecture.
+ */
+static struct device *cpu_type_devices[CPUTYPES_MAX_NR];
+
+/**
+ * arch_get_cpu_type() - Get the CPU type number
+ * @cpu:	Index of the CPU of which the index is needed
+ *
+ * Get the CPU type number of @cpu, a non-zero unsigned 32-bit number that
+ * uniquely identifies a type of CPU micro-architecture. All CPUs of the same
+ * type have the same type number. Type numbers are defined by each CPU
+ * architecture.
+ */
+u32 __weak arch_get_cpu_type(int cpu)
+{
+	return 0;
+}
+
+/**
+ * arch_has_cpu_type() - Check if CPU types are supported
+ *
+ * Returns true if the running platform supports CPU types. This is true if the
+ * platform has CPUs of more than one type of micro-architecture. Otherwise,
+ * returns false.
+ */
+bool __weak arch_has_cpu_type(void)
+{
+	return false;
+}
+
+/**
+ * arch_get_cpu_type_name() - Get the CPU type name
+ * @cpu_type:	Type of CPU micro-architecture.
+ *
+ * Returns a string name associated with the CPU micro-architecture type as
+ * indicated in @cpu_type. The format shall be <vendor>_<cpu_type>. Returns
+ * NULL if the CPU type is not known.
+ */
+const char __weak *arch_get_cpu_type_name(u32 cpu_type)
+{
+	return NULL;
+}
+
+static int cpu_type_create_device(int cpu, int idx)
+{
+	u32 cpu_type = arch_get_cpu_type(cpu);
+	struct cpumask *mask;
+	const char *name;
+	char buf[64];
+
+	mask = kzalloc(cpumask_size(), GFP_KERNEL);
+	if (!mask)
+		return -ENOMEM;
+
+	name = arch_get_cpu_type_name(cpu_type);
+	if (!name) {
+		snprintf(buf, sizeof(buf), "unknown_%u", cpu_type);
+		name = buf;
+	}
+
+	cpu_type_devices[idx] = cpu_device_create(cpu_type_device, mask,
+						  cpu_type_attr_groups, name);
+	if (IS_ERR(cpu_type_devices[idx]))
+		goto free_cpumask;
+
+	cpumask_set_cpu(cpu, mask);
+	return 0;
+
+free_cpumask:
+	kfree(mask);
+	return -ENOMEM;
+}
+
+static int cpu_type_sysfs_online(unsigned int cpu)
+{
+	u32 cpu_type = arch_get_cpu_type(cpu);
+	struct cpumask *mask;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cpu_type_devices); i++) {
+		u32 this_cpu_type;
+
+		/*
+		 * The first devices in the array are used first. Thus, create
+		 * a new device as well as sysfs directory and for the type of
+		 * @cpu.
+		 */
+		if (!cpu_type_devices[i])
+			return cpu_type_create_device(cpu, i);
+
+		mask = dev_get_drvdata(cpu_type_devices[i]);
+		if (!mask) {
+			/*
+			 * We should not be here. Be paranoid about
+			 * NULL pointers.
+			 */
+			dev_err(cpu_type_devices[i], "CPU mask is invalid");
+			return -EINVAL;
+		}
+
+		/*
+		 * If all the CPUs of a given type are offline, reuse this
+		 * device for @cpu.
+		 */
+		if (!cpumask_weight(mask)) {
+			const char *name;
+
+			this_cpu_type = arch_get_cpu_type(cpu);
+			name = arch_get_cpu_type_name(this_cpu_type);
+			dev_set_name(cpu_type_devices[i], name);
+
+			cpumask_set_cpu(cpu, mask);
+			return 0;
+		}
+
+		this_cpu_type = arch_get_cpu_type(cpumask_first(mask));
+		if (cpu_type == this_cpu_type) {
+			cpumask_set_cpu(cpu, mask);
+			return 0;
+		}
+	}
+
+	return -ENODEV;
+}
+
+static int cpu_type_sysfs_offline(unsigned int cpu)
+{
+	u32 cpu_type = arch_get_cpu_type(cpu);
+	struct cpumask *mask;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cpu_type_devices); i++) {
+		u32 this_cpu_type;
+
+		if (!cpu_type_devices[i])
+			continue;
+
+		mask = dev_get_drvdata(cpu_type_devices[i]);
+		if (!mask && !cpumask_weight(mask)) {
+			/*
+			 * We should not be here. Be paranoid about
+			 * NULL pointers.
+			 */
+			dev_err(cpu_type_devices[i], "CPU mask is invalid");
+			continue;
+		}
+
+		this_cpu_type = arch_get_cpu_type(cpumask_first(mask));
+		if (cpu_type == this_cpu_type) {
+			cpumask_clear_cpu(cpu, mask);
+			return 0;
+		}
+	}
+
+	/*
+	 * If we are here, no matching cpu_type was found. This CPU was not
+	 * accounted for at hotplug online.
+	 */
+	pr_warn("Unexpected CPU offline!\n");
+
+	return -ENODEV;
+}
+
+static void __init cpu_type_sysfs_register(void)
+{
+	struct device *dev = cpu_subsys.dev_root;
+	int ret;
+
+	if (!arch_has_cpu_type())
+		return;
+
+	cpu_type_device = cpu_device_create(dev, NULL, NULL, "types");
+	if (IS_ERR(cpu_type_device))
+		return;
+
+	ret = cpuhp_setup_state(CPUHP_AP_BASE_CPUTYPE_ONLINE,
+				"base/cpu_type_sysfs:online",
+				cpu_type_sysfs_online, cpu_type_sysfs_offline);
+	if (ret)
+		dev_warn(dev, "failed to CPU type sysfs\n");
+}
+
 void __init cpu_dev_init(void)
 {
 	if (subsys_system_register(&cpu_subsys, cpu_root_attr_groups))
 		panic("Failed to register CPU subsystem");
 
 	cpu_dev_register_generic();
+	cpu_type_sysfs_register();
 	cpu_register_vulnerabilities();
 }

@@ -37,6 +37,10 @@ static void __used common(void)
 #ifdef CONFIG_STACKPROTECTOR
 	OFFSET(TASK_stack_canary, task_struct, stack_canary);
 #endif
+#ifdef CONFIG_IPC_CLASSES
+	OFFSET(TASK_ipcc_raw,	task_struct, ipcc_raw);
+	OFFSET(X86_current_task, pcpu_hot, current_task);
+#endif
 
 	BLANK();
 	OFFSET(pbe_address, pbe, address);

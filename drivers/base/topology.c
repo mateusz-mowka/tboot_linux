@@ -61,6 +61,32 @@ static DEVICE_ATTR_RO(core_id);
 define_id_show_func(ppin, "0x%llx");
 static DEVICE_ATTR_ADMIN_RO(ppin);
 
+#if defined(CONFIG_SMP) && defined(CONFIG_CPU_SUP_INTEL)
+static ssize_t priority_show(struct device *dev,
+			     struct device_attribute *attr,
+			     char *buf)
+{
+	return sprintf(buf, "%u\n", arch_asym_cpu_priority(dev->id));
+}
+
+static ssize_t priority_store(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	int err, prio;
+
+	err = kstrtoint(buf, 10, &prio);
+	if (err)
+		return err;
+
+	sched_set_itmt_core_prio(prio, dev->id);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(priority);
+#endif
+
 define_siblings_read_func(thread_siblings, sibling_cpumask);
 static BIN_ATTR_RO(thread_siblings, CPUMAP_FILE_MAX_BYTES);
 static BIN_ATTR_RO(thread_siblings_list, CPULIST_FILE_MAX_BYTES);
@@ -149,6 +175,9 @@ static struct attribute *default_attrs[] = {
 	&dev_attr_drawer_id.attr,
 #endif
 	&dev_attr_ppin.attr,
+#if defined(CONFIG_SMP) && defined(CONFIG_CPU_SUP_INTEL)
+	&dev_attr_priority.attr,
+#endif
 	NULL
 };
 

@@ -127,6 +127,8 @@ struct task_group;
 					 __TASK_TRACED | EXIT_DEAD | EXIT_ZOMBIE | \
 					 TASK_PARKED)
 
+#define IPC_CLASS_UNCLASSIFIED		0
+
 #define task_is_running(task)		(READ_ONCE((task)->__state) == TASK_RUNNING)
 
 #define task_is_traced(task)		((READ_ONCE(task->jobctl) & JOBCTL_TRACED) != 0)
@@ -291,7 +293,7 @@ enum {
 	TASK_COMM_LEN = 16,
 };
 
-extern void scheduler_tick(void);
+extern void scheduler_tick(bool user_tick);
 
 #define	MAX_SCHEDULE_TIMEOUT		LONG_MAX
 
@@ -1522,6 +1524,29 @@ struct task_struct {
 	union rv_task_monitor		rv[RV_PER_TASK_MONITORS];
 #endif
 
+#ifdef CONFIG_IPC_CLASSES
+	/*
+	 * A hardware-defined classification of task that reflects but is
+	 * not identical to the number of instructions per cycle.
+	 */
+	unsigned int			ipcc : 9;
+	/*
+	 * A candidate classification that arch-specific implementations
+	 * qualify for correctness.
+	 */
+	unsigned int			ipcc_tmp : 9;
+	/*
+	 * Counter to filter out transient candidate classifications
+	 * of a task.
+	 */
+	unsigned int			ipcc_cntr : 14;
+	/*
+	 * Type of task as read when entering kernel mode. classid is
+	 * only updated in user ticks.
+	 */
+	unsigned int			ipcc_raw;
+#endif
+
 	/*
 	 * New fields for task_struct should be added above here, so that
 	 * they are included in the randomized portion of task_struct.
@@ -2419,5 +2444,7 @@ static inline void sched_core_fork(struct task_struct *p) { }
 #endif
 
 extern void sched_set_stop_task(int cpu, struct task_struct *stop);
+
+extern bool sched_smt_siblings_idle(int cpu);
 
 #endif

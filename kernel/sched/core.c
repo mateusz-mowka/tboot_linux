@@ -3196,8 +3196,8 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 	__set_task_cpu(p, new_cpu);
 }
 
-#ifdef CONFIG_NUMA_BALANCING
-static void __migrate_swap_task(struct task_struct *p, int cpu)
+#if defined(CONFIG_IPC_CLASSES) || defined(CONFIG_NUMA_BALANCING)
+void __migrate_swap_task(struct task_struct *p, int cpu)
 {
 	if (task_on_rq_queued(p)) {
 		struct rq *src_rq, *dst_rq;
@@ -3226,12 +3226,14 @@ static void __migrate_swap_task(struct task_struct *p, int cpu)
 		p->wake_cpu = cpu;
 	}
 }
+#endif
 
 struct migration_swap_arg {
 	struct task_struct *src_task, *dst_task;
 	int src_cpu, dst_cpu;
 };
 
+#ifdef CONFIG_NUMA_BALANCING
 static int migrate_swap_stop(void *data)
 {
 	struct migration_swap_arg *arg = data;
@@ -4424,6 +4426,12 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	p->se.prev_sum_exec_runtime	= 0;
 	p->se.nr_migrations		= 0;
 	p->se.vruntime			= 0;
+#ifdef CONFIG_IPC_CLASSES
+	p->ipcc				= IPC_CLASS_UNCLASSIFIED;
+	p->ipcc_tmp			= IPC_CLASS_UNCLASSIFIED;
+	p->ipcc_cntr			= 0;
+	p->ipcc_raw			= IPC_CLASS_UNCLASSIFIED;
+#endif
 	INIT_LIST_HEAD(&p->se.group_node);
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -5547,7 +5555,7 @@ static inline u64 cpu_resched_latency(struct rq *rq) { return 0; }
  * This function gets called by the timer code, with HZ frequency.
  * We call it with interrupts disabled.
  */
-void scheduler_tick(void)
+void scheduler_tick(bool user_tick)
 {
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
@@ -5558,6 +5566,9 @@ void scheduler_tick(void)
 
 	if (housekeeping_cpu(cpu, HK_TYPE_TICK))
 		arch_scale_freq_tick();
+
+	if (sched_ipcc_enabled() && user_tick)
+		arch_update_ipcc(curr);
 
 	sched_clock_tick();
 

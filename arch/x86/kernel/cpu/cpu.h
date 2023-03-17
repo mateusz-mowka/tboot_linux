@@ -56,9 +56,12 @@ extern __ro_after_init enum tsx_ctrl_states tsx_ctrl_state;
 
 extern void __init tsx_init(void);
 void tsx_ap_init(void);
+extern const char *intel_get_hybrid_cpu_type_name(u32 cpu_type);
 #else
 static inline void tsx_init(void) { }
 static inline void tsx_ap_init(void) { }
+static inline const char *intel_get_hybrid_cpu_type_name(u32 cpu_type)
+{ return NULL; }
 #endif /* CONFIG_CPU_SUP_INTEL */
 
 extern void init_spectral_chicken(struct cpuinfo_x86 *c);
