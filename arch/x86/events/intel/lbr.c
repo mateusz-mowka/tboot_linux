@@ -864,18 +864,22 @@ static __always_inline u16 get_lbr_cycles(u64 info)
 	return cycles;
 }
 
+#define ARCH_LBR_EVENT_LOG_WIDTH	2
+#define ARCH_LBR_EVENT_LOG_MASK		0x3
+
 static __always_inline u8 update_lbr_event(struct perf_event *event,
 					   u8 info, int pos)
 {
-	return ((info >> event->hw.idx * 2) & 0x3) << (pos * 2);
+	u8 logs = (info >> (event->hw.idx * ARCH_LBR_EVENT_LOG_WIDTH)) &
+		  ARCH_LBR_EVENT_LOG_WIDTH;
+	return logs  << (pos * ARCH_LBR_EVENT_LOG_WIDTH);
 }
 
 static u8 get_lbr_events(struct cpu_hw_events *cpuc, u64 info)
 {
-	struct perf_event *event, *leader;
-	unsigned long mask;
 	u8 events_info, lbr_events = 0;
-	int idx, pos = 0;
+	unsigned long mask;
+	int i, pos = 0;
 
 	if (!static_cpu_has(X86_FEATURE_ARCH_LBR) ||
 	    !x86_pmu.lbr_events ||
@@ -887,20 +891,18 @@ static u8 get_lbr_events(struct cpu_hw_events *cpuc, u64 info)
 		return 0;
 
 	/*
-	 * The order of group members may be different from the counter order.
-	 * Update the lbr_events with the order of group members.
+	 * The enabled order may be different from the counter order.
+	 * Update the lbr_events with the enabled order.
 	 */
 	events_info = (info & LBR_INFO_EVENTS) >> LBR_INFO_EVENTS_OFFSET;
-	idx = find_first_bit(&mask, PERF_MAX_BRANCH_EVENTS);
-	event = cpuc->events[idx];
-	leader = event->group_leader;
-	if (leader->attr.branch_events)
-		lbr_events |= update_lbr_event(leader, events_info, pos++);
 
-	for_each_sibling_event(event, leader) {
-		if (!event->attr.branch_events)
+	for (i = 0; i < cpuc->n_events; i++) {
+		if (!cpuc->event_list[i]->attr.branch_events)
 			continue;
-		lbr_events |= update_lbr_event(event, events_info, pos++);
+		lbr_events |= update_lbr_event(cpuc->event_list[i], events_info, pos++);
+
+		if (pos >= PERF_MAX_BRANCH_EVENTS)
+			break;
 	}
 
 	return lbr_events;
