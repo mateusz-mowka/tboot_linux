@@ -8,7 +8,25 @@ SRF PO bkc-v1.3
 2. Update PMU LBR event logging format.
 3. Fix IOMMU PMU issue when offlining the CPU
    jira: https://jira.devtools.intel.com/browse/LFE-7417
-
+4. Ported IOMMU, VFIO & IDxD driver fixes from GNR BKC kernel (GNR-BKC-v5.5).
+   1. Fix the issue that VDEV Block-on-Fault not set in guest VM
+      HSD: https://hsdes.intel.com/appstore/article/#/22015866177
+   2. Fix device hot-plug failed on DSA/IAX PF/VDEV passthrough
+      jira: https://jira.devtools.intel.com/browse/LFE-6367
+   3. Fix IDXD driver dead lock status when handling HALT interrupt.
+      HSD: https://hsdes.intel.com/appstore/article/#/15012432746
+   4. Fix max_xfer_shift and max_batch_shift from hardware's cap issue.
+      HSD: https://hsdes.intel.com/appstore/article/#/22016309793
+   5. Fix guest boot with scalable mode IAX VDEV passthrough mode.
+      HSD: https://hsdes.intel.com/appstore/article/#/22016638873
+      jira: https://jira.devtools.intel.com/browse/LFE-4915
+   6. Fix an issue that a vdev is created without a work queue bound to it.
+      HSD: https://hsdes.intel.com/appstore/article/#/22015866268
+   7. Fix host ping/SSH VM failed issue in SRIOV VF NIC passthrough mode.
+      jira: https://jira.devtools.intel.com/browse/LFE-4901
+   8. Fix errors when shuting down guest VM without disabling kernel
+      mode wq.
+      jira: https://jira.devtools.intel.com/browse/LFE-6622
 
 SRF PO bkc-v1.2
 ===============
