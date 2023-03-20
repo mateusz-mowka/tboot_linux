@@ -13,7 +13,14 @@ Use at your own risk.
 
 Release History
 ===============
-emr-bkc-6.2-v2.2
+emr-bkc-6.2-v2.3
+----------------
+14. update to the change that went into emr-bkc-6.2-v1.10
+    to include some pr_info outpput.
+    Rather than rebase I did a revert and applied the updated version of the
+    patch provided by Weijiang.
+
+semr-bkc-6.2-v2.2
 ----------------
 13. missing fixes WRT the 5.19 EMR BKC
 swiotlb: ensure swiotlb buffer size is 2MB aligned
