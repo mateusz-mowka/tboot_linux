@@ -1524,15 +1524,6 @@ static void __iommu_flush_dev_iotlb(struct device_domain_info *info,
 	quirk_extra_dev_tlb_flush(info, addr, mask, PASID_RID2PASID, qdep);
 }
 
-static bool invalid_info_node(struct device_domain_info *info)
-{
-	if (!info)
-		return true;
-
-	return ((u64)(info->link.next) >> 48 == 0xdead &&
-	    (u64)(info->link.prev) >> 48 == 0xdead);
-}
-
 static void iommu_flush_dev_iotlb(struct dmar_domain *domain,
 				  u64 addr, unsigned mask)
 {
@@ -1544,12 +1535,9 @@ static void iommu_flush_dev_iotlb(struct dmar_domain *domain,
 		return;
 
 	spin_lock_irqsave(&domain->lock, flags);
-	list_for_each_entry(info, &domain->devices, link) {
-		if (invalid_info_node(info))
-			goto next;
+	list_for_each_entry(info, &domain->devices, link)
 		__iommu_flush_dev_iotlb(info, addr, mask);
-	}
-next:
+
 	list_for_each_entry(sinfo, &domain->subdevices, link_domain) {
 		info = dev_iommu_priv_get(sinfo->pdev);
 		__iommu_flush_dev_iotlb(info, addr, mask);
