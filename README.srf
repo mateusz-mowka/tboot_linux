@@ -33,6 +33,8 @@ SRF PO bkc-v1.3
     jira: https://jira.devtools.intel.com/browse/LFE-6431
     HSD: https://hsdes.intel.com/appstore/article/#/16019570262
     HSD: https://hsdes.intel.com/appstore/article/#/15012454062
+7. Fix uncore package ID.
+   HSD:Fix https://hsdes.intel.com/appstore/article/#/16019672875
 
 SRF PO bkc-v1.2
 ===============
