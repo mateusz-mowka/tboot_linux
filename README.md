@@ -13,6 +13,10 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v2.4
+----------------
+15. TD mwait/tsx support.
+
 emr-bkc-6.2-v2.3
 ----------------
 14. update to the change that went into emr-bkc-6.2-v1.10
