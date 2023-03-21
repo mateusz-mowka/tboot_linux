@@ -6,6 +6,8 @@ SRF PO bkc-v1.3
 1. MCE linear address support.
    HSD: https://hsdes.intel.com/resource/22016966908
 2. Update PMU LBR event logging format.
+3. Fix IOMMU PMU issue when offlining the CPU
+   jira: https://jira.devtools.intel.com/browse/LFE-7417
 
 
 SRF PO bkc-v1.2
