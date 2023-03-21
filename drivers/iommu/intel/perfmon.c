@@ -635,14 +635,14 @@ static int iommu_pmu_cpu_offline(unsigned int cpu)
 	else
 		target = -1;
 
-	rcu_read_lock();
+	down_write(&dmar_global_lock);
 
 	for_each_iommu(iommu, drhd) {
 		if (!iommu->pmu)
 			continue;
 		perf_pmu_migrate_context(&iommu->pmu->pmu, cpu, target);
 	}
-	rcu_read_unlock();
+	up_write(&dmar_global_lock);
 
 	return 0;
 }
