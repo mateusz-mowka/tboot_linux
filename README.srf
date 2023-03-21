@@ -27,6 +27,8 @@ SRF PO bkc-v1.3
    8. Fix errors when shuting down guest VM without disabling kernel
       mode wq.
       jira: https://jira.devtools.intel.com/browse/LFE-6622
+5. Add SGX Update SVN support.
+    HSD: https://hsdes.intel.com/appstore/article/#/16019751088
 
 SRF PO bkc-v1.2
 ===============
