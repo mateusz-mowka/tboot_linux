@@ -29,6 +29,10 @@ SRF PO bkc-v1.3
       jira: https://jira.devtools.intel.com/browse/LFE-6622
 5. Add SGX Update SVN support.
     HSD: https://hsdes.intel.com/appstore/article/#/16019751088
+6. Add CCEL support.
+    jira: https://jira.devtools.intel.com/browse/LFE-6431
+    HSD: https://hsdes.intel.com/appstore/article/#/16019570262
+    HSD: https://hsdes.intel.com/appstore/article/#/15012454062
 
 SRF PO bkc-v1.2
 ===============
