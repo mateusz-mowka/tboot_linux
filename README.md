@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v2.5
+----------------
+15. There are some build errors under certain configurations (i.e., if
+    CONFIG_SMP is not set or CONFIG_UNACCEPTED_MEMORY is not set)
+
 emr-bkc-6.2-v2.4
 ----------------
 15. TD mwait/tsx support.
