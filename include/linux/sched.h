@@ -1488,11 +1488,11 @@ struct task_struct {
 
 #ifdef CONFIG_X86_MCE
 	void __user			*mce_vaddr;
-	__u64				mce_kflags;
 	u64				mce_addr;
 	__u64				mce_ripv : 1,
 					mce_whole_page : 1,
-					__mce_reserved : 62;
+					mce_addr_is_virtual : 1,
+					__mce_reserved : 61;
 	struct callback_head		mce_kill_me;
 	int				mce_count;
 #endif

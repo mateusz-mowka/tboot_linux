@@ -494,6 +494,22 @@ int mce_usable_address(struct mce *m)
 }
 EXPORT_SYMBOL_GPL(mce_usable_address);
 
+static int mce_addr_is_virtual(struct mce *m)
+{
+	if (!(m->status & MCI_STATUS_ADDRV))
+		return 0;
+
+	/* Checks after this one are Intel/Zhaoxin-specific: */
+	if (boot_cpu_data.x86_vendor != X86_VENDOR_INTEL &&
+	    boot_cpu_data.x86_vendor != X86_VENDOR_ZHAOXIN)
+		return 0;
+
+	if (!(m->status & MCI_STATUS_MISCV))
+		return 0;
+
+	return MCI_MISC_ADDR_MODE(m->misc) == MCI_MISC_ADDR_LINEAR;
+}
+
 bool mce_is_memory_error(struct mce *m)
 {
 	switch (m->cpuvendor) {
@@ -1310,10 +1326,25 @@ static void kill_me_now(struct callback_head *ch)
 	force_sig(SIGBUS);
 }
 
+static int get_phys_pfn(unsigned long addr, unsigned long *pfn)
+{
+	struct page *page;
+	int ret;
+
+	ret = get_user_pages_fast(addr, 1, 0, &page);
+	if (ret != 1)
+		return ret;
+	*pfn = page_to_pfn(page);
+	put_page(page);
+
+	return 0;
+}
+
 static void kill_me_maybe(struct callback_head *cb)
 {
 	struct task_struct *p = container_of(cb, struct task_struct, mce_kill_me);
 	int flags = MF_ACTION_REQUIRED;
+	unsigned long pfn;
 	int ret;
 
 	p->mce_count = 0;
@@ -1321,6 +1352,13 @@ static void kill_me_maybe(struct callback_head *cb)
 
 	if (!p->mce_ripv)
 		flags |= MF_MUST_KILL;
+
+	if (p->mce_addr_is_virtual) {
+		if (get_phys_pfn(p->mce_addr, &pfn))
+			goto fail;
+	} else {
+		pfn = (p->mce_addr & MCI_ADDR_PHYSADDR) >> PAGE_SHIFT;
+	}
 
 	ret = memory_failure(p->mce_addr >> PAGE_SHIFT, flags);
 	if (!ret) {
@@ -1338,7 +1376,7 @@ static void kill_me_maybe(struct callback_head *cb)
 	 */
 	if (ret == -EHWPOISON || ret == -EOPNOTSUPP)
 		return;
-
+fail:
 	pr_err("Memory error not recovered");
 	kill_me_now(cb);
 }
@@ -1360,7 +1398,7 @@ static void queue_task_work(struct mce *m, char *msg, void (*func)(struct callba
 	/* First call, save all the details */
 	if (count == 1) {
 		current->mce_addr = m->addr & MCI_ADDR_PHYSADDR;
-		current->mce_kflags = m->kflags;
+		current->mce_addr_is_virtual = mce_addr_is_virtual(m);
 		current->mce_ripv = !!(m->mcgstatus & MCG_STATUS_RIPV);
 		current->mce_whole_page = whole_page(m);
 		current->mce_kill_me.func = func;
