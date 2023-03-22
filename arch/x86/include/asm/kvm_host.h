@@ -2071,6 +2071,11 @@ int kvm_emulate_mwait(struct kvm_vcpu *vcpu);
 int kvm_handle_invalid_op(struct kvm_vcpu *vcpu);
 int kvm_emulate_monitor(struct kvm_vcpu *vcpu);
 
+int kvm_set_msr_with_filter(struct kvm_vcpu *vcpu, u32 index, u64 data);
+int kvm_get_msr_with_filter(struct kvm_vcpu *vcpu, u32 index, u64 *data);
+int kvm_msr_user_space(struct kvm_vcpu *vcpu, u32 index, u32 exit_reason, u64 data,
+					int (*completion)(struct kvm_vcpu *vcpu), int r);
+
 int kvm_fast_pio(struct kvm_vcpu *vcpu, int size, unsigned short port, int in);
 int kvm_emulate_cpuid(struct kvm_vcpu *vcpu);
 int kvm_emulate_halt(struct kvm_vcpu *vcpu);

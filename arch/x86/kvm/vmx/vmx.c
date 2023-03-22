@@ -73,6 +73,9 @@
 #include "x86_ops.h"
 #include "smm.h"
 
+static int complete_userspace_rdmsrlist(struct kvm_vcpu *);
+static int complete_userspace_wrmsrlist(struct kvm_vcpu *);
+
 MODULE_AUTHOR("Qumranet");
 MODULE_LICENSE("GPL");
 
@@ -4500,6 +4503,9 @@ static u64 vmx_tertiary_exec_control(struct vcpu_vmx *vmx)
 	if (!enable_ipiv || !kvm_vcpu_apicv_active(&vmx->vcpu))
 		exec_control &= ~TERTIARY_EXEC_IPI_VIRT;
 
+	if (!cpu_has_vmx_msrlist() || !guest_cpuid_has(&vmx->vcpu, X86_FEATURE_MSRLIST))
+		exec_control &= ~TERTIARY_EXEC_MSRLIST;
+
 	return exec_control;
 }
 
@@ -6113,6 +6119,207 @@ static int handle_enqcmd_pasid(struct kvm_vcpu *vcpu)
 	return kvm_skip_emulated_instruction(vcpu);
 }
 
+static int handle_help_rdmsrlist(int num, struct kvm_vcpu *vcpu)
+{
+	u64 rcx = kvm_rcx_read(vcpu);
+	u64 rsi = kvm_rsi_read(vcpu);
+	u64 rdi = kvm_rdi_read(vcpu);
+	struct x86_exception e;
+	u64 data;
+	u64 index;
+	int p, q, r, i;
+
+	for (i = num; i < 64; i++) {
+		if (rcx & (1 << i)) {
+			p = kvm_read_guest_virt(vcpu, rsi + i * sizeof(index), &index, sizeof(index), &e);
+			if (p != X86EMUL_CONTINUE) {
+				return kvm_handle_memory_failure(vcpu, p, &e);
+			}
+
+			r = kvm_get_msr_with_filter(vcpu, index, &data);
+
+			if (!r) {
+				q = kvm_write_guest_virt_system(vcpu, rdi + i * sizeof(index), &data, sizeof(index), &e);
+				if (q != X86EMUL_CONTINUE) {
+					return kvm_handle_memory_failure(vcpu, q, &e);
+				}
+
+				rcx &= ~(1 << i);
+				kvm_rcx_write(vcpu, rcx);
+			} else {
+				if (kvm_msr_user_space(vcpu, index, KVM_EXIT_X86_RDMSR, 0,
+						complete_userspace_rdmsrlist, r))
+					return 0;
+			}
+		}
+	}
+
+	if (i == 64) {
+		return kvm_complete_insn_gp(vcpu,r);
+	}
+
+	return 1;
+}
+
+static int handle_help_wrmsrlist(int num, struct kvm_vcpu *vcpu)
+{
+	u64 rcx = kvm_rcx_read(vcpu);
+	u64 rsi = kvm_rsi_read(vcpu);
+	u64 rdi = kvm_rdi_read(vcpu);
+	struct x86_exception e;
+	u64 data;
+	u64 index;
+	int p, q, r, i;
+
+	for (i = num; i < 64; i++) {
+
+		if (rcx & (1 << i)) {
+			q = kvm_read_guest_virt(vcpu, rdi + i * sizeof(data), &data, sizeof(data), &e);
+			if (q != X86EMUL_CONTINUE) {
+				return kvm_handle_memory_failure(vcpu, q, &e);
+			}
+
+			p = kvm_read_guest_virt(vcpu, rsi + i * sizeof(index), &index, sizeof(index), &e);
+			if (p != X86EMUL_CONTINUE) {
+					return kvm_handle_memory_failure(vcpu, p, &e);
+			}
+
+			r = kvm_set_msr_with_filter(vcpu, index, data);
+
+			if (!r) {
+				rcx &= ~(1 << i);
+				kvm_rcx_write(vcpu, rcx);
+			} else {
+				if (kvm_msr_user_space(vcpu, index, KVM_EXIT_X86_WRMSR, data,
+								complete_userspace_wrmsrlist, r))
+					return 0;
+				if (r < 0)
+					return r;
+			}
+		}
+	}
+
+	if (i == 64) {
+		return kvm_complete_insn_gp(vcpu,r);
+	}
+
+	return 1;
+}
+
+static int complete_userspace_rdmsrlist(struct kvm_vcpu *vcpu)
+{
+	u64 rcx = kvm_rcx_read(vcpu);
+	u64 rdi = kvm_rdi_read(vcpu);
+	u64 rsi = kvm_rsi_read(vcpu);
+	struct x86_exception e;
+	u32 index = vcpu->run->msr.index;
+	u64 data = vcpu->run->msr.data;
+	u64 value;
+	int num, p, q;
+
+	if (!vcpu->run->msr.error) {
+		for (num = 0; num < 64; num++) {
+
+			if (rcx & (1 << num)) {
+				p = kvm_read_guest_virt(vcpu, rsi + num * sizeof(value), &value, sizeof(value), &e);
+				if (p != X86EMUL_CONTINUE) {
+					return kvm_handle_memory_failure(vcpu, p, &e);
+				}
+				break;
+			}
+		}
+		WARN_ON_ONCE(index != (u32)value);
+
+		if (rcx & (1 << num)) {
+			q = kvm_write_guest_virt_system(vcpu, rdi + num * sizeof(data), &data, sizeof(data) , &e);
+
+			if (q != X86EMUL_CONTINUE) {
+				return kvm_handle_memory_failure(vcpu, q, &e);
+			}
+			rcx &= ~(1 << num);
+			kvm_rcx_write(vcpu, rcx);
+		}
+	}
+
+	return handle_help_rdmsrlist(num + 1, vcpu);
+}
+
+static int handle_rdmsrlist(struct kvm_vcpu *vcpu)
+{
+	u64 rcx = kvm_rcx_read(vcpu);
+	u64 rsi = kvm_rsi_read(vcpu);
+	unsigned long exit_qual = vmx_get_exit_qual(vcpu);
+	struct x86_exception e;
+	u64 index;
+	int num, p;
+
+	for (num = 0; num < 64; num++) {
+		if(rcx & (1 << num)) {
+			p = kvm_read_guest_virt(vcpu, rsi + num * sizeof(index), &index, sizeof(index), &e);
+			if (p != X86EMUL_CONTINUE) {
+				return kvm_handle_memory_failure(vcpu, p, &e);
+			}
+			break;
+		}
+	}
+	WARN_ON_ONCE(index != exit_qual);
+
+	return handle_help_rdmsrlist(num, vcpu);
+}
+
+static int complete_userspace_wrmsrlist(struct kvm_vcpu *vcpu)
+{
+	u64 rcx = kvm_rcx_read(vcpu);
+	u64 rsi = kvm_rsi_read(vcpu);
+	struct x86_exception e;
+	u32 index = vcpu->run->msr.index;
+	u64 value;
+	int num, p;
+
+	if (!vcpu->run->msr.error) {
+
+		for (num = 0; num < 64; num++) {
+			if (rcx & (1 << num)) {
+				p = kvm_read_guest_virt(vcpu, rsi + num * sizeof(value), &value, sizeof(value), &e);
+				if (p != X86EMUL_CONTINUE) {
+					return kvm_handle_memory_failure(vcpu, p, &e);
+				}
+				break;
+			}
+		}
+		WARN_ON_ONCE(index != (u32)value);
+
+		rcx &= ~(1 << num);
+		kvm_rcx_write(vcpu, rcx);
+	}
+
+	return handle_help_wrmsrlist(num + 1, vcpu);
+}
+
+static int handle_wrmsrlist(struct kvm_vcpu *vcpu)
+{
+	u64 rcx = kvm_rcx_read(vcpu);
+	u64 rsi = kvm_rsi_read(vcpu);
+	unsigned long exit_qual = vmx_get_exit_qual(vcpu);
+	struct x86_exception e;
+	u64 index;
+	int num, p;
+
+	for (num = 0; num < 64; num++) {
+
+		if (rcx & (1 << num)) {
+			p = kvm_read_guest_virt(vcpu, rsi + num * sizeof(index), &index, sizeof(index), &e);
+			if (p != X86EMUL_CONTINUE) {
+				return kvm_handle_memory_failure(vcpu, p, &e);
+			}
+			break;
+		}
+	}
+	WARN_ON_ONCE(index != exit_qual);
+
+	return handle_help_wrmsrlist(num, vcpu);
+}
+
 /*
  * The exit handlers return 1 if the exit was handled fully and guest execution
  * may resume.  Otherwise they set the kvm_run parameter to indicate what needs
@@ -6173,6 +6380,8 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_ENQCMDS_PASID]           = handle_enqcmd_pasid,
 	[EXIT_REASON_BUS_LOCK]                = handle_bus_lock_vmexit,
 	[EXIT_REASON_NOTIFY]		      = handle_notify,
+	[EXIT_REASON_MSRLIST_READ]            = handle_rdmsrlist,
+	[EXIT_REASON_MSRLIST_WRITE]           = handle_wrmsrlist,
 };
 
 static const int kvm_vmx_max_exit_handlers =
@@ -7978,6 +8187,10 @@ void vmx_vcpu_after_set_cpuid(struct kvm_vcpu *vcpu)
 		vmcs_set_secondary_exec_control(vmx,
 						vmx_secondary_exec_control(vmx));
 
+	if (cpu_has_tertiary_exec_ctrls())
+        tertiary_exec_controls_set(vmx,
+						vmx_tertiary_exec_control(vmx));
+
 	if (nested_vmx_allowed(vcpu))
 		vmx->msr_ia32_feature_control_valid_bits |=
 			FEAT_CTL_VMX_ENABLED_INSIDE_SMX |
@@ -8145,6 +8358,8 @@ static __init void vmx_set_cpu_caps(void)
 		kvm_cpu_cap_clear(X86_FEATURE_ARCH_LBR);
 		kvm_caps.supported_xss &= ~XFEATURE_MASK_LBR;
 	}
+	if (!cpu_has_vmx_msrlist())
+		kvm_cpu_cap_clear(X86_FEATURE_MSRLIST);
 
 	if (!enable_pmu)
 		kvm_cpu_cap_clear(X86_FEATURE_PDCM);
