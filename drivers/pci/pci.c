@@ -5017,7 +5017,9 @@ void pci_bridge_wait_for_secondary_bus(struct pci_dev *dev)
 	 * https://bugzilla.kernel.org/show_bug.cgi?id=203885).
 	 *
 	 * Therefore we wait for 100 ms and check for the device presence.
-	 * If it is still not present give it an additional 100 ms.
+	 * If it is still not present give it an additional 100 ms or when
+	 * link active reporting is supported and the link is up we wait
+	 * up to PCIE_RESET_READY_POLL_MS for the device to respond.
 	 */
 	if (!pcie_downstream_port(dev))
 		return;
@@ -5025,20 +5027,25 @@ void pci_bridge_wait_for_secondary_bus(struct pci_dev *dev)
 	if (pcie_get_speed_cap(dev) <= PCIE_SPEED_5_0GT) {
 		pci_dbg(dev, "waiting %d ms for downstream link\n", delay);
 		msleep(delay);
-	} else {
-		pci_dbg(dev, "waiting %d ms for downstream link, after activation\n",
-			delay);
-		if (!pcie_wait_for_link_delay(dev, true, delay)) {
-			/* Did not train, no need to wait any further */
-			pci_info(dev, "Data Link Layer Link Active not set in 1000 msec\n");
-			return;
+
+		if (!pci_device_is_present(child)) {
+		       pci_dbg(child,
+			       "waiting additional %d ms to become accessible\n",
+			       delay);
+		       msleep(delay);
 		}
+		return;
 	}
 
-	if (!pci_device_is_present(child)) {
-		pci_dbg(child, "waiting additional %d ms to become accessible\n", delay);
-		msleep(delay);
+	pci_dbg(dev, "waiting %d ms for downstream link, after activation\n",
+		delay);
+	if (!pcie_wait_for_link_delay(dev, true, delay)) {
+		/* Did not train, no need to wait any further */
+		pci_info(dev, "Data Link Layer Link Active not set in 1000 msec\n");
+		return;
 	}
+
+	pci_dev_wait(child, "PM D3cold -> D0", PCIE_RESET_READY_POLL_MS);
 }
 
 void pci_reset_secondary_bus(struct pci_dev *dev)
