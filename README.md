@@ -13,7 +13,17 @@ Use at your own risk.
 
 Release History
 ===============
-emr-bkc-6.2-v2.5
+emr-bkc-6.2-v2.7
+----------------
+17. cherry-picked fixes from emr 5.19 kernel for:
+	https://hsdes.intel.com/appstore/article/#/22016309793 
+	https://hsdes.intel.com/appstore/article/#/22015866177 
+
+emr-bkc-6.2-v2.6
+----------------
+16. Add backport of IAA-Crypto from 6.3-rc1
+
+ emr-bkc-6.2-v2.5
 ----------------
 15. There are some build errors under certain configurations (i.e., if
     CONFIG_SMP is not set or CONFIG_UNACCEPTED_MEMORY is not set)
