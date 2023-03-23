@@ -15,7 +15,13 @@ Release History
 ===============
 emr-bkc-6.2-v3.1
 ----------------
-17. Split lock enumeration update
+19. ACPI: tools: pfrut: Check if the input of level and type is in the right
+    numeric range
+	https://hsdes.intel.com/appstore/article/#/15012857647
+
+emr-bkc-6.2-v3.1
+----------------
+18. Split lock enumeration update
 	https://jira.devtools.intel.com/browse/LFE-3635
 	
 emr-bkc-6.2-v2.7
