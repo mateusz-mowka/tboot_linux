@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v3.1
+----------------
+17. Split lock enumeration update
+	https://jira.devtools.intel.com/browse/LFE-3635
+	
 emr-bkc-6.2-v2.7
 ----------------
 17. cherry-picked fixes from emr 5.19 kernel for:
