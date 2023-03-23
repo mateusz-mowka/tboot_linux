@@ -143,15 +143,16 @@ static u64 l3_io_qos_cfg(void)
 	return l3_mon | l3_cat;
 }
 
-/* Restore IO QoS states */
-void l3_io_qos_cfg_update(void)
+/* Set up L3_IO_QOS_CFG MSR. */
+void l3_io_qos_cfg_update(void *enable)
 {
+	bool iordt_enable = *(bool *)enable;
 	u64 val;
 
 	if (!iordt_enabled())
 		return;
 
-	val = l3_io_qos_cfg();
+	val = iordt_enable ? l3_io_qos_cfg() : 0;
 	wrmsrl(MSR_IA32_L3_IO_QOS_CFG, val);
 }
 
@@ -502,9 +503,6 @@ static int _iordt_channel_setup(struct iordt_chms *chms, struct iordt_dss *dss,
 		pchannel->channel = channel;
 		pchannel->closid_addr = closid_addr;
 		pchannel->rmid_addr = rmid_addr;
-		/* Initilize CLOSID and RMID to 0. */
-		iordt_closid_write(pchannel, 0);
-		iordt_rmid_write(pchannel, 0);
 		pchannel->rdtgrp = &rdtgroup_default;
 		pchannel->regw = rcs->regw;
 		iordt_closid_write(pchannel, 0);
@@ -543,6 +541,35 @@ static int iordt_channel_setup(void)
 	}
 
 	return 0;
+}
+
+static void iordt_closid_rmid_setup(u32 closid, u32 rmid)
+{
+	struct iordt_chan *pchannel;
+
+	for_each_iordt_channel(pchannel) {
+		/* Initilize CLOSID and RMID to 0. */
+		iordt_closid_write(pchannel, closid);
+		iordt_rmid_write(pchannel, rmid);
+	}
+}
+
+int iordt_channel_config(bool enable)
+{
+	int ret = 0;
+
+	if (!iordt_rmud)
+		return -ENOSPC;
+
+	if (enable) {
+		/* Clear CLOSIDs and RMIDs when mounting resctrl. */
+		iordt_closid_rmid_setup(0, 0);
+	} else {
+		/* Restore to default values when unmounting resctrl. */
+		iordt_closid_rmid_setup(0xf, 0xffff);
+	}
+
+	return ret;
 }
 
 #ifdef RESCTRL_DEBUG
