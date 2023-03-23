@@ -121,6 +121,10 @@ obj-$(CONFIG_INTEL_IPS)				+= intel_ips.o
 intel_p2sb-y				:= p2sb.o
 obj-$(CONFIG_P2SB)			+= intel_p2sb.o
 
+# Intel Perf Collecter drivers
+obj-$(CONFIG_INTEL_SOCPERF)     += socperf/
+obj-$(CONFIG_INTEL_SEP)         += sepdk/ socperf/
+
 # Intel PMIC / PMC / P-Unit devices
 obj-$(CONFIG_INTEL_SCU_IPC)		+= intel_scu_ipc.o
 obj-$(CONFIG_INTEL_SCU_PCI)		+= intel_scu_pcidrv.o
@@ -129,6 +133,11 @@ obj-$(CONFIG_INTEL_SCU_WDT)		+= intel_scu_wdt.o
 obj-$(CONFIG_INTEL_SCU_IPC_UTIL)	+= intel_scu_ipcutil.o
 obj-$(CONFIG_X86_INTEL_LPSS)		+= pmc_atom.o
 
+# sep and socwatch drivers
+obj-$(CONFIG_INTEL_SOCPERF)     += socperf/
+obj-$(CONFIG_INTEL_SOCWATCH)    += socwatch/ socperf/
+obj-$(CONFIG_INTEL_SOCWATCH_HV) += socwatchhv/
+#obj-$(CONFIG_INTEL_SEP)         += sepdk/ socperf/
 # Siemens Simatic Industrial PCs
 obj-$(CONFIG_SIEMENS_SIMATIC_IPC)	+= simatic-ipc.o
 
