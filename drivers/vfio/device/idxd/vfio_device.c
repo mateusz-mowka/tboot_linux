@@ -10,6 +10,7 @@
 #include <linux/eventfd.h>
 #include <linux/anon_inodes.h>
 #include <linux/msi.h>
+#include <linux/irqchip/irq-pci-intel-idxd.h>
 #include "registers.h"
 #include "idxd.h"
 #include "vidxd.h"
@@ -1437,17 +1438,19 @@ vidxd_resume_ims_state(struct vdcm_idxd *vidxd, bool *int_handle_revoked)
 	struct vfio_ims *ims = &vidxd->vdev.ims;
 	u8 *bar0 = vidxd->bar0;
 	int i, rc = 0;
+	struct idxd_device *idxd = vidxd->wq->idxd;
 
-	if  (!dev->msi.data)
-		return rc;
+	//if  (!dev->msi.data)
+	//	return rc;
 
 	/* Restore int handle info */
 	for (i = 1; i < ims->num; i++) {
 		u32 revoked_handle, perm_val, gpasid, pasid;
 		//u32 auxval;
 		int ims_idx = vfio_ims_msi_hwirq(&vidxd->vdev, i);
-		//int irq = vfio_ims_msi_virq(&vidxd->vdev, i);
+		int irq = vfio_ims_msi_virq(&vidxd->vdev, i);
 		bool paside;
+		//struct vfio_ims_entry *entry;
 
 		memcpy((u8 *)&revoked_handle, &vidxd_data->ims_idx[i],
 		       sizeof(revoked_handle));
@@ -1492,8 +1495,7 @@ vidxd_resume_ims_state(struct vdcm_idxd *vidxd, bool *int_handle_revoked)
 			break;
 		}
 #endif
-		pr_info("set ims pasid %d failed NOT IMPLEMENTED \n", pasid);
-		rc = -EOPNOTSUPP;
+		idxd_ims_set_pasid(&idxd->pdev->dev, irq, pasid);
 	}
 
 	return rc;
@@ -1646,7 +1648,7 @@ vidxd_source_prepare_for_migration(struct vdcm_idxd *vidxd,
 				   struct vidxd_migration_file *migf)
 {
 	struct vidxd_data *vidxd_data = &migf->vidxd_data;
-	struct device *dev = &vidxd->vdev.device;
+	//struct device *dev = &vidxd->vdev.device;
 	struct vfio_ims *ims = &vidxd->vdev.ims;
 	struct idxd_virtual_wq *vwq;
 	int i;
@@ -1659,7 +1661,7 @@ vidxd_source_prepare_for_migration(struct vdcm_idxd *vidxd,
 	memcpy(vidxd_data->bar0, (u8 *)vidxd->bar0, sizeof(vidxd->bar0));
 
 	/* Save int handle info if MIS was set up. */
-	if  (dev->msi.data) {
+	//if  (dev->msi.data) {
 		for (i = 1; i < ims->num; i++) {
 			u32 ims_idx = vfio_ims_msi_hwirq(&vidxd->vdev, i);
 
@@ -1668,7 +1670,7 @@ vidxd_source_prepare_for_migration(struct vdcm_idxd *vidxd,
 			memcpy(&vidxd_data->ims_idx[i], (u8 *)&ims_idx,
 			       sizeof(ims_idx));
 		}
-	}
+	//}
 
         /* Save the queued descriptors */
         for (i = 0; i < vidxd->num_wqs; i++) {
