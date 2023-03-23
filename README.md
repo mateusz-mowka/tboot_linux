@@ -13,7 +13,12 @@ Use at your own risk.
 
 Release History
 ===============
-emr-bkc-6.2-v3.1
+emr-bkc-6.2-v3.3
+----------------
+20. Reduce fequency of unsatble TSC events
+	https://hsdes.intel.com/appstore/article/#/14016951426
+
+emr-bkc-6.2-v3.2
 ----------------
 19. ACPI: tools: pfrut: Check if the input of level and type is in the right
     numeric range
