@@ -628,6 +628,7 @@ static void clear_closid_rmid(int cpu)
 static int resctrl_online_cpu(unsigned int cpu)
 {
 	struct rdt_resource *r;
+	bool iordt_enable;
 
 	mutex_lock(&rdtgroup_mutex);
 	for_each_capable_rdt_resource(r)
@@ -640,8 +641,16 @@ static int resctrl_online_cpu(unsigned int cpu)
 	 * simplify the code, update the MSR on each CPU. Hopefully extra
 	 * MSR writes may not cause a serious performance issue because this
 	 * is called only once on CPU online.
+	 *
+	 * Without mounted resctrl FS, force to clear L3_IO_QOS_CFG MSR
+	 * so that no IO RDT L3 feature is enabled. This sets the MSR in
+	 * a fixed init state in kexec guest regardless host setting.
 	 */
-	l3_io_qos_cfg_update();
+	if (static_branch_unlikely(&rdt_enable_key))
+		iordt_enable = true;
+	else
+		iordt_enable = false;
+	l3_io_qos_cfg_update(&iordt_enable);
 
 	/* The cpu is set in default rdtgroup after online. */
 	cpumask_set_cpu(cpu, &rdtgroup_default.cpu_mask);

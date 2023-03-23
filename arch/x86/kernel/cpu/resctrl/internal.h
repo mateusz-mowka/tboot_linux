@@ -616,7 +616,8 @@ void cqm_handle_limbo(struct work_struct *work);
 bool has_busy_rmid(struct rdt_resource *r, struct rdt_domain *d);
 void __check_limbo(struct rdt_domain *d, bool force_free);
 void rdt_domain_reconfigure(struct rdt_resource *r);
-void l3_io_qos_cfg_update(void);
+void l3_io_qos_cfg_update(void *enable);
+int iordt_channel_config(bool enable);
 void __init thread_throttle_mode_init(void);
 bool __init rdt_cpu_has(int flag);
 

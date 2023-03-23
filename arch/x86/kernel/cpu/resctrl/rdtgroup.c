@@ -2538,6 +2538,39 @@ static void schemata_list_destroy(void)
 	}
 }
 
+static void iordt_cfg(bool enable)
+{
+	struct rdt_resource *r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
+	struct rdt_domain *dom;
+
+	lockdep_assert_held(&rdtgroup_mutex);
+
+	/*
+	 * Enable IO RDT monitoring and allocation features if supported.
+	 *
+	 * MSR_IA32_L3_IO_QOS_CFG is scoped at L3 cache level. Update the MSR
+	 * on any CPU in each L3 resource's domain.
+	 */
+	list_for_each_entry(dom, &r->domains, list) {
+		smp_call_function_any(&dom->cpu_mask, l3_io_qos_cfg_update,
+				      &enable, 1);
+	}
+}
+
+static void iordt_config(bool enable)
+{
+	int ret;
+
+	iordt_cfg(enable);
+
+	/* Set up channels including their CLOSID's and RMID's. */
+	ret = iordt_channel_config(enable);
+	if (ret) {
+		iordt_cfg(false);
+		pr_warn("Failed to config IORDT channels\n");
+	}
+}
+
 static int rdt_get_tree(struct fs_context *fc)
 {
 	struct rdt_fs_context *ctx = rdt_fc2context(fc);
@@ -2558,6 +2591,9 @@ static int rdt_get_tree(struct fs_context *fc)
 	ret = rdt_enable_ctx(ctx);
 	if (ret < 0)
 		goto out_cdp;
+
+	/* Enable IORDT features including info files. */
+	iordt_config(true);
 
 	ret = schemata_list_create();
 	if (ret) {
@@ -2888,6 +2924,8 @@ static void rdt_kill_sb(struct super_block *sb)
 	cdp_disable_all();
 	if (mba4_status == MBA4_ENABLED)
 		resctrl_arch_set_mba4(false);
+	/* Disable IORDT features. */
+	iordt_config(false);
 	rmdir_all_sub();
 	rdt_pseudo_lock_release();
 	rdtgroup_default.mode = RDT_MODE_SHAREABLE;
