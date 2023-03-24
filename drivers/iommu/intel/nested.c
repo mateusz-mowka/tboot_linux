@@ -22,6 +22,7 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 {
 	struct device_domain_info *info = dev_iommu_priv_get(dev);
 	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
+	struct dmar_domain *s2_domain = dmar_domain->s2_domain;
 	struct intel_iommu *iommu = info->iommu;
 	int ret = 0;
 	unsigned long flags;
@@ -68,7 +69,7 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 
 	spin_lock_irqsave(&dmar_domain->lock, flags);
 	if (++info->nested_users == 1)
-		list_add(&info->link, &dmar_domain->devices);
+		list_add(&info->link, &s2_domain->devices);
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 	domain_update_iommu_cap(dmar_domain);
 	return ret;
