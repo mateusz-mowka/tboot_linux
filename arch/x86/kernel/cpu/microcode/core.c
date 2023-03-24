@@ -48,7 +48,7 @@
 #define DRIVER_VERSION	"2.2"
 
 static struct microcode_ops	*microcode_ops;
-static struct dentry		*dentry_ucode;
+struct dentry *dentry_ucode;
 static bool dis_ucode_ldr = true;
 bool override_minrev;
 bool ucode_load_same;
