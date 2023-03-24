@@ -44,6 +44,9 @@ enum e820_type {
 	 * might alter over the S3 transition:
 	 */
 	E820_TYPE_RESERVED_KERN	= 128,
+#ifdef CONFIG_SVOS
+	E820_TYPE_SVOS_TARGET		= 139,
+#endif
 };
 
 /*

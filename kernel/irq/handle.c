@@ -240,3 +240,22 @@ asmlinkage void noinstr generic_handle_arch_irq(struct pt_regs *regs)
 	irq_exit();
 }
 #endif
+
+#ifdef CONFIG_SVOS
+irqreturn_t handle_irq_event_bcast(struct irq_desc *desc, const struct cpumask *cpu_mask);
+irqreturn_t handle_irq_event_bcast(struct irq_desc *desc, const struct cpumask *cpu_mask)
+{
+    irqreturn_t ret;
+
+    cpumask_andnot(desc->pending, desc->pending, cpu_mask);
+
+    cpumask_or(desc->inprogress, desc->inprogress, cpu_mask);
+    raw_spin_unlock(&desc->lock);
+
+    ret = handle_irq_event_percpu(desc);
+
+    raw_spin_lock(&desc->lock);
+    cpumask_andnot(desc->inprogress, desc->inprogress, cpu_mask);
+    return ret;
+}
+#endif

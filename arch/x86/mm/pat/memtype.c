@@ -556,7 +556,12 @@ int memtype_reserve(u64 start, u64 end, enum page_cache_mode req_type,
 		return -EINVAL;
 	}
 
+#ifndef CONFIG_SVOS
 	if (!pat_enabled()) {
+#else
+	/* SVOS disables memory type tracking. */
+	if (true) {
+#endif
 		/* This is identical to page table setting without PAT */
 		if (new_type)
 			*new_type = req_type;
@@ -625,6 +630,11 @@ int memtype_free(u64 start, u64 end)
 {
 	int is_range_ram;
 	struct memtype *entry_old;
+
+#ifdef CONFIG_SVOS
+	/* SVOS disables memory type tracking. */
+	return 0;
+#endif
 
 	if (!pat_enabled())
 		return 0;
@@ -805,6 +815,11 @@ static inline int range_is_allowed(unsigned long pfn, unsigned long size)
 	u64 to = from + size;
 	u64 cursor = from;
 
+#ifdef CONFIG_SVOS
+	/* SVOS disables memory type tracking. */
+	return 1;
+#endif
+
 	if (!pat_enabled())
 		return 1;
 
@@ -853,6 +868,12 @@ int memtype_kernel_map_sync(u64 base, unsigned long size,
 	if (!page_is_ram(base >> PAGE_SHIFT))
 		return 0;
 
+#ifdef CONFIG_SVOS
+	/* Skip kernel map sync if not DRAM or outside mem=svos@ OS space. */
+	if (!e820__mapped_any(base, base + size, E820_TYPE_RAM))
+		return 0;
+#endif
+
 	id_sz = (__pa(high_memory-1) <= base + size) ?
 				__pa(high_memory) - base : size;
 
@@ -889,6 +910,10 @@ static int reserve_pfn_range(u64 paddr, unsigned long size, pgprot_t *vma_prot,
 	if (is_ram) {
 		if (!pat_enabled())
 			return 0;
+#ifdef CONFIG_SVOS
+		/* SVOS disables memory type tracking. */
+		return 0;
+#endif
 
 		pcm = lookup_memtype(paddr);
 		if (want_pcm != pcm) {
@@ -910,6 +935,7 @@ static int reserve_pfn_range(u64 paddr, unsigned long size, pgprot_t *vma_prot,
 		return ret;
 
 	if (pcm != want_pcm) {
+#ifndef CONFIG_SVOS /* SVOS allows memory cache attribute aliasing */
 		if (strict_prot ||
 		    !is_new_memtype_allowed(paddr, size, want_pcm, pcm)) {
 			memtype_free(paddr, paddr + size);
@@ -921,6 +947,7 @@ static int reserve_pfn_range(u64 paddr, unsigned long size, pgprot_t *vma_prot,
 			       cattr_name(pcm));
 			return -EINVAL;
 		}
+#endif
 		/*
 		 * We allow returning different type than the one requested in
 		 * non strict case.
@@ -1003,6 +1030,11 @@ int track_pfn_remap(struct vm_area_struct *vma, pgprot_t *prot,
 		return ret;
 	}
 
+#ifdef CONFIG_SVOS
+	/* SVOS disables memory type tracking. */
+	return 0;
+#endif
+
 	if (!pat_enabled())
 		return 0;
 
@@ -1029,6 +1061,11 @@ int track_pfn_remap(struct vm_area_struct *vma, pgprot_t *prot,
 void track_pfn_insert(struct vm_area_struct *vma, pgprot_t *prot, pfn_t pfn)
 {
 	enum page_cache_mode pcm;
+
+#ifdef CONFIG_SVOS
+	/* SVOS disables memory type tracking. */
+	return;
+#endif
 
 	if (!pat_enabled())
 		return;

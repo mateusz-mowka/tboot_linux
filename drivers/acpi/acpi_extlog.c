@@ -18,6 +18,9 @@
 
 #include "apei/apei-internal.h"
 #include <ras/ras_event.h>
+#ifdef CONFIG_SVOS
+#include <linux/svos.h>
+#endif
 
 #define EXT_ELOG_ENTRY_MASK	GENMASK_ULL(51, 0) /* elog entry address mask */
 
@@ -228,6 +231,14 @@ static int __init extlog_init(void)
 	struct resource *r;
 	u64 cap;
 	int rc;
+
+#if defined(CONFIG_SVOS) && defined(CONFIG_X86)
+	if (!svos_enable_ras_errorcorrect) {
+		printk_once(KERN_CRIT
+			"SVOS RAS not enabled - shutting down extlog\n");
+		return -ENODEV;
+	}
+#endif
 
 	if (rdmsrl_safe(MSR_IA32_MCG_CAP, &cap) ||
 	    !(cap & MCG_ELOG_P) ||

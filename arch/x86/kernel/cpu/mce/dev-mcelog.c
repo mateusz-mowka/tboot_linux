@@ -15,6 +15,9 @@
 #include <linux/poll.h>
 
 #include "internal.h"
+#ifdef CONFIG_SVOS
+#include <linux/svos.h>
+#endif
 
 static BLOCKING_NOTIFIER_HEAD(mce_injector_chain);
 
@@ -346,6 +349,13 @@ static __init int dev_mcelog_init_device(void)
 	int mce_log_len;
 	int err;
 
+#ifdef CONFIG_SVOS
+	if (!svos_enable_ras_errorcorrect) {
+		printk_once(KERN_CRIT
+			"SVOS RAS not enabled - shutting down /dev/mcelog\n");
+		return -ENODEV;
+	}
+#endif
 	mce_log_len = max(MCE_LOG_MIN_LEN, num_online_cpus());
 	mcelog = kzalloc(struct_size(mcelog, entry, mce_log_len), GFP_KERNEL);
 	if (!mcelog)

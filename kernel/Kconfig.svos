@@ -1,0 +1,13 @@
+config SVOS
+	bool "Enable SVOS kernel modifications"
+	default n
+	help
+		Enable Intel internal-only SVOS kernel modifications for silicon validation
+
+config SVFS_ACPI
+	depends on SVOS && ACPI
+	bool "Enable SVOS SVFS ACPI driver support"
+	default n
+	help
+		Enable SVOS ACPI driver support for ACPI debug support
+

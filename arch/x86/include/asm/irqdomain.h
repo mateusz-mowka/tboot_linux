@@ -8,6 +8,9 @@
 #ifdef CONFIG_X86_LOCAL_APIC
 enum {
 	X86_IRQ_ALLOC_LEGACY				= 0x1,
+#ifdef CONFIG_SVOS
+	X86_IRQ_ALLOC_SVOS			= 0x44,
+#endif
 };
 
 extern int x86_fwspec_is_ioapic(struct irq_fwspec *fwspec);
