@@ -13,6 +13,18 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v3.6
+----------------
+23. add missing config options related to testing IAA_CRYPTO
+
+emr-bkc-6.2-v3.5
+----------------
+22. Fix resume IMS durring migration
+
+emr-bkc-6.2-v3.4
+----------------
+21. When doing live migration, the qemu uses s2 domain hwpt to operate
+
 emr-bkc-6.2-v3.3
 ----------------
 20. Reduce fequency of unsatble TSC events
