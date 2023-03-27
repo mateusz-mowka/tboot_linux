@@ -13,6 +13,12 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v4.1
+----------------
+24.cherry pick fix from 5.19 emr-bkc kernel:
+	https://hsdes.intel.com/appstore/article/#/16020142180
+	5.19 issue : https://hsdes.intel.com/appstore/article/#/16018901612
+
 emr-bkc-6.2-v3.6
 ----------------
 23. add missing config options related to testing IAA_CRYPTO
