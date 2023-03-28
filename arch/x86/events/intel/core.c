@@ -4031,7 +4031,6 @@ static int intel_pmu_hw_config(struct perf_event *event)
 		int num_branch_events = 0;
 
 		if (!static_cpu_has(X86_FEATURE_ARCH_LBR) ||
-		    !event->attr.precise_ip ||
 		    !x86_pmu.lbr_events ||
 		    (event->attr.config & ~INTEL_ARCH_EVENT_MASK))
 			return -EINVAL;
