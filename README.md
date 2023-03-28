@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v4.2
+----------------
+25.Long login time fix
+	https://jira.devtools.intel.com/browse/LFE-459
+
 emr-bkc-6.2-v4.1
 ----------------
 24.cherry pick fix from 5.19 emr-bkc kernel:
