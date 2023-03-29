@@ -223,8 +223,8 @@ static int copy_hashes_authenticate_chunks_gen2(struct device *dev)
 		if (chunk_status.valid_chunks != 0) {
 			dev_err(dev, "Couldn't invalidate installed stride - %d\n",
 				chunk_status.valid_chunks);
+			return -EIO;
 		}
-		return -EIO;
 	}
 
 	base = ifs_test_image_ptr;
