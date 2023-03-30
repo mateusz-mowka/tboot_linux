@@ -2883,9 +2883,6 @@ int vmx_hardware_enable(void)
 	u64 phys_addr = __pa(per_cpu(vmxarea, cpu));
 	int r;
 
-	if (cr4_read_shadow() & X86_CR4_VMXE)
-		return -EBUSY;
-
 	/*
 	 * This can happen if we hot-added a CPU but failed to allocate
 	 * VP assist page for it.
@@ -2893,6 +2890,9 @@ int vmx_hardware_enable(void)
 	if (static_branch_unlikely(&enable_evmcs) &&
 	    !hv_get_vp_assist_page(cpu))
 		return -EFAULT;
+
+	if (cr4_read_shadow() & X86_CR4_VMXE)
+		return -EBUSY;
 
 	intel_pt_handle_vmx(1);
 
@@ -2925,9 +2925,9 @@ void vmx_hardware_disable(void)
 	if (cpu_vmxoff())
 		kvm_spurious_fault();
 
-	hv_reset_evmcs();
-
 	intel_pt_handle_vmx(0);
+
+	hv_reset_evmcs();
 }
 
 static struct vmcs *__alloc_vmcs_cpu(int cpu, gfp_t flags)
