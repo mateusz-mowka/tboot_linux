@@ -1117,10 +1117,12 @@ static long idxd_idpt_win_attach(struct file *submit_wq, int fd, u16 __user *uha
 		goto rel_mutex;
 	}
 
+#if 0
 	if (!idxd_new_submitter_allowed(idpte_data)) {
 		rc = -ENOSPC;
 		goto err_no_submit;
 	}
+#endif
 
 	new_submit = kzalloc(sizeof(struct idxd_submit_node), GFP_KERNEL);
 	if (!new_submit) {
