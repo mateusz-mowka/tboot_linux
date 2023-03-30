@@ -1212,7 +1212,7 @@ static int tdx_restore_private_page(struct kvm *kvm, gfn_t gfn)
 			gpa_list->info.val = out.rcx;
 	} while (tdx_masked_status(err) == TDX_INTERRUPTED_RESUMABLE);
 
-	if (err != TDX_SUCCESS) {
+	if (tdx_masked_status(err) != TDX_SUCCESS) {
 		pr_err("%s failed, err=%llx, gfn=%lx\n",
 			__func__, err, (long)gpa_list->entries[0].gfn);
 		return -EIO;
