@@ -13,6 +13,12 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v4.3
+----------------
+26. . Update the SEAM loader to SEAMLDR_1.5.00.15.147 and TDX module to
+	TDX_1.5.00.19.481 in next EMR BKC release, it will solve the TDX LM
+	issue https://hsdes.intel.com/appstore/article/#/15012768412
+
 emr-bkc-6.2-v4.2
 ----------------
 25.Long login time fix
