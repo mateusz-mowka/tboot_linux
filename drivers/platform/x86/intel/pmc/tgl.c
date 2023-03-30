@@ -203,6 +203,8 @@ const struct pmc_reg_map tgl_reg_map = {
 	.lpm_status_offset = TGL_LPM_STATUS_OFFSET,
 	.lpm_live_status_offset = TGL_LPM_LIVE_STATUS_OFFSET,
 	.etr3_offset = ETR3_OFFSET,
+	.pson_residency_offset = TGL_PSON_RESIDENCY_OFFSET,
+	.pson_residency_counter_step = TGL_PSON_RES_COUNTER_STEP,
 };
 
 void pmc_core_get_tgl_lpm_reqs(struct platform_device *pdev)
