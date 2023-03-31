@@ -8465,18 +8465,10 @@ static unsigned int vmx_handle_intel_pt_intr(void)
 
 static void vmxon(void *arg)
 {
-	int cpu = raw_smp_processor_id();
-	u64 phys_addr = __pa(per_cpu(vmxarea, cpu));
 	atomic_t *failed = arg;
 	int r;
 
-	if (cr4_read_shadow() & X86_CR4_VMXE) {
-		r = -EBUSY;
-		goto out;
-	}
-
-	r = kvm_cpu_vmxon(phys_addr);
-out:
+	r = cpu_vmxop_get();
 	if (r)
 		atomic_inc(failed);
 }
@@ -8495,7 +8487,7 @@ EXPORT_SYMBOL_GPL(vmxon_all);
 
 static void vmxoff(void *junk)
 {
-	cpu_vmxoff();
+	cpu_vmxop_put();
 }
 
 void vmxoff_all(void)
