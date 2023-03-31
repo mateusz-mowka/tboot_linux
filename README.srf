@@ -1,6 +1,14 @@
 INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 ------------------------------------------------------------------------
 
+SRF PO bkc-v1.4
+===============
+1. Fixed nested VM issue.
+   jira: https://jira.devtools.intel.com/browse/LFE-7369
+2. Remove ZBBed PMU feature (RDPMC_USER_DISABLE).
+3. Enable ACPI debugger support.
+4. Add support to enumerate split lock disable bit.
+
 SRF PO bkc-v1.3
 ===============
 1. MCE linear address support.
