@@ -614,8 +614,7 @@ static int idxd_enable_system_pasid(struct idxd_device *idxd)
 		return ret;
 	}
 	idxd->pasid = pasid;
-
-	return 0;
+	return ret;
 }
 
 static void idxd_disable_system_pasid(struct idxd_device *idxd)
@@ -662,8 +661,9 @@ printk("%s: %d\n", __func__, __LINE__);
 printk("%s: %d\n", __func__, __LINE__);
 			set_bit(IDXD_FLAG_USER_PASID_ENABLED, &idxd->flags);
 
-			if (idxd_enable_system_pasid(idxd))
-				dev_warn(dev, "No in-kernel DMA with PASID.\n");
+			rc = idxd_enable_system_pasid(idxd);
+			if (rc)
+				dev_warn(dev, "No in-kernel DMA with PASID. %d\n", rc);
 			else
 				set_bit(IDXD_FLAG_PASID_ENABLED, &idxd->flags);
 		}
