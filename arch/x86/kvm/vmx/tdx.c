@@ -18,6 +18,113 @@
 #include <trace/events/kvm.h>
 #include "trace.h"
 
+/* Table 3-42, GHCI spec */
+struct tdvmcall_service {
+	guid_t   guid;
+	/* Length of the hdr and payload */
+	uint32_t length;
+	uint32_t status;
+	uint8_t  data[0];
+};
+
+enum tdvmcall_service_id {
+	TDVMCALL_SERVICE_ID_QUERY = 0,
+	TDVMCALL_SERVICE_ID_MIGTD = 1,
+
+	TDVMCALL_SERVICE_ID_MAX,
+};
+
+static guid_t tdvmcall_service_ids[TDVMCALL_SERVICE_ID_MAX] __read_mostly = {
+	[TDVMCALL_SERVICE_ID_QUERY]	= GUID_INIT(0xfb6fc5e1, 0x3378, 0x4acb,
+						    0x89, 0x64, 0xfa, 0x5e,
+						    0xe4, 0x3b, 0x9c, 0x8a),
+	[TDVMCALL_SERVICE_ID_MIGTD]	= GUID_INIT(0xe60e6330, 0x1e09, 0x4387,
+						    0xa4, 0x44, 0x8f, 0x32,
+						    0xb8, 0xd6, 0x11, 0xe5),
+};
+
+enum tdvmcall_service_status {
+	TDVMCALL_SERVICE_S_RETURNED = 0x0,
+
+	TDVMCALL_SERVICE_S_UNSUPP = 0xFFFFFFFE,
+};
+
+struct tdvmcall_service_query {
+#define TDVMCALL_SERVICE_QUERY_VERSION	0
+	uint8_t version;
+#define TDVMCALL_SERVICE_CMD_QUERY	0
+	uint8_t cmd;
+#define TDVMCALL_SERVICE_QUERY_S_SUPPORTED	0
+#define TDVMCALL_SERVICE_QUERY_S_UNSUPPORTED	1
+	uint8_t status;
+	uint8_t rsvd;
+	guid_t  guid;
+};
+
+/* PI Spec: vol 3, 5.6 GUID extension HOB */
+struct hob_generic_hdr {
+#define HOB_TYPE_GUID_EXTENSION	0x0004
+	uint16_t type;
+	/* Length of the payload */
+	uint16_t length;
+	uint32_t rsvd;
+};
+
+struct hob_guid_type_hdr {
+	struct hob_generic_hdr		generic_hdr;
+	guid_t				guid;
+	uint8_t				data[0];
+};
+
+struct migtd_basic_info {
+	struct hob_guid_type_hdr	hob_hdr;
+	uint64_t			req_id;
+	bool				src;
+	uint32_t			cpu_version;
+	uint8_t				usertd_uuid[32];
+	uint64_t			binding_handle;
+	uint64_t			policy_id;
+	uint64_t			comm_id;
+};
+
+struct migtd_socket_info {
+	struct hob_guid_type_hdr	hob_hdr;
+	uint64_t			comm_id;
+	uint64_t			migtd_cid;
+	uint32_t			channel_port;
+	uint32_t			quote_service_port;
+};
+
+struct migtd_policy_info {
+	struct hob_guid_type_hdr	hob_hdr;
+	uint64_t			policy_id;
+	uint32_t			policy_size;
+	uint8_t				pad[4];
+	uint8_t				policy_data[0];
+};
+
+struct migtd_all_info {
+	struct migtd_basic_info		basic;
+	struct migtd_socket_info	socket;
+	struct migtd_policy_info	policy;
+};
+
+struct tdvmcall_service_migtd {
+#define TDVMCALL_SERVICE_MIGTD_WAIT_VERSION	0
+#define TDVMCALL_SERVICE_MIGTD_REPORT_VERSION	0
+	uint8_t version;
+#define TDVMCALL_SERVICE_MIGTD_CMD_SHUTDOWN	0
+#define TDVMCALL_SERVICE_MIGTD_CMD_WAIT		1
+#define TDVMCALL_SERVICE_MIGTD_CMD_REPORT	2
+	uint8_t cmd;
+#define TDVMCALL_SERVICE_MIGTD_OP_NOOP		0
+#define TDVMCALL_SERVICE_MIGTD_OP_START_MIG	1
+	uint8_t operation;
+#define TDVMCALL_SERVICE_MIGTD_STATUS_SUCC	0
+	uint8_t status;
+	uint8_t data[0];
+};
+
 static struct kvm_firmware *tdx_module;
 
 #include "tdx_mig.c"
@@ -691,8 +798,6 @@ int tdx_vcpu_create(struct kvm_vcpu *vcpu)
 	vcpu->arch.cr4_guest_owned_bits = -1ul;
 	vcpu->arch.root_mmu.no_prefetch = true;
 
-	vcpu->arch.tsc_offset = to_kvm_tdx(vcpu->kvm)->tsc_offset;
-	vcpu->arch.l1_tsc_offset = vcpu->arch.tsc_offset;
 	vcpu->arch.guest_state_protected =
 		!(to_kvm_tdx(vcpu->kvm)->attributes & TDX_TD_ATTRIBUTE_DEBUG);
 
@@ -1847,19 +1952,14 @@ static void tdvmcall_status_copy_and_free(struct tdvmcall_service *h_buf,
 
 static enum tdvmcall_service_id tdvmcall_get_service_id(guid_t guid)
 {
-	guid_t temp;
+	enum tdvmcall_service_id id;
 
-	temp = GUID_INIT(0xfb6fc5e1, 0x3378, 0x4acb, 0x89, 0x64,
-			 0xfa, 0x5e, 0xe4, 0x3b, 0x9c, 0x8a);
-	if (guid_equal(&guid, &temp))
-		return TDVMCALL_SERVICE_ID_QUERY;
+	for (id = 0; id < TDVMCALL_SERVICE_ID_MAX; id++) {
+		if (guid_equal(&guid, &tdvmcall_service_ids[id]))
+			break;
+	}
 
-	temp = GUID_INIT(0xe60e6330, 0x1e09, 0x4387, 0xa4, 0x44,
-			 0x8f, 0x32, 0xb8, 0xd6, 0x11, 0xe5);
-	if (guid_equal(&guid, &temp))
-		return TDVMCALL_SERVICE_ID_MIGTD;
-
-	return TDVMCALL_SERVICE_ID_UNKNOWN;
+	return id;
 }
 
 static void tdx_handle_service_query(struct tdvmcall_service *cmd_hdr,
@@ -1879,7 +1979,7 @@ static void tdx_handle_service_query(struct tdvmcall_service *cmd_hdr,
 	}
 
 	service_id = tdvmcall_get_service_id(cmd_query->guid);
-	if (service_id == TDVMCALL_SERVICE_ID_UNKNOWN)
+	if (service_id == TDVMCALL_SERVICE_ID_MAX)
 		resp_query->status = TDVMCALL_SERVICE_QUERY_S_UNSUPPORTED;
 	else
 		resp_query->status = TDVMCALL_SERVICE_QUERY_S_SUPPORTED;
@@ -4170,7 +4270,7 @@ static int tdx_servtd_bind(struct kvm *usertd_kvm, struct kvm_tdx_cmd *cmd)
 	}
 
 	servtd_kvm = kvm_get_target_kvm(servtd.pid);
-	if (!servtd_kvm) {
+	if (!servtd_kvm || !is_td(servtd_kvm)) {
 		pr_err("%s: servtd not found, pid=%d\n", __func__, servtd.pid);
 		return -ENOENT;
 	}
@@ -4388,6 +4488,8 @@ void tdx_td_vcpu_post_init(struct vcpu_tdx *tdx)
 				 CPU_BASED_MOV_DR_EXITING);
 	}
 
+	vcpu->arch.tsc_offset = to_kvm_tdx(vcpu->kvm)->tsc_offset;
+	vcpu->arch.l1_tsc_offset = vcpu->arch.tsc_offset;
 	vcpu->arch.mp_state = KVM_MP_STATE_RUNNABLE;
 	tdx->vcpu_initialized = true;
 }

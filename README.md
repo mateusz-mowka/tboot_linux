@@ -13,7 +13,67 @@ Use at your own risk.
 
 Release History
 ===============
-emr-bkc-6.2-v2.5
+emr-bkc-6.2-v4.4
+----------------
+26. Remove workaround wrong area in iopt while domain attached.
+	fixes https://jira.devtools.intel.com/browse/LFE-7359
+
+emr-bkc-6.2-v4.3
+----------------
+26. . Update the SEAM loader to SEAMLDR_1.5.00.15.147 and TDX module to
+	TDX_1.5.00.19.481 in next EMR BKC release, it will solve the TDX LM
+	issue https://hsdes.intel.com/appstore/article/#/15012768412
+
+emr-bkc-6.2-v4.2
+----------------
+25.Long login time fix
+	https://jira.devtools.intel.com/browse/LFE-459
+
+emr-bkc-6.2-v4.1
+----------------
+24.cherry pick fix from 5.19 emr-bkc kernel:
+	https://hsdes.intel.com/appstore/article/#/16020142180
+	5.19 issue : https://hsdes.intel.com/appstore/article/#/16018901612
+
+emr-bkc-6.2-v3.6
+----------------
+23. add missing config options related to testing IAA_CRYPTO
+
+emr-bkc-6.2-v3.5
+----------------
+22. Fix resume IMS durring migration
+
+emr-bkc-6.2-v3.4
+----------------
+21. When doing live migration, the qemu uses s2 domain hwpt to operate
+
+emr-bkc-6.2-v3.3
+----------------
+20. Reduce fequency of unsatble TSC events
+	https://hsdes.intel.com/appstore/article/#/14016951426
+
+emr-bkc-6.2-v3.2
+----------------
+19. ACPI: tools: pfrut: Check if the input of level and type is in the right
+    numeric range
+	https://hsdes.intel.com/appstore/article/#/15012857647
+
+emr-bkc-6.2-v3.1
+----------------
+18. Split lock enumeration update
+	https://jira.devtools.intel.com/browse/LFE-3635
+	
+emr-bkc-6.2-v2.7
+----------------
+17. cherry-picked fixes from emr 5.19 kernel for:
+	https://hsdes.intel.com/appstore/article/#/22016309793 
+	https://hsdes.intel.com/appstore/article/#/22015866177 
+
+emr-bkc-6.2-v2.6
+----------------
+16. Add backport of IAA-Crypto from 6.3-rc1
+
+ emr-bkc-6.2-v2.5
 ----------------
 15. There are some build errors under certain configurations (i.e., if
     CONFIG_SMP is not set or CONFIG_UNACCEPTED_MEMORY is not set)
