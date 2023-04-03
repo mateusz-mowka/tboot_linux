@@ -475,6 +475,9 @@ static int prepare_for_update(void)
 	int ret, cpu, first_cpu;
 	struct core_rendez *pcpu_core;
 
+	atomic_set(&late_cpus_in,  0);
+	atomic_set(&late_cpus_out, 0);
+
 	if (!microcode_ops->need_nmi_lateload)
 		return 0;
 
@@ -495,9 +498,6 @@ static int prepare_for_update(void)
 		atomic_set(&pcpu_core->core_done, 0);
 		atomic_set(&pcpu_core->failed, 0);
 	}
-
-	atomic_set(&late_cpus_in,  0);
-	atomic_set(&late_cpus_out, 0);
 
 	return 0;
 }
