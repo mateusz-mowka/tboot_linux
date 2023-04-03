@@ -13,9 +13,58 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v2.5
+----------------
+15. There are some build errors under certain configurations (i.e., if
+    CONFIG_SMP is not set or CONFIG_UNACCEPTED_MEMORY is not set)
+
+emr-bkc-6.2-v2.4
+----------------
+15. TD mwait/tsx support.
+
+emr-bkc-6.2-v2.3
+----------------
+14. update to the change that went into emr-bkc-6.2-v1.10
+    to include some pr_info outpput.
+    Rather than rebase I did a revert and applied the updated version of the
+    patch provided by Weijiang.
+
+semr-bkc-6.2-v2.2
+----------------
+13. missing fixes WRT the 5.19 EMR BKC
+swiotlb: ensure swiotlb buffer size is 2MB aligned
+swiotlb: handle the quirk of accept_memory() when allocating unaccept memory
+tools/perf/kvm: provide a TDCALL breakdown
+swiotlb: fast shared memory allocation
+	https://jira.devtools.intel.com/browse/LFE-6243
+
+virtio_ring: accelerate DMA mapping setup/teardown for small buffers
+swiotlb: lockless memory allocation and free
+x86/tdx: Use direct paravirt call for APIC_ICR MSR write
+	https://jira.devtools.intel.com/browse/LFE-108
+
+x86/tdx: Virtualize CPUID leaf 0x2
+	https://jira.devtools.intel.com/browse/BLR-708
+
+emr-bkc-6.2-v2.1
+----------------
+12. iommufd: remove wrong area in iopt while domain attached
+	https://jira.devtools.intel.com/browse/LFE-4915
+
+emr-bkc-6.2-v1.11
+----------------
+11. vfio: Fix bind/unbind mismatch
+	https://jira.devtools.intel.com/browse/LFE-6622
+
+emr-bkc-6.2-v1.10
+----------------
+10. vtd: iommu: Skip invalid list node when flush device iotlb
+	https://jira.devtools.intel.com/browse/LFE-7082 
+
 emr-bkc-6.2-v1.9
 ----------------
 9.  Fix bug for TDX init in guest: correct cpus_mask
+	https://jira.devtools.intel.com/browse/BLR-809
 
 emr-bkc-6.2-v1.8
 ----------------

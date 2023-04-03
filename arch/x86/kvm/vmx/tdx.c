@@ -5,7 +5,6 @@
 
 #include <asm/fpu/xcr.h>
 #include <asm/virtext.h>
-#include <asm/cpu.h>
 #include <asm/tdx.h>
 
 #include "capabilities.h"
@@ -923,15 +922,29 @@ static struct tdx_uret_msr tdx_uret_msrs[] = {
 	{.msr = MSR_STAR,},
 	{.msr = MSR_LSTAR,},
 	{.msr = MSR_TSC_AUX,},
+	{.msr = MSR_IA32_TSX_CTRL,},
 };
 
-static void tdx_user_return_update_cache(void)
+static void tdx_user_return_update_cache(struct kvm_vcpu *vcpu)
 {
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(vcpu->kvm);
+	/*
+	 * TDX module resets the TSX_CTRL MSR to 0 at TD exit if TSX
+	 * is enabled for TD, otherwise reset it to 0x3, need to update
+	 *  TSX_CTRL's slot curr accordingly.
+	 */
+	u64 tsx_ctrl = kvm_tdx->tsx_enabled ? 0 :
+		       TSX_CTRL_RTM_DISABLE | TSX_CTRL_CPUID_CLEAR;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(tdx_uret_msrs); i++)
-		kvm_user_return_update_cache(tdx_uret_msrs[i].slot,
-					     tdx_uret_msrs[i].defval);
+	for (i = 0; i < ARRAY_SIZE(tdx_uret_msrs); i++) {
+		if (tdx_uret_msrs[i].msr == MSR_IA32_TSX_CTRL)
+			kvm_user_return_update_cache(tdx_uret_msrs[i].slot,
+						     tsx_ctrl);
+		else
+			kvm_user_return_update_cache(tdx_uret_msrs[i].slot,
+						     tdx_uret_msrs[i].defval);
+	}
 }
 
 static void tdx_restore_host_xsave_state(struct kvm_vcpu *vcpu)
@@ -1024,6 +1037,12 @@ static noinstr void tdx_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 		tdx->exit_reason.full = __tdx_vcpu_run(tdx->tdvpr_pa,
 						     vcpu->arch.regs,
 					    tdx->tdvmcall.regs_mask);
+
+		if (tdx->exit_reason.full == TDX_INCONSISTENT_MSR_TSX) {
+			pr_err_once("TDX module is outdated. Use v1.0.3 or newer.\n");
+			break;
+		}
+
 		err = tdx->exit_reason.full & TDX_SEAMCALL_STATUS_MASK;
 
 		if (retries++ > TDX_SEAMCALL_RETRY_MAX) {
@@ -1083,17 +1102,9 @@ fastpath_t tdx_vcpu_run(struct kvm_vcpu *vcpu)
 	if (kvm_tdx->attributes & TDX_TD_ATTRIBUTE_PERFMON)
 		apic_write(APIC_LVTPC, TDX_GUEST_PMI_VECTOR);
 
-	/*
-	 * TDH.VP.ENTER has special environment requirements that
-	 * RTM_DISABLE(bit 0) and TSX_CPUID_CLEAR(bit 1) of IA32_TSX_CTRL must
-	 * be 0 if it's supported.
-	 * MSR_IA32_TSX_CTRL is restored by user return msrs callback which is
-	 * enabled by tdx_user_return_update_cache().
-	 */
-	(void)tsx_ctrl_clear();
 	tdx_vcpu_enter_exit(vcpu, tdx);
 
-	tdx_user_return_update_cache();
+	tdx_user_return_update_cache(vcpu);
 
 	/*
 	 * This is safe only when host PMU is disabled, e.g.
@@ -3524,6 +3535,7 @@ static int setup_tdparams(struct kvm *kvm, struct td_params *td_params,
 			struct kvm_tdx_init_vm *init_vm)
 {
 	const struct kvm_cpuid2 *cpuid = &init_vm->cpuid;
+	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
 	const struct kvm_cpuid_entry2 *entry;
 	u64 guest_supported_xcr0;
 	u64 guest_supported_xss;
@@ -3534,6 +3546,19 @@ static int setup_tdparams(struct kvm *kvm, struct td_params *td_params,
 		return -EBUSY;
 	td_params->max_vcpus = kvm->max_vcpus;
 	td_params->attributes = init_vm->attributes;
+
+	entry = tdx_find_cpuid_entry(cpuid, 0x7, 0);
+	if (entry) {
+		u64 mask = __feature_bit(X86_FEATURE_HLE) |
+			   __feature_bit(X86_FEATURE_RTM);
+
+		if ((entry->ebx & mask) &&
+		    (entry->ebx & mask) != mask) {
+			pr_info_ratelimited("{HLE,RTM} must be set same!\n");
+				return -EINVAL;
+		}
+		kvm_tdx->tsx_enabled = !!(entry->ebx & mask);
+	}
 
 	for (i = 0; i < tdx_caps.nr_cpuid_configs; i++) {
 		const struct tdx_cpuid_config *config = &tdx_caps.cpuid_configs[i];
@@ -3548,6 +3573,13 @@ static int setup_tdparams(struct kvm *kvm, struct td_params *td_params,
 		value->ebx = entry->ebx & config->ebx;
 		value->ecx = entry->ecx & config->ecx;
 		value->edx = entry->edx & config->edx;
+
+		if (config->leaf == 0x1 &&
+		    (value->ecx & __feature_bit(X86_FEATURE_MWAIT)) &&
+		    !kvm_mwait_in_guest(kvm)) {
+			pr_info_ratelimited("Invalid mwait configuration!\n");
+			return -EINVAL;
+		}
 	}
 
 	max_pa = 36;
@@ -4993,11 +5025,6 @@ int __init tdx_hardware_setup(struct kvm_x86_ops *x86_ops)
 				tdx_uret_msrs[i].msr);
 			return -EIO;
 		}
-	}
-	if (kvm_find_user_return_msr(MSR_IA32_TSX_CTRL) == -1) {
-		pr_err("MSR %x isn't included by kvm_find_user_return_msr\n",
-		       MSR_IA32_TSX_CTRL);
-		return -EIO;
 	}
 
 	/*

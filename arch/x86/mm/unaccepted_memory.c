@@ -4,6 +4,7 @@
 #include <linux/mm.h>
 #include <linux/pfn.h>
 #include <linux/spinlock.h>
+#include <linux/set_memory.h>
 
 #include <asm/io.h>
 #include <asm/setup.h>
@@ -73,6 +74,55 @@ void accept_memory(phys_addr_t start, phys_addr_t end)
 		bitmap_clear(bitmap, range_start, len);
 	}
 	spin_unlock_irqrestore(&unaccepted_memory_lock, flags);
+}
+
+bool unaccept_memory(phys_addr_t start, phys_addr_t end)
+{
+	unsigned long *bitmap;
+	unsigned long flags;
+	unsigned long long i;
+	int accepted = 0;
+
+	if (!boot_params.unaccepted_memory)
+		return false;
+
+	if (!IS_ALIGNED(start, PMD_SIZE) || !IS_ALIGNED(end, PMD_SIZE)) {
+		pr_err("Error: requested memory range isn't 2MB aligned\n");
+		return false;
+	}
+
+	spin_lock_irqsave(&unaccepted_memory_lock, flags);
+	bitmap = __va(boot_params.unaccepted_memory);
+	for (i = start / PMD_SIZE; i < DIV_ROUND_UP(end, PMD_SIZE); i++) {
+		if (!test_bit(i, bitmap)) {
+			accepted++;
+			pr_err("IO TLB: found %llx accepted\n", i * PMD_SIZE);
+			set_memory_decrypted((unsigned long)__va(i * PMD_SIZE),
+					     PMD_SIZE >> PAGE_SHIFT);
+			set_bit(i, bitmap);
+		}
+	}
+
+	/*
+	 * To avoid load_unaligned_zeropad() stepping into unaccepted memory,
+	 * the next 2MB page of the memory range supplied to accept_memory()
+	 * may be accepted.
+	 *
+	 * But if the next 2MB page is unaccepted because it is converted to
+	 * shared directly, trying to accept it would block shared accesses.
+	 * Some failure is observed because the first 2MB page of swiotlb pool
+	 * is converted to private at runtime when kernel tries to accept the
+	 * preceding 2MB page.
+	 *
+	 * Mark the first page as accepted to avoid it being accepted due to
+	 * the quirk of accept_memory().
+	 */
+	clear_bit(start / PMD_SIZE, bitmap);
+
+	spin_unlock_irqrestore(&unaccepted_memory_lock, flags);
+	pr_err("IO TLB: %llx-%llx accepted %d\n", start, end, accepted);
+
+	return true;
 }
 
 bool range_contains_unaccepted_memory(phys_addr_t start, phys_addr_t end)

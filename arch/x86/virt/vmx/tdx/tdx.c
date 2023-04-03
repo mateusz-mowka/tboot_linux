@@ -393,6 +393,9 @@ static int seamcall(u64 fn, u64 rcx, u64 rdx, u64 r8, u64 r9,
 	case TDX_SEAMCALL_UD:
 		pr_err_once("CPU is not in VMX operation.\n");
 		return -EINVAL;
+	case TDX_INCORRECT_CPUID_VALUE:
+		pr_err_once("TDX module is outdated. Use v1.0.3 or newer.\n");
+		return -ENODEV;
 	default:
 		pr_err_once("SEAMCALL failed: leaf %llu, error 0x%llx.\n",
 				fn, sret);
@@ -1267,12 +1270,9 @@ static int init_tdmrs(struct tdmr_info_list *tdmr_list)
 
 static void do_lp_init(void *data)
 {
-	u64 tsx_ctrl;
 	int ret;
 
-	tsx_ctrl = tsx_ctrl_clear();
 	ret = seamcall(TDH_SYS_LP_INIT, 0, 0, 0, 0, NULL, NULL);
-	tsx_ctrl_restore(tsx_ctrl);
 
 	*(int *)data = ret;
 }
@@ -1337,14 +1337,9 @@ static int init_tdx_module_common(void)
 	 */
 	struct cmr_info cmr_array[MAX_CMRS] __aligned(CMR_INFO_ARRAY_ALIGNMENT);
 	struct tdsysinfo_struct *sysinfo = &PADDED_STRUCT(tdsysinfo);
-	u64 tsx_ctrl;
 	int ret;
 
-	preempt_disable();
-	tsx_ctrl = tsx_ctrl_clear();
 	ret = seamcall(TDH_SYS_INIT, 0, 0, 0, 0, NULL, NULL);
-	tsx_ctrl_restore(tsx_ctrl);
-	preempt_enable();
 	if (ret)
 		return ret;
 

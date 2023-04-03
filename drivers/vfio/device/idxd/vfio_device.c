@@ -116,13 +116,10 @@ out:
 static ioasid_t idxd_vdcm_get_pasid(struct vdcm_idxd *vidxd,
 				    ioasid_t pasid)
 {
-	ioasid_t vdev_pasid = INVALID_IOASID;
-
 	if (pasid_valid(pasid))
 		return pasid;
 
-	vdev_pasid = vfio_device_get_pasid(&vidxd->vdev);
-	return vdev_pasid;
+	return vidxd->pasid;
 }
 
 static void idxd_vdcm_unbind_iommufd(struct vfio_device *vdev)
@@ -2407,7 +2404,7 @@ static int idxd_vdev_drv_probe(struct idxd_dev *idxd_dev)
 	}
 
 	wq->type = IDXD_WQT_VDEV;
-	rc = __drv_enable_wq(wq);
+	rc = drv_enable_wq(wq);
 	if (rc < 0)
 		goto err_enable_wq;
 
@@ -2432,7 +2429,7 @@ static void idxd_vdev_drv_remove(struct idxd_dev *idxd_dev)
 	struct idxd_wq *wq = idxd_dev_to_wq(idxd_dev);
 
 	mutex_lock(&wq->wq_lock);
-	__drv_disable_wq(wq);
+	drv_disable_wq(wq);
         if (wq->state == IDXD_WQ_LOCKED)
                 wq->state = IDXD_WQ_DISABLED;
 	wq->type = IDXD_WQT_NONE;
