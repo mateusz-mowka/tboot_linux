@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+emr-bkc-6.2-v4.4
+----------------
+26. Remove workaround wrong area in iopt while domain attached.
+	fixes https://jira.devtools.intel.com/browse/LFE-7359
+
 emr-bkc-6.2-v4.3
 ----------------
 26. . Update the SEAM loader to SEAMLDR_1.5.00.15.147 and TDX module to
