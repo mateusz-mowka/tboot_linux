@@ -745,6 +745,9 @@ static int swiotlb_do_find_slots(struct device *dev, int area_index,
 		if (alloc_size >= PAGE_SIZE && (slot_dma_addr & ~PAGE_MASK))
 			continue;
 
+		if (io_tlb_offset(slot_index) + nslots > IO_TLB_SEGSIZE)
+			continue;
+
 		/*
 		 * If we find a slot that indicates we have 'nslots' number of
 		 * contiguous buffers, we allocate the buffers from that slot
