@@ -8463,39 +8463,6 @@ static unsigned int vmx_handle_intel_pt_intr(void)
 	return 1;
 }
 
-static void vmxon(void *arg)
-{
-	atomic_t *failed = arg;
-	int r;
-
-	r = cpu_vmxop_get();
-	if (r)
-		atomic_inc(failed);
-}
-
-int vmxon_all(void)
-{
-	atomic_t failed = ATOMIC_INIT(0);
-
-	on_each_cpu(vmxon, &failed, 1);
-
-	if (atomic_read(&failed))
-		return -EBUSY;
-	return 0;
-}
-EXPORT_SYMBOL_GPL(vmxon_all);
-
-static void vmxoff(void *junk)
-{
-	cpu_vmxop_put();
-}
-
-void vmxoff_all(void)
-{
-	on_each_cpu(vmxoff, NULL, 1);
-}
-EXPORT_SYMBOL_GPL(vmxoff_all);
-
 static __init void vmx_setup_user_return_msrs(void)
 {
 

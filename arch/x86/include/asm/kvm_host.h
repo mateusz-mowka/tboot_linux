@@ -2335,11 +2335,6 @@ int memslot_rmap_alloc(struct kvm_memory_slot *slot, unsigned long npages);
 	 KVM_X86_QUIRK_FIX_HYPERCALL_INSN |	\
 	 KVM_X86_QUIRK_MWAIT_NEVER_UD_FAULTS)
 
-#if IS_ENABLED(CONFIG_KVM_INTEL)
-int vmxon_all(void);
-void vmxoff_all(void);
-#endif
-
 /* The common function for normal x86 guest */
 void load_guest_debug_regs(struct kvm_vcpu *vcpu);
 
