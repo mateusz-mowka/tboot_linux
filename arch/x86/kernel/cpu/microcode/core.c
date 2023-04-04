@@ -589,14 +589,14 @@ wait_for_siblings:
 	 * For siblings, collect the cpuinfo and update the
 	 * per-cpu cpuinfo with the current microcode revision.
 	 */
-	if (cpumask_first(topology_sibling_cpumask(cpu)) != cpu) {
+	if (cpu != first_cpu) {
 		uci = ucode_cpu_info + cpu;
 		microcode_ops->collect_cpu_info(cpu, &uci->cpu_sig);
 	}
 
 	this_cpu_info = &cpu_data(cpu);
 	if (this_cpu_info->microcode != bsp_info->microcode)
-		panic("Microcode Revision for CPU %d = 0x%x doesn't match BSP rev 0x%x\n",
+		pr_err("Microcode Revision for CPU %d = 0x%x doesn't match BSP rev 0x%x\n",
 		      cpu, this_cpu_info->microcode, bsp_info->microcode);
 
 	return ret;
