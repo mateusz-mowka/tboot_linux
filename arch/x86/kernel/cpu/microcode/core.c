@@ -809,6 +809,7 @@ static int microcode_commit(void)
 {
 	if (microcode_ops->perform_commit)
 		return microcode_ops->perform_commit();
+
 	return 0;
 }
 
@@ -825,16 +826,20 @@ static ssize_t commit_store(struct device *dev,
 		return ret;
 
 	if (val != 1)
-		return size;
+		return -EINVAL;
+
+	cpus_read_lock();
+	ret = check_online_cpus();
+
+	if (ret)
+		goto unlock;
 
 	mutex_lock(&microcode_mutex);
-	cpus_read_lock();
-
 	rv = microcode_commit();
-
-	cpus_read_unlock();
 	mutex_unlock(&microcode_mutex);
 
+unlock:
+	cpus_read_unlock();
 	return size;
 }
 
