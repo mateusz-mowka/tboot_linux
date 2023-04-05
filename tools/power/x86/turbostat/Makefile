@@ -8,7 +8,7 @@ ifeq ("$(origin O)", "command line")
 	BUILD_OUTPUT := $(O)
 endif
 
-turbostat : turbostat.c
+turbostat : turbostat.c intel_pmt.o
 override CFLAGS +=	-O2 -Wall -Wextra -I../../../include
 override CFLAGS +=	-DMSRHEADER='"../../../../arch/x86/include/asm/msr-index.h"'
 override CFLAGS +=	-DINTEL_FAMILY_HEADER='"../../../../arch/x86/include/asm/intel-family.h"'
@@ -17,11 +17,11 @@ override CFLAGS +=	-D_FORTIFY_SOURCE=2
 
 %: %.c
 	@mkdir -p $(BUILD_OUTPUT)
-	$(CC) $(CFLAGS) $< -o $(BUILD_OUTPUT)/$@ $(LDFLAGS) -lcap -lrt
+	$(CC) $(CFLAGS) $^ -o $(BUILD_OUTPUT)/$@ $(LDFLAGS) -lcap -lrt
 
 .PHONY : clean
 clean :
-	@rm -f $(BUILD_OUTPUT)/turbostat
+	@rm -f *.o $(BUILD_OUTPUT)/turbostat
 
 install : turbostat
 	install -d  $(DESTDIR)$(PREFIX)/bin

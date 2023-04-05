@@ -37,6 +37,8 @@
 #include <asm/unistd.h>
 #include <stdbool.h>
 
+#include "intel_pmt.h"
+
 #define UNUSED(x) (void)(x)
 
 /*
@@ -71,7 +73,7 @@ struct msr_counter {
 #define	SYSFS_PERCPU	(1 << 1)
 };
 
-struct msr_counter bic[] = {
+struct msr_counter bic0[] = {
 	{ 0x0, "usec", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "Time_Of_Day_Seconds", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "Package", "", 0, 0, 0, NULL, 0 },
@@ -100,6 +102,12 @@ struct msr_counter bic[] = {
 	{ 0x0, "Pkg%pc8", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "Pkg%pc9", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "Pk%pc10", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "Die%LLC", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "Di%C2.1", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "Di%C2.2", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "Di%C3.1", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "Di%C3.2", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "Die%C6", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "CPU%LPI", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "SYS%LPI", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "PkgWatt", "", 0, 0, 0, NULL, 0 },
@@ -127,9 +135,28 @@ struct msr_counter bic[] = {
 	{ 0x0, "IPC", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "CoreThr", "", 0, 0, 0, NULL, 0 },
 	{ 0x0, "UncMHz", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc2", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PM%pc2r", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc3", "", 0, 0, 0, NULL, 0 },
 };
 
-#define MAX_BIC (sizeof(bic) / sizeof(struct msr_counter))
+struct msr_counter bic1[] = {
+	{ 0x0, "PMT%pc6", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc7", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc8", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PMT%pc9", "", 0, 0, 0, NULL, 0 },
+	{ 0x0, "PM%pc10", "", 0, 0, 0, NULL, 0 },
+};
+
+static inline unsigned int max_bic(int num) {
+	if (num == 0)
+		return sizeof(bic0) / sizeof(struct msr_counter);
+	if (num == 1)
+		return sizeof(bic1) / sizeof(struct msr_counter);
+	else
+		return 0;
+};
+
 #define	BIC_USEC	(1ULL << 0)
 #define	BIC_TOD		(1ULL << 1)
 #define	BIC_Package	(1ULL << 2)
@@ -158,51 +185,71 @@ struct msr_counter bic[] = {
 #define	BIC_Pkgpc8	(1ULL << 25)
 #define	BIC_Pkgpc9	(1ULL << 26)
 #define	BIC_Pkgpc10	(1ULL << 27)
-#define BIC_CPU_LPI	(1ULL << 28)
-#define BIC_SYS_LPI	(1ULL << 29)
-#define	BIC_PkgWatt	(1ULL << 30)
-#define	BIC_CorWatt	(1ULL << 31)
-#define	BIC_GFXWatt	(1ULL << 32)
-#define	BIC_PkgCnt	(1ULL << 33)
-#define	BIC_RAMWatt	(1ULL << 34)
-#define	BIC_PKG__	(1ULL << 35)
-#define	BIC_RAM__	(1ULL << 36)
-#define	BIC_Pkg_J	(1ULL << 37)
-#define	BIC_Cor_J	(1ULL << 38)
-#define	BIC_GFX_J	(1ULL << 39)
-#define	BIC_RAM_J	(1ULL << 40)
-#define	BIC_Mod_c6	(1ULL << 41)
-#define	BIC_Totl_c0	(1ULL << 42)
-#define	BIC_Any_c0	(1ULL << 43)
-#define	BIC_GFX_c0	(1ULL << 44)
-#define	BIC_CPUGFX	(1ULL << 45)
-#define	BIC_Core	(1ULL << 46)
-#define	BIC_CPU		(1ULL << 47)
-#define	BIC_APIC	(1ULL << 48)
-#define	BIC_X2APIC	(1ULL << 49)
-#define	BIC_Die		(1ULL << 50)
-#define	BIC_GFXACTMHz	(1ULL << 51)
-#define	BIC_IPC		(1ULL << 52)
-#define	BIC_CORE_THROT_CNT	(1ULL << 53)
-#define	BIC_UNCORE_MHZ		(1ULL << 54)
+#define	BIC_Die_LLC_Flush	(1ULL << 28)
+#define	BIC_Die_C2_1	(1ULL << 29)
+#define	BIC_Die_C2_2	(1ULL << 30)
+#define	BIC_Die_C3_1	(1ULL << 31)
+#define	BIC_Die_C3_2	(1ULL << 32)
+#define	BIC_Die_C6	(1ULL << 33)
+#define	BIC_CPU_LPI	(1ULL << 34)
+#define	BIC_SYS_LPI	(1ULL << 35)
+#define	BIC_PkgWatt	(1ULL << 36)
+#define	BIC_CorWatt	(1ULL << 37)
+#define	BIC_GFXWatt	(1ULL << 38)
+#define	BIC_PkgCnt	(1ULL << 39)
+#define	BIC_RAMWatt	(1ULL << 40)
+#define	BIC_PKG__	(1ULL << 41)
+#define	BIC_RAM__	(1ULL << 42)
+#define	BIC_Pkg_J	(1ULL << 43)
+#define	BIC_Cor_J	(1ULL << 44)
+#define	BIC_GFX_J	(1ULL << 45)
+#define	BIC_RAM_J	(1ULL << 46)
+#define	BIC_Mod_c6	(1ULL << 47)
+#define	BIC_Totl_c0	(1ULL << 48)
+#define	BIC_Any_c0	(1ULL << 49)
+#define	BIC_GFX_c0	(1ULL << 50)
+#define	BIC_CPUGFX	(1ULL << 51)
+#define	BIC_Core	(1ULL << 52)
+#define	BIC_CPU		(1ULL << 53)
+#define	BIC_APIC	(1ULL << 54)
+#define	BIC_X2APIC	(1ULL << 55)
+#define	BIC_Die		(1ULL << 56)
+#define	BIC_GFXACTMHz	(1ULL << 57)
+#define	BIC_IPC		(1ULL << 58)
+#define	BIC_CORE_THROT_CNT	(1ULL << 59)
+#define	BIC_UNCORE_MHZ		(1ULL << 60)
+#define BIC_PMT_PC2	(1ULL << 61)
+#define BIC_PMT_PC2R	(1ULL << 62)
+#define BIC_PMT_PC3	(1ULL << 63)
+
+#define BIC1_PMT_PC6	(1ULL << 0)
+#define BIC1_PMT_PC7	(1ULL << 1)
+#define BIC1_PMT_PC8	(1ULL << 2)
+#define BIC1_PMT_PC9	(1ULL << 3)
+#define BIC1_PMT_PC10	(1ULL << 4)
 
 #define BIC_TOPOLOGY (BIC_Package | BIC_Node | BIC_CoreCnt | BIC_PkgCnt | BIC_Core | BIC_CPU | BIC_Die )
 #define BIC_THERMAL_PWR ( BIC_CoreTmp | BIC_PkgTmp | BIC_PkgWatt | BIC_CorWatt | BIC_GFXWatt | BIC_RAMWatt | BIC_PKG__ | BIC_RAM__)
 #define BIC_FREQUENCY ( BIC_Avg_MHz | BIC_Busy | BIC_Bzy_MHz | BIC_TSC_MHz | BIC_GFXMHz | BIC_GFXACTMHz | BIC_UNCORE_MHZ)
-#define BIC_IDLE ( BIC_sysfs | BIC_CPU_c1 | BIC_CPU_c3 | BIC_CPU_c6 | BIC_CPU_c7 | BIC_GFX_rc6 | BIC_Pkgpc2 | BIC_Pkgpc3 | BIC_Pkgpc6 | BIC_Pkgpc7 | BIC_Pkgpc8 | BIC_Pkgpc9 | BIC_Pkgpc10 | BIC_CPU_LPI | BIC_SYS_LPI | BIC_Mod_c6 | BIC_Totl_c0 | BIC_Any_c0 | BIC_GFX_c0 | BIC_CPUGFX)
+#define BIC_IDLE ( BIC_sysfs | BIC_CPU_c1 | BIC_CPU_c3 | BIC_CPU_c6 | BIC_CPU_c7 | BIC_GFX_rc6 | BIC_Pkgpc2 | BIC_Pkgpc3 | BIC_Pkgpc6 | BIC_Pkgpc7 | BIC_Pkgpc8 | BIC_Pkgpc9 | BIC_Pkgpc10 | BIC_Die_LLC_Flush | BIC_Die_C2_1 | BIC_Die_C2_2 | BIC_Die_C3_1 | BIC_Die_C3_2 | BIC_Die_C6 | BIC_CPU_LPI | BIC_SYS_LPI | BIC_Mod_c6 | BIC_Totl_c0 | BIC_Any_c0 | BIC_GFX_c0 | BIC_CPUGFX)
 #define BIC_OTHER ( BIC_IRQ | BIC_SMI | BIC_ThreadC | BIC_CoreTmp | BIC_IPC)
 
 #define BIC_DISABLED_BY_DEFAULT	(BIC_USEC | BIC_TOD | BIC_APIC | BIC_X2APIC)
 
-unsigned long long bic_enabled = (0xFFFFFFFFFFFFFFFFULL & ~BIC_DISABLED_BY_DEFAULT);
-unsigned long long bic_present = BIC_USEC | BIC_TOD | BIC_sysfs | BIC_APIC | BIC_X2APIC;
+unsigned long long bic0_enabled = (0xFFFFFFFFFFFFFFFFULL & ~BIC_DISABLED_BY_DEFAULT);
+unsigned long long bic0_present = BIC_USEC | BIC_TOD | BIC_sysfs | BIC_APIC | BIC_X2APIC;
+unsigned long long bic1_enabled = 0xFFFFFFFFFFFFFFFFULL;
+unsigned long long bic1_present = 0;
 
-#define DO_BIC(COUNTER_NAME) (bic_enabled & bic_present & COUNTER_NAME)
-#define DO_BIC_READ(COUNTER_NAME) (bic_present & COUNTER_NAME)
-#define ENABLE_BIC(COUNTER_NAME) (bic_enabled |= COUNTER_NAME)
-#define BIC_PRESENT(COUNTER_BIT) (bic_present |= COUNTER_BIT)
-#define BIC_NOT_PRESENT(COUNTER_BIT) (bic_present &= ~COUNTER_BIT)
-#define BIC_IS_ENABLED(COUNTER_BIT) (bic_enabled & COUNTER_BIT)
+#define DO_BIC(COUNTER_NAME) (bic0_enabled & bic0_present & COUNTER_NAME)
+#define DO_BIC_READ(COUNTER_NAME) (bic0_present & COUNTER_NAME)
+#define ENABLE_BIC(COUNTER_NAME) (bic0_enabled |= COUNTER_NAME)
+#define BIC_PRESENT(COUNTER_BIT) (bic0_present |= COUNTER_BIT)
+#define BIC_NOT_PRESENT(COUNTER_BIT) (bic0_present &= ~COUNTER_BIT)
+#define BIC_IS_ENABLED(COUNTER_BIT) (bic0_enabled & COUNTER_BIT)
+
+#define DO_BIC1(COUNTER_NAME) (bic1_enabled & bic1_present & COUNTER_NAME)
+#define BIC1_PRESENT(COUNTER_BIT) (bic1_present |= COUNTER_BIT)
 
 char *proc_stat = "/proc/stat";
 FILE *outf;
@@ -380,6 +427,22 @@ struct pkg_data {
 	unsigned long long pc8;
 	unsigned long long pc9;
 	unsigned long long pc10;
+	unsigned long long pmt_socn_xtal;
+	unsigned long long pmt_xtal;
+	unsigned long long die_llc;
+	unsigned long long die_c2_1;
+	unsigned long long die_c2_2;
+	unsigned long long die_c3_1;
+	unsigned long long die_c3_2;
+	unsigned long long die_c6;
+	unsigned long long pmt_pc2;
+	unsigned long long pmt_pc2r;
+	unsigned long long pmt_pc3;
+	unsigned long long pmt_pc6;
+	unsigned long long pmt_pc7;
+	unsigned long long pmt_pc8;
+	unsigned long long pmt_pc9;
+	unsigned long long pmt_pc10;
 	unsigned long long cpu_lpi;
 	unsigned long long sys_lpi;
 	unsigned long long pkg_wtd_core_c0;
@@ -757,10 +820,18 @@ void help(void)
  * for all the strings in comma separate name_list,
  * set the approprate bit in return value.
  */
-unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode)
+unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode, int num)
 {
 	unsigned int i;
 	unsigned long long retval = 0;
+	struct msr_counter *bic;
+
+	if (num == 0)
+		bic = bic0;
+	else if (num == 1)
+		bic = bic1;
+	else
+		return retval;
 
 	while (name_list) {
 		char *comma;
@@ -770,7 +841,7 @@ unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode)
 		if (comma)
 			*comma = '\0';
 
-		for (i = 0; i < MAX_BIC; ++i) {
+		for (i = 0; i < max_bic(num); ++i) {
 			if (!strcmp(name_list, bic[i].name)) {
 				retval |= (1ULL << i);
 				break;
@@ -796,7 +867,7 @@ unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode)
 			}
 
 		}
-		if (i == MAX_BIC) {
+		if (i == 64) {
 			if (mode == SHOW_LIST) {
 				deferred_add_names[deferred_add_index++] = name_list;
 				if (deferred_add_index >= MAX_DEFERRED) {
@@ -817,6 +888,9 @@ unsigned long long bic_lookup(char *name_list, enum show_hide_mode mode)
 				}
 			}
 		}
+
+		if (comma)
+			*comma = ',';
 
 		name_list = comma;
 		if (name_list)
@@ -961,10 +1035,39 @@ void print_header(char *delim)
 		outp += sprintf(outp, "%sPkg%%pc9", (printed++ ? delim : ""));
 	if (DO_BIC(BIC_Pkgpc10))
 		outp += sprintf(outp, "%sPk%%pc10", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_Die_LLC_Flush))
+		outp += sprintf(outp, "%sDie%%LLC", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_Die_C2_1))
+		outp += sprintf(outp, "%sDi%%C2.1", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_Die_C2_2))
+		outp += sprintf(outp, "%sDi%%C2.2", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_Die_C3_1))
+		outp += sprintf(outp, "%sDi%%C3.1", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_Die_C3_2))
+		outp += sprintf(outp, "%sDi%%C3.2", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_Die_C6))
+		outp += sprintf(outp, "%sDie%%C6", (printed++ ? delim : ""));
 	if (DO_BIC(BIC_CPU_LPI))
 		outp += sprintf(outp, "%sCPU%%LPI", (printed++ ? delim : ""));
 	if (DO_BIC(BIC_SYS_LPI))
 		outp += sprintf(outp, "%sSYS%%LPI", (printed++ ? delim : ""));
+
+	if (DO_BIC(BIC_PMT_PC2))
+		outp += sprintf(outp, "%sPMT%%pc2", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_PMT_PC2R))
+		outp += sprintf(outp, "%sPM%%pc2r", (printed++ ? delim : ""));
+	if (DO_BIC(BIC_PMT_PC3))
+		outp += sprintf(outp, "%sPMT%%pc3", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC6))
+		outp += sprintf(outp, "%sPMT%%pc6", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC7))
+		outp += sprintf(outp, "%sPMT%%pc7", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC8))
+		outp += sprintf(outp, "%sPMT%%pc8", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC9))
+		outp += sprintf(outp, "%sPMT%%pc9", (printed++ ? delim : ""));
+	if (DO_BIC1(BIC1_PMT_PC10))
+		outp += sprintf(outp, "%sPM%%pc10", (printed++ ? delim : ""));
 
 	if (do_rapl && !rapl_joules) {
 		if (DO_BIC(BIC_PkgWatt))
@@ -1073,8 +1176,40 @@ int dump_counters(struct thread_data *t, struct core_data *c, struct pkg_data *p
 		outp += sprintf(outp, "pc8: %016llX\n", p->pc8);
 		outp += sprintf(outp, "pc9: %016llX\n", p->pc9);
 		outp += sprintf(outp, "pc10: %016llX\n", p->pc10);
+
+		if (DO_BIC(BIC_Die_LLC_Flush))
+			outp += sprintf(outp, "Die LLC: %016llX\n", p->die_llc);
+		if (DO_BIC(BIC_Die_C2_1))
+			outp += sprintf(outp, "Die C2.1: %016llX\n", p->die_c2_1);
+		if (DO_BIC(BIC_Die_C2_2))
+			outp += sprintf(outp, "Die C2.2: %016llX\n", p->die_c2_2);
+		if (DO_BIC(BIC_Die_C3_1))
+			outp += sprintf(outp, "Die C3.1: %016llX\n", p->die_c3_1);
+		if (DO_BIC(BIC_Die_C3_2))
+			outp += sprintf(outp, "Die C3.2: %016llX\n", p->die_c3_2);
+		if (DO_BIC(BIC_Die_C6))
+			outp += sprintf(outp, "Die C6: %016llX\n", p->die_c6);
+
 		outp += sprintf(outp, "cpu_lpi: %016llX\n", p->cpu_lpi);
 		outp += sprintf(outp, "sys_lpi: %016llX\n", p->sys_lpi);
+
+		if (DO_BIC(BIC_PMT_PC2))
+			outp += sprintf(outp, "PMT pc2: %016llX\n", p->pmt_pc2);
+		if (DO_BIC(BIC_PMT_PC2R))
+			outp += sprintf(outp, "PMT pc2r: %016llX\n", p->pmt_pc2r);
+		if (DO_BIC(BIC_PMT_PC3))
+			outp += sprintf(outp, "PMT pc3: %016llX\n", p->pmt_pc3);
+		if (DO_BIC1(BIC1_PMT_PC6))
+			outp += sprintf(outp, "PMT pc6: %016llX\n", p->pmt_pc6);
+		if (DO_BIC1(BIC1_PMT_PC7))
+			outp += sprintf(outp, "PMT pc7: %016llX\n", p->pmt_pc7);
+		if (DO_BIC1(BIC1_PMT_PC8))
+			outp += sprintf(outp, "PMT pc8: %016llX\n", p->pmt_pc8);
+		if (DO_BIC1(BIC1_PMT_PC9))
+			outp += sprintf(outp, "PMT pc9: %016llX\n", p->pmt_pc9);
+		if (DO_BIC1(BIC1_PMT_PC10))
+			outp += sprintf(outp, "PMT pc10: %016llX\n", p->pmt_pc10);
+
 		outp += sprintf(outp, "Joules PKG: %0llX\n", p->energy_pkg);
 		outp += sprintf(outp, "Joules COR: %0llX\n", p->energy_cores);
 		outp += sprintf(outp, "Joules GFX: %0llX\n", p->energy_gfx);
@@ -1341,12 +1476,53 @@ int format_counters(struct thread_data *t, struct core_data *c, struct pkg_data 
 	if (DO_BIC(BIC_Pkgpc10))
 		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pc10 / tsc);
 
+	/* Die C states */
+	if (DO_BIC(BIC_Die_LLC_Flush))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->die_llc / p->pmt_xtal);
+	if (DO_BIC(BIC_Die_C2_1))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->die_c2_1 / p->pmt_xtal);
+	if (DO_BIC(BIC_Die_C2_2))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->die_c2_2 / p->pmt_xtal);
+	if (DO_BIC(BIC_Die_C3_1))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->die_c3_1 / p->pmt_xtal);
+	if (DO_BIC(BIC_Die_C3_2))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->die_c3_2 / p->pmt_xtal);
+	if (DO_BIC(BIC_Die_C6))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->die_c6 / p->pmt_xtal);
+	if (debug) {
+		puts("*******************************");
+		printf("core: %u\n", t->cpu_id);
+		printf("crystal hz: %u\n", crystal_hz);
+		printf("interval s: %.2f\n", interval_float);
+		printf("calc crystal ticks: %.0f\n", crystal_hz * interval_float);
+		printf("cdie xtal ticks:    %lld\n", p->pmt_xtal);
+		printf("socn xtal ticks:    %lld\n", p->pmt_socn_xtal);
+	}
+
 	if (DO_BIC(BIC_CPU_LPI))
 		outp +=
 		    sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->cpu_lpi / 1000000.0 / interval_float);
 	if (DO_BIC(BIC_SYS_LPI))
 		outp +=
 		    sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->sys_lpi / 1000000.0 / interval_float);
+
+	/* PMT Package C states */
+	if (DO_BIC(BIC_PMT_PC2))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc2 / p->pmt_xtal);
+	if (DO_BIC(BIC_PMT_PC2R))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc2r / p->pmt_xtal);
+	if (DO_BIC(BIC_PMT_PC3))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc3 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC6))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc6 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC7))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc7 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC8))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc8 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC9))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc9 / p->pmt_xtal);
+	if (DO_BIC1(BIC1_PMT_PC10))
+		outp += sprintf(outp, "%s%.2f", (printed++ ? delim : ""), 100.0 * p->pmt_pc10 / p->pmt_xtal);
 
 	if (DO_BIC(BIC_PkgWatt))
 		outp +=
@@ -1472,8 +1648,44 @@ int delta_package(struct pkg_data *new, struct pkg_data *old)
 	old->pc8 = new->pc8 - old->pc8;
 	old->pc9 = new->pc9 - old->pc9;
 	old->pc10 = new->pc10 - old->pc10;
+
+	if (pmt_table_has(PMT_XTAL)) {
+		old->pmt_socn_xtal = new->pmt_socn_xtal - old->pmt_socn_xtal;
+		old->pmt_xtal = new->pmt_xtal - old->pmt_xtal;
+	}
+	if (DO_BIC(BIC_Die_LLC_Flush))
+		old->die_llc = new->die_llc - old->die_llc;
+	if (DO_BIC(BIC_Die_C2_1))
+		old->die_c2_1 = new->die_c2_1 - old->die_c2_1;
+	if (DO_BIC(BIC_Die_C2_2))
+		old->die_c2_2 = new->die_c2_2 - old->die_c2_2;
+	if (DO_BIC(BIC_Die_C3_1))
+		old->die_c3_1 = new->die_c3_1 - old->die_c3_1;
+	if (DO_BIC(BIC_Die_C3_2))
+		old->die_c3_2 = new->die_c3_2 - old->die_c3_2;
+	if (DO_BIC(BIC_Die_C6))
+		old->die_c6 = new->die_c6 - old->die_c6;
+
 	old->cpu_lpi = new->cpu_lpi - old->cpu_lpi;
 	old->sys_lpi = new->sys_lpi - old->sys_lpi;
+
+	if (DO_BIC(BIC_PMT_PC2))
+		old->pmt_pc2 = new->pmt_pc2 - old->pmt_pc2;
+	if (DO_BIC(BIC_PMT_PC2R))
+		old->pmt_pc2r = new->pmt_pc2r - old->pmt_pc2r;
+	if (DO_BIC(BIC_PMT_PC3))
+		old->pmt_pc3 = new->pmt_pc3 - old->pmt_pc3;
+	if (DO_BIC1(BIC1_PMT_PC6))
+		old->pmt_pc6 = new->pmt_pc6 - old->pmt_pc6;
+	if (DO_BIC1(BIC1_PMT_PC7))
+		old->pmt_pc7 = new->pmt_pc7 - old->pmt_pc7;
+	if (DO_BIC1(BIC1_PMT_PC8))
+		old->pmt_pc8 = new->pmt_pc8 - old->pmt_pc8;
+	if (DO_BIC1(BIC1_PMT_PC9))
+		old->pmt_pc9 = new->pmt_pc9 - old->pmt_pc9;
+	if (DO_BIC1(BIC1_PMT_PC10))
+		old->pmt_pc10 = new->pmt_pc10 - old->pmt_pc10;
+
 	old->pkg_temp_c = new->pkg_temp_c;
 
 	/* flag an error when rc6 counter resets/wraps */
@@ -1689,8 +1901,26 @@ void clear_counters(struct thread_data *t, struct core_data *c, struct pkg_data 
 	p->pc8 = 0;
 	p->pc9 = 0;
 	p->pc10 = 0;
+
+	p->pmt_socn_xtal = 0;
+	p->pmt_xtal = 0;
+	p->die_llc = 0;
+	p->die_c2_1 = 0;
+	p->die_c2_2 = 0;
+	p->die_c3_1 = 0;
+	p->die_c3_2 = 0;
+	p->die_c6 = 0;
 	p->cpu_lpi = 0;
 	p->sys_lpi = 0;
+
+	p->pmt_pc2 = 0;
+	p->pmt_pc2r = 0;
+	p->pmt_pc3 = 0;
+	p->pmt_pc6 = 0;
+	p->pmt_pc7 = 0;
+	p->pmt_pc8 = 0;
+	p->pmt_pc9 = 0;
+	p->pmt_pc10 = 0;
 
 	p->energy_pkg = 0;
 	p->energy_dram = 0;
@@ -1792,8 +2022,42 @@ int sum_counters(struct thread_data *t, struct core_data *c, struct pkg_data *p)
 	average.packages.pc9 += p->pc9;
 	average.packages.pc10 += p->pc10;
 
+	if (pmt_table_has(PMT_XTAL)) {
+		average.packages.pmt_socn_xtal += p->pmt_socn_xtal;
+		average.packages.pmt_xtal += p->pmt_xtal;
+	}
+	if (DO_BIC(BIC_Die_LLC_Flush))
+		average.packages.die_llc += p->die_llc;
+	if (DO_BIC(BIC_Die_C2_1))
+		average.packages.die_c2_1 += p->die_c2_1;
+	if (DO_BIC(BIC_Die_C2_2))
+		average.packages.die_c2_2 += p->die_c2_2;
+	if (DO_BIC(BIC_Die_C3_1))
+		average.packages.die_c3_1 += p->die_c3_1;
+	if (DO_BIC(BIC_Die_C3_2))
+		average.packages.die_c3_2 += p->die_c3_2;
+	if (DO_BIC(BIC_Die_C6))
+		average.packages.die_c6 += p->die_c6;
+
 	average.packages.cpu_lpi = p->cpu_lpi;
 	average.packages.sys_lpi = p->sys_lpi;
+
+	if (DO_BIC(BIC_PMT_PC2))
+		average.packages.pmt_pc2 += p->pmt_pc2;
+	if (DO_BIC(BIC_PMT_PC2R))
+		average.packages.pmt_pc2r = p->pmt_pc2r;
+	if (DO_BIC(BIC_PMT_PC3))
+		average.packages.pmt_pc3 += p->pmt_pc3;
+	if (DO_BIC1(BIC1_PMT_PC6))
+		average.packages.pmt_pc6 += p->pmt_pc6;
+	if (DO_BIC1(BIC1_PMT_PC7))
+		average.packages.pmt_pc7 += p->pmt_pc7;
+	if (DO_BIC1(BIC1_PMT_PC8))
+		average.packages.pmt_pc8 += p->pmt_pc8;
+	if (DO_BIC1(BIC1_PMT_PC9))
+		average.packages.pmt_pc9 += p->pmt_pc9;
+	if (DO_BIC1(BIC1_PMT_PC10))
+		average.packages.pmt_pc10 += p->pmt_pc10;
 
 	average.packages.energy_pkg += p->energy_pkg;
 	average.packages.energy_dram += p->energy_dram;
@@ -2272,10 +2536,44 @@ retry:
 		if (get_msr(cpu, MSR_PKG_C10_RESIDENCY, &p->pc10))
 			return -13;
 
+	if (pmt_table_has(PMT_XTAL)) {
+		pmt_read_metric(PMT_SOCN_XTAL, &p->pmt_socn_xtal);
+		pmt_read_metric(PMT_XTAL, &p->pmt_xtal);
+	}
+	if (DO_BIC(BIC_Die_LLC_Flush))
+		pmt_read_metric(PMT_DIE_LLC, &p->die_llc);
+	if (DO_BIC(BIC_Die_C2_1))
+		pmt_read_metric(PMT_DIE_C2p1, &p->die_c2_1);
+	if (DO_BIC(BIC_Die_C2_2))
+		pmt_read_metric(PMT_DIE_C2p2, &p->die_c2_2);
+	if (DO_BIC(BIC_Die_C3_1))
+		pmt_read_metric(PMT_DIE_C3p1, &p->die_c3_1);
+	if (DO_BIC(BIC_Die_C3_2))
+		pmt_read_metric(PMT_DIE_C3p2, &p->die_c3_2);
+	if (DO_BIC(BIC_Die_C6))
+		pmt_read_metric(PMT_DIE_C6, &p->die_c6);
+
 	if (DO_BIC(BIC_CPU_LPI))
 		p->cpu_lpi = cpuidle_cur_cpu_lpi_us;
 	if (DO_BIC(BIC_SYS_LPI))
 		p->sys_lpi = cpuidle_cur_sys_lpi_us;
+
+	if (DO_BIC(BIC_PMT_PC2))
+		pmt_read_metric(PMT_PC2_RES, &p->pmt_pc2);
+	if (DO_BIC(BIC_PMT_PC2R))
+		pmt_read_metric(PMT_PC2R_RES, &p->pmt_pc2r);
+	if (DO_BIC(BIC_PMT_PC3))
+		pmt_read_metric(PMT_PC3_RES, &p->pmt_pc3);
+	if (DO_BIC1(BIC1_PMT_PC6))
+		pmt_read_metric(PMT_PC6_RES, &p->pmt_pc6);
+	if (DO_BIC1(BIC1_PMT_PC7))
+		pmt_read_metric(PMT_PC7_RES, &p->pmt_pc7);
+	if (DO_BIC1(BIC1_PMT_PC8))
+		pmt_read_metric(PMT_PC8_RES, &p->pmt_pc8);
+	if (DO_BIC1(BIC1_PMT_PC9))
+		pmt_read_metric(PMT_PC9_RES, &p->pmt_pc9);
+	if (DO_BIC1(BIC1_PMT_PC10))
+		pmt_read_metric(PMT_PC10_RES, &p->pmt_pc10);
 
 	if (do_rapl & RAPL_PKG) {
 		if (get_msr_sum(cpu, MSR_PKG_ENERGY_STATUS, &msr))
@@ -3912,6 +4210,22 @@ int is_jvl(unsigned int family, unsigned int model)
 
 	switch (model) {
 	case INTEL_FAM6_ATOM_TREMONT_D:
+		return 1;
+	}
+	return 0;
+}
+
+int is_mtl(unsigned int family, unsigned int model)
+{
+	if (!genuine_intel)
+		return 0;
+
+	if (family != 6)
+		return 0;
+
+	switch (model) {
+	case INTEL_FAM6_METEORLAKE:
+	case INTEL_FAM6_METEORLAKE_L:
 		return 1;
 	}
 	return 0;
@@ -5791,6 +6105,39 @@ void process_cpuid()
 	if (do_slm_cstates || do_knl_cstates || is_cnl(family, model) || is_ehl(family, model))
 		BIC_NOT_PRESENT(BIC_CPU_c3);
 
+	if (is_mtl(family, model_orig) &&
+	    !pmt_create_table(pmt_guids_mtl) &&
+	    pmt_table_has(PMT_XTAL)) {
+		if (pmt_table_has(PMT_DIE_LLC))
+			BIC_PRESENT(BIC_Die_LLC_Flush);
+		if (pmt_table_has(PMT_DIE_C2p1))
+			BIC_PRESENT(BIC_Die_C2_1);
+		if (pmt_table_has(PMT_DIE_C2p2))
+			BIC_PRESENT(BIC_Die_C2_2);
+		if (pmt_table_has(PMT_DIE_C3p1))
+			BIC_PRESENT(BIC_Die_C3_1);
+		if (pmt_table_has(PMT_DIE_C3p2))
+			BIC_PRESENT(BIC_Die_C3_2);
+		if (pmt_table_has(PMT_DIE_C6))
+			BIC_PRESENT(BIC_Die_C6);
+		if (pmt_table_has(PMT_PC2_RES))
+			BIC_PRESENT(BIC_PMT_PC2);
+		if (pmt_table_has(PMT_PC2R_RES))
+			BIC_PRESENT(BIC_PMT_PC2R);
+		if (pmt_table_has(PMT_PC3_RES))
+			BIC_PRESENT(BIC_PMT_PC3);
+		if (pmt_table_has(PMT_PC6_RES))
+			BIC1_PRESENT(BIC1_PMT_PC6);
+		if (pmt_table_has(PMT_PC7_RES))
+			BIC1_PRESENT(BIC1_PMT_PC7);
+		if (pmt_table_has(PMT_PC8_RES))
+			BIC1_PRESENT(BIC1_PMT_PC8);
+		if (pmt_table_has(PMT_PC9_RES))
+			BIC1_PRESENT(BIC1_PMT_PC9);
+		if (pmt_table_has(PMT_PC10_RES))
+			BIC1_PRESENT(BIC1_PMT_PC10);
+	}
+
 	if (!quiet)
 		decode_misc_pwr_mgmt_msr();
 
@@ -6642,7 +6989,8 @@ void cmdline(int argc, char **argv)
 			break;
 		case 'e':
 			/* --enable specified counter */
-			bic_enabled = bic_enabled | bic_lookup(optarg, SHOW_LIST);
+			bic0_enabled = bic0_enabled | bic_lookup(optarg, SHOW_LIST, 0);
+			bic1_enabled = bic1_enabled | bic_lookup(optarg, SHOW_LIST, 1);
 			break;
 		case 'd':
 			debug++;
@@ -6653,7 +7001,8 @@ void cmdline(int argc, char **argv)
 			 * --hide: do not show those specified
 			 *  multiple invocations simply clear more bits in enabled mask
 			 */
-			bic_enabled &= ~bic_lookup(optarg, HIDE_LIST);
+			bic0_enabled &= ~bic_lookup(optarg, HIDE_LIST, 0);
+			bic1_enabled &= ~bic_lookup(optarg, HIDE_LIST, 1);
 			break;
 		case 'h':
 		default:
@@ -6709,10 +7058,13 @@ void cmdline(int argc, char **argv)
 			 *  The 1st invocation will clear and replace the enabled mask
 			 *  subsequent invocations can add to it.
 			 */
-			if (shown == 0)
-				bic_enabled = bic_lookup(optarg, SHOW_LIST);
-			else
-				bic_enabled |= bic_lookup(optarg, SHOW_LIST);
+			if (shown == 0) {
+				bic0_enabled = bic_lookup(optarg, SHOW_LIST, 0);
+				bic1_enabled = bic_lookup(optarg, SHOW_LIST, 1);
+			} else {
+				bic0_enabled |= bic_lookup(optarg, SHOW_LIST, 0);
+				bic1_enabled |= bic_lookup(optarg, SHOW_LIST, 1);
+			}
 			shown = 1;
 			break;
 		case 'S':
@@ -6763,6 +7115,8 @@ int main(int argc, char **argv)
 		return fork_it(argv + optind);
 	else
 		turbostat_loop();
+
+	pmt_destroy_table();
 
 	return 0;
 }
