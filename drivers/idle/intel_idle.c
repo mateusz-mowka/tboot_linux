@@ -1447,9 +1447,9 @@ static struct cpuidle_state srf_cstates[] __initdata = {
 	{
 		.name = "C1",
 		.desc = "MWAIT 0x00",
-		.flags = MWAIT2flg(0x00) | CPUIDLE_FLAG_IRQ_ENABLE,
-		.exit_latency = 2,
-		.target_residency = 2,
+		.flags = MWAIT2flg(0x00) | CPUIDLE_FLAG_ALWAYS_ENABLE,
+		.exit_latency = 1,
+		.target_residency = 1,
 		.enter = &intel_idle,
 		.enter_s2idle = intel_idle_s2idle, },
 	{
