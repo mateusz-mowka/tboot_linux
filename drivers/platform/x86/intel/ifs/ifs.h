@@ -134,6 +134,7 @@
 #define MSR_CHUNKS_AUTHENTICATION_STATUS	0x000002c5
 #define MSR_ACTIVATE_SCAN			0x000002c6
 #define MSR_SCAN_STATUS				0x000002c7
+#define MSR_LAST_SCAN_WP			0x000002c9
 #define MSR_SAF_CTRL				0x000004f0
 #define MSR_ARRAY_TRIGGER			0x000002d6
 #define MSR_ARRAY_STATUS			0x000002d7
@@ -284,6 +285,7 @@ union ifs_array_status {
  * @test_gen: test generation revision
  * @chunk_size: size of a test chunk
  * @array_gen: test generation of array test
+ * @last_wp: additional details of activate test
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -299,6 +301,7 @@ struct ifs_data {
 	u32	test_gen;
 	u32	chunk_size;
 	u32	array_gen;
+	u32	last_wp;
 };
 
 struct ifs_work {
