@@ -135,6 +135,7 @@
 #define MSR_SBFT_CHUNKS_AUTHENTICATION_STATUS	0x000002bb
 #define MSR_ACTIVATE_SBFT			0x000002bc
 #define MSR_SBFT_STATUS				0x000002bd
+#define MSR_LAST_SBFT_WP			0x000002bf
 
 #define MSR_COPY_SCAN_HASHES			0x000002c2
 #define MSR_SCAN_HASHES_STATUS			0x000002c3
@@ -142,6 +143,8 @@
 #define MSR_CHUNKS_AUTHENTICATION_STATUS	0x000002c5
 #define MSR_ACTIVATE_SCAN			0x000002c6
 #define MSR_SCAN_STATUS				0x000002c7
+#define MSR_LAST_SCAN_WP			0x000002c9
+
 #define MSR_SAF_CTRL				0x000004f0
 #define MSR_SBFT_CTRL				0x000004f8
 #define SCAN_NOT_TESTED				0
@@ -350,6 +353,7 @@ union ifs_sbft_status {
  * @test_gen: test generation revision
  * @chunk_size: size of a test chunk
  * @max_bundle: maximum bundle index
+ * @last_wp: additional details of activate test
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -365,6 +369,7 @@ struct ifs_data {
 	u32	test_gen;
 	u32	chunk_size;
 	u32	max_bundle;
+	u32	last_wp;
 };
 
 struct ifs_work {
