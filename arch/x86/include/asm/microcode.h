@@ -89,6 +89,7 @@ struct microcode_ops {
 	enum ucode_state (*request_microcode_fw) (int cpu, struct device *, enum reload_type type);
 	int  (*prepare_to_apply)(enum reload_type);
 	void (*microcode_fini_cpu) (int cpu);
+	void (*post_apply)(enum reload_type type, bool success);
 
 	/*
 	 * The generic 'microcode_core' part guarantees that

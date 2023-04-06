@@ -738,6 +738,9 @@ static ssize_t reload_store_common(struct device *dev,
 	if (!ret)
 		ret = microcode_reload_late();
 
+	if (microcode_ops->post_apply)
+		microcode_ops->post_apply(type, !ret);
+
 	mutex_unlock(&microcode_mutex);
 
 	if (ret == 0) {

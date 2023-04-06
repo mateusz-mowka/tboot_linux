@@ -50,7 +50,9 @@ struct ucode_info {
 	int size;
 };
 
+static struct ucode_info rollback_ucode;
 static struct ucode_info intel_ucode;
+static struct ucode_info unapplied_ucode;
 
 /* last level cache size per core */
 static int llc_size_per_core;
@@ -534,17 +536,30 @@ static bool is_ucode_listed(struct ucode_meta *umeta)
 	return false;
 }
 
-static bool can_do_nocommit(struct microcode_header_intel *mch,
-			    struct ucode_meta *umeta)
+static bool can_do_nocommit(struct microcode_header_intel *mch)
 {
+	struct ucode_meta *rb_meta;
+
 	if (!mcu_cap.rollback)
 		return false;
 
 	if (check_pending())
 		return false;
 
-	if (!is_ucode_listed(umeta))
+	rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(mch, META_TYPE_ROLLBACK);
+	if (!rb_meta)
 		return false;
+
+	if (!is_ucode_listed(rb_meta))
+		return false;
+
+	/*
+	 * Check if MCU min_svn == CPU min_svn
+	 */
+	if (bsp_rb_info.min_svn.mcu_svn != rb_meta->svn_info.rb_mcu_svn)
+		return false;
+
+	return true;
 }
 
 /*
@@ -682,6 +697,7 @@ static void show_saved_mc(void *mc)
 #endif
 }
 
+#if 0
 /*
  * Save this microcode patch. It will be loaded early when a CPU is
  * hot-added or resumes.
@@ -698,6 +714,7 @@ static void save_mc_for_early(struct ucode_cpu_info *uci, u8 *mc, unsigned int s
 
 	mutex_unlock(&x86_cpu_microcode_mutex);
 }
+#endif
 
 static bool load_builtin_intel_microcode(struct cpio_data *cp)
 {
@@ -800,7 +817,7 @@ static noinline void prof_wrmsrl(unsigned long bits)
 
 static struct microcode_intel *find_patch(void)
 {
-	return intel_ucode.ucode;
+	return (unapplied_ucode.ucode ? unapplied_ucode.ucode : intel_ucode.ucode);
 }
 
 static int apply_microcode_early(struct ucode_cpu_info *uci, bool early)
@@ -1154,19 +1171,54 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter, e
 		return UCODE_NFOUND;
 
 	vfree(uci->mc);
-	uci->mc = (struct microcode_intel *)new_mc;
+
+	/*
+	 * TBD: need to remove uci->mc for future...
+	 */
+	// uci->mc = (struct microcode_intel *)new_mc;
+	save_microcode_patch(&unapplied_ucode, uci, new_mc, new_mc_size);
 
 	/*
 	 * If early loading microcode is supported, save this mc into
 	 * permanent memory. So it will be loaded early when a CPU is hot added
 	 * or resumes.
 	 */
-	save_mc_for_early(uci, new_mc, new_mc_size);
+	// save_mc_for_early(uci, new_mc, new_mc_size);
 
 	pr_debug("CPU%d found a matching microcode update with version 0x%x (current=0x%x)\n",
 		 cpu, new_rev, uci->cpu_sig.rev);
 
 	return ret;
+}
+
+void post_apply_intel(enum reload_type type, bool apply_state)
+{
+	switch (type) {
+		case RELOAD_COMMIT:
+			/*
+			 * If apply was successful, then move from
+			 * unapplied to intel_ucode
+			 */
+			if(apply_state) {
+				kfree(intel_ucode.ucode);
+				intel_ucode = unapplied_ucode;
+			}
+			break;
+
+		case RELOAD_NO_COMMIT:
+			/*
+			 * Preserve the original patch in case we need for
+			 * rollback before its commited
+			 */
+			if (apply_state) {
+				rollback_ucode = intel_ucode;
+				intel_ucode = unapplied_ucode;
+			}
+			break;
+	}
+	kfree(unapplied_ucode.ucode);
+	unapplied_ucode.ucode = NULL;
+	unapplied_ucode.size = 0;
 }
 
 static bool is_blacklisted(unsigned int cpu)
@@ -1222,6 +1274,7 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 	struct iov_iter iter;
 	enum ucode_state ret;
 	struct kvec kvec;
+	bool nocommit;
 	char name[30];
 
 	if (is_blacklisted(cpu))
@@ -1246,6 +1299,17 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 
 	ret = generic_load_microcode(cpu, &iter, type);
 
+	if (ret == UCODE_NEW && type == RELOAD_NO_COMMIT) {
+		nocommit = can_do_nocommit((struct microcode_header_intel *)unapplied_ucode.ucode); 
+		if (!nocommit) {
+			ret = UCODE_ERROR;
+			if (unapplied_ucode.ucode)
+				kfree(unapplied_ucode.ucode);
+			unapplied_ucode.ucode = NULL;
+			unapplied_ucode.size = 0;
+		}
+	}
+
 	release_firmware(firmware);
 
 	return ret;
@@ -1260,6 +1324,7 @@ static struct microcode_ops microcode_intel_ops = {
 	.collect_cpu_info                 = collect_cpu_info,
 	.prepare_to_apply		  = prepare_to_apply_intel,
 	.apply_microcode                  = apply_microcode_intel,
+	.post_apply			  = post_apply_intel,
 };
 
 static int __init calc_llc_size_per_core(struct cpuinfo_x86 *c)
