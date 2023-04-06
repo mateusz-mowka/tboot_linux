@@ -511,6 +511,37 @@ static int is_lateload_safe(struct microcode_header_intel *mc_header)
 	return 0;
 }
 
+static bool is_ucode_listed(struct ucode_meta *umeta)
+{
+	int i, cpu = smp_processor_id();
+	struct ucode_cpu_info *uci;
+	int rev;
+
+	uci = ucode_cpu_info + cpu;
+	rev = uci->cpu_sig.rev;
+
+	for (i = 0; i < NUM_RB_INFO; i++) {
+		if (!umeta->rollback_id[i])
+			return false;
+		if (umeta->rollback_id[i] == rev)
+			return true;
+	}
+	return false;
+}
+
+static bool can_do_nocommit(struct microcode_header_intel *mch,
+			    struct ucode_meta *umeta)
+{
+	if (!mcu_cap.rollback)
+		return false;
+
+	if (check_pending())
+		return false;
+
+	if (!is_ucode_listed(umeta))
+		return false;
+}
+
 /*
  * Get microcode matching with BSP's model. Only CPUs with the same model as
  * BSP can stay in the platform.
@@ -594,6 +625,7 @@ static void show_saved_mc(void *mc)
 	unsigned int sig, pf, rev, total_size, data_size, date;
 	struct extended_sigtable *ext_header;
 	struct extended_signature *ext_sig;
+	struct ucode_meta *rb_meta;
 	struct ucode_cpu_info uci;
 	int j, ext_sigcount;
 
@@ -638,6 +670,10 @@ static void show_saved_mc(void *mc)
 
 		ext_sig++;
 	}
+
+	rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(mc, META_TYPE_ROLLBACK);
+	if (rb_meta)
+		dump_rollback_meta(rb_meta);
 #endif
 }
 
@@ -1185,6 +1221,11 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 
 	if (is_blacklisted(cpu))
 		return UCODE_NFOUND;
+
+	if (type == RELOAD_NO_COMMIT && !check_pending()) {
+		pr_err("Pending commit, Please commit before proceeding\n");
+		return UCODE_ERROR;
+	}
 
 	sprintf(name, "intel-ucode/%02x-%02x-%02x",
 		c->x86, c->x86_model, c->x86_stepping);
