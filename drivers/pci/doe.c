@@ -138,12 +138,18 @@ static int pci_doe_send_req(struct pci_doe_mb *doe_mb,
 	val = FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_1_VID, task->prot.vid) |
 		FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_1_TYPE, task->prot.type);
 	pci_write_config_dword(pdev, offset + PCI_DOE_WRITE, val);
+	pci_dbg(pdev, "Write data obj header(1) 0x%08x\n", val);
 	pci_write_config_dword(pdev, offset + PCI_DOE_WRITE,
 			       FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_2_LENGTH,
 					  length));
-	for (i = 0; i < task->request_pl_sz / sizeof(u32); i++)
+	pci_dbg(pdev, "Write data obj header(2) 0x%08x\n",
+		FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_2_LENGTH, length));
+	for (i = 0; i < task->request_pl_sz / sizeof(u32); i++) {
 		pci_write_config_dword(pdev, offset + PCI_DOE_WRITE,
 				       task->request_pl[i]);
+		pci_dbg(pdev, "Write payload data 0x%08x\n",
+			task->request_pl[i]);
+	}
 
 	pci_doe_write_ctrl(doe_mb, PCI_DOE_CTRL_GO);
 
@@ -180,10 +186,12 @@ static int pci_doe_recv_resp(struct pci_doe_mb *doe_mb, struct pci_doe_task *tas
 				    FIELD_GET(PCI_DOE_DATA_OBJECT_HEADER_1_TYPE, val));
 		return -EIO;
 	}
+	pci_dbg(pdev, "Read data obj header(1) 0x%08x\n", val);
 
 	pci_write_config_dword(pdev, offset + PCI_DOE_READ, 0);
 	/* Read the second dword to get the length */
 	pci_read_config_dword(pdev, offset + PCI_DOE_READ, &val);
+	pci_dbg(pdev, "Read data obj header(2) 0x%08x\n", val);
 	pci_write_config_dword(pdev, offset + PCI_DOE_READ, 0);
 
 	length = FIELD_GET(PCI_DOE_DATA_OBJECT_HEADER_2_LENGTH, val);
@@ -200,6 +208,8 @@ static int pci_doe_recv_resp(struct pci_doe_mb *doe_mb, struct pci_doe_task *tas
 	for (i = 0; i < payload_length; i++) {
 		pci_read_config_dword(pdev, offset + PCI_DOE_READ,
 				      &task->response_pl[i]);
+		pci_dbg(pdev, "Read payload data 0x%08x\n",
+			task->response_pl[i]);
 		/* Prior to the last ack, ensure Data Object Ready */
 		if (i == (payload_length - 1) && !pci_doe_data_obj_ready(doe_mb))
 			return -EIO;
