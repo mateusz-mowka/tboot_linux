@@ -40,6 +40,8 @@ enum ifs_status_err_code {
 	IFS_UNASSIGNED_ERROR_CODE		= 7,
 	IFS_EXCEED_NUMBER_OF_THREADS_CONCURRENT	= 8,
 	IFS_INTERRUPTED_DURING_EXECUTION	= 9,
+	IFS_UNASSIGNED_ERROR_CODE_0xA		= 0xA,
+	IFS_CORRUPTED_CHUNK		= 0xB,
 };
 
 static const char * const scan_test_status[] = {
@@ -55,6 +57,8 @@ static const char * const scan_test_status[] = {
 	[IFS_EXCEED_NUMBER_OF_THREADS_CONCURRENT] =
 	"Exceeded number of Logical Processors (LP) allowed to run Scan-At-Field concurrently",
 	[IFS_INTERRUPTED_DURING_EXECUTION] = "Interrupt occurred prior to SCAN start",
+	[IFS_UNASSIGNED_ERROR_CODE_0xA] = "Unassigned error code 0xA",
+	[IFS_CORRUPTED_CHUNK] = "Scan operation aborted due to corrupted chunk",
 };
 
 static void message_not_tested(struct device *dev, int cpu, u64 status_data)
@@ -127,6 +131,8 @@ static bool can_restart(u64 status_data)
 	case IFS_MISMATCH_ARGUMENTS_BETWEEN_THREADS:
 	case IFS_CORE_NOT_CAPABLE_CURRENTLY:
 	case IFS_UNASSIGNED_ERROR_CODE:
+	case IFS_UNASSIGNED_ERROR_CODE_0xA:
+	case IFS_CORRUPTED_CHUNK:
 		break;
 	}
 	return false;
@@ -161,6 +167,22 @@ static int doscan(void *data)
 	}
 
 	return 0;
+}
+
+void update_ifs_last_wp(void *p)
+{
+	struct device *dev = p;
+	struct ifs_data *ifsd;
+	u64 last_wp;
+
+	ifsd = ifs_get_data(dev);
+
+	if (ifsd->integrity_cap_bit == MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT)
+		rdmsrl(MSR_LAST_SCAN_WP, last_wp);
+	else
+		rdmsrl(MSR_LAST_SBFT_WP, last_wp);
+
+	ifsd->last_wp = (u32)last_wp;
 }
 
 static void ifs_test_core_gen2(int cpu, struct device *dev)
@@ -224,6 +246,9 @@ static void ifs_test_core_gen2(int cpu, struct device *dev)
 	} else {
 		ifsd->status = SCAN_TEST_PASS;
 	}
+
+	if (ifsd->test_gen > 0)
+		smp_call_function_single(cpu, update_ifs_last_wp, dev, 1);
 }
 
 /*
@@ -296,6 +321,28 @@ static void ifs_test_core(int cpu, struct device *dev)
 	}
 }
 
+#define SPINUNIT 100 /* 100 nsec */
+static atomic_t array_cpus_out;
+
+/*
+ * Simplified cpu sibling rendezvous loop based on microcode loader __wait_for_cpus()
+ */
+static void wait_for_sibling_cpu(atomic_t *t, long long timeout)
+{
+	int cpu = smp_processor_id();
+	const struct cpumask *smt_mask = cpu_smt_mask(cpu);
+	int all_cpus = cpumask_weight(smt_mask);
+
+	atomic_inc(t);
+	while (atomic_read(t) < all_cpus) {
+		if (timeout < SPINUNIT)
+			return;
+		ndelay(SPINUNIT);
+		timeout -= SPINUNIT;
+		touch_nmi_watchdog();
+	}
+}
+
 static int do_array_test(void *data)
 {
 	int cpu = smp_processor_id();
@@ -315,6 +362,9 @@ static int do_array_test(void *data)
 		/* Pass back the result of the scan */
 		rdmsrl(MSR_ARRAY_BIST, msrs[1]);
 	}
+
+	/* Tests complete faster if the sibling is spinning here */
+	wait_for_sibling_cpu(&array_cpus_out, NSEC_PER_SEC);
 
 	return 0;
 }
@@ -343,6 +393,7 @@ static void ifs_array_test_core(int cpu, struct device *dev)
 
 		msrvals[0] = activate.data;
 
+		atomic_set(&array_cpus_out, 0);
 		stop_core_cpuslocked(cpu, do_array_test, msrvals);
 		status.data = msrvals[1];
 
@@ -364,6 +415,205 @@ static void ifs_array_test_core(int cpu, struct device *dev)
 		ifsd->status = SCAN_NOT_TESTED;
 	else
 		ifsd->status = SCAN_TEST_PASS;
+}
+
+enum sbft_status_err_code {
+	IFS_SBFT_NO_ERROR				= 0,
+	IFS_SBFT_OTHER_THREAD_COULD_NOT_JOIN		= 1,
+	IFS_SBFT_INTERRUPTED_BEFORE_RENDEZVOUS		= 2,
+	IFS_SBFT_UNASSIGNED_ERROR_CODE3			= 3,
+	IFS_SBFT_INVALID_BUNDLE_INDEX			= 4,
+	IFS_SBFT_MISMATCH_ARGS_BETWEEN_THREADS		= 5,
+	IFS_SBFT_CORE_NOT_CAPABLE_CURRENTLY		= 6,
+	IFS_SBFT_UNASSIGNED_ERROR_CODE7			= 7,
+	IFS_SBFT_EXCEED_NUMBER_OF_THREADS_CONCURRENT	= 8,
+	IFS_SBFT_INTERRUPTED_DURING_EXECUTION		= 9,
+	IFS_SBFT_INVALID_PROGRAM_INDEX			= 0xA,
+	IFS_SBFT_CORRUPTED_CHUNK			= 0xB,
+	IFS_SBFT_DID_NOT_START				= 0xC,
+};
+
+static const char * const sbft_test_status[] = {
+	[IFS_SBFT_NO_ERROR] = "SBFT no error",
+	[IFS_SBFT_OTHER_THREAD_COULD_NOT_JOIN] = "Other thread could not join.",
+	[IFS_SBFT_INTERRUPTED_BEFORE_RENDEZVOUS] = "Interrupt occurred prior to SBFT coordination.",
+	[IFS_SBFT_UNASSIGNED_ERROR_CODE3] = "Unassigned error code 0x3",
+	[IFS_SBFT_INVALID_BUNDLE_INDEX] = "Non valid SBFT_BUNDLES in SBFT_BUNDLE_INDEX.",
+	[IFS_SBFT_MISMATCH_ARGS_BETWEEN_THREADS] = "Mismatch in arguments between threads T0/T1.",
+	[IFS_SBFT_CORE_NOT_CAPABLE_CURRENTLY] = "Core not capable of performing SBFT currently",
+	[IFS_SBFT_UNASSIGNED_ERROR_CODE7] = "Unassigned error code 0x7",
+	[IFS_SBFT_EXCEED_NUMBER_OF_THREADS_CONCURRENT] =
+	"Exceeded number of Logical Processors (LP) allowed to run Scan-At-Field concurrently",
+	[IFS_SBFT_INTERRUPTED_DURING_EXECUTION] = "Interrupt occurred prior to SBFT start",
+	[IFS_SBFT_INVALID_PROGRAM_INDEX] = "SBFT program index not valid",
+	[IFS_SBFT_CORRUPTED_CHUNK] = "SBFT operation aborted due to corrupted chunk",
+	[IFS_SBFT_DID_NOT_START] = "SBFT operation did not start",
+};
+
+static void sbft_message_not_tested(struct device *dev, int cpu, u64 status_data)
+{
+	union ifs_sbft_status status = (union ifs_sbft_status)status_data;
+
+	if (status.error_code < ARRAY_SIZE(sbft_test_status)) {
+		dev_info(dev, "CPU(s) %*pbl: SBFT operation did not start. %s\n",
+			 cpumask_pr_args(cpu_smt_mask(cpu)),
+			 sbft_test_status[status.error_code]);
+	} else if (status.error_code == IFS_SW_TIMEOUT) {
+		dev_info(dev, "CPU(s) %*pbl: software timeout during scan\n",
+			 cpumask_pr_args(cpu_smt_mask(cpu)));
+	} else if (status.error_code == IFS_SW_PARTIAL_COMPLETION) {
+		dev_info(dev, "CPU(s) %*pbl: %s\n",
+			 cpumask_pr_args(cpu_smt_mask(cpu)),
+			 "Not all SBFT chunks were executed. Maximum forward progress retries exceeded");
+	} else {
+		dev_info(dev, "CPU(s) %*pbl: SBFT unknown status %llx\n",
+			 cpumask_pr_args(cpu_smt_mask(cpu)), status.data);
+	}
+}
+
+static void sbft_message_fail(struct device *dev, int cpu, union ifs_sbft_status status)
+{
+	if (status.test_fail) {
+		dev_err(dev, "CPU(s) %*pbl: Architetural signature failed\n",
+			cpumask_pr_args(cpu_smt_mask(cpu)));
+	}
+
+	/* Failed signature check is set when SBFT signature did not match the expected value */
+	if (status.sbft_status == 1) {
+		dev_err(dev, "CPU(s) %*pbl: Failed signature check\n",
+			cpumask_pr_args(cpu_smt_mask(cpu)));
+	}
+
+	if (status.sbft_status == 3) {
+		dev_err(dev, "CPU(s) %*pbl: Failed miserably\n",
+			cpumask_pr_args(cpu_smt_mask(cpu)));
+	}
+}
+
+static bool sbft_can_restart(union ifs_sbft_status status)
+{
+	enum sbft_status_err_code err_code = status.error_code;
+
+	/* Signature for chunk is bad, or scan test failed */
+	if (status.test_fail || status.sbft_status == 1 || status.sbft_status == 3)
+		return false;
+
+	switch (err_code) {
+	case IFS_SBFT_NO_ERROR:
+	case IFS_SBFT_OTHER_THREAD_COULD_NOT_JOIN:
+	case IFS_SBFT_INTERRUPTED_BEFORE_RENDEZVOUS:
+	case IFS_SBFT_EXCEED_NUMBER_OF_THREADS_CONCURRENT:
+	case IFS_SBFT_INTERRUPTED_DURING_EXECUTION:
+		return true;
+	case IFS_SBFT_UNASSIGNED_ERROR_CODE3:
+	case IFS_SBFT_INVALID_BUNDLE_INDEX:
+	case IFS_SBFT_MISMATCH_ARGS_BETWEEN_THREADS:
+	case IFS_SBFT_CORE_NOT_CAPABLE_CURRENTLY:
+	case IFS_SBFT_UNASSIGNED_ERROR_CODE7:
+	case IFS_SBFT_INVALID_PROGRAM_INDEX:
+	case IFS_SBFT_CORRUPTED_CHUNK:
+	case IFS_SBFT_DID_NOT_START:
+		break;
+	}
+	return false;
+}
+
+/*
+ * Execute the scan. Called "simultaneously" on all threads of a core
+ * at high priority using the stop_cpus mechanism.
+ */
+static int dosbft(void *data)
+{
+	int cpu = smp_processor_id();
+	u64 *msrs = data;
+	int first;
+
+	/* Only the first logical CPU on a core reports result */
+	first = cpumask_first(cpu_smt_mask(cpu));
+
+	/*
+	 * This WRMSR will wait for other HT threads to also write
+	 * to this MSR (at most for activate.delay cycles). Then it
+	 * starts scan of each requested chunk. The core scan happens
+	 * during the "execution" of the WRMSR. This instruction can
+	 * take up to 200 milliseconds (in the case where all chunks
+	 * are processed in a single pass) before it retires.
+	 */
+	wrmsrl(MSR_ACTIVATE_SBFT, msrs[0]);
+
+	if (cpu == first) {
+		/* Pass back the result of the scan */
+		rdmsrl(MSR_SBFT_STATUS, msrs[1]);
+	}
+
+	return 0;
+}
+
+static void ifs_sbft_test_core(int cpu, struct device *dev)
+{
+	union ifs_sbft_status status;
+	union ifs_sbft activate;
+	unsigned long timeout;
+	struct ifs_data *ifsd;
+	u64 msrvals[2];
+	int retries;
+
+	ifsd = ifs_get_data(dev);
+
+	activate.data = 0;
+	activate.delay = IFS_THREAD_WAIT;
+
+	timeout = jiffies + (2 * HZ);
+	retries = MAX_IFS_RETRIES;
+
+	while (activate.bundle_idx <= ifsd->max_bundle) {
+		if (time_after(jiffies, timeout)) {
+			status.error_code = IFS_SW_TIMEOUT;
+			break;
+		}
+
+		msrvals[0] = activate.data;
+		stop_core_cpuslocked(cpu, dosbft, msrvals);
+
+		status.data = msrvals[1];
+
+		trace_ifs_sbft(cpu, activate, status);
+
+		/* Some cases can be retried, give up for others */
+		// TODO adjust restart for restartable errors
+		if (!sbft_can_restart(status))
+			break;
+
+		if (status.bundle_idx == activate.bundle_idx &&
+		    status.pgm_idx == activate.pgm_idx) {
+			/* Check for forward progress */
+			if (--retries == 0) {
+				if (status.error_code == IFS_NO_ERROR)
+					status.error_code = IFS_SW_PARTIAL_COMPLETION;
+				break;
+			}
+		} else {
+			retries = MAX_IFS_RETRIES;
+			activate.bundle_idx = status.bundle_idx;
+			activate.pgm_idx = status.pgm_idx;
+		}
+	}
+
+	/* Update status for this core */
+	ifsd->scan_details = status.data;
+
+	if (status.test_fail || status.sbft_status == 1 || status.sbft_status == 3) {
+		ifsd->status = SCAN_TEST_FAIL;
+		sbft_message_fail(dev, cpu, status);
+	} else if (status.error_code) {
+		ifsd->status = SCAN_NOT_TESTED;
+		sbft_message_not_tested(dev, cpu, status.data);
+	} else {
+		ifsd->status = SCAN_TEST_PASS;
+	}
+
+	if (ifsd->test_gen > 0)
+		smp_call_function_single(cpu, update_ifs_last_wp, dev, 1);
 }
 
 /*
@@ -394,6 +644,9 @@ int do_core_test(int cpu, struct device *dev)
 			ifs_test_core(cpu, dev);
 		else
 			ifs_test_core_gen2(cpu, dev);
+		break;
+	case MSR_INTEGRITY_CAPS_SBFT_AT_FIELD:
+		ifs_sbft_test_core(cpu, dev);
 		break;
 	default:
 		return -EINVAL;
