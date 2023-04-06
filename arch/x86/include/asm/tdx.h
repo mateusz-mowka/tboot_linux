@@ -864,78 +864,106 @@ static inline u64 tdh_devifmt_read(u64 devifmt_idx, struct tdx_module_output *ou
 				 0, 0, 0, 0, 0, 0, 0, 0, 0, out);
 }
 
-static inline u64
-tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
-		 u64 devif_id, struct tdx_module_output *out)
+static inline u64 tdh_devif_create(u64 devif_id, u64 tdr_pa, u64 devifcs_pa,
+				   u64 td_tdisp_msg_pa, u64 vmm_tdisp_msg_pa)
 {
+	u64 ret;
+
 	/*
 	 * TDH.DEVIF.CREATE
 	 *
 	 * Input: RAX - SEAMCALL instruction leaf number
-	 * Input: RCX  devifcs_pa
+	 * Input: RCX - DEVIF_ID (tdx_devif_id)
 	 * Input: RDX - TDR PA
-	 * Input: R8 - devif_tdisp_msg_pa
-	 * Input: R9 - devif_info
-	 * Input: R10 - devif_id
+	 * Input: R8 - DEVIFCS pa
+	 * Input: R9 - TD_TDISP_MSG buffer pa
+	 * Input: R10 - VMM_TDISP_MSG buffer pa
 	 *
 	 * Output: RAX - SEAMCALL return code
-	 * Output: RCX - devif handle
 	 */
-	return seamcall_io_retry(TDH_DEVIF_CREATE, devifcs_pa, tdr_pa,
-				 tdisp_msg_pa, devif_info, devif_id,
-				 0, 0, 0, 0, 0, out);
+	ret = seamcall_io_retry(TDH_DEVIF_CREATE, devif_id, tdr_pa, devifcs_pa,
+				 td_tdisp_msg_pa, vmm_tdisp_msg_pa,
+				 0, 0, 0, 0, 0, NULL);
+
+	pr_debug("%s: ret %llx, devif_id %llx tdr_pa %llx devifcs %llx, td_buf %llx vm_buf %llx\n",
+		 __func__, ret, devif_id, tdr_pa, devifcs_pa,
+		 td_tdisp_msg_pa, vmm_tdisp_msg_pa);
+
+	return ret;
 }
 
-static inline u64
-tdh_devif_remove(u64 devifcs_pa, struct tdx_module_output *out)
+static inline u64 tdh_devif_remove(u32 func_id, struct tdx_module_output *out)
 {
+	u64 ret;
+
 	/*
 	 * TDH.DEVIF.REMOVE
 	 *
 	 * Input: RAX - SEAMCALL instruction leaf number
-	 * Input: RCX  devifcs_pa
+	 * Input: RCX - func_id
 	 *
 	 * Output: RAX - SEAMCALL return code
-	 * Output: RCX - tdisp msg pa
+	 * Output: RCX - TD_TDISP_MSG buffer pa
+	 * Output: RDX - VMM_TDISP_MSG buffer pa
 	 */
-	return seamcall_io_retry(TDH_DEVIF_REMOVE, devifcs_pa,
-				 0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+
+	ret = seamcall_io_retry(TDH_DEVIF_REMOVE, func_id,
+				0, 0, 0, 0, 0, 0, 0, 0, 0, out);
+
+	pr_debug("%s: ret %llx, func_id %x td_tdisp_buf %llx vmm_tdisp_buf %llx\n",
+		 __func__, ret, func_id, out->rcx, out->rdx);
+
+	return ret;
 }
 
-static inline u64
-tdh_devif_request(u64 devifcs_pa, u64 req_parm, u64 req_info, u64 req_pa)
+static inline u64 tdh_devif_request(u32 func_id, u64 payload, u64 req_out_pa,
+				    struct tdx_module_output *out)
 {
+	u64 ret;
+
 	/*
 	 * TDH.DEVIF.REQUEST
 	 *
 	 * Input: RAX - SEAMCALL instruction leaf number
-	 * Input: RCX - devifcs_pa
-	 * Input: RDX - TDISP request parameter
-	 * Input: R8 - TDISP request info
-	 * Input: R9 - pa target of TDISP request message output
+	 * Input: RCX - func_id
+	 * Input: RDX - payload parm (request)
+	 * Input: R8  - pa target of TDISP request message output
 	 *
 	 * Output: RAX - SEAMCALL return code
+	 * Output: RCX - message code of generated TDISP request message
 	 */
-	return seamcall_io_retry(TDH_DEVIF_REQUEST, devifcs_pa, req_parm, req_info,
-				 req_pa, 0, 0, 0, 0, 0, 0, NULL);
+	ret = seamcall_io_retry(TDH_DEVIF_REQUEST, func_id, payload,
+				req_out_pa, 0, 0, 0, 0, 0, 0, 0, out);
+
+	pr_debug("%s: ret %llx, func_id %x payload %llx req_out_pa %llx msg_cde %llx\n",
+		 __func__, ret, func_id, payload, req_out_pa, out->rcx);
+
+	return ret;
 }
 
-static inline u64
-tdh_devif_response(u64 devifcs_pa, u64 tdisp_input_pa,
-		   struct tdx_module_output *out)
+static inline u64 tdh_devif_response(u32 func_id, u64 payload, u64 rsp_out_pa,
+				     struct tdx_module_output *out)
 {
+	u64 ret;
+
 	/*
 	 * TDH.DEVIF.RESPONSE
 	 *
 	 * Input: RAX - SEAMCALL instruction leaf number
-	 * Input: RCX - devifcs_pa
-	 * Input: RDX - TDISP msg input
+	 * Input: RCX - func_id
+	 * Input: RDX - payload parm (response)
+	 * Input: R8  - pa of TDISP response message output
 	 *
 	 * Output: RAX - SEAMCALL return code
-	 * Output: RCX - TDISP msg type
+	 * Output: RDX - TDISP payload size
 	 */
-	return seamcall_io_retry(TDH_DEVIF_RESPONSE, devifcs_pa, tdisp_input_pa,
-				 0, 0, 0, 0, 0, 0, 0, 0, out);
+	ret = seamcall_io_retry(TDH_DEVIF_RESPONSE, func_id, payload,
+				rsp_out_pa, 0, 0, 0, 0, 0, 0, 0, out);
+
+	pr_debug("%s: ret %llx, func_id %x payload %llx rsp_out_pa %llx payload_size %llx\n",
+		 __func__, ret, func_id, payload, rsp_out_pa, out->rdx);
+
+	return ret;
 }
 
 #else	/* !CONFIG_INTEL_TDX_HOST */
@@ -1013,17 +1041,17 @@ static inline u64
 tdh_devifmt_read(u64 devifmt_idx,
 		 struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64
-tdh_devif_create(u64 devifcs_pa, u64 tdr_pa, u64 tdisp_msg_pa, u64 devif_info,
-		 u64 devif_id,
+tdh_devif_create(u64 devif_id, u64 tdr_pa, u64 devifcs_pa,
+		 u64 td_tdisp_msg_pa,
+		 u64 vmm_tdisp_msg_pa) { return -EOPNOTSUPP; }
+static inline u64
+tdh_devif_remove(u32 func_id,
 		 struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64
-tdh_devif_remove(u64 devifcs_pa,
-		 struct tdx_module_output *out) { return -EOPNOTSUPP; }
+tdh_devif_request(u32 func_id, u64 payload, u64 req_out_pa,
+		  struct tdx_module_output *out) { return -EOPNOTSUPP; }
 static inline u64
-tdh_devif_request(u64 devifcs_pa, u64 req_parm, u64 req_info,
-		  u64 req_pa) { return -EOPNOTSUPP; }
-static inline u64
-tdh_devif_response(u64 devifcs_pa, u64 tdisp_input_pa,
+tdh_devif_response(u32 func_id, u64 payload, u64 rsp_out_pa,
 		   struct tdx_module_output *out) { return -EOPNOTSUPP; }
 #endif	/* CONFIG_INTEL_TDX_HOST */
 
