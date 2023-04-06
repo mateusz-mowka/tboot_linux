@@ -78,6 +78,7 @@ enum ucode_load_scope {
 enum reload_type {
 	RELOAD_COMMIT,
 	RELOAD_NO_COMMIT,
+	RELOAD_ROLLBACK,
 };
 
 struct microcode_ops {
@@ -90,6 +91,7 @@ struct microcode_ops {
 	int  (*prepare_to_apply)(enum reload_type);
 	void (*microcode_fini_cpu) (int cpu);
 	void (*post_apply)(enum reload_type type, bool success);
+	int (*rollback)(void);
 
 	/*
 	 * The generic 'microcode_core' part guarantees that

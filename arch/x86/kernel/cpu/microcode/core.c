@@ -846,9 +846,72 @@ unlock:
 	return size;
 }
 
+static int do_rollback(void)
+{
+	enum reload_type type = RELOAD_ROLLBACK;
+	bool orig_ucode_load_same = ucode_load_same;
+	int ret = 0;
+
+	if (microcode_ops->prepare_to_apply)
+		ret = microcode_ops->prepare_to_apply(type);
+
+	/*
+	 * Temp hack, set load_same true
+	 * need to pass reload_type to apply_microcode() to make sure we
+	 * can by pass the revision check
+	 */
+	ucode_load_same =  true;
+	if (!ret)
+		ret = microcode_reload_late();
+
+	ucode_load_same =  orig_ucode_load_same;
+
+	if (microcode_ops->post_apply)
+		microcode_ops->post_apply(type, !ret);
+
+	return ret;
+
+}
+
+static ssize_t rollback_store(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t size)
+{
+	unsigned long val;
+	ssize_t ret;
+	int rv;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val !=1)
+		return -EINVAL;
+
+	cpus_read_lock();
+	ret = check_online_cpus();
+
+	if (ret)
+		goto unlock;
+
+	mutex_lock(&microcode_mutex);
+	rv = do_rollback();
+	mutex_unlock(&microcode_mutex);
+
+unlock:
+	cpus_read_unlock();
+	if (rv)
+		return -EINVAL;
+	else
+		return size;
+
+}
+
 static DEVICE_ATTR_WO(reload);
 static DEVICE_ATTR_WO(reload_nc);
 static DEVICE_ATTR_RW(commit);
+static DEVICE_ATTR_WO(rollback);
+
 #endif
 
 static ssize_t version_show(struct device *dev,
@@ -989,6 +1052,7 @@ static struct attribute *cpu_root_microcode_attrs[] = {
 	&dev_attr_reload.attr,
 	&dev_attr_reload_nc.attr,
 	&dev_attr_commit.attr,
+	&dev_attr_rollback.attr,
 #endif
 	NULL
 };

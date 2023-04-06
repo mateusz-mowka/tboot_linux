@@ -236,6 +236,7 @@ static void do_commit(struct work_struct *work)
 		pr_debug("CPU%d pending commit\n", cpu);
 	}
 }
+
 static int perform_commit(void)
 {
 	int rv;
@@ -1215,6 +1216,8 @@ void post_apply_intel(enum reload_type type, bool apply_state)
 				intel_ucode = unapplied_ucode;
 			}
 			break;
+		case RELOAD_ROLLBACK:
+			break;
 	}
 	kfree(unapplied_ucode.ucode);
 	unapplied_ucode.ucode = NULL;
@@ -1247,6 +1250,15 @@ static bool is_blacklisted(unsigned int cpu)
 static int prepare_to_apply_intel(enum reload_type type)
 {
 	int rv = -EINVAL;
+
+	if (type == RELOAD_ROLLBACK) {
+		if (rollback_ucode.ucode) {
+			intel_ucode = rollback_ucode;
+			rollback_ucode.ucode = NULL;
+			rollback_ucode.size = 0;
+		} else
+			return 0;
+	}
 
 	if (type == RELOAD_COMMIT) {
 		/*
