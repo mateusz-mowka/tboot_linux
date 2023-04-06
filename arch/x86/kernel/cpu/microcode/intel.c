@@ -44,8 +44,13 @@
 static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 
 /* Current microcode patch used in early patching on the APs. */
-static struct microcode_intel *intel_ucode_patch;
-static int intel_ucode_size;
+
+struct ucode_info {
+	struct microcode_intel *ucode;
+	int size;
+};
+
+static struct ucode_info intel_ucode;
 
 /* last level cache size per core */
 static int llc_size_per_core;
@@ -437,19 +442,19 @@ static int has_newer_microcode(void *mc, unsigned int csig, int cpf, int new_rev
 	return intel_find_matching_signature(mc, csig, cpf);
 }
 
-static void save_microcode_patch(struct microcode_intel **ucode_ptr, int *ucode_size, struct ucode_cpu_info *uci, void *data, unsigned int size)
+static void save_microcode_patch(struct ucode_info *info, struct ucode_cpu_info *uci, void *data, unsigned int size)
 {
 	struct microcode_header_intel *mc_hdr, *p;
 
-	if (!(ucode_ptr && data))
+	if (!(info && data))
 		return;
 
 	mc_hdr = (struct microcode_header_intel *)data;
 
-	if (*ucode_ptr) {
-		kfree(*ucode_ptr);
-		*ucode_ptr = NULL;
-		*ucode_size = 0;
+	if (info->ucode) {
+		kfree(info->ucode);
+		info->ucode = NULL;
+		info->size = 0;
 	}
 
 	p = kmemdup(data, size, GFP_KERNEL);
@@ -464,11 +469,11 @@ static void save_microcode_patch(struct microcode_intel **ucode_ptr, int *ucode_
 	 * paging has been enabled.
 	 */
 	if (IS_ENABLED(CONFIG_X86_32))
-		*ucode_ptr = (struct microcode_intel *)__pa_nodebug(p);
+		info->ucode = (struct microcode_intel *)__pa_nodebug(p);
 	else
-		*ucode_ptr = (struct microcode_intel *)p;
+		info->ucode = (struct microcode_intel *)p;
 
-	*ucode_size = size;
+	info->size = size;
 }
 
 static int is_lateload_safe(struct microcode_header_intel *mc_header)
@@ -579,7 +584,7 @@ scan_microcode(void *data, size_t size, struct ucode_cpu_info *uci, bool save)
 			dump_rollback_meta(rb_meta);
 
 		if (save) {
-			save_microcode_patch(&intel_ucode_patch, &intel_ucode_size, uci, data, mc_size);
+			save_microcode_patch(&intel_ucode, uci, data, mc_size);
 			goto next;
 		}
 
@@ -646,8 +651,8 @@ static void show_saved_mc(void *mc)
 	rev	= ucode->hdr.rev;
 	date	= ucode->hdr.date;
 
-	total_size	= get_totalsize(intel_ucode_patch);
-	data_size	= get_datasize(intel_ucode_patch);
+	total_size	= get_totalsize(ucode);
+	data_size	= get_datasize(ucode);
 
 	pr_debug("mc_saved: sig=0x%x, pf=0x%x, rev=0x%x, total size=0x%x, date = %04x-%02x-%02x\n",
 		 sig, pf, rev, total_size, date & 0xffff,
@@ -688,7 +693,7 @@ static void save_mc_for_early(struct ucode_cpu_info *uci, u8 *mc, unsigned int s
 
 	mutex_lock(&x86_cpu_microcode_mutex);
 
-	save_microcode_patch(&intel_ucode_patch, &intel_ucode_size, uci, mc, size);
+	save_microcode_patch(&intel_ucode, uci, mc, size);
 	show_saved_mc(mc);
 
 	mutex_unlock(&x86_cpu_microcode_mutex);
@@ -795,7 +800,7 @@ static noinline void prof_wrmsrl(unsigned long bits)
 
 static struct microcode_intel *find_patch(void)
 {
-	return intel_ucode_patch;
+	return intel_ucode.ucode;
 }
 
 static int apply_microcode_early(struct ucode_cpu_info *uci, bool early)
@@ -846,7 +851,7 @@ int __init save_microcode_in_initrd_intel(void)
 	 * update that pointer too, with a stable patch address to use when
 	 * resuming the cores.
 	 */
-	intel_ucode_patch = NULL;
+	intel_ucode.ucode = NULL;
 
 	if (!load_builtin_intel_microcode(&cp))
 		cp = find_microcode_in_initrd(ucode_path, false);
@@ -858,7 +863,7 @@ int __init save_microcode_in_initrd_intel(void)
 
 	scan_microcode(cp.data, cp.size, &uci, true);
 
-	show_saved_mc(intel_ucode_patch);
+	show_saved_mc(intel_ucode.ucode);
 
 	return 0;
 }
@@ -914,9 +919,9 @@ static void load_ucode_intel_ap(void)
 	struct ucode_cpu_info uci;
 
 	if (IS_ENABLED(CONFIG_X86_32))
-		iup = (struct microcode_intel **) __pa_nodebug(&intel_ucode_patch);
+		iup = (struct microcode_intel **) __pa_nodebug(&intel_ucode.ucode);
 	else
-		iup = &intel_ucode_patch;
+		iup = &intel_ucode.ucode;
 
 	if (!*iup) {
 		patch = __load_ucode_intel(&uci);
