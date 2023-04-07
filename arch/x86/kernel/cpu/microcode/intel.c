@@ -200,7 +200,7 @@ static int check_pending(void)
 
 	atomic_set(&pending_commits, 0);
 
-	rv = schedule_on_each_cpu(read_commit_status);
+	rv = schedule_on_each_cpu_locked(read_commit_status);
 
 	if (!rv && atomic_read(&pending_commits))
 		rv = -EBUSY;
@@ -241,7 +241,7 @@ static int perform_commit(void)
 {
 	int rv;
 
-	rv = schedule_on_each_cpu(do_commit);
+	rv = schedule_on_each_cpu_locked(do_commit);
 
 	if (!rv && !atomic_read(&commit_status))
 		return rv;
@@ -293,7 +293,7 @@ static int switch_to_auto_commit(void)
 		return -EBUSY;
 	}
 
-	rv = schedule_on_each_cpu(write_auto_commit);
+	rv = schedule_on_each_cpu_locked(write_auto_commit);
 
 	pr_info("Switching to auto commit %s\n", rv ? "Failed" : "Succeeded");
 
@@ -341,7 +341,7 @@ static int switch_to_manual_commit(void)
 		return -EBUSY;
 	}
 
-	rv = schedule_on_each_cpu(write_manual_commit);
+	rv = schedule_on_each_cpu_locked(write_manual_commit);
 
 	pr_info("Switching to manual commit %s\n", rv ? "Failed" : "Succeeded");
 
