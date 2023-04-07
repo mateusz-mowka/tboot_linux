@@ -1251,29 +1251,27 @@ static int prepare_to_apply_intel(enum reload_type type)
 {
 	int rv = -EINVAL;
 
-	if (type == RELOAD_ROLLBACK) {
-		if (rollback_ucode.ucode) {
-			intel_ucode = rollback_ucode;
-			rollback_ucode.ucode = NULL;
-			rollback_ucode.size = 0;
-		} else
-			return 0;
-	}
-
-	if (type == RELOAD_COMMIT) {
-		/*
-		 * This is a legacy CPU so nothing to prepare. Otherwise
-		 * check if the configuration is currently in manual commit
-		 * then switch to auto-commit.
-		 */
-		if (!mcu_cap.rollback)
-			return 0;
-		rv = switch_to_auto_commit();
-	}
-	else if (type == RELOAD_NO_COMMIT) {
-		if (!mcu_cap.rollback)
-			return rv;
-		rv = switch_to_manual_commit();
+	switch (type) {
+		case RELOAD_COMMIT:
+			if (!mcu_cap.rollback)
+				return 0;
+			rv = switch_to_auto_commit();
+			break;
+		case RELOAD_NO_COMMIT:
+			if (!mcu_cap.rollback)
+				return rv;
+			rv = switch_to_manual_commit();
+			break;
+		case RELOAD_ROLLBACK:
+			if (!mcu_cap.rollback)
+				return rv;
+			if (rollback_ucode.ucode) {
+				intel_ucode = rollback_ucode;
+				rollback_ucode.ucode = NULL;
+				rollback_ucode.size = 0;
+			} else
+				return 0;
+			break;
 	}
 
 	return rv;
