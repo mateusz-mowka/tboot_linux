@@ -5,6 +5,10 @@ SRF PO bkc-v1.5
 ===============
 1. Enable BOOTPARAM_SOFTLOCKUP_PANIC debug option.
 2. Force enable C1 state.
+3. IFS driver fixes to test legacy scan.
+4. Disable kernel IBT support.
+   HSD: https://hsdes.intel.com/appstore/article/#/15013164115
+   HSD: https://hsdes.intel.com/appstore/article/#/22017160655
 
 SRF PO bkc-v1.4
 ===============
