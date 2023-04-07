@@ -804,7 +804,9 @@ static ssize_t commit_show(struct device *dev,
 {
 	bool rv;
 
+	cpus_read_lock();
 	rv = check_pending_commits();
+	cpus_read_unlock();
 	return sprintf(buf, "%d\n", rv ? 1 : 0);
 }
 
