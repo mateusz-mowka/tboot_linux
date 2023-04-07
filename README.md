@@ -16,48 +16,84 @@ Release History
 gnr-bkc-6.2-v1.2
 ----------------
 4. Merged features:
-    IFS (In Field Scan) extra patches
-    PM
-    emr-bkc-6.2-v4.4 tag
-    IAA Crypto
+    IFS (In Field Scan) extra patches;
+    David Box's Power Management;
+    emr-bkc-6.2-v4.4 tag;
+    IAA Crypto;
 
-    73069aef89b7 Merge branch 'for_gnr-bkc-6.2' 74834ae of https://github.com/intel-sandbox/drivers.saf
-    7a8c021a1ecd Merge commit '7b18706fc91e0e3bfe2029feefa5eaadf2104a8d' of https://github.com/intel-sandbox/debox1.linux debox_pm_for_intel_next
-    180153e86587 Merge tag 'emr-bkc-6.2-v4.4' of https://github.com/intel-innersource/os.linux.emeraldrapids.thirdparty.kernel into gnr-staging-6.2
-    7684e8224a2c Merge commit '9737f12c611368d1191c0c3264cc0b004db78ab0' of https://github.com/intel-sandbox/idxd tzanussi/emr-bkc-6.2-iaa-crypto
+    73069aef89b7 Merge branch 'for_gnr-bkc-6.2' 74834ae of https://github.com/intel-sandbox/drivers.saf;
+    7a8c021a1ecd Merge commit '7b18706fc91e0e3bfe2029feefa5eaadf2104a8d' of https://github.com/intel-sandbox/debox1.linux debox_pm_for_intel_next;
+    180153e86587 Merge tag 'emr-bkc-6.2-v4.4' of https://github.com/intel-innersource/os.linux.emeraldrapids.thirdparty.kernel into gnr-staging-6.2;
+    7684e8224a2c Merge commit '9737f12c611368d1191c0c3264cc0b004db78ab0' of https://github.com/intel-sandbox/idxd tzanussi/emr-bkc-6.2-iaa-crypto;
 
 gnr-bkc-6.2-v1.1
 ----------------
 3. Merged features:
+    Rui Zhang's TPMI, RAPL Driver, ISST;
+    pson_counter;
+    SVOS;
+    PCI VMD Meteor Lake;
+    split lock;
+    socwatch driver;
+    I2C/I3C;
+    RDT MBA-4.0;
+    CXL;
+    SPI-NOR/PCI/Thunderbolt/USB4;
+    LASS;
+    fix-mc-recovery-on-sierra-forest-for-atom-cores;
+    perf-fix for LFE-7417;
+    Thermal / HFI;
+    nvme pci simics fix;
+    David Box's PMC;
+    TPM Module;
+    Rafeal Wysocki's Power Management;
+    Trace Hub;
+    XHCI / USB;
+    SCSI;
 
-    ce532dc34fa9 Merge commit 'ddbd3771abf385e3731c7674b725bab7ae1619bc' of https://github.com/intel-sandbox/rzhang1 for-intel-next-tpmi
-    f1550e460099 Merge commit '8d4eac3cea41adfee7eb75d3b9ef45de5b9a709f' of https://github.com/intel-sandbox/linux-kernel-rjingar pson_counter
-    f5bbcc90c479 Merge commit '3136bccda667a45456dab9fd05da8dee6fb62a56' of https://github.com/intel-innersource/os.linux.validation.svos-next.svos-next svos-next-tdx-pull-6.2
-    e83d241827e7 Merge commit '61b07a74bfd2c7c1f0a96071315ed77693e7473c' of https://github.com/intel-innersource/os.linux.validation.svos-next.svos-next svos-next-pull-6.2
-    dd077570e3eb Merge commit 'c600f9c2babba00df0c0fba95c35c8da353f9989' of https://github.com/intel-sandbox/otc_power_kernel mtl_dids_linus_rc
-    4bde2623a0d3 Merge commit '73e16e7b8eb287481d5bdf0179bc031e899b4a1e' of https://github.com/intel-sandbox/kernel split_lock
-    fb77228e23a1 Merge commit '2665e52fe74141620270448539c874045b34b66c' of https://github.com/mchinth/linux socwatch_linux_6_1
-    8b3c880fbafe Merge commit '881a9c9e0cf5317618d7182e34475ca67c519b73' of https://github.com/intel-sandbox/jarkkoni.linux.kernel for-intel-next
-    0bfedfc18f9c Merge commit 'f0e1aaf7701c9a4dc30dbbf8b3db5a553e741228' of https://github.com/intel-sandbox/agluck-linux next-6.2-mba4.0
-    1dd6c4da9d7a Merge commit 'e686c32590f40bffc45f105c04c836ffad3e531a' of https://git.kernel.org/pub/scm/linux/kernel/git/cxl/cxl next
-    8c0d11beea7f Merge commit '304560253856f99302727e2f3da6ccec7aabaa55' of https://github.com/intel-sandbox/mwesterb-linux.git for-eywa
-    a06fcf5543b9 Merge commit 'e037e956d2f20ea55c10a2ba8892b8552605fb1b' of https://github.com/intel-sandbox/kernel-works lass-6.2-rc2
-    e8f8203670ad Merge branch 'fix-mc-recovery-on-sierra-forest-for-atom-cores' into gnr-staging-6.2
-    10a2c19b997d Merge branch 'perf-fix-lfe7417' into gnr-staging-6.2
-    3e60295c6085 Merge commit 'c4e1a74d9b20b1dc4276f5182bc3aca2c3b0a35e' of https://github.com/intel-sandbox/ranerica.linux rneri/hybrid-for-intel-next
-    f2130fcd38ac Merge commit '14cbc7d8eb33a81d6753319df887bbb85103c530' of https://github.com/intel-sandbox/otc_power_kernel nvme_simics_fix
-    a820bd495024 Merge commit 'c20485f76eac84a32cd19417e7b529d341e75a71' of https://github.com/intel-sandbox/xi_linux pmc_core_intel_next
-    ede2e2faf5b8 Merge commit '85b93bbd1c9768d09adebbe9f33bab0d4ec94404' of https://git.kernel.org/pub/scm/linux/kernel/git/jarkko/linux-tpmdd next
-    56765352f84b Merge commit 'ea150b53b1fd250a0c49f9ade353634dd7976fbf' of https://git.kernel.org/pub/scm/linux/kernel/git/rafael/linux-pm testing
-    9f3f2cad5e81 Merge commit 'a5133d2dd58afda9f9a38fda98e6bf79f2862008' https://github.com/intel-sandbox/ahunter6.next.git intel-th-v6.2
-    673c49994188 Merge commit '13099ff445858bc2bb6f5d0cd2afa8ceb93ae2ca' of https://github.com/intel-sandbox/ashevche.linux.kernel intel/for-next
-    8a7f23b971f0 Merge commit '27addb311d82bc4a40c8a5719f63b3020552b241' of https://github.com/intel-sandbox/mnyman-linux for-intel-next
-    c54e7c0f1cb3 Merge commit '728eea85c941caa37eceb166b9721cded05a29e3' https://github.com/intel-sandbox/ahunter6.next.git scs-v6.2
+    ce532dc34fa9 Merge commit 'ddbd3771abf385e3731c7674b725bab7ae1619bc' of https://github.com/intel-sandbox/rzhang1 for-intel-next-tpmi;
+    f1550e460099 Merge commit '8d4eac3cea41adfee7eb75d3b9ef45de5b9a709f' of https://github.com/intel-sandbox/linux-kernel-rjingar pson_counter;
+    f5bbcc90c479 Merge commit '3136bccda667a45456dab9fd05da8dee6fb62a56' of https://github.com/intel-innersource/os.linux.validation.svos-next.svos-next svos-next-tdx-pull-6.2;
+    e83d241827e7 Merge commit '61b07a74bfd2c7c1f0a96071315ed77693e7473c' of https://github.com/intel-innersource/os.linux.validation.svos-next.svos-next svos-next-pull-6.2;
+    dd077570e3eb Merge commit 'c600f9c2babba00df0c0fba95c35c8da353f9989' of https://github.com/intel-sandbox/otc_power_kernel mtl_dids_linus_rc;
+    4bde2623a0d3 Merge commit '73e16e7b8eb287481d5bdf0179bc031e899b4a1e' of https://github.com/intel-sandbox/kernel split_lock;
+    fb77228e23a1 Merge commit '2665e52fe74141620270448539c874045b34b66c' of https://github.com/mchinth/linux socwatch_linux_6_1;
+    8b3c880fbafe Merge commit '881a9c9e0cf5317618d7182e34475ca67c519b73' of https://github.com/intel-sandbox/jarkkoni.linux.kernel for-intel-next;
+    0bfedfc18f9c Merge commit 'f0e1aaf7701c9a4dc30dbbf8b3db5a553e741228' of https://github.com/intel-sandbox/agluck-linux next-6.2-mba4.0;
+    1dd6c4da9d7a Merge commit 'e686c32590f40bffc45f105c04c836ffad3e531a' of https://git.kernel.org/pub/scm/linux/kernel/git/cxl/cxl next;
+    8c0d11beea7f Merge commit '304560253856f99302727e2f3da6ccec7aabaa55' of https://github.com/intel-sandbox/mwesterb-linux.git for-eywa;
+    a06fcf5543b9 Merge commit 'e037e956d2f20ea55c10a2ba8892b8552605fb1b' of https://github.com/intel-sandbox/kernel-works lass-6.2-rc2;
+    e8f8203670ad Merge branch 'fix-mc-recovery-on-sierra-forest-for-atom-cores' into gnr-staging-6.2;
+    10a2c19b997d Merge branch 'perf-fix-lfe7417' into gnr-staging-6.2;
+    3e60295c6085 Merge commit 'c4e1a74d9b20b1dc4276f5182bc3aca2c3b0a35e' of https://github.com/intel-sandbox/ranerica.linux rneri/hybrid-for-intel-next;
+    f2130fcd38ac Merge commit '14cbc7d8eb33a81d6753319df887bbb85103c530' of https://github.com/intel-sandbox/otc_power_kernel nvme_simics_fix;
+    a820bd495024 Merge commit 'c20485f76eac84a32cd19417e7b529d341e75a71' of https://github.com/intel-sandbox/xi_linux pmc_core_intel_next;
+    ede2e2faf5b8 Merge commit '85b93bbd1c9768d09adebbe9f33bab0d4ec94404' of https://git.kernel.org/pub/scm/linux/kernel/git/jarkko/linux-tpmdd next;
+    56765352f84b Merge commit 'ea150b53b1fd250a0c49f9ade353634dd7976fbf' of https://git.kernel.org/pub/scm/linux/kernel/git/rafael/linux-pm testing;
+    9f3f2cad5e81 Merge commit 'a5133d2dd58afda9f9a38fda98e6bf79f2862008' https://github.com/intel-sandbox/ahunter6.next.git intel-th-v6.2;
+    673c49994188 Merge commit '13099ff445858bc2bb6f5d0cd2afa8ceb93ae2ca' of https://github.com/intel-sandbox/ashevche.linux.kernel intel/for-next;
+    8a7f23b971f0 Merge commit '27addb311d82bc4a40c8a5719f63b3020552b241' of https://github.com/intel-sandbox/mnyman-linux for-intel-next;
+    c54e7c0f1cb3 Merge commit '728eea85c941caa37eceb166b9721cded05a29e3' https://github.com/intel-sandbox/ahunter6.next.git scs-v6.2;
 
 gnr-bkc-6.2-v1.0
 ----------------
 2. ACPI: APEI: EINJ: Add CXL error types
 1. Add gnr config
+0. EMR merged features:
+    RAPL, intel_idle;
+    DLB2;
+    IOMMUFD, DSA, Live Migration;
+    TDX 1.0 KVM;
+    TDX 1.5 KVM;
+    TDX guest;
+    IFS (In Field Scan);
+    Srinivas' TPMI;
+    EDAC;
+    PRM;
+    Shadow Stack / CET - Native Kernel;
+    CET - KVM support;
+    perf;
+    SGX microcode seamless update;
 
 emr-bkc-6.2-v4.4
 ----------------
