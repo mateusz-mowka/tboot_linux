@@ -1056,8 +1056,25 @@ static void collect_staging_mailbox(int cpu)
 		goto out;
 
 	rdmsrl(MSR_MCU_MBOX_ADDR, mbox_addr);
-	if (!mbox_addr)
-		goto out;
+	if (!mbox_addr) {
+		/*
+		 * REVERTME: If the 0x7a5 MSR enumeration isn't officially
+		 *           supported, hardcode it for testing purpose.
+		 */
+		if (i == 0) {
+			/* The 1st package DOE mailbox address */
+			mbox_addr = 0x90110000;
+		} else if (i == 1) {
+			/* The 2nd package DOE mailbox address */
+			mbox_addr = 0xc3910000;
+		} else {
+			pr_err("No hardcoded DOE mailbox address for package %d\n", i);
+			goto out;
+		}
+
+		pr_debug("Temporarily hardcode DOE mailbox address 0x%llx for package %d\n", mbox_addr, i);
+		/* goto out; */
+	}
 
 	mbox = uc_doe_create_mbox(mbox_addr);
 	if (!mbox)
