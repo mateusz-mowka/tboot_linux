@@ -881,7 +881,6 @@ static ssize_t rollback_store(struct device *dev,
 {
 	unsigned long val;
 	ssize_t ret;
-	int rv;
 
 	ret = kstrtoul(buf, 0, &val);
 	if (ret)
@@ -897,12 +896,12 @@ static ssize_t rollback_store(struct device *dev,
 		goto unlock;
 
 	mutex_lock(&microcode_mutex);
-	rv = do_rollback();
+	ret = do_rollback();
 	mutex_unlock(&microcode_mutex);
 
 unlock:
 	cpus_read_unlock();
-	if (rv)
+	if (ret)
 		return -EINVAL;
 	else
 		return size;

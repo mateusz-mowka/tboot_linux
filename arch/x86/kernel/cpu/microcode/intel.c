@@ -1192,7 +1192,7 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter, e
 	return ret;
 }
 
-void post_apply_intel(enum reload_type type, bool apply_state)
+static void post_apply_intel(enum reload_type type, bool apply_state)
 {
 	switch (type) {
 		case RELOAD_COMMIT:
