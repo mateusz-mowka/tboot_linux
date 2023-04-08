@@ -20,6 +20,11 @@
 #define TDX_GET_REPORT			4
 #define TDX_ACCEPT_PAGE			6
 #define TDX_VERIFYREPORT		22
+#define TDX_DEVIF_VALIDATE		66
+#define TDX_DEVIF_READ			67
+#define TDX_DEVIF_REQUEST		68
+#define TDX_DEVIF_RESPONSE		69
+#define TDX_DMAR_ACCEPT			70
 #define TDX_MMIO_ACCEPT			71
 
 /* TDX hypercall Leaf IDs */

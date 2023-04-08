@@ -1042,6 +1042,81 @@ static bool tdx_enc_status_changed(unsigned long vaddr, int numpages, bool enc)
 	return tdx_enc_status_changed_phys(start, end, enc);
 }
 
+int tdx_dmar_accept(u64 func_id, u64 gpasid, u64 parm0, u64 parm1, u64 parm2, u64 parm3,
+		    u64 parm4, u64 parm5, u64 parm6, u64 parm7)
+{
+	u64 ret;
+
+	ret = __tdx_module_call_io(TDX_DMAR_ACCEPT, func_id, gpasid, parm0, parm1,
+				   parm2, parm3, parm4, parm5, parm6, parm7, NULL);
+
+	pr_debug("%s ret 0x%llx func_id %llx gpasid %llx param %llx %llx %llx %llx %llx %llx %llx %llx\n",
+		 __func__, ret, func_id, gpasid, parm0, parm1, parm2, parm3,
+		 parm4, parm5, parm6, parm7);
+
+	return ret ? -EIO : 0;
+}
+
+int tdx_devif_read(u64 func_id, u64 field, u64 field_parm, u64 *value)
+{
+	struct tdx_module_output out;
+	u64 ret;
+
+	ret = __tdx_module_call_io(TDX_DEVIF_READ, func_id, field, field_parm, 0,
+				   0, 0, 0, 0, 0, 0, &out);
+
+	pr_debug("%s ret 0x%llx func_id %llx field %llx parm %llx data %llx\n",
+		 __func__, ret, func_id, field, field_parm, out.rdx);
+
+	if (!ret)
+		*value = out.rdx;
+
+	return ret ? -EIO : 0;
+}
+
+int tdx_devif_validate(u64 func_id, u64 pkh5, u64 pkh4, u64 pkh3, u64 pkh2, u64 pkh1, u64 pkh0)
+{
+	u64 ret;
+
+	ret = __tdx_module_call_io(TDX_DEVIF_VALIDATE, func_id, pkh5, pkh4, pkh3,
+				   pkh2, pkh1, pkh0, 0, 0, 0, NULL);
+
+	pr_debug("%s ret 0x%llx func_id %llx pkh %llx %llx %llx %llx %llx %llx\n", __func__,
+		 ret, func_id, pkh5, pkh4, pkh3, pkh2, pkh1, pkh0);
+
+	return ret ? -EIO : 0;
+}
+
+static int __tdx_devif_request(u64 func_id, u64 payload)
+{
+	u64 ret;
+
+	ret = __tdx_module_call_io(TDX_DEVIF_REQUEST, func_id, payload, 0, 0,
+				   0, 0, 0, 0, 0, 0, NULL);
+
+	pr_debug("%s ret 0x%llx func_id 0x%llx payload 0x%llx\n", __func__,
+		 ret, func_id, payload);
+
+	return ret ? -EIO : 0;
+}
+
+static int __tdx_devif_response(u64 func_id, u64 payload, u32 *size)
+{
+	struct tdx_module_output out;
+	u64 ret;
+
+	ret = __tdx_module_call_io(TDX_DEVIF_RESPONSE, func_id, payload, 0, 0,
+				   0, 0, 0, 0, 0, 0, &out);
+
+	pr_debug("%s ret 0x%llx func_id 0x%llx payload 0x%llx size 0x%llx\n",
+		 __func__, ret, func_id, payload, out.rdx);
+
+	if (!ret)
+		*size = (u32)out.rdx;
+
+	return ret ? -EIO : 0;
+}
+
 static int __tdx_map_gpa(phys_addr_t gpa, int numpages, bool enc)
 {
 	u64 ret;
