@@ -88,6 +88,7 @@ struct vfio_group {
 	struct file			*opened_file;
 	struct blocking_notifier_head	notifier;
 	struct iommufd_ctx		*iommufd;
+	unsigned int			attrs;
 };
 
 int vfio_device_set_group(struct vfio_device *device,
@@ -192,7 +193,8 @@ struct vfio_iommu_driver_ops {
 				 unsigned long arg);
 	int		(*attach_group)(void *iommu_data,
 					struct iommu_group *group,
-					enum vfio_group_type);
+					enum vfio_group_type,
+					unsigned int attrs);
 	void		(*detach_group)(void *iommu_data,
 					struct iommu_group *group);
 	int		(*pin_pages)(void *iommu_data,
