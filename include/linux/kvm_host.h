@@ -2440,4 +2440,7 @@ static inline void kvm_vcpu_fw_update(struct kvm_vcpu *vcpu) {}
 int hardware_enable_all(void);
 void hardware_disable_all(void);
 
+int kvm_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi);
+void kvm_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi);
+
 #endif

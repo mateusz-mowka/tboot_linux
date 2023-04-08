@@ -160,6 +160,8 @@ KVM_X86_OP_OPTIONAL_RET0(vcpu_get_apicv_inhibit_reasons);
 KVM_X86_OP_OPTIONAL_RET0(update_fw)
 KVM_X86_OP_OPTIONAL_RET0(match_fw)
 KVM_X86_OP(ioasid_bind)
+KVM_X86_OP_OPTIONAL(bind_tdi)
+KVM_X86_OP_OPTIONAL(unbind_tdi)
 
 #undef KVM_X86_OP
 #undef KVM_X86_OP_OPTIONAL

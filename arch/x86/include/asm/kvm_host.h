@@ -26,6 +26,7 @@
 #include <linux/irqbypass.h>
 #include <linux/hyperv.h>
 #include <linux/kfifo.h>
+#include <linux/pci.h>
 
 #include <asm/apic.h>
 #include <asm/pvclock-abi.h>
@@ -1844,6 +1845,9 @@ struct kvm_x86_ops {
 	int (*update_fw)(struct kvm_firmware *fw, bool live_update);
 	bool (*match_fw)(struct kvm *kvm, struct kvm_firmware *fw);
 	int (*ioasid_bind)(struct kvm_vcpu *vcpu, struct kvm_bind_pasid *pb);
+
+	int (*bind_tdi)(struct kvm *kvm, struct pci_tdi *tdev);
+	int (*unbind_tdi)(struct kvm *kvm, struct pci_tdi *tdev);
 };
 
 struct kvm_x86_nested_ops {
