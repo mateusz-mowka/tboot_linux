@@ -13,6 +13,16 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.3
+----------------
+6. https://jira.devtools.intel.com/browse/HQM-701
+    PASID is enabled by default in vfio-pci dirver. Intel DLB HW assumes
+    that the system is in the SIOV mode when PASID id enabled. User needs
+    to disable PASID when using DLB in PF mode.
+    vfio/pci: add write permission to PCI_PASID_CTRL
+
+5. Update README.md
+
 gnr-bkc-6.2-v1.2
 ----------------
 4. Merged features:
