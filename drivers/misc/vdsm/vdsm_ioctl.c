@@ -67,6 +67,268 @@ static int device_read_ide_ext(struct pci_dev *pdev,
 	return ret;
 }
 
+static void dev_mmio_array_move_back(pci_tdisp_mmio_range_t *dev_mmio, int idx,
+				     int step)
+{
+	memmove(&dev_mmio[idx + step], &dev_mmio[idx],
+		sizeof(*dev_mmio) * (DEVIF_RP_MMIO_NUM - (idx + step)));
+}
+
+static void insert_to_dev_mmio_array(pci_tdisp_mmio_range_t *dst,
+				     pci_tdisp_mmio_range_t *src)
+{
+	uint64_t start;
+	uint32_t pages;
+	int i;
+
+	for (i = 0; i < DEVIF_RP_MMIO_NUM; i++) {
+		if (!dst[i].number_of_pages)
+			break;
+		if (dst[i].range_id != src->range_id)
+			continue;
+
+		start = dst[i].first_page;
+		pages = dst[i].number_of_pages;
+		if (start == src->first_page) {
+			if (dst[i].number_of_pages == src->number_of_pages) {
+				dst[i] = *src;
+			} else {
+				dev_mmio_array_move_back(dst, i, 1);
+				dst[i + 1].first_page =
+					GET_DEV_MMIO_END(src) + 1;
+				dst[i + 1].number_of_pages =
+					dst[i + 1].number_of_pages -
+					src->number_of_pages;
+				dst[i] = *src;
+			}
+			return;
+		} else if (GET_DEV_MMIO_END(&dst[i]) == GET_DEV_MMIO_END(src)) {
+			dev_mmio_array_move_back(dst, i, 1);
+			dst[i + 1] = *src;
+			dst[i].number_of_pages =
+				dst[i].number_of_pages - src->number_of_pages;
+			return;
+		} else if (start < src->first_page &&
+			   GET_DEV_MMIO_END(&dst[i]) > GET_DEV_MMIO_END(src)) {
+			dev_mmio_array_move_back(dst, i, 2);
+			dst[i].number_of_pages =
+				(src->first_page - start + 1) / PAGE_SIZE;
+			dst[i + 1] = *src;
+			dst[i + 2].first_page = GET_DEV_MMIO_END(src) + 1;
+			dst[i + 2].number_of_pages =
+				dst[i + 2].number_of_pages -
+				dst[i + 1].number_of_pages -
+				dst[i].number_of_pages;
+			return;
+		}
+	}
+}
+
+static int generate_msix_table_mmio_range(struct pci_dev *pdev,
+					  pci_tdisp_mmio_range_t *range)
+{
+	uint32_t val;
+	uint32_t len;
+	int ret;
+
+	if (!pdev->msix_cap) {
+		range->number_of_pages = 0;
+		return 0;
+	}
+
+	ret = pci_read_config_dword(pdev, pdev->msix_cap + PCI_MSIX_TABLE,
+				    &val);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to read PCI_MSIX_TABLE\n",
+			__func__);
+		return ret;
+	}
+	range->range_id = FIELD_GET(PCI_MSIX_TABLE_BIR, val);
+	range->first_page = (val & PCI_MSIX_TABLE_OFFSET) +
+			    pci_resource_start(pdev, range->range_id);
+
+	ret = pci_read_config_word(pdev, pdev->msix_cap + PCI_MSIX_FLAGS,
+				   (u16 *)&val);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to read PCI_MSIX_FLAGS\n",
+			__func__);
+		return ret;
+	}
+	len = MSIX_TABLE_SIZE(val) * PCI_MSIX_ENTRY_SIZE;
+	range->range_attributes = DEVIF_RP_MMIO_ATTR_MSIX;
+	if (len % PAGE_SIZE)
+		dev_warn(&pdev->dev, "%s: MSI-X Table size is %d\n", __func__,
+			 len);
+	range->number_of_pages = round_up(len, PAGE_SIZE) / PAGE_SIZE;
+
+	return 0;
+}
+
+static int generate_msix_pba_mmio_range(struct pci_dev *pdev,
+					pci_tdisp_mmio_range_t *range)
+{
+	uint32_t val;
+	uint32_t len;
+	int ret;
+
+	if (!pdev->msix_cap) {
+		range->number_of_pages = 0;
+		return 0;
+	}
+
+	ret = pci_read_config_dword(pdev, pdev->msix_cap + PCI_MSIX_PBA, &val);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to read PCI_MSIX_PBA\n",
+			__func__);
+		return ret;
+	}
+	range->range_id = FIELD_GET(PCI_MSIX_PBA_BIR, val);
+	range->first_page = (val & PCI_MSIX_PBA_OFFSET) +
+			    pci_resource_start(pdev, range->range_id);
+
+	ret = pci_read_config_word(pdev, pdev->msix_cap + PCI_MSIX_FLAGS,
+				   (u16 *)&val);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Failed to read PCI_MSIX_FLAGS\n",
+			__func__);
+		return ret;
+	}
+	range->range_attributes = DEVIF_RP_MMIO_ATTR_PBA;
+	len = round_up(MSIX_TABLE_SIZE(val), 64) / 64 * 8;
+	if (len % PAGE_SIZE)
+		dev_warn(&pdev->dev, "%s: MSI-X PBA size is %d\n", __func__,
+			 len);
+	range->number_of_pages = round_up(len, PAGE_SIZE) / PAGE_SIZE;
+
+	return 0;
+}
+
+static void dump_dev_mmio_range(pci_tdisp_mmio_range_t *dev_mmio)
+{
+	int i;
+
+	for (i = 0; i < DEVIF_RP_MMIO_NUM; i++) {
+		pr_info("%s: %d offset=0x%llx, pages=0x%x, attrs=0x%x, bar=%d\n",
+			__func__, i, dev_mmio[i].first_page, dev_mmio[i].number_of_pages,
+			dev_mmio[i].range_id, dev_mmio[i].range_attributes);
+	}
+}
+
+static int generate_dev_mmio_range(struct pci_dev *pdev,
+				   pci_tdisp_mmio_range_t *dev_mmio)
+{
+	pci_tdisp_mmio_range_t msix_tbl = { 0 };
+	pci_tdisp_mmio_range_t msix_pba = { 0 };
+	unsigned long flags;
+	int ret;
+	int pos;
+	int i;
+
+	/* the last two mmio_ranges are used to store MSIX-TABLE and MSIX-PBA */
+	ret = generate_msix_table_mmio_range(pdev, &msix_tbl);
+	if (ret)
+		return ret;
+	ret = generate_msix_pba_mmio_range(pdev, &msix_pba);
+	if (ret)
+		return ret;
+
+	/* Parse BARs */
+	for (pos = 0, i = 0; i < PCI_STD_NUM_BARS; i++) {
+		flags = pci_resource_flags(pdev, i);
+		if (!pci_resource_len(pdev, i) ||
+		    flags & IORESOURCE_UNSET ||
+		    flags & IORESOURCE_IO)
+			continue;
+
+		/* It is a WA for RPB device, we don't publish BAR4 to TD */
+		if ((pdev->vendor == PCI_VENDOR_ID_INTEL &&
+		     pdev->device == PCIE_DEVICE_ID_CAMBRIA) &&
+		    i == 4)
+			continue;
+
+		if (pci_resource_len(pdev, i) % PAGE_SIZE)
+			dev_warn(&pdev->dev,
+				 "%s: BAR %d size is not PAGE_SIZE aligned\n",
+				 __func__, i);
+		dev_mmio[pos].first_page = pci_resource_start(pdev, i);
+		dev_mmio[pos].number_of_pages =
+			round_up(pci_resource_len(pdev, i), PAGE_SIZE) /
+			PAGE_SIZE;
+		dev_mmio[pos].range_id = i;
+		dev_mmio[pos].range_attributes = (i << 16);
+		pos++;
+	}
+	dump_dev_mmio_range(dev_mmio);
+
+	if (msix_tbl.number_of_pages) {
+		insert_to_dev_mmio_array(dev_mmio, &msix_tbl);
+		dump_dev_mmio_range(dev_mmio);
+	}
+
+	if (msix_pba.number_of_pages) {
+		insert_to_dev_mmio_array(dev_mmio, &msix_pba);
+		dump_dev_mmio_range(dev_mmio);
+	}
+
+	return 0;
+}
+
+static int
+tdisp_device_intf_report_msg(struct pci_dev *pdev, tdisp_interface_report_ctx_t *intf_report_ctx)
+{
+	pci_tdisp_mmio_range_t dev_mmio[DEVIF_RP_MMIO_NUM] = { 0 };
+	pci_tdisp_device_interface_report_struct_t *report;
+	pci_tdisp_mmio_range_t *range;
+	uint32_t *dev_specific_info_len;
+	uint32_t val32;
+	uint16_t val16;
+	int pos;
+	int ret;
+	int i;
+
+	ret = generate_dev_mmio_range(pdev, dev_mmio);
+	if (ret)
+		return ret;
+
+	report = (pci_tdisp_device_interface_report_struct_t *)(intf_report_ctx->interface_report);
+	report->interface_info =
+		VDSM_TDISP_INTERFACE_INFO_NO_UPDATE_AFTER_LOCK |
+		VDSM_TDISP_INTERFACE_INFO_DMA_WITHOUT_PASID;
+	report->lnr_control = 0;
+	if (pdev->msix_cap) {
+		ret = pci_read_config_word(
+			pdev, pdev->msix_cap + PCI_MSIX_FLAGS, &val16);
+		if (ret)
+			return ret;
+		report->msi_x_message_control = val16;
+	}
+	pos = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_TPH);
+	if (pos) {
+		pci_read_config_dword(pdev, pos + PCI_TPH_CTRL, &val32);
+		report->tph_control = val32;
+	}
+
+	intf_report_ctx->interface_report_size += sizeof(*report);
+
+	range = (pci_tdisp_mmio_range_t *)(report + 1);
+	for (i = 0; i < DEVIF_RP_MMIO_NUM; i++) {
+		if (!dev_mmio[i].number_of_pages)
+			continue;
+		range->first_page = dev_mmio[i].first_page + intf_report_ctx->mmio_reporting_offset;
+		range->number_of_pages = dev_mmio[i].number_of_pages;
+		range->range_attributes = dev_mmio[i].range_attributes;
+		range->range_id = dev_mmio[i].range_id;
+		report->mmio_range_count++;
+		intf_report_ctx->interface_report_size += sizeof(*range);
+		range++;
+	}
+	dev_specific_info_len = (uint32_t *)range;
+	*dev_specific_info_len = 0;
+	intf_report_ctx->interface_report_size += sizeof(*dev_specific_info_len);
+
+	return ret;
+}
+
 int vdsm_bind_eventfd(struct vdsm_kernel_stub *vdks, void *arg)
 {
 	int evfd;
@@ -345,6 +607,179 @@ int ide_km_deinit(struct vdsm_kernel_stub *vdks, void *context)
 	stm_info = xa_load(&vdks->ide_stream_info_xa, deinit_ctx.stream_id);
 	vdsm_be = vdks->be;
 	vdsm_be->ide_be->deinit(stm_info->private_data);
+
+	return ret;
+}
+
+/* TDISP */
+
+int tdisp_get_version(struct vdsm_kernel_stub *vdks, void *context)
+{
+	struct vdsm_driver_backend *vdsm_be;
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->tdisp_be == NULL ||
+	    vdsm_be->tdisp_be->get_version == NULL) {
+		pr_warn("%s: TDISP_GET_VERSION not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	/* TODO: implement tdisp_get_version */
+
+	return 0;
+}
+
+int tdisp_get_capabilities(struct vdsm_kernel_stub *vdks, void *context)
+{
+	struct vdsm_driver_backend *vdsm_be;
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->tdisp_be == NULL ||
+	    vdsm_be->tdisp_be->get_capabilities == NULL) {
+		pr_warn("%s: TDISP_GET_CAPABILITIES not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	/* TODO: implement tdisp_get_capabilities */
+
+	return 0;
+}
+
+int tdisp_lock_interface(struct vdsm_kernel_stub *vdks, void *context)
+{
+	struct vdsm_driver_backend *vdsm_be;
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->tdisp_be == NULL ||
+	    vdsm_be->tdisp_be->lock_interface == NULL) {
+		pr_warn("%s: TDISP_LOCK_INTERFACE not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	/* TODO: implement tdisp_lock_interface */
+
+	return 0;
+}
+
+int tdisp_get_device_interface_report(struct vdsm_kernel_stub *vdks, void *context)
+{
+	tdisp_interface_report_ctx_t *report_ctx;
+	struct device *dev = &vdks->pdev->dev;
+	int ret;
+
+	report_ctx = devm_kzalloc(dev, sizeof(tdisp_interface_report_ctx_t), GFP_KERNEL);
+	if (report_ctx == NULL) {
+		pr_err("%s: cannot allocate memory\n", __func__);
+		return -ENOMEM;
+	}
+
+	ret = copy_from_user((void *)report_ctx, context, sizeof(tdisp_interface_report_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy from user\n", __func__);
+		return ret;
+	}
+
+	ret = tdisp_device_intf_report_msg(vdks->pdev, report_ctx);
+	if (ret) {
+		pr_err("%s: failed to get interface report\n", __func__);
+		return ret;
+	}
+
+	ret = copy_to_user(context, (void *)report_ctx, sizeof(tdisp_interface_report_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy to user\n", __func__);
+		return ret;
+	}
+
+	return ret;
+}
+
+int tdisp_get_device_interface_state(struct vdsm_kernel_stub *vdks, void *context)
+{
+	struct vdsm_driver_backend *vdsm_be;
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->tdisp_be == NULL ||
+	    vdsm_be->tdisp_be->get_device_interface_state == NULL) {
+		pr_warn("%s: TDISP_GET_DEVICE_INTERFACE_STATE not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	/* TODO: implement tdisp_get_device_interface_state */
+
+	return 0;
+}
+
+int tdisp_start_interface(struct vdsm_kernel_stub *vdks, void *context)
+{
+	tdisp_start_ctx_t start_ctx;
+	struct vdsm_driver_backend *vdsm_be;
+	struct ide_stream_info *stm_info;
+	int ret;
+
+	ret = copy_from_user((void *)&start_ctx, context, sizeof(tdisp_start_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy from user\n", __func__);
+		return ret;
+	}
+
+	/* FIXME: how to get stream_id as xarray index in TDISP */
+	stm_info = xa_load(&vdks->ide_stream_info_xa, start_ctx.stream_id);
+	if (stm_info == NULL) {
+		pr_err("%s: failed to load ide_stream_info with index %d\n", __func__, 0);
+		return -EFAULT;
+	}
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->tdisp_be == NULL ||
+	    vdsm_be->tdisp_be->start_interface == NULL) {
+		pr_warn("%s: TDISP_START_INTERFACE not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = vdsm_be->tdisp_be->start_interface(stm_info->private_data);
+	if (ret)
+		pr_err("%s: failed to start interface\n", __func__);
+
+	return ret;
+}
+
+int tdisp_stop_interface(struct vdsm_kernel_stub *vdks, void *context)
+{
+	tdisp_stop_ctx_t stop_ctx;
+	struct vdsm_driver_backend *vdsm_be;
+	struct ide_stream_info *stm_info;
+	int ret;
+
+	ret = copy_from_user((void *)&stop_ctx, context, sizeof(tdisp_stop_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy from user\n", __func__);
+		return ret;
+	}
+
+	/* FIXME: how to get stream_id as xarray index in TDISP */
+	stm_info = xa_load(&vdks->ide_stream_info_xa, stop_ctx.stream_id);
+	if (stm_info == NULL) {
+		pr_err("%s: failed to load ide_stream_info with index %d\n", __func__, 0);
+		return -EFAULT;
+	}
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->tdisp_be == NULL ||
+	    vdsm_be->tdisp_be->stop_interface == NULL) {
+		pr_warn("%s: TDISP_STOP_INTERFACE not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = vdsm_be->tdisp_be->stop_interface(stm_info->private_data);
+	if (ret)
+		pr_err("%s: failed to stop interface\n", __func__);
 
 	return ret;
 }

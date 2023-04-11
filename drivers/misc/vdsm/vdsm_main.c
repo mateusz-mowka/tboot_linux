@@ -272,6 +272,34 @@ static long vdsm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		pr_info("vdsm: VDSM_IDE_KM_DEINIT\n");
 		ret = ide_km_deinit(vdks, (void *)arg);
 		break;
+	case VDSM_TDISP_GET_VERSION:
+		pr_info("vdsm: VDSM_TDISP_GET_VERSION\n");
+		ret = tdisp_get_version(vdks, (void *)arg);
+		break;
+	case VDSM_TDISP_GET_CAPABILITIES:
+		pr_info("vdsm: VDSM_TDISP_GET_CAPABILITIES\n");
+		ret = tdisp_get_capabilities(vdks, (void *)arg);
+		break;
+	case VDSM_TDISP_LOCK_INTERFACE:
+		pr_info("vdsm: VDSM_TDISP_LOCK_INTERFACE\n");
+		ret = tdisp_lock_interface(vdks, (void *)arg);
+		break;
+	case VDSM_TDISP_GET_DEVICE_INTERFACE_REPORT:
+		pr_info("vdsm: VDSM_TDISP_GET_DEVICE_INTERFACE_REPORT\n");
+		ret = tdisp_get_device_interface_report(vdks, (void *)arg);
+		break;
+	case VDSM_TDISP_GET_DEVICE_INTERFACE_STATE:
+		pr_info("vdsm: VDSM_TDISP_GET_DEVICE_INTERFACE_STATE\n");
+		ret = tdisp_get_device_interface_state(vdks, (void *)arg);
+		break;
+	case VDSM_TDISP_START_INTERFACE:
+		pr_info("vdsm: VDSM_TDISP_START_INTERFACE\n");
+		ret = tdisp_start_interface(vdks, (void *)arg);
+		break;
+	case VDSM_TDISP_STOP_INTERFACE:
+		pr_info("vdsm: VDSM_TDISP_STOP_INTERFACE\n");
+		ret = tdisp_stop_interface(vdks, (void *)arg);
+		break;
 	default:
 		pr_err("vdsm: unknown ioctl 0x%x\n", cmd);
 		ret = -EINVAL;
