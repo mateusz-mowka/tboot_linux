@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.4
+----------------
+7. intel_idle: add initial GNR support
+    https://jira.devtools.intel.com/browse/LFE-7137
+
 gnr-bkc-6.2-v1.3
 ----------------
 6. https://jira.devtools.intel.com/browse/HQM-701
