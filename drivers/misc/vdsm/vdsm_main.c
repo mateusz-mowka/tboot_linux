@@ -248,6 +248,30 @@ static long vdsm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		vdks->vdmb.task->complete(vdks->vdmb.task);
 		break;
 	}
+	case VDSM_IDE_KM_INIT:
+		pr_info("vdsm: VDSM_IDE_KM_INIT\n");
+		ret = ide_km_init(vdks, (void *)arg);
+		break;
+	case VDSM_IDE_KM_QUERY:
+		pr_info("vdsm: VDSM_IDE_KM_QUERY\n");
+		ret = ide_km_query(vdks, (void *)arg);
+		break;
+	case VDSM_IDE_KM_KEY_PROG:
+		pr_info("vdsm: VDSM_IDE_KM_KEY_PROG\n");
+		ret = ide_km_key_prog(vdks, (void *)arg);
+		break;
+	case VDSM_IDE_KM_KEY_SET_GO:
+		pr_info("vdsm: VDSM_IDE_KM_KEY_SET_GO\n");
+		ret = ide_km_key_set_go(vdks, (void *)arg);
+		break;
+	case VDSM_IDE_KM_KEY_SET_STOP:
+		pr_info("vdsm: VDSM_IDE_KM_KEY_SET_STOP\n");
+		ret = ide_km_key_set_stop(vdks, (void *)arg);
+		break;
+	case VDSM_IDE_KM_DEINIT:
+		pr_info("vdsm: VDSM_IDE_KM_DEINIT\n");
+		ret = ide_km_deinit(vdks, (void *)arg);
+		break;
 	default:
 		pr_err("vdsm: unknown ioctl 0x%x\n", cmd);
 		ret = -EINVAL;

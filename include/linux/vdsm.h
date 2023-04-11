@@ -16,8 +16,19 @@ extern bool enable_vdsm;
 
 extern struct xarray vdsm_driver_backend_xa;
 
+struct vdsm_prot_ide_km_backend {
+	void *(*init)(struct pci_dev *pdev, uint8_t stream_id);
+	int (*query)(void *private_data);
+	int (*key_prog)(void *private_data, uint32_t sub_stream,
+			uint8_t direction, uint32_t *key, uint32_t *iv_key);
+	int (*key_set_go)(void *private_data);
+	int (*key_set_stop)(void *private_data);
+	void (*deinit)(void *private_data);
+};
+
 struct vdsm_driver_backend {
 	const struct pci_device_id *dev_ids;
+	struct vdsm_prot_ide_km_backend *ide_be;
 };
 
 int vdsm_register_driver_backend(struct vdsm_driver_backend *be);
