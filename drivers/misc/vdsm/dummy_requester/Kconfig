@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menu "vDSM Dummy Requester"
+
+config VDSM_DUMMY_REQUESTER
+	tristate "vDSM Dummy Requester"
+	depends on VDSM_KERNEL_STUB
+	default m
+	help
+	  vDSM dummy requester for vDSM flow testing.
+
+endmenu

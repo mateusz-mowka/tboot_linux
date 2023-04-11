@@ -10,4 +10,5 @@ config VDSM_KERNEL_STUB
 	  vDSM Kernel Stub for kernel drivers to communicate with the user
 	  space SPDM responder emulator.
 
+source "drivers/misc/vdsm/dummy_requester/Kconfig"
 endmenu

@@ -418,10 +418,9 @@ spdm_request_t *generate_request_to_user(struct vdsm_kernel_stub *vdks)
 	u8 *payload;
 	spdm_request_t *req;
 	struct pci_doe_task *task;
-	struct device *dev = &vdks->pdev->dev;
 
 	task = vdks->vdmb.task;
-	req = devm_kzalloc(dev, task->request_pl_sz + PCI_DOE_HEADER_SIZE, GFP_KERNEL);
+	req = vdsm_alloc(vdks->pdev, task->request_pl_sz + PCI_DOE_HEADER_SIZE);
 	if (req == NULL)
 		return ERR_PTR(-ENOMEM);
 
@@ -457,7 +456,6 @@ int ide_km_init(struct vdsm_kernel_stub *vdks, void *context)
 	ide_km_init_ctx_t init_ctx;
 	struct vdsm_driver_backend *vdsm_be;
 	struct ide_stream_info *stm_info;
-	struct device *dev = &vdks->pdev->dev;
 	int ret;
 
 	ret = copy_from_user((void *)&init_ctx, context, sizeof(ide_km_init_ctx_t));
@@ -466,7 +464,7 @@ int ide_km_init(struct vdsm_kernel_stub *vdks, void *context)
 		return ret;
 	}
 
-	stm_info = devm_kzalloc(dev, sizeof(struct ide_stream_info), GFP_KERNEL);
+	stm_info = vdsm_alloc(vdks->pdev, sizeof(struct ide_stream_info));
 	if (stm_info == NULL) {
 		pr_err("%s: cannot allocate memory\n", __func__);
 		return -ENOMEM;
@@ -649,7 +647,6 @@ int ide_km_deinit(struct vdsm_kernel_stub *vdks, void *context)
 	ide_km_deinit_ctx_t deinit_ctx;
 	struct vdsm_driver_backend *vdsm_be;
 	struct ide_stream_info *stm_info;
-	struct device *dev = &vdks->pdev->dev;
 	int ret;
 
 	ret = copy_from_user((void *)&deinit_ctx, context, sizeof(ide_km_deinit_ctx_t));
@@ -658,7 +655,7 @@ int ide_km_deinit(struct vdsm_kernel_stub *vdks, void *context)
 		return ret;
 	}
 
-	stm_info = devm_kzalloc(dev, sizeof(struct ide_stream_info), GFP_KERNEL);
+	stm_info = vdsm_alloc(vdks->pdev, sizeof(struct ide_stream_info));
 	if (stm_info == NULL) {
 		pr_err("%s: cannot allocate memory\n", __func__);
 		return -ENOMEM;
@@ -727,10 +724,9 @@ int tdisp_lock_interface(struct vdsm_kernel_stub *vdks, void *context)
 int tdisp_get_device_interface_report(struct vdsm_kernel_stub *vdks, void *context)
 {
 	tdisp_interface_report_ctx_t *report_ctx;
-	struct device *dev = &vdks->pdev->dev;
 	int ret;
 
-	report_ctx = devm_kzalloc(dev, sizeof(tdisp_interface_report_ctx_t), GFP_KERNEL);
+	report_ctx = vdsm_alloc(vdks->pdev, sizeof(tdisp_interface_report_ctx_t));
 	if (report_ctx == NULL) {
 		pr_err("%s: cannot allocate memory\n", __func__);
 		return -ENOMEM;
@@ -900,10 +896,9 @@ int adisp_lock_interface(struct vdsm_kernel_stub *vdks, void *context)
 int adisp_get_device_interface_report(struct vdsm_kernel_stub *vdks, void *context)
 {
 	adisp_interface_report_ctx_t *report_ctx;
-	struct device *dev = &vdks->pdev->dev;
 	int ret;
 
-	report_ctx = devm_kzalloc(dev, sizeof(adisp_interface_report_ctx_t), GFP_KERNEL);
+	report_ctx = vdsm_alloc(vdks->pdev, sizeof(adisp_interface_report_ctx_t));
 	if (report_ctx == NULL) {
 		pr_err("%s: cannot allocate memory\n", __func__);
 		return -ENOMEM;

@@ -63,4 +63,6 @@ struct vdsm_kernel_stub {
 };
 #pragma pack(pop)
 
+inline void *vdsm_alloc(struct pci_dev *pdev, size_t size);
+
 #endif /* __VDSM_INTERNAL_H__ */

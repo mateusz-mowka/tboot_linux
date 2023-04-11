@@ -14,6 +14,11 @@
 bool enable_vdsm = 1;
 module_param(enable_vdsm, bool, 0600);
 
+bool enable_dummy_requester = 0;
+#if defined(CONFIG_VDSM_DUMMY_REQUESTER) || defined(CONFIG_VDSM_DUMMY_REQUESTER_MODULE)
+module_param(enable_dummy_requester, bool, 0600);
+#endif
+
 extern struct xarray vdsm_driver_backend_xa;
 
 static const struct file_operations vdsm_fops;
@@ -30,14 +35,24 @@ static void create_doe_mb_placeholder(struct pci_doe_mb *doe_mb,
 static inline struct vdsm_driver_backend *load_backend(struct pci_dev *pdev);
 static int signal_eventfd_to_user(struct vdsm_kernel_stub *vdks);
 
+inline void *vdsm_alloc(struct pci_dev *pdev, size_t size)
+{
+	struct device *dev = &pdev->dev;
+
+	if (enable_dummy_requester) {
+		return kzalloc(size, GFP_KERNEL);
+	}
+
+	return devm_kzalloc(dev, size, GFP_KERNEL);
+}
+
 /* Exported to DOE driver */
 struct pci_doe_mb *vdsm_doe_create_mb(struct pci_dev *pdev)
 {
 	struct vdsm_kernel_stub *vdks;
-	struct device *dev = &pdev->dev;
 	int ret;
 
-	vdks = devm_kzalloc(dev, sizeof(struct vdsm_kernel_stub), GFP_KERNEL);
+	vdks = vdsm_alloc(pdev, sizeof(struct vdsm_kernel_stub));
 	if (!vdks) {
 		ret = -ENOMEM;
 		goto exit_err;
@@ -228,10 +243,9 @@ static long vdsm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 	case VDSM_SEND_RESPONSE: {
 		/* alloc max response_pl_sz because we don't know doe_h.length yet */
-		struct device *dev = &vdks->pdev->dev;
 		spdm_response_t *resp =
-			devm_kzalloc(dev, vdks->vdmb.task->response_pl_sz +
-				     PCI_DOE_HEADER_SIZE, GFP_KERNEL);
+			vdsm_alloc(vdks->pdev, vdks->vdmb.task->response_pl_sz +
+				   PCI_DOE_HEADER_SIZE);
 		if (resp == NULL) {
 			pr_err("Failed to alloc space for response\n");
 			ret = -ENOMEM;
