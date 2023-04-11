@@ -300,6 +300,38 @@ static long vdsm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		pr_info("vdsm: VDSM_TDISP_STOP_INTERFACE\n");
 		ret = tdisp_stop_interface(vdks, (void *)arg);
 		break;
+	case VDSM_ADISP_GET_VERSION:
+		pr_info("vdsm: VDSM_ADISP_GET_VERSION\n");
+		ret = adisp_get_version(vdks, (void *)arg);
+		break;
+	case VDSM_ADISP_GET_CAPABILITIES:
+		pr_info("vdsm: VDSM_ADISP_GET_CAPABILITIES\n");
+		ret = adisp_get_capabilities(vdks, (void *)arg);
+		break;
+	case VDSM_ADISP_LOCK_INTERFACE:
+		pr_info("vdsm: VDSM_ADISP_LOCK_INTERFACE\n");
+		ret = adisp_lock_interface(vdks, (void *)arg);
+		break;
+	case VDSM_ADISP_GET_DEVICE_INTERFACE_REPORT:
+		pr_info("vdsm: VDSM_ADISP_GET_DEVICE_INTERFACE_REPORT\n");
+		ret = adisp_get_device_interface_report(vdks, (void *)arg);
+		break;
+	case VDSM_ADISP_GET_DEVICE_INTERFACE_STATE:
+		pr_info("vdsm: VDSM_ADISP_GET_DEVICE_INTERFACE_STATE\n");
+		ret = adisp_get_device_interface_state(vdks, (void *)arg);
+		break;
+	case VDSM_ADISP_START_INTERFACE_MMIO:
+		pr_info("vdsm: VDSM_ADISP_START_MMIO\n");
+		ret = adisp_start_interface_mmio(vdks, (void *)arg);
+		break;
+	case VDSM_ADISP_START_INTERFACE_DMA:
+		pr_info("vdsm: VDSM_ADISP_START_DMA\n");
+		ret = adisp_start_interface_dma(vdks, (void *)arg);
+		break;
+	case VDSM_ADISP_STOP_INTERFACE:
+		pr_info("vdsm: VDSM_ADISP_STOP\n");
+		ret = adisp_stop_interface(vdks, (void *)arg);
+		break;
 	default:
 		pr_err("vdsm: unknown ioctl 0x%x\n", cmd);
 		ret = -EINVAL;

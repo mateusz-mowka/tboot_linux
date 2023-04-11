@@ -4,6 +4,7 @@
 
 #include "ide_km.h"
 #include "tdisp.h"
+#include "adisp.h"
 #include "vdsm_internal.h"
 
 #define VDSM				0xDD
@@ -30,6 +31,16 @@
 #define TDISP_START_INTERFACE_CMD		0x15
 #define TDISP_STOP_INTERFACE_CMD		0x16
 
+/* ADISP */
+#define ADISP_GET_VERSION_CMD			0x20
+#define ADISP_GET_CAPABILITIES_CMD		0x21
+#define ADISP_LOCK_INTERFACE_CMD		0x22
+#define ADISP_GET_DEVICE_INTERFACE_REPORT_CMD	0x23
+#define ADISP_GET_DEVICE_INTERFACE_STATE_CMD	0x24
+#define ADISP_START_INTERFACE_MMIO_CMD		0x25
+#define ADISP_START_INTERFACE_DMA_CMD		0x26
+#define ADISP_STOP_INTERFACE_CMD		0x27
+
 #define VDSM_BIND_EVFD			_IOW(VDSM, BIND_EVFD, void *)
 #define VDSM_RECV_REQUEST		_IOR(VDSM, RECV_REQUEST, void *)
 #define VDSM_SEND_RESPONSE		_IOW(VDSM, SEND_RESPONSE, void *)
@@ -48,6 +59,15 @@
 #define VDSM_TDISP_GET_DEVICE_INTERFACE_STATE	_IOR(VDSM, TDISP_GET_DEVICE_INTERFACE_STATE_CMD, void *)
 #define VDSM_TDISP_START_INTERFACE		_IOW(VDSM, TDISP_START_INTERFACE_CMD, void *)
 #define VDSM_TDISP_STOP_INTERFACE		_IOW(VDSM, TDISP_STOP_INTERFACE_CMD, void *)
+
+#define VDSM_ADISP_GET_VERSION			_IOR(VDSM, ADISP_GET_VERSION_CMD, void *)
+#define VDSM_ADISP_GET_CAPABILITIES		_IOR(VDSM, ADISP_GET_CAPABILITIES_CMD, void *)
+#define VDSM_ADISP_LOCK_INTERFACE		_IOW(VDSM, ADISP_LOCK_INTERFACE_CMD, void *)
+#define VDSM_ADISP_GET_DEVICE_INTERFACE_REPORT	_IOWR(VDSM, ADISP_GET_DEVICE_INTERFACE_REPORT_CMD, void *)
+#define VDSM_ADISP_GET_DEVICE_INTERFACE_STATE	_IOR(VDSM, ADISP_GET_DEVICE_INTERFACE_STATE_CMD, void *)
+#define VDSM_ADISP_START_INTERFACE_MMIO		_IOW(VDSM, ADISP_START_INTERFACE_MMIO_CMD, void *)
+#define VDSM_ADISP_START_INTERFACE_DMA		_IOW(VDSM, ADISP_START_INTERFACE_DMA_CMD, void *)
+#define VDSM_ADISP_STOP_INTERFACE		_IOW(VDSM, ADISP_STOP_INTERFACE_CMD, void *)
 
 #define SUB_STREAM(ctx) \
 	((uint32_t)(ctx.key_sub_stream & VDSM_IDE_KM_KEY_SUB_STREAM_MASK) >> 4)
@@ -80,5 +100,15 @@ int tdisp_get_device_interface_report(struct vdsm_kernel_stub *vdks, void *conte
 int tdisp_get_device_interface_state(struct vdsm_kernel_stub *vdks, void *context);
 int tdisp_start_interface(struct vdsm_kernel_stub *vdks, void *context);
 int tdisp_stop_interface(struct vdsm_kernel_stub *vdks, void *context);
+
+/* ADISP */
+int adisp_get_version(struct vdsm_kernel_stub *vdks, void *context);
+int adisp_get_capabilities(struct vdsm_kernel_stub *vdks, void *context);
+int adisp_lock_interface(struct vdsm_kernel_stub *vdks, void *context);
+int adisp_get_device_interface_report(struct vdsm_kernel_stub *vdks, void *context);
+int adisp_get_device_interface_state(struct vdsm_kernel_stub *vdks, void *context);
+int adisp_start_interface_mmio(struct vdsm_kernel_stub *vdks, void *context);
+int adisp_start_interface_dma(struct vdsm_kernel_stub *vdks, void *context);
+int adisp_stop_interface(struct vdsm_kernel_stub *vdks, void *context);
 
 #endif

@@ -36,10 +36,22 @@ struct vdsm_prot_tdisp_backend {
 	int (*stop_interface)(void *private_data);
 };
 
+struct vdsm_prot_adisp_backend {
+	int (*get_version)(struct pci_dev *pdev);
+	int (*get_capabilities)(struct pci_dev *pdev);
+	int (*lock_interface)(struct pci_dev *pdev);
+	int (*get_device_interface_report)(struct pci_dev *pdev);
+	int (*get_device_interface_state)(struct pci_dev *pdev);
+	int (*start_interface_mmio)(void *private_data);
+	int (*start_interface_dma)(void *private_data);
+	int (*stop_interface)(void *private_data);
+};
+
 struct vdsm_driver_backend {
 	const struct pci_device_id *dev_ids;
 	struct vdsm_prot_ide_km_backend *ide_be;
 	struct vdsm_prot_tdisp_backend *tdisp_be;
+	struct vdsm_prot_adisp_backend *adisp_be;
 };
 
 int vdsm_register_driver_backend(struct vdsm_driver_backend *be);

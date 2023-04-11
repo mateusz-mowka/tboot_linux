@@ -329,6 +329,66 @@ tdisp_device_intf_report_msg(struct pci_dev *pdev, tdisp_interface_report_ctx_t 
 	return ret;
 }
 
+static int
+adisp_device_intf_report_msg(struct pci_dev *pdev, adisp_interface_report_ctx_t *intf_report_ctx)
+{
+	pci_adisp_mmio_range_t dev_mmio[DEVIF_RP_MMIO_NUM] = { 0 };
+	pci_adisp_device_interface_report_struct_t *report;
+	pci_tdisp_mmio_range_t *range;
+	uint32_t *dev_specific_info_len;
+	uint32_t val32;
+	uint16_t val16;
+	int pos;
+	int ret;
+	int i;
+
+	ret = generate_dev_mmio_range(pdev, (pci_tdisp_mmio_range_t *)dev_mmio);
+	if (ret)
+		return ret;
+
+	report = (pci_adisp_device_interface_report_struct_t *)(intf_report_ctx->interface_report);
+	report->intf_info = 0;
+	report->lnr_ctrl = 0;
+	report->virt_dev_id = 0;
+	if (pdev->msix_cap) {
+		ret = pci_read_config_word(
+			pdev, pdev->msix_cap + PCI_MSIX_FLAGS, &val16);
+		if (ret)
+			return ret;
+		report->msix_msg_ctrl = val16;
+	}
+	pos = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_TPH);
+	if (pos) {
+		pci_read_config_dword(pdev, pos + PCI_TPH_CTRL, &val32);
+		report->tph_ctrl = val32;
+	}
+	pos = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_PASID);
+	if (pos) {
+		ret = pci_read_config_word(pdev, pos + PCI_PASID_CTRL, &val16);
+		report->pasid_ctrl = val16;
+	}
+
+	intf_report_ctx->interface_report_size += sizeof(*report);
+
+	range = (pci_tdisp_mmio_range_t *)(report + 1);
+	for (i = 0; i < DEVIF_RP_MMIO_NUM; i++) {
+		if (!dev_mmio[i].number_of_pages)
+			continue;
+		range->first_page = dev_mmio[i].first_page + intf_report_ctx->mmio_reporting_offset;
+		range->number_of_pages = dev_mmio[i].number_of_pages;
+		range->range_attributes = dev_mmio[i].range_attributes;
+		range->range_id = dev_mmio[i].range_id;
+		report->mmio_range_cnt++;
+		intf_report_ctx->interface_report_size += sizeof(*range);
+		range++;
+	}
+	dev_specific_info_len = (uint32_t *)range;
+	*dev_specific_info_len = 0;
+	intf_report_ctx->interface_report_size += sizeof(*dev_specific_info_len);
+
+	return ret;
+}
+
 int vdsm_bind_eventfd(struct vdsm_kernel_stub *vdks, void *arg)
 {
 	int evfd;
@@ -778,6 +838,214 @@ int tdisp_stop_interface(struct vdsm_kernel_stub *vdks, void *context)
 	}
 
 	ret = vdsm_be->tdisp_be->stop_interface(stm_info->private_data);
+	if (ret)
+		pr_err("%s: failed to stop interface\n", __func__);
+
+	return ret;
+}
+
+/* ADISP */
+
+int adisp_get_version(struct vdsm_kernel_stub *vdks, void *context)
+{
+	struct vdsm_driver_backend *vdsm_be;
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->adisp_be == NULL ||
+	    vdsm_be->adisp_be->get_version == NULL) {
+		pr_warn("%s: ADISP_GET_VERSION not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	/* TODO: implement adisp_get_version */
+
+	return 0;
+}
+
+int adisp_get_capabilities(struct vdsm_kernel_stub *vdks, void *context)
+{
+	struct vdsm_driver_backend *vdsm_be;
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->adisp_be == NULL ||
+	    vdsm_be->adisp_be->get_capabilities == NULL) {
+		pr_warn("%s: ADISP_GET_CAPABILITIES not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	/* TODO: implement adisp_get_capabilities */
+
+	return 0;
+}
+
+int adisp_lock_interface(struct vdsm_kernel_stub *vdks, void *context)
+{
+	struct vdsm_driver_backend *vdsm_be;
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->adisp_be == NULL ||
+	    vdsm_be->adisp_be->lock_interface == NULL) {
+		pr_warn("%s: ADISP_LOCK_INTERFACE not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	/* TODO: implement adisp_lock_interface */
+
+	return 0;
+}
+
+int adisp_get_device_interface_report(struct vdsm_kernel_stub *vdks, void *context)
+{
+	adisp_interface_report_ctx_t *report_ctx;
+	struct device *dev = &vdks->pdev->dev;
+	int ret;
+
+	report_ctx = devm_kzalloc(dev, sizeof(adisp_interface_report_ctx_t), GFP_KERNEL);
+	if (report_ctx == NULL) {
+		pr_err("%s: cannot allocate memory\n", __func__);
+		return -ENOMEM;
+	}
+
+	ret = copy_from_user((void *)report_ctx, context, sizeof(adisp_interface_report_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy from user\n", __func__);
+		return ret;
+	}
+
+	ret = adisp_device_intf_report_msg(vdks->pdev, report_ctx);
+	if (ret) {
+		pr_err("%s: failed to get interface report\n", __func__);
+		return ret;
+	}
+
+	ret = copy_to_user(context, (void *)report_ctx, sizeof(adisp_interface_report_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy to user\n", __func__);
+		return ret;
+	}
+
+	return ret;
+}
+
+int adisp_get_device_interface_state(struct vdsm_kernel_stub *vdks, void *context)
+{
+	struct vdsm_driver_backend *vdsm_be;
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->adisp_be == NULL ||
+	    vdsm_be->adisp_be->get_device_interface_state == NULL) {
+		pr_warn("%s: ADISP_GET_DEVICE_INTERFACE_STATE not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	/* TODO: implement adisp_get_device_interface_state */
+
+	return 0;
+}
+
+int adisp_start_interface_mmio(struct vdsm_kernel_stub *vdks, void *context)
+{
+	adisp_start_mmio_ctx_t start_mmio_ctx;
+	struct vdsm_driver_backend *vdsm_be;
+	struct ide_stream_info *stm_info;
+	int ret;
+
+	ret = copy_from_user((void *)&start_mmio_ctx, context, sizeof(adisp_start_mmio_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy from user\n", __func__);
+		return ret;
+	}
+
+	/* FIXME: how to get stream_id as xarray index in TDISP */
+	stm_info = xa_load(&vdks->ide_stream_info_xa, start_mmio_ctx.stream_id);
+	if (stm_info == NULL) {
+		pr_err("%s: failed to load ide_stream_info with index %d\n", __func__, 0);
+		return -EFAULT;
+	}
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->adisp_be == NULL ||
+	    vdsm_be->adisp_be->start_interface_mmio == NULL) {
+		pr_warn("%s: ADISP_START_INTERFACE_MMIO not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = vdsm_be->adisp_be->start_interface_mmio(stm_info->private_data);
+	if (ret)
+		pr_err("%s: failed to start interface mmio\n", __func__);
+
+	return ret;
+}
+
+int adisp_start_interface_dma(struct vdsm_kernel_stub *vdks, void *context)
+{
+	adisp_start_dma_ctx_t start_dma_ctx;
+	struct vdsm_driver_backend *vdsm_be;
+	struct ide_stream_info *stm_info;
+	int ret;
+
+	ret = copy_from_user((void *)&start_dma_ctx, context, sizeof(adisp_start_dma_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy from user\n", __func__);
+		return ret;
+	}
+
+	/* FIXME: how to get stream_id as xarray index in TDISP */
+	stm_info = xa_load(&vdks->ide_stream_info_xa, start_dma_ctx.stream_id);
+	if (stm_info == NULL) {
+		pr_err("%s: failed to load ide_stream_info with index %d\n", __func__, 0);
+		return -EFAULT;
+	}
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->adisp_be == NULL ||
+	    vdsm_be->adisp_be->start_interface_dma == NULL) {
+		pr_warn("%s: ADISP_START_INTERFACE_DMA not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = vdsm_be->adisp_be->start_interface_dma(stm_info->private_data);
+	if (ret)
+		pr_err("%s: failed to start interface dma\n", __func__);
+
+	return ret;
+}
+
+int adisp_stop_interface(struct vdsm_kernel_stub *vdks, void *context)
+{
+	adisp_stop_ctx_t stop_ctx;
+	struct vdsm_driver_backend *vdsm_be;
+	struct ide_stream_info *stm_info;
+	int ret;
+
+	ret = copy_from_user((void *)&stop_ctx, context, sizeof(adisp_stop_ctx_t));
+	if (ret) {
+		pr_err("%s: failed to copy from user\n", __func__);
+		return ret;
+	}
+
+	/* FIXME: how to get stream_id as xarray index in TDISP */
+	stm_info = xa_load(&vdks->ide_stream_info_xa, stop_ctx.stream_id);
+	if (stm_info == NULL) {
+		pr_err("%s: failed to load ide_stream_info with index %d\n", __func__, 0);
+		return -EFAULT;
+	}
+
+	vdsm_be = vdks->be;
+	if (vdsm_be == NULL ||
+	    vdsm_be->adisp_be == NULL ||
+	    vdsm_be->adisp_be->stop_interface == NULL) {
+		pr_warn("%s: ADISP_STOP_INTERFACE not supported by the device\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = vdsm_be->adisp_be->stop_interface(stm_info->private_data);
 	if (ret)
 		pr_err("%s: failed to stop interface\n", __func__);
 
