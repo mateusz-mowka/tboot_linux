@@ -19,6 +19,7 @@
 #include <linux/pci.h>
 #include <linux/pci-doe.h>
 #include <linux/workqueue.h>
+#include <linux/vdsm.h>
 
 #define PCI_DOE_PROTOCOL_DISCOVERY 0
 
@@ -414,6 +415,22 @@ struct pci_doe_mb *pcim_doe_create_mb(struct pci_dev *pdev, u16 cap_offset)
 	struct device *dev = &pdev->dev;
 	int rc;
 
+	if (enable_vdsm && is_registered_to_vdsm(pdev)) {
+		/* Create fake DOE mailbox. NULL indicates fallback to non-vDSM path. */
+		doe_mb = vdsm_doe_create_mb(pdev);
+		if (IS_ERR(doe_mb)) {
+			pr_err("Failed to create vDSM doe_mb\n");
+		} else {
+			rc = pci_doe_cache_protocols(doe_mb);
+			if (rc) {
+				pr_err("Failed to cache protocols in vDSM doe_mb");
+				return ERR_PTR(rc);
+			}
+
+		}
+		return doe_mb;
+	}
+
 	doe_mb = devm_kzalloc(dev, sizeof(*doe_mb), GFP_KERNEL);
 	if (!doe_mb)
 		return ERR_PTR(-ENOMEM);
@@ -512,6 +529,18 @@ EXPORT_SYMBOL_GPL(pci_doe_supports_prot);
  */
 int pci_doe_submit_task(struct pci_doe_mb *doe_mb, struct pci_doe_task *task)
 {
+	int rc;
+
+	if (enable_vdsm && is_registered_to_vdsm(doe_mb->pdev)) {
+		rc = vdsm_doe_submit_task(doe_mb, task, doe_mb->pdev);
+		if (rc) {
+			pr_err("Failed to submit task to vDSM doe_mb\n");
+			return rc;
+		}
+
+		return 0;
+	}
+
 	if (!pci_doe_supports_prot(doe_mb, task->prot.vid, task->prot.type))
 		return -EINVAL;
 
