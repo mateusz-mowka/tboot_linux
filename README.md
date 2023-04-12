@@ -13,6 +13,15 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.5
+----------------
+8. Add Confidential Computing Event Log (CCEL) support,
+    https://jira.devtools.intel.com/browse/LFE-6431
+    https://hsdes.intel.com/appstore/article/#/16019570262
+    https://hsdes.intel.com/appstore/article/#/15012454062
+    ACPICA: Add CCEL table header - upstreamed as 407144ebd445 ACPICA: iASL: Add CCEL table to both compiler/disassembler
+    ACPI/sysfs: Enable ACPI sysfs support for CCEL records
+
 gnr-bkc-6.2-v1.4
 ----------------
 7. intel_idle: add initial GNR support
