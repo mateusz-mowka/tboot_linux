@@ -5303,3 +5303,13 @@ void tdx_module_update_destroy(void)
 	sysfs_remove_group(&cpu_subsys.dev_root->kobj, &cpu_root_tdx_group);
 }
 #endif
+
+int tdx_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi)
+{
+	return 0;
+}
+
+int tdx_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi)
+{
+	return 0;
+}

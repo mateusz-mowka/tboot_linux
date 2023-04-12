@@ -949,6 +949,22 @@ static bool vt_match_fw(struct kvm *kvm, struct kvm_firmware *fw)
 	return false;
 }
 
+static int vt_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi)
+{
+	if (!is_td(kvm))
+		return -ENOTTY;
+
+	return tdx_bind_tdi(kvm, tdi);
+}
+
+static int vt_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi)
+{
+	if (!is_td(kvm))
+		return -ENOTTY;
+
+	return tdx_unbind_tdi(kvm, tdi);
+}
+
 struct kvm_x86_ops vt_x86_ops __initdata = {
 	.name = KBUILD_MODNAME,
 
@@ -1108,6 +1124,8 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.match_fw = vt_match_fw,
 
 	.ioasid_bind = vmx_ioasid_bind,
+	.bind_tdi = vt_bind_tdi,
+	.unbind_tdi = vt_unbind_tdi,
 };
 
 struct kvm_x86_init_ops vt_init_ops __initdata = {

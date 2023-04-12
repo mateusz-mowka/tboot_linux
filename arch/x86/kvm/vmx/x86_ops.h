@@ -206,6 +206,8 @@ void tdx_sync_dirty_debug_regs(struct kvm_vcpu *vcpu);
 void tdx_update_exception_bitmap(struct kvm_vcpu *vcpu);
 void tdx_set_dr7(struct kvm_vcpu *vcpu, unsigned long val);
 bool tdx_check_apicv_inhibit_reasons(struct kvm *kvm, ulong bit);
+int tdx_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi);
+int tdx_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi);
 #else
 static inline int tdx_init(void) { return 0; };
 static inline int tdx_hardware_setup(struct kvm_x86_ops *x86_ops) { return 0; }
@@ -280,6 +282,8 @@ static inline void tdx_sync_dirty_debug_regs(struct kvm_vcpu *vcpu) {}
 static inline void tdx_update_exception_bitmap(struct kvm_vcpu *vcpu) {}
 static inline void tdx_set_dr7(struct kvm_vcpu *vcpu, unsigned long val) {}
 static inline bool tdx_check_apicv_inhibit_reasons(struct kvm *kvm, ulong bit) { return false; }
+static inline int tdx_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi) { return -EOPNOTSUPP; }
+static inline int tdx_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi) { return -EOPNOTSUPP; }
 #endif
 
 #if defined(CONFIG_INTEL_TDX_HOST) && defined(CONFIG_KVM_SMM)
