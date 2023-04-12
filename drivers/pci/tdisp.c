@@ -8,6 +8,7 @@
 #include <linux/pci.h>
 #include <linux/pci-doe.h>
 #include <linux/kvm_host.h>
+#include <linux/rpb.h>
 
 static int pci_tdi_bind_kvm(struct pci_tdi *tdi, struct kvm *kvm)
 {
@@ -53,6 +54,30 @@ static int pci_tdisp_create_doe_mb(struct pci_tdisp_dev *tdev)
 	struct device *dev = &pdev->dev;
 	struct pci_doe_mb *doe_mb;
 	u16 off = 0;
+
+	/* WA for VTC without DOE cap on Simics. */
+	if (is_vtc_device(pdev)) {
+		doe_mb = pcim_doe_create_mb(pdev, off);
+		if (IS_ERR(doe_mb)) {
+			dev_err(dev, "Failed to create MB object @ %x\n", off);
+			return -ENODEV;
+		}
+
+		if (!pci_doe_supports_prot(doe_mb, PCI_VENDOR_ID_PCI_SIG,
+					   PCI_DOE_PROTOCOL_SPDM)) {
+			dev_err(dev, "MB object @ %x doesn't support SPDM\n", off);
+			return -ENODEV;
+		}
+
+		if (!pci_doe_supports_prot(doe_mb, PCI_VENDOR_ID_PCI_SIG,
+					   PCI_DOE_PROTOCOL_SECURED_SPDM)) {
+			dev_err(dev, "MB object @ %x doesn't support SPDM\n", off);
+			return -ENODEV;
+		}
+
+		tdev->doe_mb = doe_mb;
+		return 0;
+	}
 
 	pci_doe_for_each_off(pdev, off) {
 		doe_mb = pcim_doe_create_mb(pdev, off);
