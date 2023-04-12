@@ -10,6 +10,7 @@
 #include <linux/bitfield.h>
 #include <linux/dma-mapping.h>
 #include <linux/delay.h>
+#include <linux/vdsm.h>
 
 static int force_upper_vector = 1;
 module_param(force_upper_vector, int, 0644);
@@ -2137,9 +2138,43 @@ static inline int tdisp_stop_intf(void *private_data)
 	return _rpb_set_trust_bit(ide, false);
 }
 
+static struct vdsm_prot_ide_km_backend ide_be = {
+	.init = __rpb_ide_init,
+	.key_prog = rpb_key_prog,
+	.key_set_go = rpb_key_set_go,
+	.key_set_stop = rpb_key_set_stop,
+	.deinit = __rpb_ide_deinit,
+};
+
+static struct vdsm_prot_adisp_backend adisp_be = {
+	.start_interface_mmio = adisp_start_intf_mmio,
+	.start_interface_dma = adisp_start_intf_dma,
+	.stop_interface = adisp_stop_intf,
+};
+
+static struct vdsm_prot_tdisp_backend tdisp_be = {
+	.start_interface = tdisp_start_intf,
+	.stop_interface = tdisp_stop_intf,
+};
+
+static struct vdsm_driver_backend vdsm_be = {
+	.dev_ids = rpb_id_table,
+	.ide_be = &ide_be,
+	.adisp_be = &adisp_be,
+	.tdisp_be = &tdisp_be,
+};
+
 static int __init rpb_init(void)
 {
+	int ret;
+
 	BUILD_BUG_ON(sizeof(struct vm_vector) != 16);
+
+	ret = vdsm_register_driver_backend(&vdsm_be);
+	if (ret) {
+		printk(KERN_ERR "vdsm_register_driver_backend failed\n");
+		return ret;
+	}
 
 	return pci_register_driver(&rpb_driver);
 }
@@ -2147,6 +2182,7 @@ static int __init rpb_init(void)
 static void __exit rpb_exit(void)
 {
 	pci_unregister_driver(&rpb_driver);
+	vdsm_unregister_driver_backend(&vdsm_be);
 }
 
 module_init(rpb_init);
