@@ -13,6 +13,15 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.7
+----------------
+10. Fix QAT device address translation issue with invalidation completion ordering, by issuing an extra dTLB flush for QAT devices on impacted platforms of all SPR/EMR steppings, GNR stepping A0 and B0, SRF stepping A0, and GNR-D steppping A0.
+    https://hsdes.intel.com/appstore/article/#/22015770501
+    https://jira.devtools.intel.com/browse/LFE-6307
+    [Pre-Production] iommu/vt-d: Extra dTLB flush for QAT devices on GNR and SRF platforms
+    iommu/vt-d: Fix buggy QAT device mask - upstreamed
+    iommu/vt-d: Add a fix for devices need extra dtlb flush - upstreamed
+
 gnr-bkc-6.2-v1.6
 ----------------
 9. This fixes an failure of the tool when running on GNR Q2TK, which supports PP level4 only.
