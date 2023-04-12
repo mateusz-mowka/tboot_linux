@@ -2370,4 +2370,20 @@ struct kvm_memory_attributes {
 #define KVM_MEMORY_ATTRIBUTE_EXECUTE           (1ULL << 2)
 #define KVM_MEMORY_ATTRIBUTE_PRIVATE           (1ULL << 3)
 
+#define KVM_TDI_GET_INFO	_IOWR(KVMIO,   0xc5, struct kvm_tdi_info)
+#define KVM_TDI_USER_REQUEST	_IOWR(KVMIO,   0xc6, struct kvm_tdi_user_request)
+
+struct kvm_tdi_info {
+	__u32 func_id;
+	__u64 rsvd;
+	__u64 nonce0;
+	__u64 nonce1;
+	__u64 nonce2;
+	__u64 nonce3;
+};
+
+struct kvm_tdi_user_request {
+	__u32 func_id;
+	__u64 rsvd;
+};
 #endif /* __LINUX_KVM_H */

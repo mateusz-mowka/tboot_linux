@@ -5313,3 +5313,13 @@ int tdx_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi)
 {
 	return 0;
 }
+
+int tdx_tdi_get_info(struct kvm *kvm, struct kvm_tdi_info *info)
+{
+	return 0;
+}
+
+int tdx_tdi_user_request(struct kvm *kvm, struct kvm_tdi_user_request *req)
+{
+	return 0;
+}

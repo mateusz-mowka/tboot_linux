@@ -162,6 +162,8 @@ KVM_X86_OP_OPTIONAL_RET0(match_fw)
 KVM_X86_OP(ioasid_bind)
 KVM_X86_OP_OPTIONAL(bind_tdi)
 KVM_X86_OP_OPTIONAL(unbind_tdi)
+KVM_X86_OP_OPTIONAL(tdi_get_info)
+KVM_X86_OP_OPTIONAL(tdi_user_request)
 
 #undef KVM_X86_OP
 #undef KVM_X86_OP_OPTIONAL
