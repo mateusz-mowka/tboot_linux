@@ -13,6 +13,12 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.8
+----------------
+11. Fix an issue that a vdev is created without a work queue bound to it. The fix is to have the just created vdev to be removed if this vdev cannot be bound to the dedicated work queue.
+    https://hsdes.intel.com/appstore/article/#/22015866268
+    vfio: idxd: Fix vdev bound to DWQ
+
 gnr-bkc-6.2-v1.7
 ----------------
 10. Fix QAT device address translation issue with invalidation completion ordering, by issuing an extra dTLB flush for QAT devices on impacted platforms of all SPR/EMR steppings, GNR stepping A0 and B0, SRF stepping A0, and GNR-D steppping A0.
