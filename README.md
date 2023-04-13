@@ -13,6 +13,12 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.9
+----------------
+12. Like avx2_p1 and avx512_p1, don't display amx_p1 frequency when it is Zero.
+    This fixes https://hsdes.intel.com/appstore/article/#/16019865009
+    tools/power/x86/intel-speed-select: ignore invalid amx_p1
+
 gnr-bkc-6.2-v1.8
 ----------------
 11. Fix an issue that a vdev is created without a work queue bound to it. The fix is to have the just created vdev to be removed if this vdev cannot be bound to the dedicated work queue.
