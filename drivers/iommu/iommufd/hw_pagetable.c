@@ -282,8 +282,10 @@ int iommufd_hwpt_invalidate(struct iommufd_ucmd *ucmd)
 	rc = copy_struct_from_user(hwpt->cache, cmd->data_len,
 				   (void __user *)cmd->data_uptr,
 				   cmd->data_len);
-	if (rc)
+	if (rc){
+		rc = -EINVAL;
 		goto out_put_hwpt;
+	}
 
 	iommu_iotlb_sync_user(hwpt->domain, hwpt->cache, cmd->data_len);
 out_put_hwpt:

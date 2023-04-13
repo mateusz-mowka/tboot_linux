@@ -26,6 +26,7 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 	struct intel_iommu *iommu = info->iommu;
 	int ret = 0;
 	unsigned long flags;
+	struct subdev_domain_info *sinfo;
 
 	if (pasid == PASID_RID2PASID && info->domain)
 		device_block_translation(dev);
@@ -67,9 +68,28 @@ static int intel_nested_attach_dev_pasid(struct iommu_domain *domain,
 		return ret;
 	}
 
+	sinfo = kzalloc(sizeof(*sinfo), GFP_ATOMIC);
+	if (!sinfo)
+		return -ENOMEM;
+
+	sinfo->domain = dmar_domain;
+	sinfo->pasid = pasid;
+	sinfo->pdev = dev;
+
 	spin_lock_irqsave(&dmar_domain->lock, flags);
-	if (++info->nested_users == 1)
+	ret = xa_err(xa_store(&info->subdevice_array, pasid,
+			      sinfo, GFP_ATOMIC));
+	if (ret) {
+		spin_unlock_irqrestore(&dmar_domain->lock, flags);
+		return -EINVAL;
+	}
+
+	list_add(&sinfo->link_domain, &dmar_domain->subdevices);
+
+	if (++info->nested_users == 1) {
 		list_add(&info->link, &s2_domain->devices);
+	}
+
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 	domain_update_iommu_cap(dmar_domain);
 	return ret;
@@ -79,6 +99,7 @@ static void intel_nested_detach_dev_pasid(struct device *dev, ioasid_t pasid)
 {
 	struct iommu_domain *domain;
 	struct device_domain_info *info = dev_iommu_priv_get(dev);
+	struct subdev_domain_info *sinfo;
 	struct dmar_domain *dmar_domain;
 	struct intel_iommu *iommu = info->iommu;
 	unsigned long flags;
@@ -101,9 +122,13 @@ static void intel_nested_detach_dev_pasid(struct device *dev, ioasid_t pasid)
 
 	domain_detach_iommu(dmar_domain, iommu);
 	spin_lock_irqsave(&dmar_domain->lock, flags);
+	sinfo = xa_load(&info->subdevice_array, pasid);
+	list_del(&sinfo->link_domain);
+	xa_erase(&info->subdevice_array, pasid);
 	if (--info->nested_users == 0)
 		list_del(&info->link);
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
+	kfree(sinfo);
 }
 
 static int intel_nested_attach_dev(struct iommu_domain *domain,
@@ -162,10 +187,18 @@ static void intel_nested_iotlb_sync_user(struct iommu_domain *domain,
 {
 	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
 	struct device_domain_info *info;
+	struct subdev_domain_info *sinfo;
 
-	list_for_each_entry(info, &dmar_domain->devices, link)
+	list_for_each_entry(info, &dmar_domain->devices, link) {
 		intel_nested_invalidate(info->dev, dmar_domain,
 					user_data, data_len);
+	}
+
+	list_for_each_entry(sinfo, &dmar_domain->subdevices, link_domain) {
+		intel_nested_invalidate(sinfo->pdev, dmar_domain,
+					user_data, data_len);
+	}
+
 }
 
 static const struct iommu_domain_ops intel_nested_domain_ops = {
