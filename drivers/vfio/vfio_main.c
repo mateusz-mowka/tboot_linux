@@ -1295,17 +1295,18 @@ static int vfio_ioctl_device_attach(struct vfio_device *device,
 		return -ENODEV;
 
 	mutex_lock(&device->dev_set->lock);
-	pasid_attach = attach.flags & VFIO_DEVICE_ATTACH_IOMMUFD_PT_PASID;
-	if (pasid_attach &&
-	    vfio_find_pasid(attach.pasid, true))
-		return -EINVAL;
-
 	pt_id = attach.pt_id;
+	pasid_attach = attach.flags & VFIO_DEVICE_ATTACH_IOMMUFD_PT_PASID;
+	if (pasid_attach && pt_id != IOMMUFD_INVALID_ID) {
+		if (vfio_find_pasid(attach.pasid, true))
+			return -EINVAL;
+	}
+
 	if (pasid_attach) {
 		ret = vfio_iommufd_attach_pasid(device,
 				pt_id != IOMMUFD_INVALID_ID ? &pt_id : NULL,
 				attach.pasid);
-		if (ret)
+		if (ret || (pt_id == IOMMUFD_INVALID_ID))
 			vfio_put_pasid(attach.pasid);
 	} else {
 		ret = vfio_iommufd_attach(device,
