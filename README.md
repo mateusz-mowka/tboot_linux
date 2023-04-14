@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.11
+-----------------
+14. Fix an issue reported in https://jira.devtools.intel.com/browse/LFE-4904 that dmatest failed while performing VM VDEV passthrough with legacy mode and without vIOMMU.
+    iommufd/vfio-compat: Open device before attachment to ioas
+
 gnr-bkc-6.2-v1.10
 -----------------
 13. Add support for new ucore unid MSF_SB0 and fix opt of b2ci and b2upi
