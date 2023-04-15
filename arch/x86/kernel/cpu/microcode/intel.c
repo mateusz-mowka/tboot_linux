@@ -1219,7 +1219,13 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 		case RELOAD_ROLLBACK:
 			break;
 	}
-	kfree(unapplied_ucode.ucode);
+
+	/*
+	 * Free if microcode didn't apply successfully
+	 */
+	if (!apply_state)
+		kfree(unapplied_ucode.ucode);
+
 	unapplied_ucode.ucode = NULL;
 	unapplied_ucode.size = 0;
 }
