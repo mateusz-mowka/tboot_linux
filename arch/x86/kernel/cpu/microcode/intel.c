@@ -1272,6 +1272,14 @@ static int prepare_to_apply_intel(enum reload_type type)
 			if (!mcu_cap.rollback)
 				return rv;
 			if (rollback_ucode.ucode) {
+				/*
+				 * if there is a microcode that was loaded,
+				 * time to free it, since its being
+				 * discarded.
+				 */
+				if (intel_ucode.ucode)
+					kfree (intel_ucode.ucode);
+
 				intel_ucode = rollback_ucode;
 				rollback_ucode.ucode = NULL;
 				rollback_ucode.size = 0;
