@@ -242,7 +242,7 @@ static void idxd_evl_fault_work(struct work_struct *work)
 		ptr =  (u64 *)entry_head;
 
 		dev_dbg(dev, "Event Log Entry Dump: \n");
-		for (i = 0; i < __EVL_ENT_SIZE(idxd) / 8; i++) {
+		for (i = 0; i < evl_ent_size(idxd) / 8; i++) {
 			dev_dbg(dev, "EVL[%d]: %#llx\n", i, *ptr);
 			ptr++;
 		}
