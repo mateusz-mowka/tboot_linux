@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.12
+-----------------
+15. fix for PMT bug https://hsdes.intel.com/appstore/article/#/14017832501
+    platform/x86/intel/pmt: Ignore uninitialized entries
+
 gnr-bkc-6.2-v1.11
 -----------------
 14. Fix an issue reported in https://jira.devtools.intel.com/browse/LFE-4904 that dmatest failed while performing VM VDEV passthrough with legacy mode and without vIOMMU.
