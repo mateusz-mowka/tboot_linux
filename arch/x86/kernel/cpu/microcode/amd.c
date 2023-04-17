@@ -683,7 +683,7 @@ static int collect_cpu_info_amd(int cpu, struct cpu_signature *csig)
 	return 0;
 }
 
-static enum ucode_state apply_microcode_amd(int cpu)
+static enum ucode_state apply_microcode_amd(int cpu, enum reload_type type)
 {
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
 	struct microcode_amd *mc_amd;

@@ -515,6 +515,7 @@ static int __reload_late(void *info)
 	struct ucode_cpu_info *uci;
 	struct core_rendez *pcpu_core;
 	enum ucode_state err;
+	enum reload_type *type = info;
 	int ret = 0;
 
 	/*
@@ -551,7 +552,7 @@ static int __reload_late(void *info)
 			ret = -1;
 		}
 		pr_debug("Primary CPU %d proceeding with update\n", cpu);
-		err = microcode_ops->apply_microcode(cpu);
+		err = microcode_ops->apply_microcode(cpu, *type);
 		atomic_set(&pcpu_core->core_done, 1);
 	} else {
 		/*
@@ -608,9 +609,10 @@ static void cleanup_after_update(void)
 		unregister_nmi_handler(NMI_LOCAL, "ucode_nmi");
 }
 
-static int do_load_microcode(void)
+static int do_load_microcode(enum reload_type type)
 {
-	return stop_machine_cpuslocked(__reload_late, NULL, cpu_online_mask);
+	enum reload_type args = type;
+	return stop_machine_cpuslocked(__reload_late, &args, cpu_online_mask);
 }
 #else
 static int prepare_for_update(void)
@@ -619,9 +621,9 @@ static int prepare_for_update(void)
 }
 
 #define cleanup_after_update() { }
-static int do_load_microcode(void)
+static int do_load_microcode(enum reload_type type)
 {
-	return microcode_ops->apply_microcode(0);
+	return microcode_ops->apply_microcode(0, type);
 }
 #endif
 
@@ -635,7 +637,7 @@ void noinstr inform_ucode_mce_in_progress(void)
  * Reload microcode late on all CPUs. Wait for a sec until they
  * all gather together.
  */
-static int microcode_reload_late(void)
+static int microcode_reload_late(enum reload_type type)
 {
 	int old = boot_cpu_data.microcode, ret;
 
@@ -645,7 +647,7 @@ static int microcode_reload_late(void)
 		goto done;
 
 	atomic_set(&ucode_updating, 1);
-	ret = do_load_microcode();
+	ret = do_load_microcode(type);
 	atomic_set(&ucode_updating, 0);
 
 	if (atomic_read(&mce_in_progress))
@@ -728,7 +730,7 @@ static ssize_t reload_store_common(struct device *dev,
 		ret = microcode_ops->prepare_to_apply(type);
 
 	if (!ret)
-		ret = microcode_reload_late();
+		ret = microcode_reload_late(type);
 
 	if (microcode_ops->post_apply)
 		microcode_ops->post_apply(type, !ret);
@@ -843,22 +845,13 @@ unlock:
 static int do_rollback(void)
 {
 	enum reload_type type = RELOAD_ROLLBACK;
-	bool orig_ucode_load_same = ucode_load_same;
 	int ret = 0;
 
 	if (microcode_ops->prepare_to_apply)
 		ret = microcode_ops->prepare_to_apply(type);
 
-	/*
-	 * Temp hack, set load_same true
-	 * need to pass reload_type to apply_microcode() to make sure we
-	 * can by pass the revision check
-	 */
-	ucode_load_same =  true;
 	if (!ret)
-		ret = microcode_reload_late();
-
-	ucode_load_same =  orig_ucode_load_same;
+		ret = microcode_reload_late(type);
 
 	if (microcode_ops->post_apply)
 		microcode_ops->post_apply(type, !ret);
@@ -951,7 +944,7 @@ static enum ucode_state microcode_init_cpu(int cpu)
 
 	microcode_ops->collect_cpu_info(cpu, &uci->cpu_sig);
 
-	return microcode_ops->apply_microcode(cpu);
+	return microcode_ops->apply_microcode(cpu, RELOAD_COMMIT);
 }
 
 /**
@@ -963,7 +956,7 @@ void microcode_bsp_resume(void)
 	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
 
 	if (uci->mc)
-		microcode_ops->apply_microcode(cpu);
+		microcode_ops->apply_microcode(cpu, RELOAD_COMMIT);
 	else
 		reload_early_microcode();
 }
@@ -981,7 +974,7 @@ static int mc_cpu_starting(unsigned int cpu)
 
 	microcode_ops->collect_cpu_info(cpu, &uci->cpu_sig);
 
-	err = microcode_ops->apply_microcode(cpu);
+	err = microcode_ops->apply_microcode(cpu, RELOAD_COMMIT);
 
 	pr_debug("%s: CPU%d, err: %d\n", __func__, cpu, err);
 

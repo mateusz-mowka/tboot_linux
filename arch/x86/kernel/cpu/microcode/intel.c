@@ -1218,7 +1218,7 @@ static enum ucode_state get_apply_status(void)
 	return ret;
 }
 
-static enum ucode_state apply_microcode_intel(int cpu)
+static enum ucode_state apply_microcode_intel(int cpu, enum reload_type type)
 {
 	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
@@ -1246,7 +1246,7 @@ static enum ucode_state apply_microcode_intel(int cpu)
 	 * already.
 	 */
 	rev = intel_get_microcode_revision();
-	if (rev >= mc->hdr.rev && !ucode_load_same) {
+	if (rev >= mc->hdr.rev && type != RELOAD_ROLLBACK) {
 		ret = UCODE_OK;
 		goto out;
 	}
@@ -1426,7 +1426,7 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 			return;
 	}
 	//kfree(unapplied_ucode.ucode);
-	
+
 	/*
 	 * Free if microcode didn't apply successfully
 	 */
@@ -1560,7 +1560,7 @@ static int prepare_to_apply_intel(enum reload_type type)
 			{
 				pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 				break;
-			}	
+			}
 
 			free_rollback();
 			rv = switch_to_auto_commit();
@@ -1575,7 +1575,7 @@ static int prepare_to_apply_intel(enum reload_type type)
 			}
 
 			if (!intel_ucode.ucode) {
-				pr_info("Defer Commit, No prior microcode, can't continue...\n");	
+				pr_info("Defer Commit, No prior microcode, can't continue...\n");
 				return rv;
 			}
 
@@ -1590,7 +1590,7 @@ static int prepare_to_apply_intel(enum reload_type type)
 			{
 				pr_debug("OSPL: No rollback cap: %s:%d\n", __FILE__,__LINE__);
 				return -EINVAL;
-			}	
+			}
 
 			if (!intel_ucode.ucode) {
 				pr_info("No saved ucode found, exiting...\n");
