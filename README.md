@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.14
+-----------------
+17. https://hsdes.intel.com/appstore/article/#/22017183194
+    uapi/kvm: Correct the type
+
 gnr-bkc-6.2-v1.13
 -----------------
 16. Fix an issue reported in https://jira.devtools.intel.com/browse/LFE-7360 that DMAR page fault is observed when enabling QAT vSVM. The fix is to add vdev into dmar_domain subdevices when doing nested attach.
