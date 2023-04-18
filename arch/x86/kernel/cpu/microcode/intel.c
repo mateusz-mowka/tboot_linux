@@ -103,6 +103,15 @@ static union mcu_enumeration mcu_cap;
 #define MSR_ROLLBACK_SIGN_BASE	(0x7b0)
 #define MSR_ROLLBACK_SIGN_ID(x)	(MSR_ROLLBACK_SIGN_BASE+(x))
 
+union svn_info {
+	u64     data;
+	struct {
+		u64     cpu_svn:16;
+		u64     pending_svn:16;
+	};
+};
+
+
 struct rb_svn_info {
 	u32	rb_min_svn:16;
 	u32	rb_mcu_svn:16;
@@ -133,14 +142,6 @@ struct ucode_meta {
 	u16	rollback_svn[NUM_RB_INFO];
 };
 
-union min_svn {
-	u64	data;
-	struct {
-		u64	mcu_svn:16;
-		u64	pending_mcu_svn:16;
-	};
-};
-
 union rb_sign_id {
 	u64	data;
 	struct {
@@ -150,7 +151,7 @@ union rb_sign_id {
 };
 
 struct rb_info {
-	union	min_svn min_svn;
+	union	svn_info svn_info;
 	union	rb_sign_id rb_sign_id[NUM_RB_INFO];
 };
 
@@ -358,9 +359,9 @@ static void save_bsp_rollback_info(void)
 	 */
 	memset(&bsp_rb_info, 0, sizeof(struct rb_info));
 
-	rdmsrl(MSR_MCU_INFO, bsp_rb_info.min_svn.data);
+	rdmsrl(MSR_MCU_INFO, bsp_rb_info.svn_info.data);
 	pr_debug("mcu_min_svn: 0x%x pending_svn: 0x%x\n",
-		 bsp_rb_info.min_svn.mcu_svn, bsp_rb_info.min_svn.pending_mcu_svn);
+		 bsp_rb_info.svn_info.cpu_svn, bsp_rb_info.svn_info.pending_svn);
 	for (i = 0; i < NUM_RB_INFO; i++) {
 		rdmsrl(MSR_ROLLBACK_SIGN_ID(i), bsp_rb_info.rb_sign_id[i].data);
 
@@ -557,7 +558,7 @@ static bool can_do_nocommit(struct microcode_header_intel *mch)
 	/*
 	 * Check if MCU min_svn == CPU min_svn
 	 */
-	if (bsp_rb_info.min_svn.mcu_svn != rb_meta->svn_info.rb_mcu_svn)
+	if (rb_meta->svn_info.rb_min_svn > bsp_rb_info.svn_info.cpu_svn)
 		return false;
 
 	return true;
