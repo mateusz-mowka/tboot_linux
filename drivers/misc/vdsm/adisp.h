@@ -1,12 +1,5 @@
-/**
- *  Copyright Notice:
- *  Copyright 2022 DMTF. All rights reserved.
- *  License: BSD 3-Clause License. For full text see link: https://github.com/DMTF/libspdm/blob/main/LICENSE.md
- **/
-
-/** @file
- * Definitions of TEE Device Interface Security Protocol (ADISP) ECN in PCI-SIG.
- **/
+// SPDX-License-Identifier: GPL-2.0
+/* Copyright (C) 2022-2023 Intel Corporation */
 
 #ifndef ADISP_H
 #define ADISP_H

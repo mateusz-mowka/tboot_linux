@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
+/* Copyright (C) 2022-2023 Intel Corporation */
+
 #ifndef __VDSM_INTERNAL_H__
 #define __VDSM_INTERNAL_H__
 

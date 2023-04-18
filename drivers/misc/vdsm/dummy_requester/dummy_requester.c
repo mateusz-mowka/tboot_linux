@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
+/* Copyright (C) 2022-2023 Intel Corporation */
+
 #include "dummy_requester.h"
 
 struct pci_dev glb_dummy_pdev = {

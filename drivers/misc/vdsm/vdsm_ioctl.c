@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
+/* Copyright (C) 2022-2023 Intel Corporation */
+
 #include <linux/bitfield.h>
 #include <uapi/linux/pci_regs.h>
 #include <linux/pci_ids.h>

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
+/* Copyright (C) 2022-2023 Intel Corporation */
+
 #ifndef __IDE_KM_H__
 #define __IDE_KM_H__
 
