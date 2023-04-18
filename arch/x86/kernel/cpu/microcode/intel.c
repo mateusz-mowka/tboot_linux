@@ -521,7 +521,7 @@ static int is_lateload_safe(struct microcode_header_intel *mc_header)
 
 static bool is_ucode_listed(struct ucode_meta *umeta)
 {
-	int i, cpu = smp_processor_id();
+	int i, cpu = raw_smp_processor_id();
 	struct ucode_cpu_info *uci;
 	int rev;
 
@@ -1304,7 +1304,7 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 	if (is_blacklisted(cpu))
 		return UCODE_NFOUND;
 
-	if (type == RELOAD_NO_COMMIT && !check_pending()) {
+	if (type == RELOAD_NO_COMMIT && check_pending()) {
 		pr_err("Pending commit, Please commit before proceeding\n");
 		return UCODE_ERROR;
 	}
