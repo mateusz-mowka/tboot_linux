@@ -1043,9 +1043,16 @@ static DEVICE_ATTR_WO(svnupdate);
 static struct attribute *cpu_root_microcode_attrs[] = {
 #ifdef CONFIG_MICROCODE_LATE_LOADING
 	&dev_attr_reload.attr,
+#endif
+	NULL
+};
+
+static struct attribute *cpu_root_mc_rollback_attrs[] = {
+#ifdef CONFIG_MICROCODE_LATE_LOADING
 	&dev_attr_reload_nc.attr,
 	&dev_attr_commit.attr,
 	&dev_attr_rollback.attr,
+	NULL,
 #endif
 	NULL
 };
@@ -1058,14 +1065,16 @@ const struct attribute_group cpu_root_microcode_group = {
 static int __init microcode_init(void)
 {
 	struct cpuinfo_x86 *c = &boot_cpu_data;
+	struct microcode_capability mcap = {0};
 	unsigned int cpuid_level;
 	int error;
+	int i;
 
 	if (dis_ucode_ldr)
 		return -EINVAL;
 
 	if (c->x86_vendor == X86_VENDOR_INTEL)
-		microcode_ops = init_intel_microcode();
+		microcode_ops = init_intel_microcode(&mcap);
 	else if (c->x86_vendor == X86_VENDOR_AMD)
 		microcode_ops = init_amd_microcode();
 	else
@@ -1101,6 +1110,14 @@ static int __init microcode_init(void)
 
 		if (error)
 			pr_err("Error creating microcode svnupdate file!\n");
+	}
+
+	if (mcap.rollback) {
+		for (i = 0; cpu_root_mc_rollback_attrs[i] != NULL; i++) {
+			//TODO: Add error checking if sysfs call fails.
+			sysfs_add_file_to_group(&cpu_subsys.dev_root->kobj,
+			 			cpu_root_mc_rollback_attrs[i], "microcode");
+		}
 	}
 
 	/* Do per-CPU setup */

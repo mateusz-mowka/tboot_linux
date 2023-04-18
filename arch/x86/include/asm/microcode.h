@@ -111,10 +111,13 @@ struct ucode_cpu_info {
 extern struct ucode_cpu_info ucode_cpu_info[];
 struct cpio_data find_microcode_in_initrd(const char *path, bool use_pa);
 
+struct microcode_capability {
+	bool	rollback;
+};
 #ifdef CONFIG_MICROCODE_INTEL
-extern struct microcode_ops * __init init_intel_microcode(void);
+extern struct microcode_ops * __init init_intel_microcode(struct microcode_capability *mcap);
 #else
-static inline struct microcode_ops * __init init_intel_microcode(void)
+static inline struct microcode_ops * __init init_intel_microcode(struct microcode_capability *mcap)
 {
 	return NULL;
 }

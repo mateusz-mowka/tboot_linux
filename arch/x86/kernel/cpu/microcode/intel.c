@@ -1790,7 +1790,7 @@ static int __init calc_llc_size_per_core(struct cpuinfo_x86 *c)
 	return (int)llc_size;
 }
 
-struct microcode_ops * __init init_intel_microcode(void)
+struct microcode_ops * __init init_intel_microcode(struct microcode_capability *mcap)
 {
 	struct cpuinfo_x86 *c = &boot_cpu_data;
 
@@ -1802,6 +1802,7 @@ struct microcode_ops * __init init_intel_microcode(void)
 
 	llc_size_per_core = calc_llc_size_per_core(c);
 	setup_mcu_enumeration();
+	mcap->rollback = mcu_cap.rollback;
 
 	return &microcode_intel_ops;
 }
