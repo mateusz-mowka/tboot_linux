@@ -1310,8 +1310,18 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 		return UCODE_ERROR;
 	}
 
-	sprintf(name, "intel-ucode/%02x-%02x-%02x",
-		c->x86, c->x86_model, c->x86_stepping);
+	switch (type) {
+		case RELOAD_COMMIT:
+			sprintf(name, "intel-ucode/%02x-%02x-%02x",
+				c->x86, c->x86_model, c->x86_stepping);
+			break;
+		case RELOAD_NO_COMMIT:
+			sprintf(name, "intel-ucode/stage/%02x-%02x-%02x",
+				c->x86, c->x86_model, c->x86_stepping);
+			break;
+		case RELOAD_ROLLBACK:
+			return UCODE_ERROR;
+	}
 
 	if (request_firmware_direct(&firmware, name, device)) {
 		pr_debug("data file %s load failed\n", name);
