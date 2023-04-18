@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.15
+-----------------
+18. Fix a bug reported in https://jira.devtools.intel.com/browse/LFE-7412 that ioasid is leaked during repeated tests.
+    vfio: Fix bug which causes ioasid cannot be freed
+
 gnr-bkc-6.2-v1.14
 -----------------
 17. https://hsdes.intel.com/appstore/article/#/22017183194
