@@ -113,16 +113,16 @@ union svn_info {
 
 
 struct rb_svn_info {
-	u32	rb_min_svn:16;
 	u32	rb_mcu_svn:16;
+	u32	rb_min_svn:16;
 };
 
 /* MSR_MCU_CONFIG */
 union svn_config {
 	u64	data;
 	struct {
-		u64	defer_svn:1;
 		u64	lock:1;
+		u64	defer_svn:1;
 	};
 };
 
@@ -180,7 +180,7 @@ static atomic_t commit_status;
 static void read_commit_status(struct work_struct *work)
 {
 	union	svn_commit commit;
-	int	cpu = smp_processor_id();
+	int	cpu = raw_smp_processor_id();
 
 	if (!mcu_cap.rollback)
 		return;
@@ -307,6 +307,7 @@ static void write_manual_commit(struct work_struct *work)
 
 	cfg.data = 0;
 	cfg.defer_svn = 1;
+	pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 	wrmsrl(MSR_MCU_CONFIG, cfg.data);
 }
 
@@ -319,6 +320,8 @@ static int switch_to_manual_commit(void)
 	 * If there are any pending commits, inform user to commit before
 	 * proceeding.
 	 */
+
+	pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 	rv = check_pending();
 
 	if (rv) {
@@ -332,16 +335,25 @@ static int switch_to_manual_commit(void)
 	 * value across all cores.
 	 */
 	rdmsrl(MSR_MCU_CONFIG, cfg.data);
+	pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 
 	/* Already manual commit is default */
 	if (cfg.defer_svn)
+	{
+		pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 		return 0;
+	}
+
+
+	pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 
 	if (cfg.lock) {
 		pr_info_once("SVN config locked with auto commit\n");
+		pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 		return -EBUSY;
 	}
 
+	pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 	rv = schedule_on_each_cpu_locked(write_manual_commit);
 
 	pr_info("Switching to manual commit %s\n", rv ? "Failed" : "Succeeded");
@@ -388,6 +400,7 @@ static void setup_mcu_enumeration(void)
 		return;
 
 	rdmsrl(MSR_MCU_ENUM, mcu_cap.data);
+	pr_debug("OSPL: MCU_ENUM is %llx\n", mcu_cap.data);
 
 	if (mcu_cap.valid) {
 		microcode_intel_ops.need_nmi_lateload = false;
@@ -508,6 +521,7 @@ static int is_lateload_safe(struct microcode_header_intel *mc_header)
 			uci.cpu_sig.rev, mc_header->rev);
 		return -EINVAL;
 	}
+
 	/*
 	 * Enforce the minimum revision specified in the header is either
 	 * greater or equal to the current revision.
@@ -520,6 +534,7 @@ static int is_lateload_safe(struct microcode_header_intel *mc_header)
 	return 0;
 }
 
+#if 0
 static bool is_ucode_listed(struct ucode_meta *umeta)
 {
 	int i, cpu = raw_smp_processor_id();
@@ -545,8 +560,10 @@ static bool can_do_nocommit(struct microcode_header_intel *mch)
 	if (!mcu_cap.rollback)
 		return false;
 
-	if (check_pending())
+	if (check_pending()) {
+		pr_debug("Checkpending\n");
 		return false;
+	}
 
 	rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(mch, META_TYPE_ROLLBACK);
 	if (!rb_meta)
@@ -558,11 +575,16 @@ static bool can_do_nocommit(struct microcode_header_intel *mch)
 	/*
 	 * Check if MCU min_svn == CPU min_svn
 	 */
-	if (rb_meta->svn_info.rb_min_svn > bsp_rb_info.svn_info.cpu_svn)
+	if (rb_meta->svn_info.rb_min_svn > bsp_rb_info.svn_info.cpu_svn) {
+		pr_debug("svn check fails\n");
+		pr_debug("min_svn = 0x%x cpu_svn = 0x%x\n",
+			rb_meta->svn_info.rb_min_svn, bsp_rb_info.svn_info.cpu_svn);
 		return false;
+	}
 
 	return true;
 }
+#endif
 
 /*
  * Get microcode matching with BSP's model. Only CPUs with the same model as
@@ -1193,8 +1215,19 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter, e
 	return ret;
 }
 
+static void free_rollback(void)
+{
+	if (rollback_ucode.ucode)
+		kfree(rollback_ucode.ucode);
+	rollback_ucode.ucode = NULL;
+	rollback_ucode.size = 0;
+}
+
 static void post_apply_intel(enum reload_type type, bool apply_state)
 {
+	pr_debug("OSPL: apply_state is %x type = 0x%x\n",
+		apply_state, type);
+
 	switch (type) {
 		case RELOAD_COMMIT:
 			/*
@@ -1204,6 +1237,7 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 			if(apply_state) {
 				kfree(intel_ucode.ucode);
 				intel_ucode = unapplied_ucode;
+				free_rollback();
 			}
 			break;
 
@@ -1213,19 +1247,29 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 			 * rollback before its commited
 			 */
 			if (apply_state) {
+				pr_debug("OSPL: reload_nc: Old ucode revision is \n");
+				show_saved_mc(intel_ucode.ucode);
+
 				rollback_ucode = intel_ucode;
 				intel_ucode = unapplied_ucode;
+				pr_debug("OSPL: reload_nc: Unapplied ucode revision is \n");
+				show_saved_mc(unapplied_ucode.ucode);
 			}
 			break;
 		case RELOAD_ROLLBACK:
+			if (apply_state) {
+				show_saved_mc(intel_ucode.ucode);
+			}
 			break;
 	}
-
+	//kfree(unapplied_ucode.ucode);
+	
 	/*
 	 * Free if microcode didn't apply successfully
 	 */
 	if (!apply_state)
 		kfree(unapplied_ucode.ucode);
+
 
 	unapplied_ucode.ucode = NULL;
 	unapplied_ucode.size = 0;
@@ -1258,37 +1302,71 @@ static int prepare_to_apply_intel(enum reload_type type)
 {
 	int rv = -EINVAL;
 
+	pr_debug("OSPL: %s:%d, type:%d\n", __FILE__,__LINE__, type);
 	switch (type) {
 		case RELOAD_COMMIT:
+			pr_debug("OSPL: reload: %s:%d\n", __FILE__,__LINE__);
 			if (!mcu_cap.rollback)
+			{
+				pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 				return 0;
+			}	
+			free_rollback();
 			rv = switch_to_auto_commit();
 			break;
 		case RELOAD_NO_COMMIT:
+			pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 			if (!mcu_cap.rollback)
+			{
 				return rv;
+			}
+			if (!intel_ucode.ucode) {
+				pr_info("Defer Commit, No prior microcode, can't continue...\n");	
+				return rv;
+			}
+
 			rv = switch_to_manual_commit();
+			pr_debug("Switched manual for reload_nocommit\n");
 			break;
 		case RELOAD_ROLLBACK:
+			pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 			if (!mcu_cap.rollback)
+			{
+				pr_debug("OSPL: No rollback cap: %s:%d\n", __FILE__,__LINE__);
 				return rv;
-			if (rollback_ucode.ucode) {
-				/*
-				 * if there is a microcode that was loaded,
-				 * time to free it, since its being
-				 * discarded.
-				 */
-				if (intel_ucode.ucode)
-					kfree (intel_ucode.ucode);
+			}	
 
-				intel_ucode = rollback_ucode;
-				rollback_ucode.ucode = NULL;
-				rollback_ucode.size = 0;
-			} else
-				return 0;
+			if (!intel_ucode.ucode) {
+				pr_info("No saved ucode found, exiting...\n");
+				return rv;
+			}
+
+			if(!rollback_ucode.ucode) {
+				pr_info("No saved ucode for rollback...  exiting\n");
+				return rv;
+			}
+
+			/*
+			 * Switch intel_code to rollback.
+			 */
+			pr_debug("OSPL: Rollback revision is\n");
+			show_saved_mc(rollback_ucode.ucode);
+
+			/*
+			 * Free previous intel_ucode, and clear
+			 * rollback_ucode
+			 */
+			kfree(intel_ucode.ucode);
+			intel_ucode = rollback_ucode;
+			rollback_ucode.ucode = NULL;
+			rollback_ucode.size = 0;
+			rv = 0;
 			break;
+		default:
+			pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 	}
 
+	pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 	return rv;
 }
 
@@ -1299,7 +1377,7 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 	struct iov_iter iter;
 	enum ucode_state ret;
 	struct kvec kvec;
-	bool nocommit;
+	bool nocommit = true;
 	char name[30];
 
 	if (is_blacklisted(cpu))
@@ -1310,18 +1388,8 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 		return UCODE_ERROR;
 	}
 
-	switch (type) {
-		case RELOAD_COMMIT:
-			sprintf(name, "intel-ucode/%02x-%02x-%02x",
-				c->x86, c->x86_model, c->x86_stepping);
-			break;
-		case RELOAD_NO_COMMIT:
-			sprintf(name, "intel-ucode/stage/%02x-%02x-%02x",
-				c->x86, c->x86_model, c->x86_stepping);
-			break;
-		case RELOAD_ROLLBACK:
-			return UCODE_ERROR;
-	}
+	sprintf(name, "intel-ucode/%02x-%02x-%02x",
+		c->x86, c->x86_model, c->x86_stepping);
 
 	if (request_firmware_direct(&firmware, name, device)) {
 		pr_debug("data file %s load failed\n", name);
@@ -1335,7 +1403,8 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 	ret = generic_load_microcode(cpu, &iter, type);
 
 	if (ret == UCODE_NEW && type == RELOAD_NO_COMMIT) {
-		nocommit = can_do_nocommit((struct microcode_header_intel *)unapplied_ucode.ucode); 
+		//nocommit = can_do_nocommit((struct microcode_header_intel *)unapplied_ucode.ucode); 
+		pr_debug("No commit = 0x%x\n", nocommit);
 		if (!nocommit) {
 			ret = UCODE_ERROR;
 			if (unapplied_ucode.ucode)
@@ -1347,6 +1416,7 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 
 	release_firmware(firmware);
 
+	pr_debug("Returning ret = 0x%x\n", ret);
 	return ret;
 }
 
