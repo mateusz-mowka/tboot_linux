@@ -268,10 +268,19 @@ static void do_commit(struct work_struct *work)
 	}
 }
 
+static void free_rollback(void)
+{
+	if (rollback_ucode.ucode)
+		kfree(rollback_ucode.ucode);
+	rollback_ucode.ucode = NULL;
+	rollback_ucode.size = 0;
+}
+
 static int perform_commit(void)
 {
 	int rv;
 
+	free_rollback();
 	rv = schedule_on_each_cpu_locked(do_commit);
 
 	if (!rv && !atomic_read(&commit_status))
@@ -295,11 +304,16 @@ static int switch_to_auto_commit(void)
 
 	rv = check_pending();
 
+#if 0
+	/*
+	 * Skip this, since we don't need any enforcement for auto-commit
+	 */
+
 	if (rv) {
 		pr_err("Pending commit, Please commit before proceeding\n");
 		return rv;
 	}
-
+#endif
 
 	/*
 	 * We know this is per-core MSR, but its enough to check just this
@@ -354,10 +368,18 @@ static int switch_to_manual_commit(void)
 	pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 	rv = check_pending();
 
+#if 0
+	/*
+	 * Its ok to not do this, since officially the can_do_nocommit should
+	 * check all constraints. As long as we don't hurt going back to what
+	 * was originally loaded we can permit a nc reload.
+	 */
+
 	if (rv) {
 		pr_err("Pending commit, Please commit before proceeding\n");
 		return rv;
 	}
+#endif
 
 	/*
 	 * We know this is per-core MSR, but its enough to check just this
@@ -504,12 +526,10 @@ static int has_newer_microcode(void *mc, unsigned int csig, int cpf, int new_rev
 
 static void save_microcode_patch(struct ucode_info *info, struct ucode_cpu_info *uci, void *data, unsigned int size)
 {
-	struct microcode_header_intel *mc_hdr, *p;
+	struct microcode_header_intel *p;
 
 	if (!(info && data))
 		return;
-
-	mc_hdr = (struct microcode_header_intel *)data;
 
 	if (info->ucode) {
 		kfree(info->ucode);
@@ -577,7 +597,6 @@ static int is_lateload_safe(struct microcode_header_intel *mc_header)
 	return 0;
 }
 
-#if 0
 static bool is_ucode_listed(struct ucode_meta *umeta)
 {
 	int i, cpu = raw_smp_processor_id();
@@ -627,7 +646,6 @@ static bool can_do_nocommit(struct microcode_header_intel *mch)
 
 	return true;
 }
-#endif
 
 /*
  * Get microcode matching with BSP's model. Only CPUs with the same model as
@@ -1264,7 +1282,8 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter, e
 
 		csig = uci->cpu_sig.sig;
 		cpf = uci->cpu_sig.pf;
-		if (has_newer_microcode(mc, csig, cpf, new_rev)) {
+		if ((type == RELOAD_SAME && uci->cpu_sig.rev ==
+					mc_header.rev) || has_newer_microcode(mc, csig, cpf, new_rev)) {
 			vfree(new_mc);
 			new_rev = mc_header.rev;
 			new_mc  = mc;
@@ -1308,14 +1327,6 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter, e
 	return ret;
 }
 
-static void free_rollback(void)
-{
-	if (rollback_ucode.ucode)
-		kfree(rollback_ucode.ucode);
-	rollback_ucode.ucode = NULL;
-	rollback_ucode.size = 0;
-}
-
 static void post_apply_intel(enum reload_type type, bool apply_state)
 {
 	pr_debug("OSPL: apply_state is %x type = 0x%x\n",
@@ -1354,6 +1365,9 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 				show_saved_mc(intel_ucode.ucode);
 			}
 			break;
+		default:
+			pr_debug("Got unknown commit type, returning\n");
+			return;
 	}
 	//kfree(unapplied_ucode.ucode);
 	
@@ -1564,12 +1578,14 @@ static int prepare_to_apply_intel(enum reload_type type)
 
 static enum ucode_state request_microcode_fw(int cpu, struct device *device, enum reload_type type)
 {
+	/* Hack for nocommit WA */
+	bool nocommit, fetch_orig = false;
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
 	const struct firmware *firmware;
+	enum reload_type tmp_type;
 	struct iov_iter iter;
 	enum ucode_state ret;
 	struct kvec kvec;
-	bool nocommit = true;
 	char name[30];
 
 	if (is_blacklisted(cpu))
@@ -1580,8 +1596,22 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 		return UCODE_ERROR;
 	}
 
+reget:
 	sprintf(name, "intel-ucode/%02x-%02x-%02x",
 		c->x86, c->x86_model, c->x86_stepping);
+
+	if (type == RELOAD_NO_COMMIT) {
+		/*
+		 * If we don't have a current ucode try to fetch it
+		 */
+		if (intel_ucode.ucode) {
+			sprintf(name, "intel-ucode/stage/%02x-%02x-%02x",
+				c->x86, c->x86_model, c->x86_stepping);
+		} else {
+			fetch_orig = true;
+			pr_info("No current ucode found, fetching\n");
+		}
+	}
 
 	if (request_firmware_direct(&firmware, name, device)) {
 		pr_debug("data file %s load failed\n", name);
@@ -1592,11 +1622,14 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 	kvec.iov_len = firmware->size;
 	iov_iter_kvec(&iter, WRITE, &kvec, 1, firmware->size);
 
-	ret = generic_load_microcode(cpu, &iter, type);
+	tmp_type = (type == RELOAD_NO_COMMIT && !intel_ucode.ucode) ?
+				RELOAD_SAME : type;
 
-	if (ret == UCODE_NEW && type == RELOAD_NO_COMMIT) {
-		//nocommit = can_do_nocommit((struct microcode_header_intel *)unapplied_ucode.ucode); 
-		pr_debug("No commit = 0x%x\n", nocommit);
+	ret = generic_load_microcode(cpu, &iter, tmp_type);
+
+	if (!fetch_orig && ret == UCODE_NEW && type == RELOAD_NO_COMMIT) {
+		nocommit = can_do_nocommit((struct microcode_header_intel *)unapplied_ucode.ucode);
+		nocommit = true; // hack since metadata is messed up now
 		if (!nocommit) {
 			ret = UCODE_ERROR;
 			if (unapplied_ucode.ucode)
@@ -1608,7 +1641,33 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 
 	release_firmware(firmware);
 
-	pr_debug("Returning ret = 0x%x\n", ret);
+	pr_debug("type = 0x%x fetch_orig = 0x%x ret = 0x%x\n",
+		type, fetch_orig, ret);
+
+	if (fetch_orig) {
+		if (unapplied_ucode.ucode) {
+			if (unapplied_ucode.ucode->hdr.rev == c->microcode) {
+				intel_ucode = unapplied_ucode;
+				unapplied_ucode.ucode = NULL;
+				unapplied_ucode.size = 0;
+			} else {
+				kfree (unapplied_ucode.ucode);
+				unapplied_ucode.ucode = NULL;
+				unapplied_ucode.size = 0;
+				pr_info("Orig ucode not found\n");
+				return UCODE_NFOUND;
+			}
+		} else {
+			pr_info("Can't find currently loaded microcode, please copy rev 0x%x and retry\n",
+				c->microcode);
+			return UCODE_NFOUND;
+		}
+
+		fetch_orig = false;
+		pr_debug ("Trying to fetch new no commit ucode now\n");
+		goto reget;
+	}
+
 	return ret;
 }
 
