@@ -451,6 +451,9 @@ static void setup_mcu_enumeration(void)
 		mcu_staging.mboxes   = kcalloc(mcu_staging.mbox_num,
 					       sizeof(*mcu_staging.mboxes),
 					       GFP_KERNEL);
+		if (!dentry_ucode)
+			dentry_ucode = debugfs_create_dir("microcode", NULL);
+
 		debugfs_create_bool("ucode_staging", 0644, dentry_ucode, &ucode_staging);
 	}
 }
