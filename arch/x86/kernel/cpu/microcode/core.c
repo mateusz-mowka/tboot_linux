@@ -676,19 +676,11 @@ static ssize_t reload_store_common(struct device *dev,
 	enum ucode_state tmp_ret = UCODE_OK;
 	int bsp = boot_cpu_data.cpu_index;
 	enum ucode_load_scope load_scope;
-	unsigned long val;
 	bool safe_late_load = false;
 	ssize_t ret;
 
 	if (type != RELOAD_COMMIT && type != RELOAD_NO_COMMIT)
 		return -EINVAL;
-
-	ret = kstrtoul(buf, 0, &val);
-	if (ret)
-		return ret;
-
-	if (val != 1)
-		return size;
 
 	tmp_ret = microcode_ops->request_microcode_fw(bsp, &microcode_pdev->dev, type);
 	if (tmp_ret != UCODE_NEW) {
