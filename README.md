@@ -13,6 +13,10 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.16
+-----------------
+19. Revert "uapi/kvm: Correct the type" since it breaks things.
+
 gnr-bkc-6.2-v1.15
 -----------------
 18. Fix a bug reported in https://jira.devtools.intel.com/browse/LFE-7412 that ioasid is leaked during repeated tests.
