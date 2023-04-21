@@ -6993,6 +6993,7 @@ int tdx_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi)
 
 	/* Move TDISP Device Interface state from UNLOCKED to LOCKED */
 	parm.message = TDISP_LOCK_INTF_REQ;
+	parm.lock_intf.lock_flags = TDI_LOCK_FLAGS_NO_FW_UPDATE;
 	ret = tdx_tdi_req(ttdi, 0, &parm);
 	if (ret)
 		goto dmar_uinit;
