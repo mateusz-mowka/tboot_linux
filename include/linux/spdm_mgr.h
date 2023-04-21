@@ -165,7 +165,6 @@ static inline void spdm_session_msg_exchange_complete(struct spdm_session *sessi
 
 int spdm_session_msg_exchange(struct spdm_session *session, struct spdm_message *msg);
 
-#if 0
 static inline bool is_spdm_hbeat_required(struct spdm_session *session)
 {
 	struct spdm *spdm = session->spdm;
@@ -181,16 +180,5 @@ static inline bool is_spdm_keyupdate_required(struct spdm_session *session)
 	return (spdm->capability_flags & SPDM_KEY_UPD_CAP) &&
 	       (seq_num >= session->keyupdate_threshold);
 }
-#else
-static inline bool is_spdm_hbeat_required(struct spdm_session *session)
-{
-	return false;
-}
-
-static inline bool is_spdm_keyupdate_required(struct spdm_session *session)
-{
-	return false;
-}
-#endif
 
 #endif /* LINUX_SPDM_MGR_H */
