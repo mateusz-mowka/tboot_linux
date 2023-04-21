@@ -167,6 +167,8 @@ extern void *vmap(struct page **pages, unsigned int count,
 			unsigned long flags, pgprot_t prot);
 void *vmap_pfn(unsigned long *pfns, unsigned int count, pgprot_t prot);
 extern void vunmap(const void *addr);
+extern int vmap_pages_range(unsigned long addr, unsigned long end,
+			    pgprot_t prot, struct page **pages, unsigned int page_shift);
 
 extern int remap_vmalloc_range_partial(struct vm_area_struct *vma,
 				       unsigned long uaddr, void *kaddr,

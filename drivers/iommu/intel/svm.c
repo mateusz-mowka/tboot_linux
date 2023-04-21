@@ -416,7 +416,7 @@ static int intel_svm_unbind_mm(struct device *dev, u32 pasid)
 			 * hard to be as defensive as we might like. */
 			intel_pasid_tear_down_entry(iommu, dev,
 						    svm->pasid, false);
-			intel_svm_drain_prq(dev, svm->pasid);
+//			intel_svm_drain_prq(dev, svm->pasid);
 			kfree_rcu(sdev, rcu);
 
 			if (list_empty(&svm->devs)) {
