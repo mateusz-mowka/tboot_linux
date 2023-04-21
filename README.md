@@ -13,6 +13,13 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.17
+-----------------
+20. Merge the following features:
+    1/ DSA 2.0 Event Log
+    2/ IAA 2.0
+    3/ DSA 2.0 Inter-Domain PASID
+
 gnr-bkc-6.2-v1.16
 -----------------
 19. Revert "uapi/kvm: Correct the type" since it breaks things.
