@@ -48,6 +48,7 @@
 static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 static bool ucode_staging = true;
 extern struct dentry *dentry_ucode;
+int post_bios_mcu_rev;
 
 /* Current microcode patch used in early patching on the APs. */
 
@@ -106,6 +107,7 @@ static union mcu_enumeration mcu_cap;
 #define MSR_MCU_CONFIG		(0x7a0)
 #define MSR_MCU_COMMIT		(0x7a1)
 #define MSR_MCU_INFO		(0x7a2)
+#define MSR_MCU_ROLLBACK_MIN	(0x7a4)
 
 #define NUM_ROLLBACK_MSRS	(16)
 #define MSR_ROLLBACK_SIGN_BASE	(0x7b0)
@@ -444,6 +446,7 @@ static void save_bsp_rollback_info(void)
 static void setup_mcu_enumeration(void)
 {
 	u64 arch_cap;
+	union mcu_status status;
 
 	microcode_intel_ops.need_nmi_lateload = true;
 	arch_cap = x86_read_arch_cap_msr();
@@ -477,6 +480,16 @@ static void setup_mcu_enumeration(void)
 			dentry_ucode = debugfs_create_dir("microcode", NULL);
 
 		debugfs_create_bool("ucode_staging", 0644, dentry_ucode, &ucode_staging);
+	}
+
+	status.data = 0;
+	rdmsrl(MSR_MCU_STATUS, status.data);
+	if (!status.post_bios_mcu)
+		pr_info("WARNING: Contact BIOS Vendor: POST_BIOS_MCU not set\n");
+	else {
+		u32 dummy;
+		native_rdmsr(MSR_MCU_ROLLBACK_MIN, dummy, post_bios_mcu_rev);
+		pr_info("post_bios_mcu_rev: 0x%x\n", post_bios_mcu_rev);
 	}
 }
 
@@ -615,6 +628,43 @@ static bool is_ucode_listed(struct ucode_meta *umeta)
 	return false;
 }
 
+static bool check_update_reqs(struct microcode_header_intel *mch)
+{
+	struct ucode_meta *rb_meta;
+	union	svn_commit commit;
+
+	if (!mcu_cap.rollback)
+		return true;
+
+	if (mch->rev < post_bios_mcu_rev) {
+		pr_err("Revision 0x%x less than 0x%x (Post BIOS rev)\n",
+			mch->rev, post_bios_mcu_rev);
+		return false;
+	}
+
+	rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(mch, META_TYPE_ROLLBACK);
+	if (!rb_meta)
+		return false;
+
+	if (rb_meta->svn_info.rb_mcu_svn < bsp_rb_info.svn_info.cpu_svn) {
+		pr_err("MCU SVN 0x%x less than CPU SVN 0x%x, can't update\n",
+				rb_meta->svn_info.rb_mcu_svn, bsp_rb_info.svn_info.cpu_svn);
+		return false;
+	}
+
+	rdmsrl(MSR_MCU_COMMIT, commit.data);
+	if (!commit.commit_svn)
+		return true;
+
+	if (rb_meta->svn_info.rb_mcu_svn > bsp_rb_info.svn_info.pending_svn) {
+		pr_err("Can't load MCU_SVN 0x%x with pending commit SVN 0x%x\n",
+				rb_meta->svn_info.rb_mcu_svn, bsp_rb_info.svn_info.pending_svn);
+		return false;
+	}
+
+	return true;
+}
+
 static bool can_do_nocommit(struct microcode_header_intel *mch)
 {
 	struct ucode_meta *rb_meta;
@@ -622,10 +672,8 @@ static bool can_do_nocommit(struct microcode_header_intel *mch)
 	if (!mcu_cap.rollback)
 		return false;
 
-	if (check_pending()) {
-		pr_debug("Checkpending\n");
+	if (!check_update_reqs(mch))
 		return false;
-	}
 
 	rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(mch, META_TYPE_ROLLBACK);
 	if (!rb_meta)
@@ -1215,6 +1263,7 @@ static enum ucode_state apply_microcode_intel(int cpu)
 			mc->hdr.date >> 24,
 			(mc->hdr.date >> 16) & 0xff);
 		prev_rev = rev;
+		save_bsp_rollback_info();
 	}
 
 	ret = UCODE_UPDATED;
@@ -1505,6 +1554,7 @@ static int prepare_to_apply_intel(enum reload_type type)
 				pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 				break;
 			}	
+
 			free_rollback();
 			rv = switch_to_auto_commit();
 			if (rv)
@@ -1516,6 +1566,7 @@ static int prepare_to_apply_intel(enum reload_type type)
 			{
 				return -EINVAL;
 			}
+
 			if (!intel_ucode.ucode) {
 				pr_info("Defer Commit, No prior microcode, can't continue...\n");	
 				return rv;
@@ -1634,6 +1685,14 @@ reget:
 			ret = UCODE_ERROR;
 			if (unapplied_ucode.ucode)
 				kfree(unapplied_ucode.ucode);
+			unapplied_ucode.ucode = NULL;
+			unapplied_ucode.size = 0;
+		}
+	} else if (!fetch_orig && ret == UCODE_NEW && type == RELOAD_COMMIT) {
+		if (!check_update_reqs((struct microcode_header_intel *)unapplied_ucode.ucode)) {
+			ret = UCODE_ERROR;
+			if (unapplied_ucode.ucode)
+				kfree (unapplied_ucode.ucode);
 			unapplied_ucode.ucode = NULL;
 			unapplied_ucode.size = 0;
 		}
