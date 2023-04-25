@@ -13,12 +13,18 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.18
+-----------------
+21. Merge the IO RDT feature patches.
+    12484bb59fac Merge branch 'fyu/gnr.bkc.6.2.iordt' of https://github.com/intel-sandbox/idxd into gnr-staging-6.2
+
 gnr-bkc-6.2-v1.17
 -----------------
 20. Merge the following features:
     1/ DSA 2.0 Event Log
     2/ IAA 2.0
     3/ DSA 2.0 Inter-Domain PASID
+    f824a981e2d5 Merge branch 'fyu/6.2.iaa2.evl.idp' of https://github.com/intel-sandbox/idxd into gnr-staging-6.2    
 
 gnr-bkc-6.2-v1.16
 -----------------
