@@ -7294,6 +7294,7 @@ fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	unsigned long cr3, cr4;
+	unsigned long msr;
 
 	/* Record the guest's net vcpu time for enforced NMI injections. */
 	if (unlikely(!enable_vnmi &&
@@ -7368,6 +7369,10 @@ fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		vmx_set_interrupt_shadow(vcpu, 0);
 
 	kvm_load_guest_xsave_state(vcpu);
+
+	rdmsrl(MSR_IA32_S_CET, msr);
+	if (msr)
+		vmcs_writel(HOST_S_CET, msr);
 
 	pt_guest_enter(vmx);
 
