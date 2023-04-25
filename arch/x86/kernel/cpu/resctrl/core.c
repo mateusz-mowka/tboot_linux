@@ -492,7 +492,7 @@ static void domain_add_cpu(int cpu, struct rdt_resource *r)
 	if (d) {
 		cpumask_set_cpu(cpu, &d->cpu_mask);
 		if (r->cache.arch_has_per_cpu_cfg)
-			rdt_domain_reconfigure_cdp(r);
+			rdt_domain_reconfigure(r);
 		return;
 	}
 
@@ -504,7 +504,7 @@ static void domain_add_cpu(int cpu, struct rdt_resource *r)
 	d->id = id;
 	cpumask_set_cpu(cpu, &d->cpu_mask);
 
-	rdt_domain_reconfigure_cdp(r);
+	rdt_domain_reconfigure(r);
 
 	if (r->alloc_capable && domain_setup_ctrlval(r, d)) {
 		domain_free(hw_dom);
@@ -581,10 +581,30 @@ static void clear_closid_rmid(int cpu)
 static int resctrl_online_cpu(unsigned int cpu)
 {
 	struct rdt_resource *r;
+	bool iordt_enable;
 
 	mutex_lock(&rdtgroup_mutex);
 	for_each_capable_rdt_resource(r)
 		domain_add_cpu(cpu, r);
+
+	/*
+	 * MSR_IA32_L3_IO_QOS_CFG is scoped at L3 cache level. It's good
+	 * enough to update the MSR on just one CPU per L3 cache. But it's
+	 * complex to track the CPU per L3 cache that updates the MSR. To
+	 * simplify the code, update the MSR on each CPU. Hopefully extra
+	 * MSR writes may not cause a serious performance issue because this
+	 * is called only once on CPU online.
+	 *
+	 * Without mounted resctrl FS, force to clear L3_IO_QOS_CFG MSR
+	 * so that no IO RDT L3 feature is enabled. This sets the MSR in
+	 * a fixed init state in kexec guest regardless host setting.
+	 */
+	if (static_branch_unlikely(&rdt_enable_key))
+		iordt_enable = true;
+	else
+		iordt_enable = false;
+	l3_io_qos_cfg_update(&iordt_enable);
+
 	/* The cpu is set in default rdtgroup after online. */
 	cpumask_set_cpu(cpu, &rdtgroup_default.cpu_mask);
 	clear_closid_rmid(cpu);
@@ -647,6 +667,9 @@ enum {
 	RDT_FLAG_L2_CAT,
 	RDT_FLAG_L2_CDP,
 	RDT_FLAG_MBA,
+	RDT_FLAG_L3_CAT_IO,
+	RDT_FLAG_L3_CMT_IO,
+	RDT_FLAG_L3_MBM_IO,
 };
 
 #define RDT_OPT(idx, n, f)	\
@@ -670,6 +693,9 @@ static struct rdt_options rdt_options[]  __initdata = {
 	RDT_OPT(RDT_FLAG_L2_CAT,    "l2cat",	X86_FEATURE_CAT_L2),
 	RDT_OPT(RDT_FLAG_L2_CDP,    "l2cdp",	X86_FEATURE_CDP_L2),
 	RDT_OPT(RDT_FLAG_MBA,	    "mba",	X86_FEATURE_MBA),
+	RDT_OPT(RDT_FLAG_L3_CAT_IO, "l3cat_io",	X86_FEATURE_CAT_L3_IO),
+	RDT_OPT(RDT_FLAG_L3_CMT_IO, "cmt_io",	X86_FEATURE_CQM_OCCUP_LLC_IO),
+	RDT_OPT(RDT_FLAG_L3_MBM_IO, "mbm_io",	X86_FEATURE_CQM_MBM_IO),
 };
 #define NUM_RDT_OPTIONS ARRAY_SIZE(rdt_options)
 
@@ -699,7 +725,7 @@ static int __init set_rdt_options(char *str)
 }
 __setup("rdt", set_rdt_options);
 
-static bool __init rdt_cpu_has(int flag)
+bool __init rdt_cpu_has(int flag)
 {
 	bool ret = boot_cpu_has(flag);
 	struct rdt_options *o;
@@ -717,6 +743,16 @@ static bool __init rdt_cpu_has(int flag)
 		}
 	}
 	return ret;
+}
+
+void __init iordt_mon_config(void)
+{
+	if (is_llc_occupancy_enabled() &&
+	    rdt_cpu_has(X86_FEATURE_CQM_OCCUP_LLC_IO))
+		iordt_enable(IO_CMT_L3_ENABLED);
+
+	if (is_mbm_enabled() && rdt_cpu_has(X86_FEATURE_CQM_MBM_IO))
+		iordt_enable(IO_MBM_L3_ENABLED);
 }
 
 static __init bool get_mem_config(void)
@@ -748,6 +784,8 @@ static __init bool get_rdt_alloc_resources(void)
 	if (rdt_cpu_has(X86_FEATURE_CAT_L3)) {
 		r = &rdt_resources_all[RDT_RESOURCE_L3].r_resctrl;
 		rdt_get_cache_alloc_cfg(1, r);
+		if (rdt_cpu_has(X86_FEATURE_CAT_L3_IO))
+			iordt_enable(IO_CAT_L3_ENABLED);
 		if (rdt_cpu_has(X86_FEATURE_CDP_L3))
 			rdt_get_cdp_l3_config();
 		ret = true;
@@ -913,6 +951,8 @@ static int __init resctrl_late_init(void)
 
 	check_quirks();
 
+	iordt_init();
+
 	if (!get_rdt_resources())
 		return -ENODEV;
 
@@ -936,6 +976,8 @@ static int __init resctrl_late_init(void)
 
 	for_each_mon_capable_rdt_resource(r)
 		pr_info("%s monitoring detected\n", r->name);
+
+	iordt_show();
 
 	return 0;
 }
