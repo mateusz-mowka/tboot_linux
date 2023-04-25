@@ -1749,14 +1749,16 @@ static void iommu_disable_protect_mem_regions(struct intel_iommu *iommu)
 	raw_spin_unlock_irqrestore(&iommu->register_lock, flags);
 }
 
+/* allocates 16 pages, but only use 12 */
 #define TDX_IO_BUFF_ORDER	4
-#define TDX_IO_BUFF_PG_NUM	16
+#define TDX_IO_BUFF_PG_NUM	12
 
 static void iommu_tdxio_reclaim_pages(unsigned long pages_pa)
 {
 	int i;
 
-	for (i = 0; i < (1 << TDX_IO_BUFF_ORDER); i++)
+	/* Don't reclaim unused pages */
+	for (i = 0; i < TDX_IO_BUFF_PG_NUM; i++)
 		WARN_ON(tdx_reclaim_page(pages_pa + (i * PAGE_SIZE),
 					 PG_LEVEL_4K, false, 0));
 }
@@ -1770,7 +1772,11 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 	if (iommu->tdxio_enabled)
 		return 0;
 
-	/* TDX-IO mode initialization requires 16 free pages */
+	/*
+	 * TDX-IO mode initialization requires 12 free pages, some should be
+	 * contiguous. e.g. 4 contiguous pages for IQ, 4 for IQCTX. For
+	 * simplicity, alloc 16 contiguous pages and leave last 4 unused.
+	 */
 	va = __get_free_pages(GFP_KERNEL_ACCOUNT | __GFP_ZERO, TDX_IO_BUFF_ORDER);
 	if (!va)
 		return -ENOMEM;
