@@ -738,12 +738,18 @@ scan_microcode(void *data, size_t size, struct ucode_cpu_info *uci, bool save)
 
 
 		if (!patch) {
-			if (!has_newer_microcode(data,
+			/*
+			 * Save patch even if it matches what's loaded.
+			 * This will be useful for a rollback in case user
+			 * wants to perform a deferred commit
+			 */
+			if (uci->cpu_sig.rev == mc_header->rev)
+				goto save;
+			else if (!has_newer_microcode(data,
 						 uci->cpu_sig.sig,
 						 uci->cpu_sig.pf,
 						 uci->cpu_sig.rev))
 				goto next;
-
 		} else {
 			struct microcode_header_intel *phdr = &patch->hdr;
 
@@ -753,7 +759,7 @@ scan_microcode(void *data, size_t size, struct ucode_cpu_info *uci, bool save)
 						 phdr->rev))
 				goto next;
 		}
-
+save:
 		/* We have a newer patch, save it. */
 		patch = data;
 		pr_info("Setting patch at 0x%p val = 0x%lx \n", patch, (unsigned long) patch);
