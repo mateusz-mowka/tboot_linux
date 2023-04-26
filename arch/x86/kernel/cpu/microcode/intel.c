@@ -1331,8 +1331,9 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter, e
 
 		csig = uci->cpu_sig.sig;
 		cpf = uci->cpu_sig.pf;
-		if ((type == RELOAD_SAME && uci->cpu_sig.rev ==
-					mc_header.rev) || has_newer_microcode(mc, csig, cpf, new_rev)) {
+		if (ucode_load_same || (type == RELOAD_SAME &&
+					uci->cpu_sig.rev == mc_header.rev) ||
+				has_newer_microcode(mc, csig, cpf, new_rev)) {
 			vfree(new_mc);
 			new_rev = mc_header.rev;
 			new_mc  = mc;
