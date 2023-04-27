@@ -2658,14 +2658,14 @@ void tdx_track(struct kvm_tdx *kvm_tdx)
 		 */
 		err = tdh_mem_track(kvm_tdx->tdr_pa);
 	} while ((err & TDX_SEAMCALL_STATUS_MASK) == TDX_OPERAND_BUSY);
-	tdx_tdi_iq_inv_iotlb(kvm_tdx);
 
 	/* Release remote vcpu waiting for TDH.MEM.TRACK in tdx_flush_tlb(). */
 	atomic_dec(&kvm_tdx->tdh_mem_track);
 
 	if (KVM_BUG_ON(err, &kvm_tdx->kvm))
 		pr_tdx_error(TDH_MEM_TRACK, err, NULL);
-
+	else
+		tdx_tdi_iq_inv_iotlb(kvm_tdx);
 }
 
 static int tdx_sept_unzap_private_spte(struct kvm *kvm, gfn_t gfn,
