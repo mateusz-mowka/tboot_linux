@@ -13,6 +13,15 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.21
+-----------------
+24. Support multi-page, multi-stream, and post-copy migration for TDX
+    https://jira.devtools.intel.com/browse/LFE-7540
+    https://jira.devtools.intel.com/browse/LFE-7541
+    gnr.config: update for post-copy migration
+    TDX: fix premigration #PF issue
+    KVM: TDX_MIG: support Multi-page, Multi-stream and Postcopy
+
 gnr-bkc-6.2-v1.20
 -----------------
 23. Disable and enable some ACPI tables for x86/tdx.
