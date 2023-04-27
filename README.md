@@ -13,6 +13,15 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.19
+-----------------
+22. add some missing config options
+    gnr.config: enable Realtek RTL8152/8153 USB ethernet adapter driver
+    gnr.config: update for VFIO IOMMUFD
+    gnr.config: update for TDX 1.0, TDX 1.5, TDX guest
+    gnr.config: update for rapl/intel_idle
+    gnr.config: update for CET IBT SHAWDOW_STACK
+
 gnr-bkc-6.2-v1.18
 -----------------
 21. Merge the IO RDT feature patches.
