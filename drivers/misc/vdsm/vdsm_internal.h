@@ -9,7 +9,7 @@
 #include <linux/pci-doe.h>
 #include <linux/xarray.h>
 
-#define VDSM_MAX_MINORS 16
+#define VDSM_MAX_MINORS 256
 #define PCI_DOE_HEADER_SIZE 8
 
 #define UNIQUE_BE_IDX(vid, did) (((uint64_t)vid << 32) | did)
