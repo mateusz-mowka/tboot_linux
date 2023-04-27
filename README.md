@@ -13,6 +13,17 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.20
+-----------------
+23. Disable and enable some ACPI tables for x86/tdx.
+
+    https://jira.devtools.intel.com/browse/BLR-669
+    x86/tdx: Allow SRAT ACPI table
+
+    https://hsdes.intel.com/appstore/article/#/15013318560
+    x86/tdx: Allow CCEL ACPI table
+    Revert "x86/tdx: Allow TDEL ACPI table"
+
 gnr-bkc-6.2-v1.19
 -----------------
 22. add some missing config options
