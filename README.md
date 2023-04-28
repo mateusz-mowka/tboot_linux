@@ -13,6 +13,13 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.22
+-----------------
+25. [TDX] Wrong assumption in KVM about TSX_CTRL MSR value after TD-exit
+    https://jira.devtools.intel.com/browse/BLR-852
+    KVM: TDX: Correct the reset value of MSR_SYSCALL_MASK
+    KVM: TDX: Fix wrong assumption about TSX_CTRL MSR value after TD-exit
+
 gnr-bkc-6.2-v1.21
 -----------------
 24. Support multi-page, multi-stream, and post-copy migration for TDX
@@ -57,7 +64,8 @@ gnr-bkc-6.2-v1.17
 
 gnr-bkc-6.2-v1.16
 -----------------
-19. Revert "uapi/kvm: Correct the type" since it breaks things.
+19. Revert "uapi/kvm: Correct the type" since it breaks LTP (Linux Test Program) building.
+    https://jira.devtools.intel.com/browse/LFE-7594
 
 gnr-bkc-6.2-v1.15
 -----------------
