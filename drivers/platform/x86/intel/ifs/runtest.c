@@ -296,28 +296,6 @@ static void ifs_test_core(int cpu, struct device *dev)
 	}
 }
 
-#define SPINUNIT 100 /* 100 nsec */
-static atomic_t array_cpus_out;
-
-/*
- * Simplified cpu sibling rendezvous loop based on microcode loader __wait_for_cpus()
- */
-static void wait_for_sibling_cpu(atomic_t *t, long long timeout)
-{
-	int cpu = smp_processor_id();
-	const struct cpumask *smt_mask = cpu_smt_mask(cpu);
-	int all_cpus = cpumask_weight(smt_mask);
-
-	atomic_inc(t);
-	while (atomic_read(t) < all_cpus) {
-		if (timeout < SPINUNIT)
-			return;
-		ndelay(SPINUNIT);
-		timeout -= SPINUNIT;
-		touch_nmi_watchdog();
-	}
-}
-
 static int do_array_test(void *data)
 {
 	int cpu = smp_processor_id();
@@ -337,9 +315,6 @@ static int do_array_test(void *data)
 		/* Pass back the result of the scan */
 		rdmsrl(MSR_ARRAY_BIST, msrs[1]);
 	}
-
-	/* Tests complete faster if the sibling is spinning here */
-	wait_for_sibling_cpu(&array_cpus_out, NSEC_PER_SEC);
 
 	return 0;
 }
@@ -368,7 +343,6 @@ static void ifs_array_test_core(int cpu, struct device *dev)
 
 		msrvals[0] = activate.data;
 
-		atomic_set(&array_cpus_out, 0);
 		stop_core_cpuslocked(cpu, do_array_test, msrvals);
 		status.data = msrvals[1];
 
