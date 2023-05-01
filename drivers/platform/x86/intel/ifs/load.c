@@ -205,7 +205,7 @@ static int copy_hashes_authenticate_chunks_gen2(struct device *dev)
 
 	ifsd = ifs_get_data(dev);
 
-	if (!ifsd->loaded || ifsd->test_gen < 2 || ifsd->loaded_version != ifs_header_ptr->rev) {
+	if (!ifsd->loaded || ifsd->loaded_version != ifs_header_ptr->rev) {
 		dev_info(dev, "SCAN Copying hashes - 0x%x\n", ifs_header_ptr->rev);
 		/* run scan hash copy */
 		wrmsrl(MSR_COPY_SCAN_HASHES, ifs_hash_ptr);
@@ -242,8 +242,8 @@ static int copy_hashes_authenticate_chunks_gen2(struct device *dev)
 		if (chunk_status.valid_chunks != 0) {
 			dev_err(dev, "Couldn't invalidate installed stride - %d\n",
 				chunk_status.valid_chunks);
-			return -EIO;
 		}
+		return -EIO;
 	}
 
 	base = ifs_test_image_ptr;
@@ -300,7 +300,7 @@ static int copy_sbft_hashes_authenticate_chunks(struct device *dev)
 
 	ifsd = ifs_get_data(dev);
 
-	if (!ifsd->loaded || ifsd->test_gen < 2 || ifsd->loaded_version != ifs_header_ptr->rev) {
+	if (!ifsd->loaded || ifsd->loaded_version != ifs_header_ptr->rev) {
 		dev_info(dev, "SBFT Copying hashes - 0x%x\n", ifs_header_ptr->rev);
 		/* run scan hash copy */
 		wrmsrl(MSR_COPY_SBFT_HASHES, ifs_hash_ptr);
@@ -337,8 +337,8 @@ static int copy_sbft_hashes_authenticate_chunks(struct device *dev)
 		if (chunk_status.valid_chunks != 0) {
 			dev_err(dev, "Couldn't invalidate installed stride - %d\n",
 				chunk_status.valid_chunks);
-			return -EIO;
 		}
+		return -EIO;
 	}
 
 	base = ifs_test_image_ptr;
