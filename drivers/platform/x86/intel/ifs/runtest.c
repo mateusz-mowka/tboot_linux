@@ -163,22 +163,6 @@ static int doscan(void *data)
 	return 0;
 }
 
-void update_ifs_last_wp(void *p)
-{
-	struct device *dev = p;
-	struct ifs_data *ifsd;
-	u64 last_wp;
-
-	ifsd = ifs_get_data(dev);
-
-	if (ifsd->integrity_cap_bit == MSR_INTEGRITY_CAPS_PERIODIC_BIST_BIT)
-		rdmsrl(MSR_LAST_SCAN_WP, last_wp);
-	else
-		rdmsrl(MSR_LAST_SBFT_WP, last_wp);
-
-	ifsd->last_wp = (u32)last_wp;
-}
-
 static void ifs_test_core_gen2(int cpu, struct device *dev)
 {
 	union ifs_scan_gen2 activate;
@@ -240,9 +224,6 @@ static void ifs_test_core_gen2(int cpu, struct device *dev)
 	} else {
 		ifsd->status = SCAN_TEST_PASS;
 	}
-
-	if (ifsd->test_gen > 0)
-		smp_call_function_single(cpu, update_ifs_last_wp, dev, 1);
 }
 
 /*
@@ -603,9 +584,6 @@ static void ifs_sbft_test_core(int cpu, struct device *dev)
 	} else {
 		ifsd->status = SCAN_TEST_PASS;
 	}
-
-	if (ifsd->test_gen > 0)
-		smp_call_function_single(cpu, update_ifs_last_wp, dev, 1);
 }
 
 /*
