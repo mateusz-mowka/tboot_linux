@@ -128,14 +128,6 @@
 #include <linux/miscdevice.h>
 
 #define MSR_ARRAY_BIST				0x00000105
-
-#define MSR_COPY_SBFT_HASHES			0x000002b8
-#define MSR_SBFT_HASHES_STATUS			0x000002b9
-#define MSR_AUTHENTICATE_AND_COPY_SBFT_CHUNK	0x000002ba
-#define MSR_SBFT_CHUNKS_AUTHENTICATION_STATUS	0x000002bb
-#define MSR_ACTIVATE_SBFT			0x000002bc
-#define MSR_SBFT_STATUS				0x000002bd
-
 #define MSR_COPY_SCAN_HASHES			0x000002c2
 #define MSR_SCAN_HASHES_STATUS			0x000002c3
 #define MSR_AUTHENTICATE_AND_COPY_CHUNK		0x000002c4
@@ -143,16 +135,9 @@
 #define MSR_ACTIVATE_SCAN			0x000002c6
 #define MSR_SCAN_STATUS				0x000002c7
 #define MSR_SAF_CTRL				0x000002cb
-#define MSR_SBFT_CTRL				0x000002cc
 #define SCAN_NOT_TESTED				0
 #define SCAN_TEST_PASS				1
 #define SCAN_TEST_FAIL				2
-
-enum test_types {
-	IFS_SAF,
-	IFS_ARRAY,
-	IFS_SBFT
-};
 
 /* MSR_SCAN_HASHES_STATUS bit fields */
 union ifs_scan_hashes_status {
@@ -273,60 +258,6 @@ union ifs_array_status {
 	};
 };
 
-/* MSR_SBFT_HASHES_STATUS bit fields */
-union ifs_sbft_hashes_status {
-	u64	data;
-	struct {
-		u32	chunk_size	:16;
-		u32	num_chunks	:16;
-		u32	error_code	:8;
-		u32	chunks_in_stride :9;
-		u32	rsvd		:2;
-		u32	max_core_limit	:12;
-		u32	valid		:1;
-	};
-};
-
-/* MSR_SBFT_CHUNKS_AUTH_STATUS bit fields */
-union ifs_sbft_chunks_auth_status {
-	u64	data;
-	struct {
-		u32	valid_chunks	:16;
-		u32	total_chunks	:16;
-		u32	error_code	:8;
-		u32	rsvd		:8;
-		u32	max_bundle	:16;
-	};
-};
-
-/* MSR_ACTIVATE_SBFT bit fields */
-union ifs_sbft {
-	u64	data;
-	struct {
-		u32	bundle_idx	:9;
-		u32	rsvd1		:5;
-		u32	pgm_idx		:2;
-		u32	rsvd2		:16;
-		u32	delay		:31;
-		u32	sigmce		:1;
-	};
-};
-
-/* MSR_SBFT_STATUS bit fields */
-union ifs_sbft_status {
-	u64	data;
-	struct {
-		u32	bundle_idx	:9;
-		u32	rsvd1		:5;
-		u32	pgm_idx		:2;
-		u32	rsvd2		:16;
-		u32	error_code	:8;
-		u32	rsvd3		:21;
-		u32	test_fail	:1;
-		u32	sbft_status	:2;
-	};
-};
-
 /*
  * Driver populated error-codes
  * 0xFD: Test timed out before completing all the chunks.
@@ -349,7 +280,6 @@ union ifs_sbft_status {
  * @test_num: number indicating the test type
  * @test_gen: test generation revision
  * @chunk_size: size of a test chunk
- * @max_bundle: maximum bundle index
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -364,7 +294,6 @@ struct ifs_data {
 	int	test_num;
 	u32	test_gen;
 	u32	chunk_size;
-	u32	max_bundle;
 };
 
 struct ifs_work {
