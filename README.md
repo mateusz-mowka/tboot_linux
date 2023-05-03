@@ -13,6 +13,12 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.23
+-----------------
+26. TDX guest driver exposes /dev/tdx_guest to support TDX attestation.
+    https://jira.devtools.intel.com/browse/LFE-7348
+    x86/tdx: Add tdx_guest to list of allowed devices
+
 gnr-bkc-6.2-v1.22
 -----------------
 25. [TDX] Wrong assumption in KVM about TSX_CTRL MSR value after TD-exit
