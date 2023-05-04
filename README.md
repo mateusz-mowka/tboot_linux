@@ -13,6 +13,14 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.24
+-----------------
+27. Bug: MSR value of Kernel IBT reset to 0 after VM created
+    https://jira.devtools.intel.com/browse/LFE-7602
+    https://jira.devtools.intel.com/browse/LFE-7601
+    Fix:
+    KVM:x86: Store host S_CET msr data to vmcs field before vm-entry
+
 gnr-bkc-6.2-v1.23
 -----------------
 26. TDX guest driver exposes /dev/tdx_guest to support TDX attestation.
