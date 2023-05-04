@@ -1234,7 +1234,7 @@ static enum ucode_state apply_microcode_intel(int cpu, enum reload_type type)
 	 * already.
 	 */
 	rev = intel_get_microcode_revision();
-	if (rev >= mc->hdr.rev && type != RELOAD_ROLLBACK) {
+	if ((rev >= mc->hdr.rev && type != RELOAD_ROLLBACK) && !ucode_load_same) {
 		ret = UCODE_OK;
 		goto out;
 	}
