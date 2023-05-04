@@ -430,6 +430,7 @@ static int vfio_group_fops_release(struct inode *inode, struct file *filep)
 		group->iommufd = NULL;
 	}
 	group->opened_file = NULL;
+	group->attrs = 0;
 	mutex_unlock(&group->group_lock);
 	return 0;
 }
