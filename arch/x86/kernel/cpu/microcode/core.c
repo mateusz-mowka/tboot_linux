@@ -662,10 +662,10 @@ done:
 		pr_info("Reload completed, microcode revision: 0x%x -> 0x%x\n",
 			old, boot_cpu_data.microcode);
 		microcode_check();
-▸       } else {
-▸       ▸       pr_info("Reload failed, current microcode revision: 0x%x\n",
-▸       ▸       ▸       boot_cpu_data.microcode);¬
-▸       }
+	} else {
+		pr_info("Reload failed, current microcode revision: 0x%x\n",
+		boot_cpu_data.microcode);
+	}
 
 	return ret;
 }
