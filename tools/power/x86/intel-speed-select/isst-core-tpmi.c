@@ -524,6 +524,101 @@ static int tpmi_get_fact_info(struct isst_id *id, int level, int fact_bucket,
 	return 0;
 }
 
+static void _set_uncore_min_max(struct isst_id *id, int max, int freq)
+{
+	DIR *dir;
+	FILE *filep;
+	struct dirent *entry;
+	char buffer[512];
+	unsigned int tmp_id;
+	int ret;
+
+	dir = opendir("/sys/devices/system/cpu/intel_uncore_frequency/");
+	if (!dir)
+		return;
+
+	while ((entry = readdir(dir)) != NULL ) {
+		/* Check domain_id */
+		snprintf(buffer, sizeof(buffer),
+			 "/sys/devices/system/cpu/intel_uncore_frequency/%s/domain_id", entry->d_name);
+
+		filep = fopen(buffer, "r");
+		if (!filep)
+			goto end;
+
+		ret = fscanf(filep, "%u", &tmp_id);
+		fclose(filep);
+		if (ret != 1)
+			goto end;
+
+		if (tmp_id != id->punit)
+			continue;
+
+		/* Check package_id */
+		snprintf(buffer, sizeof(buffer),
+			 "/sys/devices/system/cpu/intel_uncore_frequency/%s/package_id", entry->d_name);
+
+		filep = fopen(buffer, "r");
+		if (!filep)
+			goto end;
+
+		ret = fscanf(filep, "%u", &tmp_id);
+		fclose(filep);
+
+		if (ret != 1)
+			goto end;
+
+		if (tmp_id != id->pkg)
+			continue;
+
+		/* Found the right sysfs path, adjust and quit */
+		if (max)
+			snprintf(buffer, sizeof(buffer),
+				 "/sys/devices/system/cpu/intel_uncore_frequency/%s/max_freq_khz", entry->d_name);
+		 else
+			snprintf(buffer, sizeof(buffer),
+				 "/sys/devices/system/cpu/intel_uncore_frequency/%s/min_freq_khz", entry->d_name);
+
+		filep = fopen(buffer, "w");
+		if (!filep)
+			goto end;
+
+		fprintf(filep, "%d\n", freq);
+		fclose(filep);
+		break;
+	}
+
+end:
+	closedir(dir);
+}
+
+static void tpmi_adjust_uncore_freq(struct isst_id *id, int config_index,
+				struct isst_pkg_ctdp_level_info *ctdp_level)
+{
+	struct isst_perf_level_data_info info;
+	int ret;
+
+	info.socket_id = id->pkg;
+	info.power_domain_id = id->punit;
+	info.level = config_index;
+
+	ret = tpmi_process_ioctl(ISST_IF_GET_PERF_LEVEL_INFO, &info);
+	if (ret == -1)
+		return;
+
+	ctdp_level->uncore_p0 = info.p0_fabric_freq_mhz;
+	ctdp_level->uncore_p1 = info.p1_fabric_freq_mhz;
+	ctdp_level->uncore_pm = info.pm_fabric_freq_mhz;
+
+	if (ctdp_level->uncore_pm)
+		_set_uncore_min_max(id, 0, ctdp_level->uncore_pm * 100000);
+
+	if (ctdp_level->uncore_p0)
+		_set_uncore_min_max(id, 1, ctdp_level->uncore_p0 * 100000);
+
+	return;
+}
+
 static int tpmi_get_clos_information(struct isst_id *id, int *enable, int *type)
 {
 	struct isst_core_power info;
@@ -677,6 +772,7 @@ static struct isst_platform_ops tpmi_ops = {
 	.get_pbf_info = tpmi_get_pbf_info,
 	.set_pbf_fact_status = tpmi_set_pbf_fact_status,
 	.get_fact_info = tpmi_get_fact_info,
+	.adjust_uncore_freq = tpmi_adjust_uncore_freq,
 	.get_clos_information = tpmi_get_clos_information,
 	.pm_qos_config = tpmi_pm_qos_config,
 	.pm_get_clos = tpmi_pm_get_clos,

@@ -283,9 +283,9 @@ static void _isst_fact_display_information(struct isst_id *id, FILE *outf, int l
 			 bucket_info[j].hp_cores);
 		format_and_print(outf, base_level + 2, header, value);
 		for (i = 0; i < trl_max_levels; i++) {
-			if (fact_avx != 0xFF && !(fact_avx & (1 << i)))
+			if (!bucket_info[j].hp_ratios[i] || (fact_avx != 0xFF && !(fact_avx & (1 << i))))
 				continue;
-			if (i == 0 && api_version() == 1)
+			if (i == 0 && api_version() == 1 && !is_emr_platform())
 				snprintf(header, sizeof(header),
 					"high-priority-max-frequency(MHz)");
 			else
@@ -301,8 +301,11 @@ static void _isst_fact_display_information(struct isst_id *id, FILE *outf, int l
 	format_and_print(outf, base_level + 1, header, NULL);
 
 	for (j = 0; j < trl_max_levels; j++) {
+		if (!fact_info->lp_ratios[j])
+			continue;
+
 		/* No AVX level name for SSE to be consistent with previous formatting */
-		if (j == 0 && api_version() == 1)
+		if (j == 0 && api_version() == 1 && !is_emr_platform())
 			snprintf(header, sizeof(header), "low-priority-max-frequency(MHz)");
 		else
 			snprintf(header, sizeof(header), "low-priority-max-%s-frequency(MHz)",
@@ -410,13 +413,6 @@ void isst_ctdp_display_information(struct isst_id *id, FILE *outf, int tdp_level
 			format_and_print(outf, level + 2, header, value);
 		}
 
-		if (api_version() > 1 && ctdp_level->amx_p1) {
-			snprintf(header, sizeof(header), "base-frequency-amx(MHz)");
-			snprintf(value, sizeof(value), "%d",
-			ctdp_level->amx_p1 * isst_get_disp_freq_multiplier());
-			format_and_print(outf, level + 2, header, value);
-		}
-
 		if (ctdp_level->uncore_pm) {
 			snprintf(header, sizeof(header), "uncore-frequency-min(MHz)");
 			snprintf(value, sizeof(value), "%d",
@@ -424,17 +420,24 @@ void isst_ctdp_display_information(struct isst_id *id, FILE *outf, int tdp_level
 			format_and_print(outf, level + 2, header, value);
 		}
 
-		if (ctdp_level->uncore_p1) {
-			snprintf(header, sizeof(header), "uncore-frequency-base(MHz)");
-			snprintf(value, sizeof(value), "%d",
-				 ctdp_level->uncore_p1 * isst_get_disp_freq_multiplier());
-			format_and_print(outf, level + 2, header, value);
-		}
-
 		if (ctdp_level->uncore_p0) {
 			snprintf(header, sizeof(header), "uncore-frequency-max(MHz)");
 			snprintf(value, sizeof(value), "%d",
 				 ctdp_level->uncore_p0 * isst_get_disp_freq_multiplier());
+			format_and_print(outf, level + 2, header, value);
+		}
+
+		if (ctdp_level->amx_p1) {
+			snprintf(header, sizeof(header), "base-frequency-amx(MHz)");
+			snprintf(value, sizeof(value), "%d",
+			ctdp_level->amx_p1 * isst_get_disp_freq_multiplier());
+			format_and_print(outf, level + 2, header, value);
+		}
+
+		if (ctdp_level->uncore_p1) {
+			snprintf(header, sizeof(header), "uncore-frequency-base(MHz)");
+			snprintf(value, sizeof(value), "%d",
+				 ctdp_level->uncore_p1 * isst_get_disp_freq_multiplier());
 			format_and_print(outf, level + 2, header, value);
 		}
 
