@@ -19,13 +19,9 @@
 #include <linux/uaccess.h>
 #include <uapi/linux/isst_if.h>
 
-#include <asm/cpu_device_id.h>
-#include <asm/intel-family.h>
-
 #include "isst_if_common.h"
 
 #define MSR_THREAD_ID_INFO	0x53
-#define MSR_PM_LOGICAL_ID	0x54
 #define MSR_CPU_BUS_NUMBER	0x128
 
 static struct isst_if_cmd_cb punit_callbacks[ISST_IF_DEV_MAX];
@@ -35,7 +31,6 @@ static int punit_msr_white_list[] = {
 	MSR_CONFIG_TDP_CONTROL,
 	MSR_TURBO_RATIO_LIMIT1,
 	MSR_TURBO_RATIO_LIMIT2,
-	MSR_PM_LOGICAL_ID,
 };
 
 struct isst_valid_cmd_ranges {
@@ -77,8 +72,6 @@ struct isst_cmd {
 	int mbox_cmd_type;
 	u32 param;
 };
-
-static bool isst_hpm_support;
 
 static DECLARE_HASHTABLE(isst_hash, 8);
 static DEFINE_MUTEX(isst_hash_lock);
@@ -418,43 +411,11 @@ static int isst_if_cpu_online(unsigned int cpu)
 		isst_cpu_info[cpu].pci_dev[1] = _isst_if_get_pci_dev(cpu, 1, 30, 1);
 	}
 
-	if (isst_hpm_support) {
-		u64 raw_data;
-
-		ret = rdmsrl_safe(MSR_PM_LOGICAL_ID, &raw_data);
-		if (!ret) {
-			/*
-			 * Use the same format as MSR 53, for user space harmony
-			 *  Format
-			 *	Bit 0 – thread ID
-			 *	Bit 8:1 – core ID
-			 *	Bit 13:9 – Compute domain ID (aka die ID)
-			 * From the MSR 0x54 format
-			 *	[15:11] PM_DOMAIN_ID
-			 *	[10:3] MODULE_ID (aka IDI_AGENT_ID)
-			 *	[2:0] LP_ID (We don't care about these bits we only
-			 *			care die and core id
-			 *	For Atom:
-			 *		[2] Always 0
-			 *		[1:0] core ID within module
-			 *	For Core
-			 *		[2:1] Always 0
-			 *		[0] thread ID
-			 */
-			data = (raw_data >> 11) & 0x1f;
-			data <<= 9;
-			data |= (((raw_data >> 3) & 0xff) << 1);
-			goto set_punit_id;
-		}
-	}
-
 	ret = rdmsrl_safe(MSR_THREAD_ID_INFO, &data);
 	if (ret) {
 		isst_cpu_info[cpu].punit_cpu_id = -1;
 		return ret;
 	}
-
-set_punit_id:
 	isst_cpu_info[cpu].punit_cpu_id = data;
 
 	isst_restore_msr_local(cpu);
@@ -743,12 +704,6 @@ static struct miscdevice isst_if_char_driver = {
 	.fops		= &isst_if_char_driver_ops,
 };
 
-static const struct x86_cpu_id hpm_cpu_ids[] = {
-	X86_MATCH_INTEL_FAM6_MODEL(GRANITERAPIDS_X,	NULL),
-	X86_MATCH_INTEL_FAM6_MODEL(SIERRAFOREST_X,	NULL),
-	{}
-};
-
 static int isst_misc_reg(void)
 {
 	mutex_lock(&punit_misc_dev_reg_lock);
@@ -756,12 +711,6 @@ static int isst_misc_reg(void)
 		goto unlock_exit;
 
 	if (!misc_usage_count) {
-		const struct x86_cpu_id *id;
-
-		id = x86_match_cpu(hpm_cpu_ids);
-		if (id)
-			isst_hpm_support = true;
-
 		misc_device_ret = isst_if_cpu_info_init();
 		if (misc_device_ret)
 			goto unlock_exit;
