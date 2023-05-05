@@ -13,6 +13,13 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.25
+-----------------
+28. Bug: TDVM hang when run perf FIO test with specific configurations
+    https://jira.devtools.intel.com/browse/BLR-840
+    Fix: Add more conditions to prevent multiple vCPU read/write on one slot, which will make system hang.
+    swiotlb: fix system hang when multiple vCPU operate one slot
+
 gnr-bkc-6.2-v1.24
 -----------------
 27. Bug: MSR value of Kernel IBT reset to 0 after VM created
