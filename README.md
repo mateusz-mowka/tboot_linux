@@ -13,6 +13,20 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.26
+-----------------
+29. Feature: https://jira.devtools.intel.com/browse/LFE-7259
+    Implements the QEMU/KVM side feature for VTPM of INTEL TDX guest, includes:
+    1. Add Unix datagram socket supporting for QEMU
+    2. Add basic VMCALL.SERVICE<vTPM> supporting for KVM/QEMU
+    3. Add new properties on QEMU for vTPM
+    4. Add VMCALL.SERVICE<vTPM.sendmessage> for TDVF/TD guest
+    5. Add VMCALL.SERVICE<vTPM.recvmessage> for TDVF/TD guest
+    6. Add VMCALL.SERVICE<vTPM.ReportStatus> for TDVF/TD guest
+    7. Add VMCALL.SERVICE<vTPM.WaitForRequest> for TDVF/TD guest
+    Patch:
+    KVM: TDX: return userspace for VTPM/VTPMTD service call
+
 gnr-bkc-6.2-v1.25
 -----------------
 28. Bug: TDVM hang when run perf FIO test with specific configurations
