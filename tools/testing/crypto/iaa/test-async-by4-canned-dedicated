@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+./enable-tps-all
+./setup-zswap-async-by4-canned-dedicated 0 0
+./enable-zswap-hists-all
+
+n_iterations=1
+
+echo "Running memory_madvise subset_4300/4300_all (compress/decompress) $n_iterations times:"
+#for i in {1..'$n_iterations'}
+for ((i = 0; i < $n_iterations; i++))
+do
+    ./memory_madvise_readpages subset_4300/4300_all
+done
+
+#do
+#    ./memory_madvise_readpages subset_4300/4300_allx100
+#done
+
+# ./memory_madvise_readpages subset_4300/4300_all
+
+# cat /sys/kernel/debug/tracing/trace

@@ -1,0 +1,88 @@
+sudo -i
+cd <kernel location>/tools/testing/crypto/iaa
+
+# sync canned dedicated
+./teardown-zswap
+./test-sync-canned-dedicated > test-sync-canned-dedicated.out
+./dump-zswap-hists-all >> test-sync-canned-dedicated.out
+./calcpercent.py test-sync-canned-dedicated.out 98 >> test-sync-canned-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-sync-canned-dedicated.trace
+
+# sync lzo rle
+./teardown-zswap
+./test-sync-lzo-rle > test-sync-lzo-rle.out
+./dump-zswap-hists-all >> test-sync-lzo-rle.out
+./calcpercent.py test-sync-lzo-rle.out 98 >> test-sync-lzo-rle.out
+cat /sys/kernel/debug/tracing/trace > test-sync-lzo-rle.trace
+
+# sync deflate
+./teardown-zswap
+./test-sync-deflate > test-sync-deflate.out
+./dump-zswap-hists-all >> test-sync-deflate.out
+./calcpercent.py test-sync-deflate.out 98 >> test-sync-deflate.out
+cat /sys/kernel/debug/tracing/trace > test-sync-deflate.trace
+
+# sync zstd
+./teardown-zswap
+./test-sync-zstd > test-sync-zstd.out
+./dump-zswap-hists-all >> test-sync-zstd.out
+./calcpercent.py test-sync-zstd.out 98 >> test-sync-zstd.out
+cat /sys/kernel/debug/tracing/trace > test-sync-zstd.trace
+
+# async canned noirq dedicated
+./teardown-zswap
+./test-async-canned-noirq-dedicated > test-async-canned-noirq-dedicated.out
+./dump-zswap-hists-all >> test-async-canned-noirq-dedicated.out
+./calcpercent.py test-async-canned-noirq-dedicated.out 98 >> test-async-canned-noirq-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-canned-noirq-dedicated.trace
+
+# async canned irq dedicated
+./teardown-zswap
+./test-async-canned-irq-dedicated > test-async-canned-irq-dedicated.out
+./dump-zswap-hists-all >> test-async-canned-irq-dedicated.out
+./calcpercent.py test-async-canned-irq-dedicated.out 98 >> test-async-canned-irq-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-canned-irq-dedicated.trace
+
+# async by2 canned dedicated
+./teardown-zswap
+./test-async-by2-canned-dedicated > test-async-by2-canned-dedicated.out
+./dump-zswap-hists-all >> test-async-by2-canned-dedicated.out
+./calcpercent.py test-async-by2-canned-dedicated.out 98 >> test-async-by2-canned-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-by2-canned-dedicated.trace
+
+# async by3 canned dedicated
+./teardown-zswap
+./test-async-by3-canned-dedicated > test-async-by3-canned-dedicated.out
+./dump-zswap-hists-all >> test-async-by3-canned-dedicated.out
+./calcpercent.py test-async-by3-canned-dedicated.out 98 >> test-async-by3-canned-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-by3-canned-dedicated.trace
+
+# async by4 canned dedicated
+./teardown-zswap
+./test-async-by4-canned-dedicated > test-async-by4-canned-dedicated.out
+./dump-zswap-hists-all >> test-async-by4-canned-dedicated.out
+./calcpercent.py test-async-by3-canned-dedicated.out 98 >> test-async-by4-canned-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-by4-canned-dedicated.trace
+
+# async by2 thresh chunk canned dedicated
+./teardown-zswap
+./test-async-by2-thresh-chunk-canned-dedicated > test-async-by2-thresh-chunk-canned-dedicated.out
+./dump-zswap-hists-all >> test-async-by2-thresh-chunk-canned-dedicated.out
+./calcpercent.py test-async-by2-thresh-chunk-canned-dedicated.out 98 >> test-async-by2-thresh-chunk-canned-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-by2-thresh-chunk-canned-dedicated.trace
+
+# async secondary threshould canned dedicated
+./teardown-zswap
+./test-async-thresh-secondary-canned-dedicated > test-async-thresh-seondary-canned-dedicated.out
+./dump-zswap-hists-all >> test-async-thresh-secondary-canned-dedicated.out
+./calcpercent.py test-async-thresh-secondary-canned-dedicated.out 98 >> test-async-thresh-secondary-canned-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-thresh-secondary-canned-dedicated.trace
+
+## sub-latency breakdown example
+
+# async canned noirq dedicated
+./teardown-zswap
+./enable-tps-iaa-crypto
+./test-async-canned-noirq-dedicated > test-async-canned-noirq-dedicated.out
+cat /sys/kernel/debug/tracing/trace > test-async-canned-noirq-dedicated.trace
+./calc_sublats.py test-async-canned-noirq-dedicated.trace

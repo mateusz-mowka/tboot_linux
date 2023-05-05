@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+echo "Dumping zswap hists"
+
+echo -e "\n######\nzswap_store_lat_async hists:\n"
+# zswap_store_lat_async
+cat /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_async/hist
+echo -e "\n######\nzswap_store_lat_by_n hists:\n"
+# zswap_store_lat_by_n
+cat /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_by_n/hist
+echo -e "\n######\nzswap_store_lat_sync hists:\n"
+# zswap_store_lat_sync
+cat /sys/kernel/debug/tracing/events/zswap/zswap_store_lat_sync/hist
+echo -e "\n######\nzswap_load_lat_async hists:\n"
+# zswap_load_lat_async
+cat /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_async/hist
+echo -e "\n######\nzswap_load_lat_by_n hists:\n"
+# zswap_load_lat_by_n
+cat /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_by_n/hist
+echo -e "\n######\nzswap_load_lat_sync hists:\n"
+# zswap_load_lat_sync
+cat /sys/kernel/debug/tracing/events/zswap/zswap_load_lat_sync/hist
+echo -e "\n######\nzswap_store_reject hists:\n"
+# zswap_store_reject
+cat /sys/kernel/debug/tracing/events/zswap/zswap_store_reject/hist

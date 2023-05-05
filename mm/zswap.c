@@ -38,6 +38,9 @@
 
 #include "swap.h"
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/zswap.h>
+
 /*********************************
 * statistics
 **********************************/
@@ -47,6 +50,9 @@ u64 zswap_pool_total_size;
 atomic_t zswap_stored_pages = ATOMIC_INIT(0);
 /* The number of same-value filled pages currently stored in zswap */
 static atomic_t zswap_same_filled_pages = ATOMIC_INIT(0);
+
+static atomic_t zswap_primary_used = ATOMIC_INIT(0);
+static atomic_t zswap_secondary_used = ATOMIC_INIT(0);
 
 /*
  * The statistics below are not protected from concurrent access for
@@ -135,6 +141,91 @@ static bool zswap_non_same_filled_pages_enabled = true;
 module_param_named(non_same_filled_pages_enabled, zswap_non_same_filled_pages_enabled,
 		   bool, 0644);
 
+static unsigned int zswap_secondary_threshold = 0;
+module_param_named(secondary_threshold, zswap_secondary_threshold, uint, 0644);
+
+#define MAX_BY_N 4
+#define MAX_BY_N_THRESHOLD 4096
+
+struct by_n {
+	struct scatterlist input, output;
+	struct acomp_req *req;
+};
+
+static int zswap_by_n_chunk_threshold_set(const char *val,
+					  const struct kernel_param *kp)
+{
+	unsigned int n;
+	int ret;
+
+	ret = kstrtouint(val, 10, &n);
+	if (ret != 0 || n > MAX_BY_N_THRESHOLD)
+		return -EINVAL;
+
+	return param_set_uint(val, kp);
+}
+
+static const struct kernel_param_ops by_n_chunk_threshold_ops = {
+	.set = zswap_by_n_chunk_threshold_set,
+	.get = param_get_uint,
+};
+
+/* The chunk_threshold for splitting a page into 2 compresses */
+static unsigned int zswap_by_n_chunk_threshold = PAGE_SIZE; /* bytes */
+module_param_cb(by_n_chunk_threshold, &by_n_chunk_threshold_ops, &zswap_by_n_chunk_threshold, 0644);
+
+static int zswap_by_n_threshold_set(const char *val,
+				    const struct kernel_param *kp)
+{
+	unsigned int n;
+	int ret;
+
+	ret = kstrtouint(val, 10, &n);
+	if (ret != 0 || n > MAX_BY_N_THRESHOLD)
+		return -EINVAL;
+
+	return param_set_uint(val, kp);
+}
+
+static const struct kernel_param_ops by_n_threshold_ops = {
+	.set = zswap_by_n_threshold_set,
+	.get = param_get_uint,
+};
+
+/* The threshold for splitting a page into n compresses */
+static unsigned int zswap_by_n_threshold; /* bytes */
+module_param_cb(by_n_threshold, &by_n_threshold_ops, &zswap_by_n_threshold, 0644);
+
+static unsigned int zswap_by_n; /* bytes */
+
+static int zswap_by_n_set(const char *val,
+			  const struct kernel_param *kp)
+{
+	unsigned int n;
+	int ret;
+
+	ret = kstrtouint(val, 10, &n);
+	if (ret != 0 || n > MAX_BY_N)
+		return -EINVAL;
+
+	ret = param_set_uint(val, kp);
+	if (ret)
+		return ret;
+
+	if (zswap_by_n == 1) /* 0 or 1 mean by1 = by_n disabled */
+		zswap_by_n = 0;
+
+	return ret;
+}
+
+static const struct kernel_param_ops by_n_ops = {
+	.set = zswap_by_n_set,
+	.get = param_get_uint,
+};
+
+/* Split pages into n compresses */
+module_param_cb(by_n, &by_n_ops, &zswap_by_n, 0644);
+
 /*********************************
 * data structures
 **********************************/
@@ -142,6 +233,7 @@ module_param_named(non_same_filled_pages_enabled, zswap_non_same_filled_pages_en
 struct crypto_acomp_ctx {
 	struct crypto_acomp *acomp;
 	struct acomp_req *req;
+	struct acomp_req *by_n_req[MAX_BY_N];
 	struct crypto_wait wait;
 	u8 *dstmem;
 	struct mutex *mutex;
@@ -150,6 +242,7 @@ struct crypto_acomp_ctx {
 struct zswap_pool {
 	struct zpool *zpool;
 	struct crypto_acomp_ctx __percpu *acomp_ctx;
+	struct crypto_acomp_ctx __percpu *secondary_acomp_ctx;
 	struct kref kref;
 	struct list_head list;
 	struct work_struct release_work;
@@ -183,7 +276,11 @@ struct zswap_entry {
 	pgoff_t offset;
 	int refcount;
 	unsigned int length;
+	unsigned int by_n_length[MAX_BY_N];
+	int by_n_length_order[MAX_BY_N];
+
 	struct zswap_pool *pool;
+	bool use_secondary; /* use `pool`'s secondary_acomp_ctx */
 	union {
 		unsigned long handle;
 		unsigned long value;
@@ -297,6 +394,36 @@ static struct zswap_entry *zswap_entry_cache_alloc(gfp_t gfp)
 static void zswap_entry_cache_free(struct zswap_entry *entry)
 {
 	kmem_cache_free(zswap_entry_cache, entry);
+}
+
+/**
+ * by_n_corder_swap - swap values of @o1 and @o2 if @l1 < @l2
+ * @l1: length1
+ * @l2; length2
+ * @o1: order index 1
+ * @o2: order index 2
+ */
+#define by_n_corder_swap(l1, l2,o1,o2) \
+	do { if ((l1) < (l2)) {typeof(o1) __tmp = (o1); (o1) = (o2); (o2) = __tmp;} } while (0)
+
+static void __zswap_sort_by_n_order(struct zswap_entry *entry)
+{
+	switch (zswap_by_n) {
+		case 2: /* by2*/
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length_order[0],entry->by_n_length_order[1]);
+			break;
+		case 3: /* by3*/
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length_order[0],entry->by_n_length_order[2]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length_order[0],entry->by_n_length_order[1]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length_order[1],entry->by_n_length_order[2]);
+			break;
+		case 4: /* by4*/
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length_order[0],entry->by_n_length_order[2]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length[entry->by_n_length_order[3]],entry->by_n_length_order[1],entry->by_n_length_order[3]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[0]],entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length_order[0],entry->by_n_length_order[1]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length[entry->by_n_length_order[3]],entry->by_n_length_order[2],entry->by_n_length_order[3]);
+			by_n_corder_swap(entry->by_n_length[entry->by_n_length_order[1]],entry->by_n_length[entry->by_n_length_order[2]],entry->by_n_length_order[1],entry->by_n_length_order[2]);
+    }
 }
 
 /*********************************
@@ -461,8 +588,11 @@ static int zswap_cpu_comp_prepare(unsigned int cpu, struct hlist_node *node)
 {
 	struct zswap_pool *pool = hlist_entry(node, struct zswap_pool, node);
 	struct crypto_acomp_ctx *acomp_ctx = per_cpu_ptr(pool->acomp_ctx, cpu);
+	struct crypto_acomp_ctx *secondary_acomp_ctx = per_cpu_ptr(pool->secondary_acomp_ctx, cpu);
 	struct crypto_acomp *acomp;
 	struct acomp_req *req;
+	int i, j;
+	const char *secondary_tfm_name = "lzo-rle";
 
 	acomp = crypto_alloc_acomp_node(pool->tfm_name, 0, 0, cpu_to_node(cpu));
 	if (IS_ERR(acomp)) {
@@ -481,6 +611,22 @@ static int zswap_cpu_comp_prepare(unsigned int cpu, struct hlist_node *node)
 	}
 	acomp_ctx->req = req;
 
+	for (i = 0; i < MAX_BY_N; i++) {
+		struct acomp_req *by_n_req;
+
+		by_n_req = acomp_request_alloc(acomp_ctx->acomp);
+		if (!by_n_req) {
+			pr_err("could not alloc crypto acomp_request req[%d] %s\n",
+			       i, pool->tfm_name);
+			for (j = 0; j < i; j++)
+				acomp_request_free(acomp_ctx->by_n_req[j]);
+			acomp_request_free(acomp_ctx->req);
+			crypto_free_acomp(acomp_ctx->acomp);
+			return -ENOMEM;
+		}
+		acomp_ctx->by_n_req[i] = by_n_req;
+	}
+
 	crypto_init_wait(&acomp_ctx->wait);
 	/*
 	 * if the backend of acomp is async zip, crypto_req_done() will wakeup
@@ -493,6 +639,34 @@ static int zswap_cpu_comp_prepare(unsigned int cpu, struct hlist_node *node)
 	acomp_ctx->mutex = per_cpu(zswap_mutex, cpu);
 	acomp_ctx->dstmem = per_cpu(zswap_dstmem, cpu);
 
+	/* Set up secondary crypto_acomp_ctx: */
+	acomp = crypto_alloc_acomp_node(secondary_tfm_name, 0, 0, cpu_to_node(cpu));
+	if (IS_ERR(acomp)) {
+		pr_err("could not alloc secondary crypto acomp %s : %ld\n",
+				secondary_tfm_name, PTR_ERR(acomp));
+		return PTR_ERR(acomp);
+	}
+	secondary_acomp_ctx->acomp = acomp;
+
+	req = acomp_request_alloc(secondary_acomp_ctx->acomp);
+	if (!req) {
+		pr_err("could not alloc secondary crypto acomp_request %s\n",
+		       secondary_tfm_name);
+		acomp_request_free(acomp_ctx->req);
+		crypto_free_acomp(acomp_ctx->acomp);
+		crypto_free_acomp(secondary_acomp_ctx->acomp);
+		return -ENOMEM;
+	}
+	secondary_acomp_ctx->req = req;
+
+	crypto_init_wait(&secondary_acomp_ctx->wait);
+	acomp_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG,
+				   crypto_req_done, &secondary_acomp_ctx->wait);
+
+	secondary_acomp_ctx->mutex = per_cpu(zswap_mutex, cpu);
+	secondary_acomp_ctx->dstmem = per_cpu(zswap_dstmem, cpu);
+	/* *** */
+
 	return 0;
 }
 
@@ -500,7 +674,20 @@ static int zswap_cpu_comp_dead(unsigned int cpu, struct hlist_node *node)
 {
 	struct zswap_pool *pool = hlist_entry(node, struct zswap_pool, node);
 	struct crypto_acomp_ctx *acomp_ctx = per_cpu_ptr(pool->acomp_ctx, cpu);
+	int i;
 
+	if (!IS_ERR_OR_NULL(acomp_ctx)) {
+		if (!IS_ERR_OR_NULL(acomp_ctx->req))
+			acomp_request_free(acomp_ctx->req);
+		for (i = 0; i < MAX_BY_N; i++) {
+			if (!IS_ERR_OR_NULL(acomp_ctx->by_n_req[i]))
+				acomp_request_free(acomp_ctx->by_n_req[i]);
+		}
+		if (!IS_ERR_OR_NULL(acomp_ctx->acomp))
+			crypto_free_acomp(acomp_ctx->acomp);
+	}
+
+	acomp_ctx = per_cpu_ptr(pool->secondary_acomp_ctx, cpu);
 	if (!IS_ERR_OR_NULL(acomp_ctx)) {
 		if (!IS_ERR_OR_NULL(acomp_ctx->req))
 			acomp_request_free(acomp_ctx->req);
@@ -637,6 +824,12 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 		goto error;
 	}
 
+	pool->secondary_acomp_ctx = alloc_percpu(*pool->secondary_acomp_ctx);
+	if (!pool->secondary_acomp_ctx) {
+		pr_err("percpu alloc failed\n");
+		goto error;
+	}
+
 	ret = cpuhp_state_add_instance(CPUHP_MM_ZSWP_POOL_PREPARE,
 				       &pool->node);
 	if (ret)
@@ -657,6 +850,8 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 error:
 	if (pool->acomp_ctx)
 		free_percpu(pool->acomp_ctx);
+	if (pool->secondary_acomp_ctx)
+		free_percpu(pool->secondary_acomp_ctx);
 	if (pool->zpool)
 		zpool_destroy_pool(pool->zpool);
 	kfree(pool);
@@ -711,6 +906,7 @@ static void zswap_pool_destroy(struct zswap_pool *pool)
 
 	cpuhp_state_remove_instance(CPUHP_MM_ZSWP_POOL_PREPARE, &pool->node);
 	free_percpu(pool->acomp_ctx);
+	free_percpu(pool->secondary_acomp_ctx);
 	zpool_destroy_pool(pool->zpool);
 	kfree(pool);
 }
@@ -927,6 +1123,191 @@ static int zswap_get_swap_cache_page(swp_entry_t entry,
 	return ZSWAP_SWAPCACHE_EXIST;
 }
 
+static int do_by_n(struct by_n by_n[], int by_n_length_order[], unsigned int dlen[], bool decompress, u8* src, struct page *page)
+{
+	u8 req = 0xff >> (8 - zswap_by_n);
+	int i, ret = 0;
+	unsigned int dst_size = PAGE_SIZE/zswap_by_n;
+	bool odd = zswap_by_n & 1;
+	char *dst;
+	unsigned int offset = 0;
+
+	for (i = 0; i < zswap_by_n; i++) {
+		if (decompress) {
+			int index = by_n_length_order[i];
+			if( by_n[index].req->slen  >= zswap_by_n_chunk_threshold) {
+				req &= 0xff - (1 << index);
+				dlen[index] = by_n[index].req->slen;
+				ret = 0;
+			}
+		}
+	}
+
+	/* fire off all async compresses one after the other, wait below */
+	for (i = 0; i < zswap_by_n; i++) {
+		if (decompress ) {
+			int index = by_n_length_order[i];
+			if (req & (1 << index) ) {
+				ret = crypto_acomp_decompress(by_n[index].req);
+			}else
+				ret = -EINPROGRESS;
+		} else
+			ret = crypto_acomp_compress(by_n[i].req);
+		if (ret != -EINPROGRESS)
+			goto err;
+	}
+
+	if(decompress == true) {
+	    bool page_mapped = false;
+		for (i = 0; i < zswap_by_n; i++) {
+			if( by_n[i].req->slen  >= zswap_by_n_chunk_threshold ) {
+				unsigned long by_n_dlen = (odd && (i == zswap_by_n - 1)) ? dst_size + 1 : dst_size;
+				char *local_src = src;
+				if (!page_mapped) {
+					dst = kmap_atomic(page);
+					page_mapped = true;
+				}
+				memcpy(dst + (i * dst_size), local_src + offset, by_n[i].req->slen);
+				dlen[i] = by_n_dlen;
+				ret = 0;
+			}
+			offset += by_n[i].req->slen;
+		}
+
+	    if (page_mapped)
+		    kunmap_atomic(dst);
+	}
+
+	/* wait for all async compresses to finish */
+	do {
+		for (i = 0; i < zswap_by_n; i++) {
+			int index = decompress ? by_n_length_order[i] : i;
+			if (req & (1 << index) ) {
+				ret = crypto_acomp_poll(by_n[index].req);
+
+				if (ret && ret != -EAGAIN)
+					goto err;
+				if (ret == 0)
+					req &= 0xff - (1 << index);
+				dlen[index] = by_n[index].req->dlen;
+			}
+		}
+		cpu_relax();
+	} while (req);
+err:
+	return ret;
+}
+
+static int by_n_compress(struct crypto_acomp_ctx *acomp_ctx,
+			 struct page *page, u8 *dst[],
+			 unsigned int dlen[])
+{
+	unsigned int src_size, dst_size;
+	bool odd = zswap_by_n & 1;
+	struct by_n by_n[MAX_BY_N];
+	int i;
+	char *src;
+	bool page_mapped = false;
+	int ret;
+
+	/* Each by_n gets (1/n)*2 pages e.g. by_2 gets (1/2)*2 = 1
+	   page by_3 gets (1/3)*2 = 2/3 page, by_ gets (1/4)*2 = 1/2
+	   page.  Since the source is a single page, that leaves
+	   plenty of room for each compression even if the compressed
+	   size is greater than the uncompressed size. */
+
+	/* total src size is 1 page, divide this between nths */
+	src_size = PAGE_SIZE / zswap_by_n;
+	/* total dest size is 2 pages, divide this between nths */
+	dst_size = 2 * src_size;
+
+	for (i = 0; i < zswap_by_n; i++) {
+		/* offset each nth by dst_size*/
+		dst[i] = acomp_ctx->dstmem + (i * dst_size);
+		sg_init_table(&by_n[i].input, 1);
+		/* the input size is 1 page divided into nths, length/offset */
+		sg_set_page(&by_n[i].input, page,
+			    // if n is odd and it's last nth, claim last byte
+			    (odd && (i == zswap_by_n - 1)) ? src_size + 1 : src_size, i * src_size);
+		/* the output size is dst_size */
+		sg_init_one(&by_n[i].output, dst[i], dst_size);
+	}
+
+	/* allocate and set up the requests */
+	for (i = 0; i < zswap_by_n; i++) {
+		by_n[i].req = acomp_ctx->by_n_req[i];
+
+		acomp_request_set_params(by_n[i].req, &by_n[i].input,
+					 &by_n[i].output, (odd && (i == zswap_by_n - 1)) ? src_size + 1 : src_size,
+					 dst_size);
+	}
+
+	ret = do_by_n(by_n, NULL, dlen, false, NULL, NULL);
+
+	if (ret)
+		goto out;
+
+	for (i = 0; i < zswap_by_n; i++) {
+		if(dlen[i] >= zswap_by_n_chunk_threshold) {
+			unsigned long by_n_dlen = (odd && (i == zswap_by_n - 1)) ? src_size + 1 : src_size;
+			if (!page_mapped) {
+				src = kmap_atomic(page);
+				page_mapped = true;
+			}
+			memcpy(dst[i], src + (i * src_size), by_n_dlen);
+			dlen[i] = by_n_dlen;
+		}
+	}
+	if (page_mapped)
+		kunmap_atomic(src);
+
+out:
+	return ret;
+}
+
+static unsigned int by_n_length(struct zswap_entry *entry)
+{
+	unsigned int length = 0;
+	int i;
+
+	for (i = 0; i < zswap_by_n; i++)
+		length += entry->by_n_length[i];
+
+	return length;
+}
+
+static int by_n_decompress(struct crypto_acomp_ctx *acomp_ctx,
+			   struct page *page, u8 *src,
+			   struct zswap_entry *entry,
+			   unsigned int dlen[])
+{
+	struct by_n by_n[MAX_BY_N];
+	unsigned int dst_size, offset = 0;
+	int i;
+	bool odd = zswap_by_n & 1;
+
+	/* total dst size is 1 page, divide this between nths */
+	dst_size = PAGE_SIZE / zswap_by_n;
+
+	for (i = 0; i < zswap_by_n; i++) {
+		sg_init_one(&by_n[i].input, src + offset, entry->by_n_length[i]);
+		offset += entry->by_n_length[i];
+		sg_init_table(&by_n[i].output, 1);
+		/* the out size is 1 page divided into nths, length/offset */
+		sg_set_page(&by_n[i].output, page, dst_size, i * dst_size);
+	}
+
+	/* allocate and set up the requests */
+	for (i = 0; i < zswap_by_n; i++) {
+		by_n[i].req = acomp_ctx->by_n_req[i];
+
+		acomp_request_set_params(by_n[i].req, &by_n[i].input,
+					 &by_n[i].output, entry->by_n_length[i], (odd && (i == zswap_by_n - 1)) ? dst_size + 1 : dst_size);
+	}
+
+	return do_by_n(by_n, entry->by_n_length_order, dlen, true, src, page);
+}
+
 /*
  * Attempts to free an entry by adding a page to the swap cache,
  * decompressing the entry data into the page, and issuing a
@@ -949,6 +1330,7 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 	struct page *page;
 	struct scatterlist input, output;
 	struct crypto_acomp_ctx *acomp_ctx;
+	u64 start_time_ns;
 
 	u8 *src, *tmp = NULL;
 	unsigned int dlen;
@@ -996,7 +1378,11 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 
 	case ZSWAP_SWAPCACHE_NEW: /* page is locked */
 		/* decompress */
-		acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+		if (entry->use_secondary)
+			acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
+		else
+			acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+
 		dlen = PAGE_SIZE;
 
 		zhdr = zpool_map_handle(pool, handle, ZPOOL_MM_RO);
@@ -1008,12 +1394,46 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 		}
 
 		mutex_lock(acomp_ctx->mutex);
+		if (zswap_by_n && entry->by_n_length[0])
+			/* page was compressed using by_n */
+			goto by_n;
 		sg_init_one(&input, src, entry->length);
 		sg_init_table(&output, 1);
 		sg_set_page(&output, page, PAGE_SIZE, 0);
 		acomp_request_set_params(acomp_ctx->req, &input, &output, entry->length, dlen);
-		ret = crypto_wait_req(crypto_acomp_decompress(acomp_ctx->req), &acomp_ctx->wait);
-		dlen = acomp_ctx->req->dlen;
+
+		if (acomp_ctx->acomp->poll) {
+			/* normal page or by_n enabled but page wasn't split */
+
+			start_time_ns = ktime_get_ns();
+			ret = crypto_acomp_decompress(acomp_ctx->req);
+			if (ret == -EINPROGRESS) {
+				do {
+					ret = crypto_acomp_poll(acomp_ctx->req);
+					if (ret && ret != -EAGAIN)
+						break;
+					cpu_relax();
+				} while (ret);
+			}
+			trace_zswap_writeback_lat_async(acomp_ctx->req, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), ret);
+		} else {
+			start_time_ns = ktime_get_ns();
+			ret = crypto_wait_req(crypto_acomp_decompress(acomp_ctx->req), &acomp_ctx->wait);
+			trace_zswap_writeback_lat_sync(acomp_ctx->req, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), ret);
+		}
+by_n:
+		if (zswap_by_n && entry->by_n_length[0]) {
+			unsigned int by_n_dlen[MAX_BY_N];
+			int i;
+
+			start_time_ns = ktime_get_ns();
+			ret = by_n_decompress(acomp_ctx, page, src, entry, by_n_dlen);
+			trace_zswap_writeback_lat_by_n(acomp_ctx->req, zswap_by_n, ktime_get_ns() - start_time_ns, raw_smp_processor_id(), ret);			
+			dlen = 0;
+			for (i = 0; i < zswap_by_n; i++)
+				dlen += by_n_dlen[i];
+		} else
+			dlen = acomp_ctx->req->dlen;
 		mutex_unlock(acomp_ctx->mutex);
 
 		if (!zpool_can_sleep_mapped(pool))
@@ -1103,7 +1523,7 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	struct zswap_tree *tree = zswap_trees[type];
 	struct zswap_entry *entry, *dupentry;
 	struct scatterlist input, output;
-	struct crypto_acomp_ctx *acomp_ctx;
+	struct crypto_acomp_ctx *acomp_ctx = NULL;
 	struct obj_cgroup *objcg = NULL;
 	struct zswap_pool *pool;
 	int ret;
@@ -1111,8 +1531,13 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	unsigned long handle, value;
 	char *buf;
 	u8 *src, *dst;
+	u8 *by_n_dst[MAX_BY_N];
+	unsigned int by_n_dlen[MAX_BY_N];
 	struct zswap_header zhdr = { .swpentry = swp_entry(type, offset) };
+	u64 start_time_ns;
+	u64 end_time_ns;
 	gfp_t gfp;
+	bool is_by_n = false; /* will be set true if page will be stored by_n */
 
 	/* THP isn't supported */
 	if (PageTransHuge(page)) {
@@ -1178,9 +1603,50 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	}
 
 	/* compress */
-	acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
 
+	acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+	entry->use_secondary = false;
+
+	if (zswap_secondary_threshold) {
+		/*
+		 * Start with the secondary compressor so that the threshold is
+		 * made against its result (rather than against the result of
+		 * the primary compressor).
+		 */
+		acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
+		entry->use_secondary = true;
+	}
+recompress:
 	mutex_lock(acomp_ctx->mutex);
+
+	/* If by_n is disabled, use normal compress/decompress
+	   pathways.  That means either 1) sync mode (internal driver
+	   polling before returning, or 2) driver irq wakes up sleeping
+	   caller).
+
+	   If by_n is enabled, that means using async mode with the
+	   crypto layer poll() interface (called from zswap).  If by_n
+	   threshold is 0, all pages use by_n splitting.  If by_n
+	   threshold is 4096, pages are never split.  If the threshold
+	   is anything in between, some pages will be split and others
+	   not.  In order to do the latter, the page needs to first be
+	   compressed and the dlen checked against the threshold.
+
+	   The threshold = 0 and 4096 cases are never checked but
+	   still use the crypto poll() interface.  The poll()
+	   interface is always used when by_n is enabled on the
+	   assumption that polling is the fastest and otherwise by_n
+	   wouldn't be being used.
+
+	   This provides an easy way to test the async no-irq
+	   interface against the interrupt interface - just set
+	   threshold to 4096 to never split and compare against the
+	   async irq version (e.g. set iaa crypto driver to use async
+	   irq vs async noirq with 4096 zswap by_n threshold.
+	 */
+	if (zswap_by_n && (zswap_by_n_threshold == 0) && !entry->use_secondary)
+		/* always hit threshold, no need to check */
+		goto by_n;
 
 	dst = acomp_ctx->dstmem;
 	sg_init_table(&input, 1);
@@ -1201,12 +1667,52 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	 * but in different threads running on different cpu, we have different
 	 * acomp instance, so multiple threads can do (de)compression in parallel.
 	 */
-	ret = crypto_wait_req(crypto_acomp_compress(acomp_ctx->req), &acomp_ctx->wait);
-	dlen = acomp_ctx->req->dlen;
+	if (acomp_ctx->acomp->poll) {
+		start_time_ns = ktime_get_ns();
+
+		ret = crypto_acomp_compress(acomp_ctx->req);
+		if (ret == -EINPROGRESS) {
+			do {
+				ret = crypto_acomp_poll(acomp_ctx->req);
+				if (ret && ret != -EAGAIN)
+					break;
+				cpu_relax();
+			} while (ret);
+		}
+		end_time_ns = ktime_get_ns();
+	} else {
+		start_time_ns = ktime_get_ns();
+		ret = crypto_wait_req(crypto_acomp_compress(acomp_ctx->req), &acomp_ctx->wait);
+		end_time_ns = ktime_get_ns();
+	}
 
 	if (ret) {
 		ret = -EINVAL;
 		goto put_dstmem;
+	}
+
+	dlen = acomp_ctx->req->dlen;
+by_n:
+	if (zswap_by_n && dlen > zswap_by_n_threshold && !entry->use_secondary) {
+		start_time_ns = ktime_get_ns();
+		ret = by_n_compress(acomp_ctx, page, by_n_dst, by_n_dlen);
+		end_time_ns = ktime_get_ns();
+		if (ret)
+			goto put_dstmem;
+		is_by_n = true;
+	}
+
+	if (ret) {
+		ret = -EINVAL;
+		goto put_dstmem;
+	}
+
+	if (entry->use_secondary && dlen >= zswap_secondary_threshold) {
+		mutex_unlock(acomp_ctx->mutex);
+		acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+		entry->use_secondary = false;
+		is_by_n = false;
+		goto recompress;
 	}
 
 	/* store */
@@ -1214,6 +1720,13 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM;
 	if (zpool_malloc_support_movable(entry->pool->zpool))
 		gfp |= __GFP_HIGHMEM | __GFP_MOVABLE;
+	if (is_by_n) {
+		int i;
+
+		dlen = 0;
+		for (i = 0; i < zswap_by_n; i++)
+			dlen += by_n_dlen[i];
+	}
 	ret = zpool_malloc(entry->pool->zpool, hlen + dlen, gfp, &handle);
 	if (ret == -ENOSPC) {
 		zswap_reject_compress_poor++;
@@ -1225,14 +1738,64 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	}
 	buf = zpool_map_handle(entry->pool->zpool, handle, ZPOOL_MM_WO);
 	memcpy(buf, &zhdr, hlen);
-	memcpy(buf + hlen, dst, dlen);
+	if (is_by_n) {
+		unsigned int offset = 0;
+		int i;
+
+		for (i = 0; i < zswap_by_n; i++) {
+			memcpy(buf + hlen + offset, by_n_dst[i], by_n_dlen[i]);
+			offset += by_n_dlen[i];
+		}
+	} else
+		memcpy(buf + hlen, dst, dlen);
+
 	zpool_unmap_handle(entry->pool->zpool, handle);
 	mutex_unlock(acomp_ctx->mutex);
 
 	/* populate entry */
 	entry->offset = offset;
 	entry->handle = handle;
-	entry->length = dlen;
+	if (is_by_n) {
+		unsigned int length = 0;
+		int i;
+		for (i = 0; i < zswap_by_n; i++) {
+			entry->by_n_length[i] = by_n_dlen[i];
+			length += by_n_dlen[i];
+			entry->by_n_length_order[i] = i;
+		}
+		entry->length = length;
+		__zswap_sort_by_n_order(entry);
+	} else {
+		entry->length = dlen;
+		/*
+		 * This is necessary to indicate that the page has *not* been
+		 * stored by_n:
+		 */
+		entry->by_n_length[0] = 0;
+	}
+
+	if (is_by_n) {
+		trace_zswap_store_lat_by_n(acomp_ctx->req, zswap_by_n,
+					   end_time_ns - start_time_ns,
+					   raw_smp_processor_id(),
+					   by_n_dlen[0], by_n_dlen[1],
+					   by_n_dlen[2], by_n_dlen[3], ret);
+	} else if (acomp_ctx->acomp->poll) {
+		trace_zswap_store_lat_async(acomp_ctx->req,
+					    end_time_ns - start_time_ns,
+					    raw_smp_processor_id(),
+					    acomp_ctx->req->dlen, ret);
+	} else {
+		trace_zswap_store_lat_sync(acomp_ctx->req,
+					   end_time_ns - start_time_ns,
+					   raw_smp_processor_id(),
+					   acomp_ctx->req->dlen, ret);
+	}
+
+	if (entry->use_secondary)
+		atomic_inc(&zswap_secondary_used);
+	else
+		atomic_inc(&zswap_primary_used);
 
 insert_entry:
 	entry->objcg = objcg;
@@ -1268,6 +1831,8 @@ put_dstmem:
 freepage:
 	zswap_entry_cache_free(entry);
 reject:
+	trace_zswap_store_reject(acomp_ctx ? acomp_ctx->req : NULL,
+				 raw_smp_processor_id(), ret);
 	if (objcg)
 		obj_cgroup_put(objcg);
 	return ret;
@@ -1293,7 +1858,10 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 	struct crypto_acomp_ctx *acomp_ctx;
 	u8 *src, *dst, *tmp;
 	unsigned int dlen;
+	u64 start_time_ns;
 	int ret;
+	int i;
+	bool is_by_n = false; /* will be set to true of page was stored by_n */
 
 	/* find */
 	spin_lock(&tree->lock);
@@ -1313,8 +1881,15 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 		goto stats;
 	}
 
+	is_by_n = entry->by_n_length[0] != 0;
+
 	if (!zpool_can_sleep_mapped(entry->pool->zpool)) {
-		tmp = kmalloc(entry->length, GFP_KERNEL);
+		unsigned length = entry->length;
+
+		if (is_by_n)
+			length = by_n_length(entry);
+
+		tmp = kmalloc(length, GFP_KERNEL);
 		if (!tmp) {
 			ret = -ENOMEM;
 			goto freeentry;
@@ -1328,18 +1903,75 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 		src += sizeof(struct zswap_header);
 
 	if (!zpool_can_sleep_mapped(entry->pool->zpool)) {
-		memcpy(tmp, src, entry->length);
+		unsigned length = entry->length;
+
+		if (is_by_n)
+			length = by_n_length(entry);
+
+		memcpy(tmp, src, length);
 		src = tmp;
 		zpool_unmap_handle(entry->pool->zpool, entry->handle);
 	}
 
-	acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
+	if (entry->use_secondary)
+		acomp_ctx = raw_cpu_ptr(entry->pool->secondary_acomp_ctx);
+	else
+		acomp_ctx = raw_cpu_ptr(entry->pool->acomp_ctx);
 	mutex_lock(acomp_ctx->mutex);
+
+	if (is_by_n)
+		/* page was compressed using by_n */
+		goto by_n;
+
 	sg_init_one(&input, src, entry->length);
 	sg_init_table(&output, 1);
 	sg_set_page(&output, page, PAGE_SIZE, 0);
 	acomp_request_set_params(acomp_ctx->req, &input, &output, entry->length, dlen);
-	ret = crypto_wait_req(crypto_acomp_decompress(acomp_ctx->req), &acomp_ctx->wait);
+	if (acomp_ctx->acomp->poll) {
+		/* normal page or by_n enabled but page wasn't split */
+		start_time_ns = ktime_get_ns();
+		ret = crypto_acomp_decompress(acomp_ctx->req);
+		if (ret == -EINPROGRESS) {
+			do {
+				ret = crypto_acomp_poll(acomp_ctx->req);
+				if (ret && ret != -EAGAIN)
+					break;
+				cpu_relax();
+			} while (ret);
+		}
+		trace_zswap_load_lat_async(acomp_ctx->req,
+					   ktime_get_ns() - start_time_ns,
+					   raw_smp_processor_id(),
+					   entry->length, ret);
+	} else {
+		start_time_ns = ktime_get_ns();
+		ret = crypto_wait_req(crypto_acomp_decompress(acomp_ctx->req), &acomp_ctx->wait);
+		trace_zswap_load_lat_sync(acomp_ctx->req,
+					  ktime_get_ns() - start_time_ns,
+					  raw_smp_processor_id(), entry->length,
+					  ret);
+	}
+	dlen = acomp_ctx->req->dlen;
+by_n:
+	if (is_by_n) {
+		unsigned int by_n_dlen[MAX_BY_N];
+
+		start_time_ns = ktime_get_ns();
+		ret = by_n_decompress(acomp_ctx, page, src, entry, by_n_dlen);
+		trace_zswap_load_lat_by_n(acomp_ctx->req, zswap_by_n,
+					  ktime_get_ns() - start_time_ns,
+					  raw_smp_processor_id(),
+					  entry->by_n_length[0],
+					  entry->by_n_length[1],
+					  entry->by_n_length[2],
+					  entry->by_n_length[3],
+					  ret);
+		dlen = 0;
+		for (i = 0; i < zswap_by_n; i++)
+			dlen += by_n_dlen[i];
+	}
+
+	BUG_ON(dlen != PAGE_SIZE);
 	mutex_unlock(acomp_ctx->mutex);
 
 	if (zpool_can_sleep_mapped(entry->pool->zpool))
@@ -1461,6 +2093,11 @@ static int __init zswap_debugfs_init(void)
 				zswap_debugfs_root, &zswap_stored_pages);
 	debugfs_create_atomic_t("same_filled_pages", 0444,
 				zswap_debugfs_root, &zswap_same_filled_pages);
+
+	debugfs_create_atomic_t("primary_used", 0444, zswap_debugfs_root,
+				&zswap_primary_used);
+	debugfs_create_atomic_t("secondary_used", 0444, zswap_debugfs_root,
+				&zswap_secondary_used);
 
 	return 0;
 }

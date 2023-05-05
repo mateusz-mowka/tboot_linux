@@ -1,0 +1,39 @@
+#!/bin/bash
+
+IAX_CONFIG_PATH=/sys/bus/dsa/devices
+
+IAX_BIND_PATH=/sys/bus/dsa/drivers/idxd/bind
+IAX_BIND_WQ_PATH=/sys/bus/dsa/drivers/crypto/bind
+
+IAX_UNBIND_PATH=/sys/bus/dsa/drivers/idxd/unbind
+IAX_UNBIND_WQ_PATH=/sys/bus/dsa/drivers/crypto/unbind
+
+echo "IAX devices:"
+lspci -d:0cfe
+echo "# IAX devices:"
+lspci -d:0cfe | wc -l
+
+#
+# count iax instances
+#
+iax_dev_id="0cfe"
+num_iax=$(lspci -d:${iax_dev_id} | wc -l)
+echo "Found ${num_iax} IAX instances"
+
+#
+# disable iax wqs and devices
+#
+echo "Disable IAX"
+
+for ((i = 1; i < ${num_iax} * 2; i += 2)); do
+    echo disable wq iax${i}/wq${i}.0
+    echo wq${i}.0 > $IAX_UNBIND_WQ_PATH
+    echo disable wq iax${i}/wq${i}.1
+    echo wq${i}.1 > $IAX_UNBIND_WQ_PATH
+    echo disable wq iax${i}/wq${i}.2
+    echo wq${i}.2> $IAX_UNBIND_WQ_PATH
+    echo disable iax iax${i}
+    echo iax${i} > $IAX_UNBIND_PATH
+done
+
+echo "End Disable IAX"

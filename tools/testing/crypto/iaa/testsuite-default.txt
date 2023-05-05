@@ -1,0 +1,30 @@
+sync-canned-dedicated
+sync-lzo-rle
+sync-deflate
+sync-zstd
+async-canned-noirq-dedicated
+async-canned-irq-dedicated
+async-by2-canned-dedicated
+async-by3-canned-dedicated
+async-by4-canned-dedicated
+async-by2-thresh-canned-dedicated by_n_threshold=512
+async-by2-thresh-canned-dedicated by_n_threshold=1024
+async-by2-thresh-canned-dedicated by_n_threshold=1536
+async-by2-thresh-canned-dedicated by_n_threshold=2048
+async-by2-thresh-canned-dedicated by_n_threshold=2560
+async-by2-thresh-canned-dedicated by_n_threshold=3072
+async-by2-thresh-canned-dedicated by_n_threshold=3584
+async-by3-thresh-canned-dedicated by_n_threshold=512
+async-by3-thresh-canned-dedicated by_n_threshold=1024
+async-by3-thresh-canned-dedicated by_n_threshold=1536
+async-by3-thresh-canned-dedicated by_n_threshold=2048
+async-by3-thresh-canned-dedicated by_n_threshold=2560
+async-by3-thresh-canned-dedicated by_n_threshold=3072
+async-by3-thresh-canned-dedicated by_n_threshold=3584
+async-by4-thresh-canned-dedicated by_n_threshold=512
+async-by4-thresh-canned-dedicated by_n_threshold=1024
+async-by4-thresh-canned-dedicated by_n_threshold=1536
+async-by4-thresh-canned-dedicated by_n_threshold=2048
+async-by4-thresh-canned-dedicated by_n_threshold=2560
+async-by4-thresh-canned-dedicated by_n_threshold=3072
+async-by4-thresh-canned-dedicated by_n_threshold=3584

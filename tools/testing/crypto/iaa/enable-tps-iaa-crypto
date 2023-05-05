@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+echo > /sys/kernel/debug/tracing/trace
+echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
+
+echo 1 > /sys/kernel/debug/tracing/events/iaa_crypto/iaa_lat/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/iaa_lat/enable
+echo 1 > /sys/kernel/debug/tracing/events/zswap/iaa_lat_len/enable
