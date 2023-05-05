@@ -13,6 +13,10 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.27
+-----------------
+30. Merge IAA Crypto ZSWAP patches and test cases.
+
 gnr-bkc-6.2-v1.26
 -----------------
 29. Feature: https://jira.devtools.intel.com/browse/LFE-7259
