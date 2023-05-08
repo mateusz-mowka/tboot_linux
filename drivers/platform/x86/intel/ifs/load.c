@@ -51,6 +51,14 @@ static const char * const scan_authentication_status[] = {
 	[5] = "Interrupted"
 };
 
+static void hashcopy_err_message(struct device *dev, u32 err_code)
+{
+	if (err_code >= ARRAY_SIZE(scan_hash_status))
+		dev_err(dev, "invalid error code 0x%x for hash copy\n", err_code);
+	else
+		dev_err(dev, "Hash copy error : %s\n", scan_hash_status[err_code]);
+}
+
 static void auth_err_message(struct device *dev, u32 err_code)
 {
 	if (err_code >= ARRAY_SIZE(scan_authentication_status))
@@ -58,14 +66,6 @@ static void auth_err_message(struct device *dev, u32 err_code)
 	else
 		dev_err(dev, "Chunk authentication error : %s\n",
 			scan_authentication_status[err_code]);
-}
-
-static void hashcopy_err_message(struct device *dev, u32 err_code)
-{
-	if (err_code >= ARRAY_SIZE(scan_hash_status))
-		dev_err(dev, "invalid error code 0x%x for hash copy\n", err_code);
-	else
-		dev_err(dev, "Hash copy error : %s\n", scan_hash_status[err_code]);
 }
 /*
 enum msr_type {
@@ -204,6 +204,16 @@ static int copy_hashes_authenticate_chunks_gen2(struct device *dev)
 		chunk_size = ifsd->chunk_size;
 	}
 
+	if (ifsd->test_gen > 1) {
+		wrmsrl(MSR_SAF_CTRL, INVALIDATE_STRIDE);
+		rdmsrl(MSR_CHUNKS_AUTHENTICATION_STATUS, chunk_status.data);
+		if (chunk_status.valid_chunks != 0) {
+			dev_err(dev, "Couldn't invalidate installed stride - %d\n",
+				chunk_status.valid_chunks);
+			return -EIO;
+		}
+	}
+
 	base = ifs_test_image_ptr;
 	ifs_meta = (union meta_data *)intel_microcode_find_meta_data(ifs_header_ptr, META_TYPE_IFS);
 	starting_chunk_nr = ifs_meta->starting_chunk;
@@ -258,7 +268,7 @@ static int copy_sbft_hashes_authenticate_chunks(struct device *dev)
 
 	ifsd = ifs_get_data(dev);
 
-	if (!ifsd->loaded || ifsd->loaded_version != ifs_header_ptr->rev) {
+	if (!ifsd->loaded || ifsd->test_gen < 2 || ifsd->loaded_version != ifs_header_ptr->rev) {
 		dev_info(dev, "SBFT Copying hashes - 0x%x\n", ifs_header_ptr->rev);
 		/* run scan hash copy */
 		wrmsrl(MSR_COPY_SBFT_HASHES, ifs_hash_ptr);
@@ -300,7 +310,7 @@ static int copy_sbft_hashes_authenticate_chunks(struct device *dev)
 	}
 
 	base = ifs_test_image_ptr;
-//	ifs_meta = (union meta_data *)intel_microcode_find_meta_data(ifs_header_ptr, META_TYPE_IFS);
+	ifs_meta = (union meta_data *)intel_microcode_find_meta_data(ifs_header_ptr, META_TYPE_IFS);
 	starting_chunk_nr = ifs_meta->starting_chunk;
 
 	dev_info(dev, "authenticating and copying chunk ver 0x%x , starting chunk %d\n",
@@ -379,13 +389,6 @@ static int validate_ifs_metadata(struct device *dev)
 		return ret;
 	}
 
-	if (ifs_meta->chunks_per_stride &&
-	    (ifs_meta->starting_chunk % ifs_meta->chunks_per_stride)) {
-		dev_warn(dev, "Starting chunk num %d not a multiple of chunks_per_stride %d\n",
-			 ifs_meta->starting_chunk, ifs_meta->chunks_per_stride);
-		return ret;
-	}
-
 	if (ifs_meta->test_type != ifsd->test_num) {
 		dev_warn(dev, "Metadata test_type %d mismatches with device type\n",
 			 ifs_meta->test_type);
@@ -416,11 +419,6 @@ static int scan_chunks_sanity_check(struct device *dev)
 		return copy_sbft_hashes_authenticate_chunks(dev);
 
 	//TODO unify with copy_sbft_hashes_authenticate_chunks
-	if (ifsd->test_gen > 0)
-		return copy_hashes_authenticate_chunks_gen2(dev);
-
-	// gen0 (SPR and EMR flow below). GNR A0(gen1) and GNR B0(gen2) returns from above line.
-
 	if (ifsd->test_gen > 0)
 		return copy_hashes_authenticate_chunks_gen2(dev);
 
@@ -494,8 +492,6 @@ int ifs_load_firmware(struct device *dev)
 	const struct firmware *fw;
 	char scan_path[64];
 	int ret = -EINVAL;
-
-	dev_info(dev, "gen_rev is %d\n", ifsd->test_gen);
 
 	dev_info(dev, "gen_rev is %d\n", ifsd->test_gen);
 

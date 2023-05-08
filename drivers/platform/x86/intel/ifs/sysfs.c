@@ -185,4 +185,3 @@ const struct attribute_group **ifs_get_array_groups(void)
 {
 	return plat_ifs_array_groups;
 }
-
