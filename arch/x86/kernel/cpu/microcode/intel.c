@@ -419,6 +419,9 @@ static void save_bsp_rollback_info(void)
 {
 	int i;
 
+	if (!mcu_cap.rollback)
+		return;
+
 	/*
 	 * Always clear everything since a new MCU can have more entries
 	 * populated in RB_INFO.
