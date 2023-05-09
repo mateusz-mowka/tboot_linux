@@ -13,6 +13,10 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.28
+-----------------
+31. Merge TDX2.0/TDXIO feature patches.
+
 gnr-bkc-6.2-v1.27
 -----------------
 30. Merge IAA Crypto ZSWAP patches and test cases.
