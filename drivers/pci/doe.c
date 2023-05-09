@@ -19,6 +19,7 @@
 #include <linux/pci.h>
 #include <linux/pci-doe.h>
 #include <linux/workqueue.h>
+#include <linux/vdsm.h>
 
 #define PCI_DOE_PROTOCOL_DISCOVERY 0
 
@@ -31,30 +32,6 @@
 
 /* Max data object length is 2^18 dwords */
 #define PCI_DOE_MAX_LENGTH	(1 << 18)
-
-/**
- * struct pci_doe_mb - State for a single DOE mailbox
- *
- * This state is used to manage a single DOE mailbox capability.  All fields
- * should be considered opaque to the consumers and the structure passed into
- * the helpers below after being created by devm_pci_doe_create()
- *
- * @pdev: PCI device this mailbox belongs to
- * @cap_offset: Capability offset
- * @prots: Array of protocols supported (encoded as long values)
- * @wq: Wait queue for work item
- * @work_queue: Queue of pci_doe_work items
- * @flags: Bit array of PCI_DOE_FLAG_* flags
- */
-struct pci_doe_mb {
-	struct pci_dev *pdev;
-	u16 cap_offset;
-	struct xarray prots;
-
-	wait_queue_head_t wq;
-	struct workqueue_struct *work_queue;
-	unsigned long flags;
-};
 
 static int pci_doe_wait(struct pci_doe_mb *doe_mb, unsigned long timeout)
 {
@@ -138,12 +115,18 @@ static int pci_doe_send_req(struct pci_doe_mb *doe_mb,
 	val = FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_1_VID, task->prot.vid) |
 		FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_1_TYPE, task->prot.type);
 	pci_write_config_dword(pdev, offset + PCI_DOE_WRITE, val);
+	pci_dbg(pdev, "Write data obj header(1) 0x%08x\n", val);
 	pci_write_config_dword(pdev, offset + PCI_DOE_WRITE,
 			       FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_2_LENGTH,
 					  length));
-	for (i = 0; i < task->request_pl_sz / sizeof(u32); i++)
+	pci_dbg(pdev, "Write data obj header(2) 0x%08x\n",
+		FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_2_LENGTH, length));
+	for (i = 0; i < task->request_pl_sz / sizeof(u32); i++) {
 		pci_write_config_dword(pdev, offset + PCI_DOE_WRITE,
 				       task->request_pl[i]);
+		pci_dbg(pdev, "Write payload data 0x%08x\n",
+			task->request_pl[i]);
+	}
 
 	pci_doe_write_ctrl(doe_mb, PCI_DOE_CTRL_GO);
 
@@ -180,10 +163,12 @@ static int pci_doe_recv_resp(struct pci_doe_mb *doe_mb, struct pci_doe_task *tas
 				    FIELD_GET(PCI_DOE_DATA_OBJECT_HEADER_1_TYPE, val));
 		return -EIO;
 	}
+	pci_dbg(pdev, "Read data obj header(1) 0x%08x\n", val);
 
 	pci_write_config_dword(pdev, offset + PCI_DOE_READ, 0);
 	/* Read the second dword to get the length */
 	pci_read_config_dword(pdev, offset + PCI_DOE_READ, &val);
+	pci_dbg(pdev, "Read data obj header(2) 0x%08x\n", val);
 	pci_write_config_dword(pdev, offset + PCI_DOE_READ, 0);
 
 	length = FIELD_GET(PCI_DOE_DATA_OBJECT_HEADER_2_LENGTH, val);
@@ -200,6 +185,8 @@ static int pci_doe_recv_resp(struct pci_doe_mb *doe_mb, struct pci_doe_task *tas
 	for (i = 0; i < payload_length; i++) {
 		pci_read_config_dword(pdev, offset + PCI_DOE_READ,
 				      &task->response_pl[i]);
+		pci_dbg(pdev, "Read payload data 0x%08x\n",
+			task->response_pl[i]);
 		/* Prior to the last ack, ensure Data Object Ready */
 		if (i == (payload_length - 1) && !pci_doe_data_obj_ready(doe_mb))
 			return -EIO;
@@ -428,6 +415,22 @@ struct pci_doe_mb *pcim_doe_create_mb(struct pci_dev *pdev, u16 cap_offset)
 	struct device *dev = &pdev->dev;
 	int rc;
 
+	if (enable_vdsm && is_registered_to_vdsm(pdev)) {
+		/* Create fake DOE mailbox. NULL indicates fallback to non-vDSM path. */
+		doe_mb = vdsm_doe_create_mb(pdev);
+		if (IS_ERR(doe_mb)) {
+			pr_err("Failed to create vDSM doe_mb\n");
+		} else {
+			rc = pci_doe_cache_protocols(doe_mb);
+			if (rc) {
+				pr_err("Failed to cache protocols in vDSM doe_mb");
+				return ERR_PTR(rc);
+			}
+
+		}
+		return doe_mb;
+	}
+
 	doe_mb = devm_kzalloc(dev, sizeof(*doe_mb), GFP_KERNEL);
 	if (!doe_mb)
 		return ERR_PTR(-ENOMEM);
@@ -526,6 +529,18 @@ EXPORT_SYMBOL_GPL(pci_doe_supports_prot);
  */
 int pci_doe_submit_task(struct pci_doe_mb *doe_mb, struct pci_doe_task *task)
 {
+	int rc;
+
+	if (enable_vdsm && is_registered_to_vdsm(doe_mb->pdev)) {
+		rc = vdsm_doe_submit_task(doe_mb, task, doe_mb->pdev);
+		if (rc) {
+			pr_err("Failed to submit task to vDSM doe_mb\n");
+			return rc;
+		}
+
+		return 0;
+	}
+
 	if (!pci_doe_supports_prot(doe_mb, task->prot.vid, task->prot.type))
 		return -EINVAL;
 
@@ -546,3 +561,52 @@ int pci_doe_submit_task(struct pci_doe_mb *doe_mb, struct pci_doe_task *task)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(pci_doe_submit_task);
+
+#define PCI_DOE_HEADER_1_OFFSET		0
+#define PCI_DOE_HEADER_2_OFFSET		1
+#define PCI_DOE_PAYLOAD_OFFSET		2
+#define PCI_DOE_HEADER_SIZE		8
+
+int pci_doe_msg_exchange_sync(struct pci_doe_mb *doe_mb, u32 *request,
+			      u32 *response, size_t response_buf_sz)
+{
+	DECLARE_COMPLETION_ONSTACK(c);
+	struct pci_doe_task task = {
+		.complete = pci_doe_task_complete,
+		.private = &c,
+	};
+	int rc;
+
+	if (!request || !response)
+		return -EINVAL;
+
+	task.prot.vid = FIELD_GET(PCI_DOE_DATA_OBJECT_HEADER_1_VID,
+				  request[PCI_DOE_HEADER_1_OFFSET]),
+	task.prot.type = FIELD_GET(PCI_DOE_DATA_OBJECT_HEADER_1_TYPE,
+				   request[PCI_DOE_HEADER_1_OFFSET]),
+	task.request_pl = &request[PCI_DOE_PAYLOAD_OFFSET],
+	task.request_pl_sz = FIELD_GET(PCI_DOE_DATA_OBJECT_HEADER_2_LENGTH,
+				       request[PCI_DOE_HEADER_2_OFFSET]) *
+			     sizeof(u32) - PCI_DOE_HEADER_SIZE,
+	task.response_pl = &response[PCI_DOE_PAYLOAD_OFFSET],
+	task.response_pl_sz = response_buf_sz - PCI_DOE_HEADER_SIZE,
+
+	rc = pci_doe_submit_task(doe_mb, &task);
+	if (rc < 0)
+		return rc;
+
+	wait_for_completion(&c);
+	if (task.rv < 0)
+		return task.rv;
+
+	response[PCI_DOE_HEADER_1_OFFSET] = FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_1_VID,
+						       task.prot.vid) |
+					    FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_1_TYPE,
+						       task.prot.type);
+	response[PCI_DOE_HEADER_2_OFFSET] = FIELD_PREP(PCI_DOE_DATA_OBJECT_HEADER_2_LENGTH,
+						       (task.rv + PCI_DOE_HEADER_SIZE) /
+						       sizeof(u32));
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(pci_doe_msg_exchange_sync);

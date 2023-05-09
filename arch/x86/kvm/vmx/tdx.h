@@ -4,6 +4,8 @@
 
 #ifdef CONFIG_INTEL_TDX_HOST
 
+#include <asm/tdx.h>
+
 #include "posted_intr.h"
 #include "pmu_intel.h"
 #include "tdx_ops.h"
@@ -49,6 +51,23 @@ struct tdx_binding_slot {
 	 * Futher type specific data can be added with union.
 	 */
 	struct tdx_binding_slot_migtd migtd_data;
+};
+
+struct tdx_iommu {
+	u64 iommu_id;
+
+	unsigned long wait_desc_pa;
+	raw_spinlock_t  invq_lock;
+
+	struct kref ref;
+	struct list_head node;
+};
+
+struct kvm_tdx_iommu {
+	struct tdx_iommu *tiommu;
+	struct kref ref;
+
+	struct list_head node;
 };
 
 #define SERVTD_SLOTS_MAX 32
@@ -115,6 +134,15 @@ struct kvm_tdx {
 	spinlock_t binding_slot_lock;
 
 	struct tdx_mig_state *mig_state;
+
+	u64 eptp_controls;
+
+	/* mutex for tdi bind */
+	struct mutex ttdi_mutex;
+	struct list_head ktiommu_list;
+	struct list_head ttdi_list;
+
+	u64 mmio_offset;
 };
 
 union tdx_exit_reason {
@@ -350,13 +378,18 @@ static __always_inline u64 td_tdcs_exec_read64(struct kvm_tdx *kvm_tdx, u32 fiel
 	return out.r8;
 }
 
-static __always_inline int pg_level_to_tdx_sept_level(enum pg_level level)
+static __always_inline u64 td_tdr_tdxio_read64(struct kvm_tdx *kvm_tdx, u32 field)
 {
-	WARN_ON_ONCE(level == PG_LEVEL_NONE);
-	return level - 1;
-}
+	struct tdx_module_output out;
+	u64 err;
 
-void tdx_reclaim_td_page(unsigned long td_page_pa);
+	err = tdh_mng_rd(kvm_tdx->tdr_pa, TDR_TDXIO(field), &out);
+	if (unlikely(err)) {
+		pr_err("TDH_MNG_RD[TDXIO.0x%x] failed: 0x%llx\n", field, err);
+		return 0;
+	}
+	return out.r8;
+}
 
 void tdx_track(struct kvm_tdx *kvm_tdx);
 
@@ -369,6 +402,62 @@ void tdx_flush_vp_on_cpu(struct kvm_vcpu *vcpu);
 int tdx_td_vcpu_setup(struct kvm_vcpu *vcpu);
 
 void tdx_td_vcpu_post_init(struct vcpu_tdx *tdx);
+
+/*
+ * 7.2.2.2.5 Device Interface ID
+ * 7.2.2.2.1 Device Interface Type
+ */
+struct tdx_devif_id {
+	union {
+		u64 raw;
+		struct {
+			u16 iommu_id;
+			u8  stream_id;
+			u8  type;
+#define TDX_DEVIF_TYPE_PFVF	0
+			u32 func_id;
+		};
+	};
+};
+
+/*
+ * 8.4.7 TDH.DEVIF.REQUEST
+ */
+struct tdx_payload_parm {
+	union {
+		u64 raw;
+		struct {
+			u64 size:12;
+			u64 pa:51;
+			u64 td_flag:1;
+		} req;
+		struct {
+			u64 rsvd:12;
+			u64 pa:51;
+			u64 td_flag:1;
+		} rsp;
+	};
+};
+
+struct tdx_tdi {
+	struct tdx_devif_id id;
+	unsigned long devifcs_pa;
+	unsigned long td_buff_pa;
+	unsigned long vmm_buff_pa;
+
+	u16 rid;
+
+	unsigned long dmar_pages_va;
+
+	struct list_head mmiomt;
+	struct list_head mmio;
+
+	struct kvm_tdx *kvm_tdx;
+	struct tdx_iommu *tiommu;
+	struct pci_tdi *tdi;
+
+	struct list_head node;
+};
 
 #else
 struct kvm_tdx {

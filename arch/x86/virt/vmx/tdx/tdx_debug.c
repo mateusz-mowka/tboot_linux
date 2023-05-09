@@ -5,6 +5,7 @@
 
 #include <asm/page.h>
 #include <asm/tdx.h>
+#include <asm/vmx.h>
 
 #include "tdx.h"
 

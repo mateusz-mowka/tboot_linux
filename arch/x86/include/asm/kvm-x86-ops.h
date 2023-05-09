@@ -110,6 +110,7 @@ KVM_X86_OP_OPTIONAL(drop_private_spte)
 KVM_X86_OP_OPTIONAL(write_block_private_pages)
 KVM_X86_OP_OPTIONAL(restore_private_page)
 KVM_X86_OP_OPTIONAL(import_private_pages)
+KVM_X86_OP_OPTIONAL(link_shared_spte)
 KVM_X86_OP(has_wbinvd_exit)
 KVM_X86_OP(get_l2_tsc_offset)
 KVM_X86_OP(get_l2_tsc_multiplier)
@@ -160,6 +161,10 @@ KVM_X86_OP_OPTIONAL_RET0(vcpu_get_apicv_inhibit_reasons);
 KVM_X86_OP_OPTIONAL_RET0(update_fw)
 KVM_X86_OP_OPTIONAL_RET0(match_fw)
 KVM_X86_OP(ioasid_bind)
+KVM_X86_OP_OPTIONAL(bind_tdi)
+KVM_X86_OP_OPTIONAL(unbind_tdi)
+KVM_X86_OP_OPTIONAL(tdi_get_info)
+KVM_X86_OP_OPTIONAL(tdi_user_request)
 
 #undef KVM_X86_OP
 #undef KVM_X86_OP_OPTIONAL

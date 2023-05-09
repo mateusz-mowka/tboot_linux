@@ -34,14 +34,14 @@
 #define TDH_MEM_PAGE_PROMOTE		23
 #define TDH_VP_RD			26
 #define TDH_MNG_KEY_RECLAIMID		27
-#define TDH_PHYMEM_PAGE_RECLAIM		28
+/* #define TDH_PHYMEM_PAGE_RECLAIM		28 */
 #define TDH_MEM_PAGE_REMOVE		29
 #define TDH_MEM_SEPT_REMOVE		30
 #define TDH_SYS_RD			34
 #define TDH_MEM_TRACK			38
 #define TDH_MEM_RANGE_UNBLOCK		39
 #define TDH_PHYMEM_CACHE_WB		40
-#define TDH_PHYMEM_PAGE_WBINVD		41
+/* #define TDH_PHYMEM_PAGE_WBINVD		41 */
 #define TDH_VP_WR			43
 #define TDH_SYS_LP_SHUTDOWN		44
 #define TDH_SERVTD_BIND			48
@@ -141,6 +141,13 @@ enum tdx_vcpu_guest_management {
 
 /* @field is any of enum tdx_vcpu_guest_management */
 #define TDVPS_MANAGEMENT(field)		BUILD_TDX_FIELD(TDVPS_CLASS_MANAGEMENT, (field))
+
+enum tdx_tdxio_parameter {
+	TD_TDR_TDXIO_RND_HPA_OFFSET = 0,
+};
+
+/* @field is any of enum tdx_tdxio_parm */
+#define TDR_TDXIO(field)		BUILD_TDX_FIELD_NON_ARCH(3, (field))
 
 #define TDX_EXTENDMR_CHUNKSIZE		256
 

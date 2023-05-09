@@ -44,6 +44,13 @@ int pci_mmap_resource_range(struct pci_dev *pdev, int bar,
 
 	vma->vm_ops = &pci_phys_vm_ops;
 
+	if (cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT) &&
+	    (pdev->dev.authorized == MODE_SECURE)) {
+		pci_info(pdev, "%s() map secure dev\n", __func__);
+		return pci_tdi_mmap_resource_range(pdev, bar, vma);
+	}
+
+	pci_info(pdev, "%s() calls io_remap_pfn_range decrypted()\n", __func__);
 	return io_remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
 				  vma->vm_end - vma->vm_start,
 				  vma->vm_page_prot);

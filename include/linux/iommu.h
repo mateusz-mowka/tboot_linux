@@ -382,6 +382,7 @@ struct iommu_domain_ops {
 	int (*enable_nesting)(struct iommu_domain *domain);
 	int (*set_pgtable_quirks)(struct iommu_domain *domain,
 				  unsigned long quirks);
+	int (*set_trusted)(struct iommu_domain *domain);
 
 	void (*free)(struct iommu_domain *domain);
 
@@ -809,6 +810,7 @@ void iommu_detach_device_pasid(struct iommu_domain *domain,
 struct iommu_domain *
 iommu_get_domain_for_dev_pasid(struct device *dev, ioasid_t pasid,
 			       unsigned int type);
+int iommu_domain_set_trusted(struct iommu_domain *domain);
 ioasid_t iommu_get_pasid_from_domain(struct device *dev, struct iommu_domain *domain);
 int iommu_attach_dma_pasid(struct device *dev, ioasid_t *pasid);
 void iommu_detach_dma_pasid(struct device *dev);
@@ -1196,6 +1198,11 @@ iommu_get_domain_for_dev_pasid(struct device *dev, ioasid_t pasid,
 			       unsigned int type)
 {
 	return NULL;
+}
+
+static inline int iommu_domain_set_trusted(struct iommu_domain *domain)
+{
+	return -ENODEV;
 }
 #endif /* CONFIG_IOMMU_API */
 

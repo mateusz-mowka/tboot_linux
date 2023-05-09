@@ -26,6 +26,7 @@
 #include <linux/irqbypass.h>
 #include <linux/hyperv.h>
 #include <linux/kfifo.h>
+#include <linux/pci.h>
 
 #include <asm/apic.h>
 #include <asm/pvclock-abi.h>
@@ -1071,6 +1072,9 @@ struct kvm_vcpu_arch {
 #endif
 
 	bool pause;
+
+	/* TDX VP VMCALL post handling after userspace work completion*/
+	int (*complete_tdx_vp_vmcall)(struct kvm_vcpu *vcpu);
 };
 
 /*
@@ -1749,7 +1753,8 @@ struct kvm_x86_ops {
 	 */
 	int (*drop_private_spte)(struct kvm *kvm, gfn_t gfn, enum pg_level level,
 				 kvm_pfn_t pfn);
-
+	void (*link_shared_spte)(struct kvm *kvm, gfn_t gfn, int level,
+				 u64 spte);
 	bool (*has_wbinvd_exit)(void);
 
 	u64 (*get_l2_tsc_offset)(struct kvm_vcpu *vcpu);
@@ -1841,6 +1846,11 @@ struct kvm_x86_ops {
 	int (*update_fw)(struct kvm_firmware *fw, bool live_update);
 	bool (*match_fw)(struct kvm *kvm, struct kvm_firmware *fw);
 	int (*ioasid_bind)(struct kvm_vcpu *vcpu, struct kvm_bind_pasid *pb);
+
+	int (*bind_tdi)(struct kvm *kvm, struct pci_tdi *tdev);
+	int (*unbind_tdi)(struct kvm *kvm, struct pci_tdi *tdev);
+	int (*tdi_get_info)(struct kvm *kvm, struct kvm_tdi_info *info);
+	int (*tdi_user_request)(struct kvm *kvm, struct kvm_tdi_user_request *req);
 };
 
 struct kvm_x86_nested_ops {
@@ -2334,11 +2344,6 @@ int memslot_rmap_alloc(struct kvm_memory_slot *slot, unsigned long npages);
 	 KVM_X86_QUIRK_MISC_ENABLE_NO_MWAIT |	\
 	 KVM_X86_QUIRK_FIX_HYPERCALL_INSN |	\
 	 KVM_X86_QUIRK_MWAIT_NEVER_UD_FAULTS)
-
-#if IS_ENABLED(CONFIG_KVM_INTEL)
-int vmxon_all(void);
-void vmxoff_all(void);
-#endif
 
 /* The common function for normal x86 guest */
 void load_guest_debug_regs(struct kvm_vcpu *vcpu);

@@ -1,11 +1,15 @@
 #include <asm/tdx.h>
 #include <asm/pgtable.h>
 
+/* TDX Module call error codes */
+#define TDX_PAGE_ALREADY_ACCEPTED	0x00000b0a00000000ULL
+#define TDX_SEAMCALL_STATUS_MASK	0xFFFFFFFF00000000ULL
+
 static unsigned long try_accept_one(phys_addr_t start, unsigned long len,
 				    enum pg_level pg_level)
 {
 	unsigned long accept_size = page_level_size(pg_level);
-	u64 tdcall_rcx;
+	u64 ret, tdcall_rcx;
 	u8 page_size;
 
 	if (!IS_ALIGNED(start, accept_size))
@@ -38,6 +42,17 @@ static unsigned long try_accept_one(phys_addr_t start, unsigned long len,
 	if (__tdx_module_call(TDX_ACCEPT_PAGE, tdcall_rcx,
 			      0, 0, 0, 0, 0, 0, 0, NULL))
 		return 0;
+
+	if (ret) {
+		if ((ret & TDX_SEAMCALL_STATUS_MASK) !=
+		    TDX_PAGE_ALREADY_ACCEPTED) {
+			pr_err("%s: failed to accept page ret %llx\n", __func__, ret);
+			return 0;
+		}
+
+		pr_info("%s: TDX_PAGE_ALREADY_ACCEPTED, start = 0x%llx, accept_size = 0x%lx\n",
+			__func__, start, accept_size);
+	}
 
 	return accept_size;
 }

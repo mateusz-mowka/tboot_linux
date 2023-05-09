@@ -20,8 +20,6 @@ bool kvm_is_vmx_supported(void);
 int __init vmx_init(void);
 void vmx_exit(void);
 
-int vmxon_all(void);
-void vmxoff_all(void);
 __init int vmx_hardware_setup(void);
 
 extern struct kvm_x86_ops vt_x86_ops __initdata;
@@ -208,6 +206,11 @@ void tdx_sync_dirty_debug_regs(struct kvm_vcpu *vcpu);
 void tdx_update_exception_bitmap(struct kvm_vcpu *vcpu);
 void tdx_set_dr7(struct kvm_vcpu *vcpu, unsigned long val);
 bool tdx_check_apicv_inhibit_reasons(struct kvm *kvm, ulong bit);
+int tdx_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi);
+int tdx_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi);
+void tdx_unbind_tdi_all(struct kvm *kvm);
+int tdx_tdi_get_info(struct kvm *kvm, struct kvm_tdi_info *info);
+int tdx_tdi_user_request(struct kvm *kvm, struct kvm_tdi_user_request *req);
 #else
 static inline int tdx_init(void) { return 0; };
 static inline int tdx_hardware_setup(struct kvm_x86_ops *x86_ops) { return 0; }
@@ -282,6 +285,13 @@ static inline void tdx_sync_dirty_debug_regs(struct kvm_vcpu *vcpu) {}
 static inline void tdx_update_exception_bitmap(struct kvm_vcpu *vcpu) {}
 static inline void tdx_set_dr7(struct kvm_vcpu *vcpu, unsigned long val) {}
 static inline bool tdx_check_apicv_inhibit_reasons(struct kvm *kvm, ulong bit) { return false; }
+static inline int tdx_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi) { return -EOPNOTSUPP; }
+static inline int tdx_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi) { return -EOPNOTSUPP; }
+static inline void tdx_unbind_tdi_all(struct kvm *kvm) {}
+static inline int tdx_tdi_get_info(struct kvm *kvm, struct kvm_tdi_info *info)
+				  { return -EOPNOTSUPP; }
+static inline int tdx_tdi_user_request(struct kvm *kvm, struct kvm_tdi_user_request *req)
+				      { return -EOPNOTSUPP; }
 #endif
 
 #if defined(CONFIG_INTEL_TDX_HOST) && defined(CONFIG_KVM_SMM)

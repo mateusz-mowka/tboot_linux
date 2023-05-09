@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0-only
+menu "vDSM Kernel Stub"
+
+config VDSM_KERNEL_STUB
+	bool "vDSM Kernel Stub"
+	depends on PCI
+	select PCI_TDISP
+	default y
+	help
+	  vDSM Kernel Stub for kernel drivers to communicate with the user
+	  space SPDM responder emulator.
+
+source "drivers/misc/vdsm/dummy_requester/Kconfig"
+endmenu

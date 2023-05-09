@@ -7173,6 +7173,32 @@ set_pit2_out:
 		r = kvm_vm_ioctl_set_msr_filter(kvm, &filter);
 		break;
 	}
+	case KVM_TDI_GET_INFO: {
+		struct kvm_tdi_info info;
+
+		r = -EFAULT;
+		if (copy_from_user(&info, argp, sizeof(info)))
+			goto out;
+
+		r = -ENOTTY;
+		if (kvm_x86_ops.tdi_get_info)
+			r = static_call(kvm_x86_tdi_get_info)(kvm, &info);
+		if (!r && copy_to_user(argp, &info, sizeof(info)))
+			r = -EFAULT;
+		break;
+	}
+	case KVM_TDI_USER_REQUEST: {
+		struct kvm_tdi_user_request request;
+
+		r = -EFAULT;
+		if (copy_from_user(&request, argp, sizeof(request)))
+			goto out;
+
+		r = -ENOTTY;
+		if (kvm_x86_ops.tdi_user_request)
+			r = static_call(kvm_x86_tdi_user_request)(kvm, &request);
+		break;
+	}
 	default:
 		r = -ENOTTY;
 	}
@@ -9688,7 +9714,9 @@ int kvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
 	int r;
 
 	mutex_lock(&vendor_module_lock);
+	migrate_disable();
 	r = __kvm_x86_vendor_init(ops);
+	migrate_enable();
 	mutex_unlock(&vendor_module_lock);
 
 	return r;
@@ -13891,6 +13919,18 @@ bool kvm_arch_match_fw(struct kvm *kvm, struct kvm_firmware *fw)
 {
 	return static_call(kvm_x86_match_fw)(kvm, fw);
 }
+
+int kvm_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi)
+{
+	return static_call(kvm_x86_bind_tdi)(kvm, tdi);
+}
+EXPORT_SYMBOL_GPL(kvm_bind_tdi);
+
+void kvm_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi)
+{
+	static_call(kvm_x86_unbind_tdi)(kvm, tdi);
+}
+EXPORT_SYMBOL_GPL(kvm_unbind_tdi);
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(kvm_entry);
 EXPORT_TRACEPOINT_SYMBOL_GPL(kvm_exit);

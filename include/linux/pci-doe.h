@@ -18,7 +18,29 @@ struct pci_doe_protocol {
 	u8 type;
 };
 
-struct pci_doe_mb;
+/**
+ * struct pci_doe_mb - State for a single DOE mailbox
+ *
+ * This state is used to manage a single DOE mailbox capability.  All fields
+ * should be considered opaque to the consumers and the structure passed into
+ * the helpers below after being created by devm_pci_doe_create()
+ *
+ * @pdev: PCI device this mailbox belongs to
+ * @cap_offset: Capability offset
+ * @prots: Array of protocols supported (encoded as long values)
+ * @wq: Wait queue for work item
+ * @work_queue: Queue of pci_doe_work items
+ * @flags: Bit array of PCI_DOE_FLAG_* flags
+ */
+struct pci_doe_mb {
+	struct pci_dev *pdev;
+	u16 cap_offset;
+	struct xarray prots;
+
+	wait_queue_head_t wq;
+	struct workqueue_struct *work_queue;
+	unsigned long flags;
+};
 
 /**
  * struct pci_doe_task - represents a single query/response
@@ -73,5 +95,7 @@ struct pci_doe_task {
 struct pci_doe_mb *pcim_doe_create_mb(struct pci_dev *pdev, u16 cap_offset);
 bool pci_doe_supports_prot(struct pci_doe_mb *doe_mb, u16 vid, u8 type);
 int pci_doe_submit_task(struct pci_doe_mb *doe_mb, struct pci_doe_task *task);
+int pci_doe_msg_exchange_sync(struct pci_doe_mb *doe_mb, u32 *request,
+			      u32 *response, size_t response_buf_sz);
 
 #endif

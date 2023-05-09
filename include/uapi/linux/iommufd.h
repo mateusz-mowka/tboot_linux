@@ -368,6 +368,7 @@ enum iommu_device_data_type {
  * @__reserved: Must be 0
  * @cap_reg: Basic capability register value
  * @ecap_reg: Extended capability register value
+ * @id: iommu_id, only for TEE-IO (tdxio) mode.
  *
  * Intel hardware iommu capability.
  */
@@ -376,6 +377,7 @@ struct iommu_device_info_vtd {
 	__u32 __reserved;
 	__aligned_u64 cap_reg;
 	__aligned_u64 ecap_reg;
+	__aligned_u64 id;
 };
 
 /**

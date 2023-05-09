@@ -885,7 +885,7 @@ static inline void kvm_vm_bugged(struct kvm *kvm)
 
 #define KVM_BUG(cond, kvm, fmt...)				\
 ({								\
-	int __ret = (cond);					\
+	bool __ret = !!(cond);					\
 								\
 	if (WARN_ONCE(__ret && !(kvm)->vm_bugged, fmt))		\
 		kvm_vm_bugged(kvm);				\
@@ -894,7 +894,7 @@ static inline void kvm_vm_bugged(struct kvm *kvm)
 
 #define KVM_BUG_ON(cond, kvm)					\
 ({								\
-	int __ret = (cond);					\
+	bool __ret = !!(cond);					\
 								\
 	if (WARN_ON_ONCE(__ret && !(kvm)->vm_bugged))		\
 		kvm_vm_bugged(kvm);				\
@@ -2439,5 +2439,8 @@ static inline void kvm_vcpu_fw_update(struct kvm_vcpu *vcpu) {}
 
 int hardware_enable_all(void);
 void hardware_disable_all(void);
+
+int kvm_bind_tdi(struct kvm *kvm, struct pci_tdi *tdi);
+void kvm_unbind_tdi(struct kvm *kvm, struct pci_tdi *tdi);
 
 #endif

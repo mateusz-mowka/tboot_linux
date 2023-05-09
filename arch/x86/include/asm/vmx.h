@@ -14,8 +14,21 @@
 
 #include <linux/bitops.h>
 #include <linux/types.h>
+#include <linux/percpu-defs.h>
 #include <uapi/asm/vmx.h>
 #include <asm/vmxfeatures.h>
+#include <asm/processor.h>
+
+struct vmcs_hdr {
+	u32 revision_id:31;
+	u32 shadow_vmcs:1;
+};
+
+struct vmcs {
+	struct vmcs_hdr hdr;
+	u32 abort;
+	char data[];
+};
 
 #define VMCS_CONTROL_BIT(x)	BIT(VMX_FEATURE_##x & 0x1f)
 
@@ -145,6 +158,11 @@ static inline u32 vmx_basic_vmcs_revision_id(u64 vmx_basic)
 static inline u32 vmx_basic_vmcs_size(u64 vmx_basic)
 {
 	return (vmx_basic & GENMASK_ULL(44, 32)) >> 32;
+}
+
+static inline u32 vmx_basic_cap(u64 vmx_basic)
+{
+	return (vmx_basic & ~GENMASK_ULL(44, 32)) >> 32;
 }
 
 static inline int vmx_misc_preemption_timer_rate(u64 vmx_misc)
@@ -695,5 +713,18 @@ struct vmx_ve_information {
 #define PASID_TE_NUM			1024
 #define pasid_te_hpasid_valid(pte)	(*(pte) & PASID_TE_VALID)
 #define pasid_te_hpasid(pte)		(*(pte) & PASID_TE_HOST_PASID)
+
+#ifdef CONFIG_HAVE_VMX_GENERIC
+DECLARE_PER_CPU(u64, vmx_basic);
+int cpu_vmxop_get(void);
+int cpu_vmxop_put(void);
+int vmxon_all(void);
+void vmxoff_all(void);
+#else
+static inline int cpu_vmxop_get(void) { return -EOPNOTSUPP; }
+static inline int cpu_vmxop_put(void) { return -EOPNOTSUPP; }
+static inline int vmxon_all(void) { return -EOPNOTSUPP; }
+static void vmxoff_all(void) {}
+#endif
 
 #endif
