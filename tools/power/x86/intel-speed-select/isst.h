@@ -202,6 +202,7 @@ struct isst_platform_ops {
 	int (*get_pbf_info)(struct isst_id *id, int level, struct isst_pbf_info *pbf_info);
 	int (*set_pbf_fact_status)(struct isst_id *id, int pbf, int enable);
 	int (*get_fact_info)(struct isst_id *id, int level, int fact_bucket, struct isst_fact_info *fact_info);
+	void (*adjust_uncore_freq)(struct isst_id *id, int config_index, struct isst_pkg_ctdp_level_info *ctdp_level);
 	int (*get_clos_information)(struct isst_id *id, int *enable, int *type);
 	int (*pm_qos_config)(struct isst_id *id, int enable_clos, int priority_type);
 	int (*pm_get_clos)(struct isst_id *id, int clos, struct isst_clos_config *clos_config);
@@ -245,6 +246,8 @@ extern int isst_get_ctdp_control(struct isst_id *id, int config_index,
 				 struct isst_pkg_ctdp_level_info *ctdp_level);
 extern int isst_get_coremask_info(struct isst_id *id, int config_index,
 			   struct isst_pkg_ctdp_level_info *ctdp_level);
+extern void isst_adjust_uncore_freq(struct isst_id *id, int config_index,
+					struct isst_pkg_ctdp_level_info *ctdp_level);
 extern int isst_get_process_ctdp(struct isst_id *id, int tdp_level,
 				 struct isst_pkg_ctdp *pkg_dev);
 extern void isst_get_process_ctdp_complete(struct isst_id *id,
@@ -295,6 +298,7 @@ extern int isst_read_pm_config(struct isst_id *id, int *cp_state, int *cp_cap);
 extern void isst_display_error_info_message(int error, char *msg, int arg_valid, int arg);
 extern int is_skx_based_platform(void);
 extern int is_spr_platform(void);
+extern int is_emr_platform(void);
 extern int is_icx_platform(void);
 extern void isst_trl_display_information(struct isst_id *id, FILE *outf, unsigned long long trl);
 
@@ -311,5 +315,10 @@ extern void hfi_exit(void);
 /* Interface specific callbacks */
 extern struct isst_platform_ops *mbox_get_platform_ops(void);
 extern struct isst_platform_ops *tpmi_get_platform_ops(void);
+
+/* Cgroup related interface */
+extern int enable_cpuset_controller(void);
+extern int isolate_cpus(struct isst_id *id, int mask_size, cpu_set_t *cpu_mask, int level);
+extern int use_cgroupv2(void);
 
 #endif

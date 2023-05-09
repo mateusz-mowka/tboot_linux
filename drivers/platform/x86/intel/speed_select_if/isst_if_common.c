@@ -419,33 +419,10 @@ static int isst_if_cpu_online(unsigned int cpu)
 	}
 
 	if (isst_hpm_support) {
-		u64 raw_data;
 
-		ret = rdmsrl_safe(MSR_PM_LOGICAL_ID, &raw_data);
-		if (!ret) {
-			/*
-			 * Use the same format as MSR 53, for user space harmony
-			 *  Format
-			 *	Bit 0 – thread ID
-			 *	Bit 8:1 – core ID
-			 *	Bit 13:9 – Compute domain ID (aka die ID)
-			 * From the MSR 0x54 format
-			 *	[15:11] PM_DOMAIN_ID
-			 *	[10:3] MODULE_ID (aka IDI_AGENT_ID)
-			 *	[2:0] LP_ID (We don't care about these bits we only
-			 *			care die and core id
-			 *	For Atom:
-			 *		[2] Always 0
-			 *		[1:0] core ID within module
-			 *	For Core
-			 *		[2:1] Always 0
-			 *		[0] thread ID
-			 */
-			data = (raw_data >> 11) & 0x1f;
-			data <<= 9;
-			data |= (((raw_data >> 3) & 0xff) << 1);
+		ret = rdmsrl_safe(MSR_PM_LOGICAL_ID, &data);
+		if (!ret)
 			goto set_punit_id;
-		}
 	}
 
 	ret = rdmsrl_safe(MSR_THREAD_ID_INFO, &data);
