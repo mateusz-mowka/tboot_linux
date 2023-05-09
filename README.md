@@ -13,6 +13,11 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.29
+-----------------
+32. Bug: https://hsdes.intel.com/appstore/article/#/16020360586
+    Fix: Use fuse enabled mask instead of allowed levels
+
 gnr-bkc-6.2-v1.28
 -----------------
 31. Merge TDX2.0/TDXIO feature patches.
