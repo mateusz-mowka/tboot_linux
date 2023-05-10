@@ -512,7 +512,8 @@ static void idxd_idpte_clear_bit(struct idxd_idpt_entry_data *idpte_data, int in
 		mutex_unlock(&idpte_data->lock);
 		return;
 	}
-	__clear_bit(index, idpte_data->bitmap);
+	if (idpte_data->owner_mm != NULL)
+		__clear_bit(index, idpte_data->bitmap);
 	mutex_unlock(&idpte_data->lock);
 }
 
