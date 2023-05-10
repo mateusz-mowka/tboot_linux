@@ -1535,10 +1535,29 @@ static enum ucode_state perform_staging(void)
 	return ret;
 }
 
+static int map_ucode_to_errno(enum ucode_state error)
+{
+	switch (error) {
+		case UCODE_NEW:
+		case UCODE_UPDATED:
+		case UCODE_OK:
+			return 0;
+		case UCODE_ERROR:
+			return -EBADF;
+		case UCODE_NFOUND:
+			return -ENOENT;
+		case UCODE_UPDATED_PART:
+		case UCODE_UPDATED_AUTH:
+			return -ENXIO;
+		default:
+			return -EINVAL;
+	}
+}
+
 static int prepare_to_apply_intel(enum reload_type type)
 {
+	int rv = 0;
 	enum ucode_state ret;
-	int rv;
 
 	pr_debug("OSPL: %s:%d, type:%d\n", __FILE__,__LINE__, type);
 	switch (type) {
@@ -1557,14 +1576,14 @@ static int prepare_to_apply_intel(enum reload_type type)
 			break;
 		case RELOAD_NO_COMMIT:
 			pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
-			if (!mcu_cap.rollback)
-			{
+			if (!mcu_cap.rollback) {
+				pr_debug("OSPL: No rollback cap: %s:%d\n", __FILE__,__LINE__);
 				return -EINVAL;
 			}
 
 			if (!intel_ucode.ucode) {
 				pr_info("Defer Commit, No prior microcode, can't continue...\n");
-				return rv;
+				return -ENOENT;
 			}
 
 			rv = switch_to_manual_commit();
@@ -1574,20 +1593,17 @@ static int prepare_to_apply_intel(enum reload_type type)
 			break;
 		case RELOAD_ROLLBACK:
 			pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
-			if (!mcu_cap.rollback)
-			{
+			if (!mcu_cap.rollback) {
 				pr_debug("OSPL: No rollback cap: %s:%d\n", __FILE__,__LINE__);
 				return -EINVAL;
 			}
 
-			if (!intel_ucode.ucode) {
-				pr_info("No saved ucode found, exiting...\n");
-				return -EINVAL;
-			}
-
-			if(!rollback_ucode.ucode) {
-				pr_info("No saved ucode for rollback...  exiting\n");
-				return -EINVAL;
+			if (!intel_ucode.ucode || !rollback_ucode.ucode) {
+				if (!intel_ucode.ucode)
+					pr_info("No saved ucode found, exiting...\n");
+				if (!rollback_ucode.ucode)
+					pr_info("No rollback ucode found, exiting...\n");
+				return -ENOENT;
 			}
 
 			/*
@@ -1599,12 +1615,13 @@ static int prepare_to_apply_intel(enum reload_type type)
 			/*
 			 * Free previous intel_ucode, and clear
 			 * rollback_ucode
+			 * TBD: Move these freeing to post call, in case
+			 * rollback fails during staging etc.
 			 */
 			kfree(intel_ucode.ucode);
 			intel_ucode = rollback_ucode;
 			rollback_ucode.ucode = NULL;
 			rollback_ucode.size = 0;
-			rv = 0;
 			break;
 		default:
 			pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
@@ -1616,7 +1633,7 @@ static int prepare_to_apply_intel(enum reload_type type)
 	if (ret == UCODE_ERROR ||
 	    (ret == UCODE_NFOUND && !ucode_load_same)) {
 		pr_err("Error staging microcode\n");
-		return -EINVAL;
+		return map_ucode_to_errno(ret);
 	}
 
 	return 0;
