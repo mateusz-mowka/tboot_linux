@@ -14,7 +14,9 @@
 #ifdef DLB2_NEW_MDEV_IOMMUFD
 #include <linux/iommufd.h>
 #include <linux/vfio_pci_core.h>
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 #include <linux/intel-iommu.h>
+#endif
 #endif
 #include "base/dlb2_regs.h"
 #include "base/dlb2_resource.h"
@@ -23,6 +25,10 @@
 #include "dlb2_main.h"
 #ifndef DLB2_SIOV_IMS_WORKAROUND
 #include <linux/irqchip/irq-ims-msi.h>
+#endif
+
+#ifdef DLB2_NEW_MDEV_IOMMUFD
+MODULE_IMPORT_NS(IOMMUFD);
 #endif
 
 /* Helper macros copied from pci/vfio_pci_private.h */
@@ -56,6 +62,7 @@
 #define VDCM_MAX_NUM_IMS_ENTRIES	(DLB2_MAX_NUM_LDB_PORTS + \
 					 DLB2_MAX_NUM_DIR_PORTS(DLB2_HW_V2_5))
 
+#define DLB2_LM_XMIT_CMD_SIZE_SIZE	4
 #define DLB2_LM_CMD_SAVE_DATA_SIZE	64
 #define DLB2_LM_MIGRATION_REGION_SIZE	(4096*10)
 
@@ -72,6 +79,7 @@ struct dlb2_vdcm_migration {
 	void *mstate_mgr;
 	struct vfio_device_migration_info *minfo;
 	int mdata_size;
+	int allocated_cmd_size;
 };
 
 struct dlb2_ims_irq_entry {
@@ -103,7 +111,7 @@ struct dlb2_vdev {
 
 	/* IOMMU */
 	ioasid_t pasid;
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE && !defined(DLB2_NEW_MDEV_IOMMUFD)
+#if defined(DLB2_USE_VFIO_GROUP_IOMMU_DOMAIN) && !defined(DLB2_NEW_MDEV_IOMMUFD)
 	struct vfio_group *vfio_group;
 #endif
 
@@ -135,7 +143,10 @@ struct dlb2_vdev {
 	u16 dir_ports_phys_id[DLB2_MAX_NUM_DIR_PORTS_V2_5];
 	u32 dir_ports_mask[DLB2_MAX_NUM_DIR_PORTS_V2_5 / 32];
 
+	/* VM Live Migration */
 	struct dlb2_vdcm_migration migration;
+	struct dlb2_migrate_t mig_state;
+
 };
 
 #ifdef DLB2_NEW_MDEV_IOMMUFD
@@ -1215,7 +1226,8 @@ static void dlb2_vdcm_free_ims_irq_vectors(struct dlb2_vdev *vdev)
 static int dlb2_vdcm_alloc_ims_irq_vectors(struct dlb2_vdev *vdev)
 {
 	struct dlb2_ims_irq_entry *irq_entry;
-	u32 mask, idx, port_id;
+	u32 mask, idx;
+	int port_id;
 	struct device *dev;
 	struct dlb2 *dlb2;
 	unsigned int i;
@@ -1227,6 +1239,8 @@ static int dlb2_vdcm_alloc_ims_irq_vectors(struct dlb2_vdev *vdev)
 
 	for (i = 0; i < vdev->num_ldb_ports; i++) {
 		port_id = dlb2_hw_get_ldb_port_phys_id(&dlb2->hw, i, vdev->id);
+		if (port_id < 0)
+			return EINVAL;
 
 		mask = 1 << (port_id % 32);
 		idx = port_id / 32;
@@ -1245,6 +1259,8 @@ static int dlb2_vdcm_alloc_ims_irq_vectors(struct dlb2_vdev *vdev)
 
 	for (i = 0; i < vdev->num_dir_ports; i++) {
 		port_id = dlb2_hw_get_dir_port_phys_id(&dlb2->hw, i, vdev->id);
+		if (port_id < 0)
+			return EINVAL;
 
 		mask = 1 << (port_id % 32);
 		idx = port_id / 32;
@@ -1369,7 +1385,7 @@ static void __dlb2_vdcm_release(struct dlb2_vdev *vdev)
 
 	dlb2_vdcm_free_ims_irq_vectors(vdev);
 
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE && !defined(DLB2_NEW_MDEV_IOMMUFD)
+#if defined(DLB2_USE_VFIO_GROUP_IOMMU_DOMAIN) && !defined(DLB2_NEW_MDEV_IOMMUFD)
 	if (vdev->vfio_group) {
 		vfio_group_put_external_user(vdev->vfio_group);
 		vdev->vfio_group = NULL;
@@ -1471,18 +1487,38 @@ static int dlb2_enable_pasid(struct pci_dev *pdev)
 int dlb2_vdcm_migration_init(struct dlb2_vdev *vdev, int state_size)
 {
 	struct vfio_device_migration_info *minfo;
+	struct dlb2_migration_state *m_state;
+	u32 total_state_size;
+	struct dlb2 *dlb2;
+
+	dlb2 = mdev_get_dlb2(vdev->mdev);
+
+	total_state_size = state_size + sizeof(*m_state);
+
+	printk("%s, state_size = %d\n", __func__, state_size);
 
 	vdev->migration.size = ALIGN(sizeof(vdev->migration.minfo) +
-				     state_size, PAGE_SIZE);
-	minfo = kzalloc(vdev->migration.size, GFP_KERNEL);
-	if (!minfo)
+				     total_state_size, PAGE_SIZE);
+	//minfo = kzalloc(vdev->migration.size, GFP_KERNEL);
+	minfo = vzalloc(vdev->migration.size);
+
+	/* Set DLB migration state space */
+	vdev->mig_state.src_vm_state  = (struct dlb2_migration_state *)((u8 *)minfo +
+						sizeof(*minfo) + state_size);
+	vdev->mig_state.dst_vm_state  = (struct dlb2_migration_state *)((u8 *)minfo +
+						sizeof(*minfo) + state_size);
+
+	if (!minfo) {
+		printk("%s: kzalloc failed\n", __func__);
 		return -ENOMEM;
+	}
 
 	minfo->data_offset = sizeof(*minfo);
-	minfo->data_size = state_size;
+	minfo->data_size = total_state_size;
 	vdev->migration.minfo = minfo;
 	vdev->migration.mstate_mgr = NULL;
 	vdev->migration.mdata_size = 0;
+	vdev->migration.allocated_cmd_size = state_size;
 
 	//last_reset = 0;
 	return 0;
@@ -1491,9 +1527,15 @@ int dlb2_vdcm_migration_init(struct dlb2_vdev *vdev, int state_size)
 static int dlb2_vdev_migration_stop(struct dlb2_vdev *vdev, u8 *data, u32 data_size)
 {
 	int ret = 0;
+	struct dlb2 *dlb2;
 
-	if (data)
-		ret = vdev->migration.mdata_size;
+	dlb2 = mdev_get_dlb2(vdev->mdev);
+
+	if (data) {
+		dlb2_lm_pause_device(&dlb2->hw, 1, vdev->id, vdev->mig_state.src_vm_state);
+
+		ret = data_size;
+	}
 
 	return ret;
 }
@@ -1501,20 +1543,31 @@ static int dlb2_vdev_migration_stop(struct dlb2_vdev *vdev, u8 *data, u32 data_s
 static int dlb2_vdev_migration_resume(struct dlb2_vdev *vdev, u8 *data, u32 data_size)
 {
 	u8 mbox_data[DLB2_VF2PF_REQ_BYTES];
+	uint32_t cmd_data_size;
+	struct dlb2 *dlb2;
 	int i;
 
+	dlb2 = mdev_get_dlb2(vdev->mdev);
+
 	if (data) {
-		for (i = 0; i < data_size / DLB2_LM_CMD_SAVE_DATA_SIZE; i++) {
+		cmd_data_size = *((uint32_t *)data);
+		dev_info(mdev_dev(vdev->mdev), "%s: total data size = %d, cmd_data_size = %d\n",
+			 __func__, data_size, cmd_data_size);
+
+		data += DLB2_LM_XMIT_CMD_SIZE_SIZE;
+		for (i = 0; i < cmd_data_size / DLB2_LM_CMD_SAVE_DATA_SIZE; i++) {
 			u8 *ptr = data + i * DLB2_LM_CMD_SAVE_DATA_SIZE;
 			struct dlb2 *dlb2;
 
 			dlb2 = mdev_get_dlb2(vdev->mdev);
-			dev_info(mdev_dev(vdev->mdev),"%s: resuming  cmd = %s, i= %d, data_size = %d \n",
+			dev_info(mdev_dev(vdev->mdev), "%s: resuming  cmd = %s, i= %d, data_size = %d \n",
 				 __func__, dlb2_mbox_cmd_type_strings[DLB2_MBOX_CMD_TYPE(ptr)],
 				 i, data_size);
 			memcpy(mbox_data, ptr, DLB2_LM_CMD_SAVE_DATA_SIZE);
 			dlb2_handle_migration_cmds(dlb2, vdev->id, mbox_data);
 		}
+
+		dlb2_lm_restore_device(&dlb2->hw, 1, vdev->id, vdev->mig_state.dst_vm_state);
 	}
 
 	return data_size;
@@ -1583,6 +1636,7 @@ void dlb2_save_cmd_for_migration(struct dlb2 *dlb2, int vdev_id, u8 *data, int d
 	struct pci_dev *pdev = dlb2->pdev;
 	struct dlb2_vdev *vdev = NULL;
 	struct list_head *next;
+	uint32_t cmd_offset;
 
 	list_for_each(next, &dlb2->vdev_list) {
 		vdev = container_of(next, struct dlb2_vdev, next);
@@ -1601,18 +1655,22 @@ void dlb2_save_cmd_for_migration(struct dlb2 *dlb2, int vdev_id, u8 *data, int d
 	data_size = DLB2_LM_CMD_SAVE_DATA_SIZE;
 
 	minfo = vdev->migration.minfo;
+	cmd_offset =  minfo->data_offset + DLB2_LM_XMIT_CMD_SIZE_SIZE;
 
 	if (vdev->migration.mdata_size + data_size < minfo->data_size) {
-		dev_info(mdev_dev(vdev->mdev),"%s: saving cmd = %s %d, %d\n", __func__,
+		dev_info(mdev_dev(vdev->mdev), "%s: saving cmd = %s %d, %d\n", __func__,
 			 dlb2_mbox_cmd_type_strings[DLB2_MBOX_CMD_TYPE(data)], data_size,
 			 vdev->migration.mdata_size);
-		memcpy((u8 *)minfo + minfo->data_offset + vdev->migration.mdata_size, data, data_size);
+		memcpy((u8 *)minfo + cmd_offset + vdev->migration.mdata_size, data, data_size);
 		vdev->migration.mdata_size += data_size;
+		/* Record the mdata_size in XMIT data space */
+		memcpy((u8 *)minfo + minfo->data_offset, &(vdev->migration.mdata_size),
+			DLB2_LM_XMIT_CMD_SIZE_SIZE);
 	} else {
-		dev_err(&pdev->dev,"%s: No space to save cmd for migration! %d, %d, %lld\n",
+		dev_err(&pdev->dev, "%s: No space to save cmd for migration! %d, %d, %lld\n",
 			 __func__, vdev->migration.mdata_size, data_size, minfo->data_size);
 	}
-#if(0)
+#if (0)
 	if (DLB2_MBOX_CMD_TYPE(data) ==  DLB2_MBOX_CMD_RESET_SCHED_DOMAIN ||
 	    DLB2_MBOX_CMD_TYPE(data) ==  DLB2_MBOX_CMD_DEV_RESET) {
 		/* reset the minfo buffer, leave CMD_REGISTER in the buffer */
@@ -1741,7 +1799,7 @@ static int dlb2_vdcm_create(struct kobject *kobj, struct mdev_device *mdev)
 			}
 		}
 	}
-#if(0)
+#if (0)
 	{
 		struct device_domain_info *info = dev_iommu_priv_get(&pdev->dev);
 		struct intel_iommu *iommu = info->iommu;
@@ -1899,7 +1957,7 @@ static int dlb2_vdcm_group_notifier(struct notifier_block *nb,
 
 static int dlb2_get_mdev_pasid(struct mdev_device *mdev)
 {
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE
+#if defined(DLB2_USE_VFIO_GROUP_IOMMU_DOMAIN)
 	struct dlb2_vdev *vdev = dlb2_dev_get_drvdata(mdev_dev(mdev));
 #endif
 	struct device *dev = mdev_dev(mdev);
@@ -1919,7 +1977,7 @@ static int dlb2_get_mdev_pasid(struct mdev_device *mdev)
 		return 0;
 
 #ifndef DLB2_NEW_MDEV_IOMMUFD
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE
+#if defined(DLB2_USE_VFIO_GROUP_IOMMU_DOMAIN)
 	if (!vdev->vfio_group) {
 		dev_warn(dev, "Missing vfio_group.\n");
 		return -EINVAL;
@@ -1955,7 +2013,7 @@ static int dlb2_vdcm_open(struct vfio_device *vfio_dev)
 static int dlb2_vdcm_open(struct mdev_device *mdev)
 #endif
 {
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE && !defined(DLB2_NEW_MDEV_IOMMUFD)
+#if defined(DLB2_USE_VFIO_GROUP_IOMMU_DOMAIN) && !defined(DLB2_NEW_MDEV_IOMMUFD)
 	struct device *dev = mdev_dev(mdev);
 	struct vfio_group *vfio_group;
 #endif
@@ -1987,7 +2045,7 @@ static int dlb2_vdcm_open(struct mdev_device *mdev)
 	 */
 	pm_runtime_get_sync(parent_dev);
 
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE && !defined(DLB2_NEW_MDEV_IOMMUFD)
+#if defined(DLB2_USE_VFIO_GROUP_IOMMU_DOMAIN) && !defined(DLB2_NEW_MDEV_IOMMUFD)
 	vfio_group = vfio_group_get_external_user_from_dev(dev);
 	if (IS_ERR_OR_NULL(vfio_group)) {
 		ret = -EFAULT;
@@ -2121,7 +2179,7 @@ iommu_notif_register_fail:
 #endif
 pasid_register_fail:
 pasid_get_fail:
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE && !defined(DLB2_NEW_MDEV_IOMMUFD)
+#if defined(DLB2_USE_VFIO_GROUP_IOMMU_DOMAIN) && !defined(DLB2_NEW_MDEV_IOMMUFD)
 	vfio_group_put_external_user(vdev->vfio_group);
 	vdev->vfio_group = NULL;
 vfio_group_fail:
@@ -2148,13 +2206,19 @@ static void dlb2_vdcm_release(struct mdev_device *mdev)
 
 #ifdef DLB2_NEW_MDEV_IOMMUFD
 static int dlb2_vdcm_bind_iommufd(struct vfio_device *vfio_dev,
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 				  struct vfio_device_bind_iommufd *bind)
+#else
+				  struct iommufd_ctx *ictx, u32 *out_device_id)
+#endif
 {
 	struct dlb2_vdev *vdev = container_of(vfio_dev, struct dlb2_vdev, vfio_dev);
 	struct dlb2 *dlb2 = mdev_get_dlb2(vdev->mdev);
 	struct iommufd_device *idev;
 	int rc = 0;
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	u32 id;
+#endif
 
 	/* Should we have a lock per dlb2_vdev? */
 	mutex_lock(&dlb2->resource_mutex);
@@ -2165,17 +2229,30 @@ static int dlb2_vdcm_bind_iommufd(struct vfio_device *vfio_dev,
 		goto out;
 	}
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	idev = iommufd_bind_device(bind->iommufd, &dlb2->pdev->dev,
-			 	   IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP, &id);
+				IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP, &id);
+#else
+	idev = iommufd_device_bind(ictx, &dlb2->pdev->dev, out_device_id,
+				IOMMUFD_BIND_FLAGS_BYPASS_DMA_OWNERSHIP);
+#endif
+
 	if (IS_ERR(idev)) {
 		rc = PTR_ERR(idev);
 		goto out;
 	}
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	vdev->iommufd = bind->iommufd;
+#endif
 	vdev->idev = idev;
 	xa_init_flags(&vdev->pasid_xa, XA_FLAGS_ALLOC);
+
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	bind->out_devid = id;
+#else
+	vfio_dev->iommufd_device = idev;
+#endif
 
 out:
 	mutex_unlock(&dlb2->resource_mutex);
@@ -2206,11 +2283,19 @@ static void dlb2_vdcm_unbind_iommufd(struct vfio_device *vfio_dev)
 		unsigned long index;
 
 		xa_for_each(&vdev->pasid_xa, index, hwpt) {
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 			iommufd_device_pasid_detach(vdev->idev, hwpt->pasid);
+#else
+			iommufd_device_detach(vdev->idev, hwpt->pasid);
+#endif
 			kfree(hwpt);
 		}
 		xa_destroy(&vdev->pasid_xa);
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 		iommufd_unbind_device(vdev->idev);
+#else
+                iommufd_device_unbind(vdev->idev);
+#endif
 		vdev->idev = NULL;
 	}
 	mutex_unlock(&dlb2->resource_mutex);
@@ -2230,8 +2315,12 @@ static int dlb2_vdcm_pasid_attach(struct dlb2_vdev *vdev, ioasid_t pasid, u32 *p
 	if (!hwpt)
 		return -ENOMEM;
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	ret = iommufd_device_pasid_attach(vdev->idev, pt_id, pasid,
 					  IOMMUFD_ATTACH_FLAGS_ALLOW_UNSAFE_INTERRUPT);
+#else
+	ret = iommufd_device_attach(vdev->idev, pt_id, pasid);
+#endif
 	if (ret) {
 		struct device *dev;
 
@@ -2251,23 +2340,38 @@ static int dlb2_vdcm_pasid_attach(struct dlb2_vdev *vdev, ioasid_t pasid, u32 *p
 	}
 	return 0;
 out_detach:
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	iommufd_device_pasid_detach(vdev->idev, pasid);
+#else
+	iommufd_device_detach(vdev->idev, pasid);
+#endif
 out_free:
 	kfree(hwpt);
 	return ret;
 }
 
 static int dlb2_vdcm_attach_ioas(struct vfio_device *vfio_dev,
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 				 struct vfio_device_attach_ioas *attach)
+#else
+				 u32 *pt_id)
+#endif
 {
 	struct dlb2_vdev *vdev = container_of(vfio_dev, struct dlb2_vdev, vfio_dev);
 	struct dlb2 *dlb2 = mdev_get_dlb2(vdev->mdev);
-	u32 pasid, pt_id = attach->ioas_id;
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
+	u32 pt_id = attach->ioas_id;
+#endif
+	u32 pasid;
 	int rc = 0;
 
 	mutex_lock(&dlb2->resource_mutex);
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	if (!vdev->idev || vdev->iommufd != attach->iommufd) {
+#else
+	if (!vdev->idev) {
+#endif
 		rc = -EINVAL;
 		goto out_unlock;
 	}
@@ -2284,30 +2388,46 @@ static int dlb2_vdcm_attach_ioas(struct vfio_device *vfio_dev,
 		goto out_unlock;
 	}
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	rc = dlb2_vdcm_pasid_attach(vdev, pasid, &pt_id);
+#else
+	rc = dlb2_vdcm_pasid_attach(vdev, pasid, pt_id);
+#endif
 	if (rc)
 		goto out_unlock;
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	WARN_ON(attach->ioas_id == pt_id);
 	attach->out_hwpt_id = pt_id;
+#endif
 out_unlock:
 	mutex_unlock(&dlb2->resource_mutex);
 	return rc;
 }
 
 int dlb2_vdcm_attach_hwpt(struct vfio_device *vfio_dev,
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 			  struct vfio_device_attach_hwpt *attach)
+#else
+			  u32 *pt_id, ioasid_t pasid)
+#endif
 {
 	struct dlb2_vdev *vdev = container_of(vfio_dev, struct dlb2_vdev, vfio_dev);
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	ioasid_t pasid = attach->flags & VFIO_DEVICE_ATTACH_FLAG_PASID ?
 			 attach->pasid : INVALID_IOASID;
-	struct dlb2 *dlb2 = mdev_get_dlb2(vdev->mdev);
 	u32 pt_id = attach->hwpt_id;
+#endif
+	struct dlb2 *dlb2 = mdev_get_dlb2(vdev->mdev);
 	int ret;
 
 	mutex_lock(&dlb2->resource_mutex);
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	if (!vdev->idev || vdev->iommufd != attach->iommufd) {
+#else
+	if (!vdev->idev) {
+#endif
 		ret = -EINVAL;
 		goto out_unlock;
 	}
@@ -2318,17 +2438,24 @@ int dlb2_vdcm_attach_hwpt(struct vfio_device *vfio_dev,
 		goto out_unlock;
 	}
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	ret = dlb2_vdcm_pasid_attach(vdev, pasid, &pt_id);
+#else
+	ret = dlb2_vdcm_pasid_attach(vdev, pasid, pt_id);
+#endif
 	if (ret)
 		goto out_unlock;
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	WARN_ON(attach->hwpt_id != pt_id);
+#endif
 out_unlock:
 	mutex_unlock(&dlb2->resource_mutex);
 
 	return ret;
 }
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 void dlb2_vdcm_detach_hwpt(struct vfio_device *vfio_dev,
 			   struct vfio_device_detach_hwpt *detach)
 {
@@ -2356,6 +2483,7 @@ void dlb2_vdcm_detach_hwpt(struct vfio_device *vfio_dev,
 out_unlock:
 	mutex_unlock(&dlb2->resource_mutex);
 }
+#endif
 #endif
 
 static u64 get_reg_val(void *buf, int size)
@@ -3414,7 +3542,9 @@ static const struct vfio_device_ops dlb2_vdcm_ops = {
 	.unbind_iommufd		= dlb2_vdcm_unbind_iommufd,
 	.attach_ioas		= dlb2_vdcm_attach_ioas,
 	.attach_hwpt		= dlb2_vdcm_attach_hwpt,
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	.detach_hwpt		= dlb2_vdcm_detach_hwpt,
+#endif
 	.read			= dlb2_vdcm_read,
 	.write			= dlb2_vdcm_write,
 	.mmap			= dlb2_vdcm_mmap,
@@ -3561,7 +3691,6 @@ int dlb2_vdcm_init(struct dlb2 *dlb2)
 				 "[%s()]: mdev_reister_driver() failed\n", __func__);
 			goto register_fail;
 		}
-		dlb2_mdev_driver_registered = 1;
 	}
 
 	dlb2->vdcm_mdev_types[0] = kzalloc(sizeof(struct mdev_type), GFP_KERNEL);
@@ -3580,6 +3709,7 @@ int dlb2_vdcm_init(struct dlb2 *dlb2)
 
 	INIT_LIST_HEAD(&dlb2->vdev_list);
 	dlb2->vdcm_initialized = 1;
+	dlb2_mdev_driver_registered++;
 
 	return 0;
 
@@ -3609,12 +3739,11 @@ void dlb2_vdcm_exit(struct pci_dev *pdev)
 	if (!dlb2->vdcm_initialized)
 		return;
 
+	dlb2_mdev_driver_registered--;
 #ifdef DLB2_NEW_MDEV_IOMMUFD
 	mdev_unregister_parent(&dlb2->parent);
-	if (dlb2_mdev_driver_registered) {
+	if (!dlb2_mdev_driver_registered)
 		mdev_unregister_driver(&dlb2_vdcm_driver);
-		dlb2_mdev_driver_registered = 0;
-	}
 #else
 	mdev_unregister_device(&pdev->dev);
 #endif

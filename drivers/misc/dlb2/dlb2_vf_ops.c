@@ -1563,10 +1563,19 @@ static ssize_t dev_id_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n", dlb2->id);
 }
 
+static ssize_t driver_ver_show(struct device *dev,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%s\n", DLB2_DRIVER_VERSION);
+}
+
 static DEVICE_ATTR_RO(dev_id);
+static DEVICE_ATTR_RO(driver_ver);
 
 static struct attribute *dlb2_dev_id_attr[] = {
 	&dev_attr_dev_id.attr,
+	&dev_attr_driver_ver.attr,
 	NULL
 };
 

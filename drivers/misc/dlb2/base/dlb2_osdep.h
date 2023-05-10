@@ -86,6 +86,29 @@ static inline void __iomem *os_map_producer_port(struct dlb2_hw *hw,
 	return (void __iomem *)address;
 }
 
+static inline void __iomem *os_map_producer_port_maskable(struct dlb2_hw *hw,
+						 u8 port_id,
+						 bool is_ldb)
+{
+	unsigned long size;
+	uintptr_t address;
+	struct dlb2 *dlb2;
+
+	dlb2 = container_of(hw, struct dlb2, hw);
+
+	address = (uintptr_t)dlb2->hw.func_kva;
+
+	if (is_ldb) {
+		size = DLB2_LDB_PP_STRIDE;
+		address += DLB2_LDB_PP_BASE + size * port_id;
+	} else {
+		size = DLB2_DIR_PP_STRIDE;
+		address += DLB2_DIR_PP_BASE + size * port_id;
+	}
+
+	return (void __iomem *)address;
+}
+
 /**
  * os_unmap_producer_port() - unmap a producer port
  * @hw: dlb2_hw handle for a particular device.

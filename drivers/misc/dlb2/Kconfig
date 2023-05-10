@@ -32,7 +32,6 @@ config INTEL_DLB2_SIOV
 	depends on VFIO
 	depends on VFIO_MDEV
 	depends on IOMMUFD
-	depends on DLB2_SIOV_ENABLE_XMC
 
 	help
 	  Say Y if you want to enable Scalable I/O Virtualization support in

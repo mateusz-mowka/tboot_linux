@@ -183,10 +183,6 @@ int dlb2_open(int device_id,
 	ret = 0;
 
 cleanup:
-
-	if (ret && dlb2_dp)
-		devm_kfree(&dlb2->pdev->dev, dlb2_dp);
-
 	return ret;
 }
 EXPORT_SYMBOL(dlb2_open);
@@ -2040,15 +2036,6 @@ static inline int dlb2_adv_send_wrapper(struct dlb2_port_hdl *hdl,
 		goto cleanup;
 	}
 #ifndef DISABLE_CHECK
-	if (!send) {
-		if (err) {
-			pr_info("!send\n");
-			*err = -EINVAL;
-		}
-		ret = 0;
-		goto cleanup;
-	}
-
 	if (!port->domain->started) {
 		if (err) {
 			pr_info("!port->domain->started\n");

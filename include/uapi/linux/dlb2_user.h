@@ -114,6 +114,8 @@ static const char dlb2_error_strings[][128] = {
 	"DLB2_ST_FEATURE_UNAVAILABLE",
 };
 
+#define DLB2_DRIVER_VERSION	"8.4.0"
+
 struct dlb2_cmd_response {
 	__u32 status; /* Interpret using enum dlb2_error */
 	__u32 id;
@@ -618,6 +620,8 @@ struct dlb2_create_ldb_port_args {
 	__u16 cq_history_list_size;
 	__u8 cos_id;
 	__u8 cos_strict;
+	__u8 enable_inflight_ctrl;
+	__u16 inflight_threshold;
 };
 
 /*
@@ -978,6 +982,28 @@ struct dlb2_enable_cq_epoll_args {
        __u8 padding0[3];
 };
 
+/*
+ * DLB2_DOMAIN_CMD_SET_CQ_INFLIGHT_CTRL: Set Per-CQ inflight control for
+ *     {ATM,UNO,ORD} QEs.
+ *
+ * Input parameters:
+ * - port_id: Load-balanced port ID.
+ * - enable: True if inflight control is enabled. False otherwise
+ * - threshold: Per CQ inflight threshold.
+ *
+ * Output parameters:
+ * - response.status: Detailed error code. In certain cases, such as if the
+ *     ioctl request arg is invalid, the driver won't set status.
+ */
+struct dlb2_cq_inflight_ctrl_args {
+       /* Output parameters */
+       struct dlb2_cmd_response response;
+       /* Input parameters */
+       __u32 port_id;
+       __u16 enable;
+       __u16 threshold;
+};
+
 enum dlb2_domain_user_interface_commands {
 	DLB2_DOMAIN_CMD_CREATE_LDB_QUEUE,
 	DLB2_DOMAIN_CMD_CREATE_DIR_QUEUE,
@@ -1001,6 +1027,7 @@ enum dlb2_domain_user_interface_commands {
 	DLB2_DOMAIN_CMD_GET_DIR_PORT_CQ_FD,
 	DLB2_DOMAIN_CMD_ENABLE_CQ_WEIGHT,
 	DLB2_DOMAIN_CMD_ENABLE_CQ_EPOLL,
+	DLB2_DOMAIN_CMD_SET_CQ_INFLIGHT_CTRL,
 
 	/* NUM_DLB2_DOMAIN_CMD must be last */
 	NUM_DLB2_DOMAIN_CMD,
@@ -1135,12 +1162,16 @@ enum dlb2_domain_user_interface_commands {
 		_IOWR(DLB2_IOC_MAGIC,				\
 		      DLB2_DOMAIN_CMD_GET_DIR_PORT_CQ_FD,	\
 		      struct dlb2_get_port_fd_args)
+#define DLB2_IOC_ENABLE_CQ_EPOLL				\
+               _IOWR(DLB2_IOC_MAGIC,				\
+                     DLB2_DOMAIN_CMD_ENABLE_CQ_EPOLL,		\
+                     struct dlb2_enable_cq_epoll_args)
 #define DLB2_IOC_ENABLE_CQ_WEIGHT				\
 		_IOWR(DLB2_IOC_MAGIC,				\
 		      DLB2_DOMAIN_CMD_ENABLE_CQ_WEIGHT,		\
 		      struct dlb2_enable_cq_weight_args)
-#define DLB2_IOC_ENABLE_CQ_EPOLL                                \
-               _IOWR(DLB2_IOC_MAGIC,                            \
-                     DLB2_DOMAIN_CMD_ENABLE_CQ_EPOLL,           \
-                     struct dlb2_enable_cq_epoll_args)
+#define DLB2_IOC_SET_CQ_INFLIGHT_CTRL				\
+		_IOWR(DLB2_IOC_MAGIC,				\
+		      DLB2_DOMAIN_CMD_SET_CQ_INFLIGHT_CTRL,	\
+		      struct dlb2_cq_inflight_ctrl_args)
 #endif /* __DLB2_USER_H */

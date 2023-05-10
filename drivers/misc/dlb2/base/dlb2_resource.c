@@ -1328,6 +1328,7 @@ dlb2_get_next_ldb_port(struct dlb2_hw *hw,
 	struct dlb2_list_entry *iter __attribute__((unused));
 	struct dlb2_ldb_port *port;
 
+#if(0)
 	/*
 	 * To reduce the odds of consecutive load-balanced ports mapping to the
 	 * same queue(s), the driver attempts to allocate ports whose neighbors
@@ -1406,6 +1407,7 @@ dlb2_get_next_ldb_port(struct dlb2_hw *hw,
 		    !hw->rsrcs.ldb_ports[next].owned)
 			return port;
 	}
+#endif
 
 	/* If all else fails, the driver returns the next available port. */
 	return DLB2_FUNC_LIST_HEAD(rsrcs->avail_ldb_ports[cos_id],
@@ -1689,6 +1691,7 @@ dlb2_attach_domain_hist_list_entries(struct dlb2_function_resources *rsrcs,
 
 		domain->total_hist_list_entries = num_hist_list_entries;
 		domain->avail_hist_list_entries = num_hist_list_entries;
+
 		domain->hist_list_entry_base = base;
 		domain->hist_list_entry_offset = 0;
 
@@ -2449,10 +2452,10 @@ static bool dlb2_port_find_slot(struct dlb2_ldb_port *port,
 	return (i < DLB2_MAX_NUM_QIDS_PER_LDB_CQ);
 }
 
-static bool dlb2_port_find_slot_queue(struct dlb2_ldb_port *port,
-				      enum dlb2_qid_map_state state,
-				      struct dlb2_ldb_queue *queue,
-				      int *slot)
+bool dlb2_port_find_slot_queue(struct dlb2_ldb_port *port,
+			       enum dlb2_qid_map_state state,
+			       struct dlb2_ldb_queue *queue,
+			       int *slot)
 {
 	int i;
 
@@ -3262,7 +3265,7 @@ dlb2_ldb_queue_attach_resources(struct dlb2_hw *hw,
 	return 0;
 }
 
-static void dlb2_ldb_port_cq_enable(struct dlb2_hw *hw,
+void dlb2_ldb_port_cq_enable(struct dlb2_hw *hw,
 				    struct dlb2_ldb_port *port)
 {
 	u32 reg = 0;
@@ -3280,7 +3283,7 @@ static void dlb2_ldb_port_cq_enable(struct dlb2_hw *hw,
 	dlb2_flush_csr(hw);
 }
 
-static void dlb2_ldb_port_cq_disable(struct dlb2_hw *hw,
+void dlb2_ldb_port_cq_disable(struct dlb2_hw *hw,
 				     struct dlb2_ldb_port *port)
 {
 	u32 reg = 0;
@@ -3291,7 +3294,7 @@ static void dlb2_ldb_port_cq_disable(struct dlb2_hw *hw,
 	dlb2_flush_csr(hw);
 }
 
-static void dlb2_dir_port_cq_enable(struct dlb2_hw *hw,
+void dlb2_dir_port_cq_enable(struct dlb2_hw *hw,
 				    struct dlb2_dir_pq_pair *port)
 {
 	u32 reg = 0;
@@ -3301,7 +3304,7 @@ static void dlb2_dir_port_cq_enable(struct dlb2_hw *hw,
 	dlb2_flush_csr(hw);
 }
 
-static void dlb2_dir_port_cq_disable(struct dlb2_hw *hw,
+void dlb2_dir_port_cq_disable(struct dlb2_hw *hw,
 				     struct dlb2_dir_pq_pair *port)
 {
 	u32 reg = 0;
@@ -3498,6 +3501,17 @@ static int dlb2_ldb_port_configure_cq(struct dlb2_hw *hw,
 	reg = 0;
 	DLB2_CSR_WR(hw, LSP_CQ2PRIOV(hw->ver, port->id.phys_id), reg);
 
+	if (hw->ver == DLB2_HW_V2_5) {
+		reg = 0;
+		BITS_SET(reg, args->enable_inflight_ctrl, LSP_CFG_CTRL_GENERAL_0_ENAB_IF_THRESH_V2_5);
+		DLB2_CSR_WR(hw, V2_5LSP_CFG_CTRL_GENERAL_0, reg);
+
+		if (args->enable_inflight_ctrl) {
+			reg = 0;
+			BITS_SET(reg, args->inflight_threshold, LSP_CQ_LDB_INFL_THRESH_THRESH);
+			DLB2_CSR_WR(hw, LSP_CQ_LDB_INFL_THRESH(port->id.phys_id), reg);
+		}
+	}
 	return 0;
 }
 
@@ -4392,6 +4406,7 @@ int dlb2_hw_create_sched_domain(struct dlb2_hw *hw,
 	dlb2_init_domain_rsrc_lists(domain);
 
 	ret = dlb2_domain_attach_resources(hw, rsrcs, domain, args, resp);
+
 	if (ret) {
 		DLB2_HW_ERR(hw,
 			    "[%s()] Internal error: failed to verify args.\n",
@@ -7169,7 +7184,7 @@ static u32 dlb2_ldb_cq_inflight_count(struct dlb2_hw *hw,
 	return BITS_GET(cnt, LSP_CQ_LDB_INFL_CNT_COUNT);
 }
 
-static u32 dlb2_ldb_cq_token_count(struct dlb2_hw *hw,
+u32 dlb2_ldb_cq_token_count(struct dlb2_hw *hw,
 				   struct dlb2_ldb_port *port)
 {
 	u32 cnt;
@@ -7731,10 +7746,14 @@ static void __dlb2_domain_reset_ldb_port_registers(struct dlb2_hw *hw,
 		    CHP_LDB_CQ_DEPTH(hw->ver, port->id.phys_id),
 		    CHP_LDB_CQ_DEPTH_RST);
 
-	if (hw->ver != DLB2_HW_V2)
+	if (hw->ver != DLB2_HW_V2) {
 		DLB2_CSR_WR(hw,
 			    LSP_CFG_CQ_LDB_WU_LIMIT(port->id.phys_id),
 			    LSP_CFG_CQ_LDB_WU_LIMIT_RST);
+		DLB2_CSR_WR(hw,
+			    LSP_CQ_LDB_INFL_THRESH(port->id.phys_id),
+			    LSP_CQ_LDB_INFL_THRESH_RST);
+	}
 
 	DLB2_CSR_WR(hw,
 		    LSP_CQ_LDB_INFL_LIM(hw->ver, port->id.phys_id),
@@ -8118,7 +8137,7 @@ static void dlb2_domain_reset_dir_queue_registers(struct dlb2_hw *hw,
 	}
 }
 
-static u32 dlb2_dir_cq_token_count(struct dlb2_hw *hw,
+u32 dlb2_dir_cq_token_count(struct dlb2_hw *hw,
 				   struct dlb2_dir_pq_pair *port)
 {
 	u32 cnt;
@@ -10756,6 +10775,50 @@ int dlb2_enable_cq_weight(struct dlb2_hw *hw,
 	BITS_SET(reg, args->limit, LSP_CFG_CQ_LDB_WU_LIMIT_LIMIT);
 
 	DLB2_CSR_WR(hw, LSP_CFG_CQ_LDB_WU_LIMIT(port->id.phys_id), reg);
+
+	resp->status = 0;
+
+	return 0;
+}
+
+int dlb2_cq_inflight_ctrl(struct dlb2_hw *hw,
+			  u32 domain_id,
+			  struct dlb2_cq_inflight_ctrl_args *args,
+			  struct dlb2_cmd_response *resp,
+			  bool vdev_req,
+			  unsigned int vdev_id)
+{
+	struct dlb2_hw_domain *domain;
+	struct dlb2_ldb_port *port;
+	u32 reg = 0;
+	int id;
+
+	domain = dlb2_get_domain_from_id(hw, domain_id, vdev_req, vdev_id);
+	if (!domain) {
+		DLB2_HW_ERR(hw,
+			    "[%s():%d] Internal error: domain not found\n",
+			    __func__, __LINE__);
+		return -EFAULT;
+	}
+
+	id = args->port_id;
+
+	port = dlb2_get_domain_ldb_port(id, vdev_req, domain);
+	if (!port) {
+		DLB2_HW_ERR(hw,
+			    "[%s():%d] Internal error: port not found\n",
+			    __func__, __LINE__);
+		return -EFAULT;
+	}
+
+		BITS_SET(reg, args->enable, LSP_CFG_CTRL_GENERAL_0_ENAB_IF_THRESH_V2_5);
+		DLB2_CSR_WR(hw, V2_5LSP_CFG_CTRL_GENERAL_0, reg);
+
+	if (args->enable) {
+		reg = 0;
+		BITS_SET(reg, args->threshold, LSP_CQ_LDB_INFL_THRESH_THRESH);
+		DLB2_CSR_WR(hw, LSP_CQ_LDB_INFL_THRESH(port->id.phys_id), reg);
+	}
 
 	resp->status = 0;
 

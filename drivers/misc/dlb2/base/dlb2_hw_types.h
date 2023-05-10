@@ -44,6 +44,7 @@
 #define DLB2_MAX_NUM_LDB_CREDITS(ver)		(ver == DLB2_HW_V2 ? \
 						 8192 : 16384)
 #define DLB2_MAX_NUM_DIR_CREDITS(ver)		(ver == DLB2_HW_V2 ? 4096 : 0)
+#define DLB2_HIST_LIST_ENTRIES_USED_BY_LM	8
 #define DLB2_MAX_NUM_HIST_LIST_ENTRIES		2048
 #define DLB2_MAX_NUM_AQED_ENTRIES		2048
 #define DLB2_MAX_NUM_QIDS_PER_LDB_CQ		8
@@ -89,8 +90,8 @@
 #define DLB2_INT_NON_CQ 0
 
 #define DLB2_WB_CNTL_RATE_LIMIT			3
-#define DLB2_DEFAULT_QIDX_WRR_SCHEDULER_WEIGHT			0
-#define DLB2_MAX_QIDX_WRR_SCHEDULER_WEIGHT			7
+#define DLB2_DEFAULT_QIDX_WRR_SCHEDULER_WEIGHT	0
+#define DLB2_MAX_QIDX_WRR_SCHEDULER_WEIGHT	7
 
 #define DLB2_ALARM_HW_SOURCE_SYS 0
 #define DLB2_ALARM_HW_SOURCE_DLB 1
@@ -393,6 +394,121 @@ struct dlb2_sw_mbox {
 	void *pf_to_vdev_inject_arg;
 };
 
+
+/* Live Migration */
+
+typedef struct {
+  bool hl_valid;
+  bool rob_valid;
+  //struct dlb2_ldb_port *hl_port;
+  uint16_t hl_port_id;
+  uint16_t hl_idx;
+} sn_state_t;
+
+typedef struct {
+  uint32_t pop_ptr_val;
+  uint16_t pop_ptr;
+  uint32_t push_ptr_val;
+  uint16_t push_ptr;
+  bool pop_ptr_gen;
+  bool push_ptr_gen;
+  uint16_t inflights;
+  uint16_t inflights_limit;
+  uint16_t tkn_cnt;
+  uint16_t hist_list_entry_base;
+  uint16_t hist_list_entry_limit;
+} mig_cq_state_t;
+
+typedef struct {
+  sn_state_t sn_state[DLB2_MAX_NUM_SEQUENCE_NUMBERS];
+  uint16_t num_sn_in_hl;
+  uint16_t num_sn_in_rob;
+  uint16_t sn_list[DLB2_MAX_NUM_SEQUENCE_NUMBERS];
+  struct dlb2_hcw drain_hcw[8192];
+  struct dlb2_hcw drain_rob_hcw[DLB2_MAX_NUM_SEQUENCE_NUMBERS];
+  uint16_t num_drain_hcws;
+  uint16_t num_drain_rob_hcws;
+  uint8_t renq_qid;
+  bool renq_type;
+} mig_ldb_qid_state_t;
+
+typedef struct {
+  struct dlb2_hcw drain_hcw[4096];
+  uint16_t num_drain_hcws;
+} mig_dir_qid_state_t;
+
+
+struct hl_t {
+  unsigned sn_fid:12;
+  unsigned slot:5;
+  unsigned mode:3;
+  unsigned qidix:3;
+  unsigned qid:7;
+
+  unsigned qidprio:3; /* broken up across 2 entries */
+
+  /* byte 4 */
+  unsigned qtype:2;
+  unsigned meas:1;
+  unsigned cmp_id:4;
+
+  /* byte 5,6 */
+  unsigned hid:16;
+
+  /* byte 7 */
+  unsigned ecc:7;
+  unsigned tlow:1;
+};
+
+struct cq_addr_t {
+	uint32_t up;
+	uint32_t low;
+};
+
+struct dlb2_migration_state {
+	/* To be maintained locally */
+	struct dlb2_hw_domain *domain;
+	struct dlb2_ldb_port *dummy_ldb_port;
+	struct dlb2_dir_pq_pair *dummy_dir_port;
+	struct dlb2_ldb_port *ldb_port[DLB2_MAX_NUM_LDB_PORTS];
+	struct dlb2_dir_pq_pair *dir_port[DLB2_MAX_NUM_DIR_PORTS_V2];
+	struct dlb2_ldb_queue *ldb_queue[DLB2_MAX_NUM_LDB_QUEUES];
+
+	/* To be transferred for the destination */
+	uint8_t num_dir_ports;
+	uint8_t num_ldb_ports;
+	uint8_t num_ldb_queues;
+	uint32_t ldb_cq_wptr[DLB2_MAX_NUM_LDB_PORTS];
+	struct cq_addr_t ldb_cq_addr[DLB2_MAX_NUM_LDB_PORTS];
+	mig_cq_state_t ldb_cq_state[DLB2_MAX_NUM_LDB_PORTS];
+	mig_ldb_qid_state_t ldb_qid_state[DLB2_MAX_NUM_LDB_QUEUES];
+	struct hl_t hlist_state[DLB2_MAX_NUM_HIST_LIST_ENTRIES];
+	uint32_t hl_ptr[DLB2_MAX_NUM_HIST_LIST_ENTRIES];
+
+	uint32_t dir_cq_wptr[DLB2_MAX_NUM_DIR_PORTS_V2];
+	struct cq_addr_t dir_cq_addr[DLB2_MAX_NUM_DIR_PORTS_V2];
+	mig_cq_state_t dir_cq_state[DLB2_MAX_NUM_DIR_PORTS_V2];
+	mig_dir_qid_state_t dir_qid_state[DLB2_MAX_NUM_DIR_PORTS_V2];
+
+	int dummy_cq_hist_list_base;
+	int dummy_cq_hist_list_limit;
+};
+
+struct dlb2_migrate_t {
+        struct dlb2_migration_state *src_vm_state;
+        struct dlb2_migration_state *dst_vm_state;
+};
+
+/*!
+ *  @brief Event Scheduling Types
+ */
+enum dlb2_sched_t {
+    ATOMIC = 0,
+    UNORDERED,
+    ORDERED,
+    DIRECTED
+};
+
 struct dlb2_hw {
 	enum dlb2_hw_ver ver;
 
@@ -420,6 +536,9 @@ struct dlb2_hw {
 	int virt_mode;
 	struct dlb2_sw_mbox mbox[DLB2_MAX_NUM_VDEVS];
 	unsigned int pasid[DLB2_MAX_NUM_VDEVS];
+
+	/* VM Live Migration */
+	struct dlb2_migrate_t mig_state;
 };
 
 #endif /* __DLB2_HW_TYPES_H */

@@ -2952,10 +2952,19 @@ static ssize_t dev_id_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n", dlb2->id);
 }
 
+static ssize_t driver_ver_show(struct device *dev,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%s\n", DLB2_DRIVER_VERSION);
+}
+
 static DEVICE_ATTR_RO(dev_id);
+static DEVICE_ATTR_RO(driver_ver);
 
 static struct attribute *dlb2_dev_id_attr[] = {
 	&dev_attr_dev_id.attr,
+	&dev_attr_driver_ver.attr,
 	NULL
 };
 
@@ -3238,6 +3247,15 @@ dlb2_pf_enable_cq_weight(struct dlb2_hw *hw,
 	return dlb2_enable_cq_weight(hw, id, args, resp, false, 0);
 }
 
+static int
+dlb2_pf_cq_inflight_ctrl(struct dlb2_hw *hw,
+			 u32 id,
+			 struct dlb2_cq_inflight_ctrl_args*args,
+			 struct dlb2_cmd_response *resp)
+{
+	return dlb2_cq_inflight_ctrl(hw, id, args, resp, false, 0);
+}
+
 /**************************************/
 /****** Resource query callbacks ******/
 /**************************************/
@@ -3307,4 +3325,5 @@ struct dlb2_device_ops dlb2_pf_ops = {
 	.query_cq_poll_mode = dlb2_pf_query_cq_poll_mode,
 	.mbox_dev_reset = dlb2_pf_mbox_dev_reset,
 	.enable_cq_weight = dlb2_pf_enable_cq_weight,
+	.cq_inflight_ctrl = dlb2_pf_cq_inflight_ctrl,
 };

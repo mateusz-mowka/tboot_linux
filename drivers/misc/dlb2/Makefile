@@ -14,6 +14,7 @@ dlb2-objs := \
   dlb2_vf_ops.o        \
   dlb2_perf.o	       \
   base/dlb2_resource.o \
+  base/dlb2_migration.o \
 
 ifeq ($(CONFIG_INTEL_DLB2_DATAPATH), y)
 dlb2-objs += dlb2_dp.o

@@ -178,6 +178,10 @@ struct dlb2_device_ops {
 				u32 domain_id,
 				struct dlb2_enable_cq_weight_args *args,
 				struct dlb2_cmd_response *resp);
+	int (*cq_inflight_ctrl)(struct dlb2_hw *hw,
+				u32 domain_id,
+				struct dlb2_cq_inflight_ctrl_args *args,
+				struct dlb2_cmd_response *resp);
 };
 
 extern const struct attribute_group *dlb2_vf_attrs[];

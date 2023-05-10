@@ -10,6 +10,25 @@
 #include "dlb2_hw_types.h"
 #include "dlb2_osdep_types.h"
 
+#define DLB2_DOM_LIST_HEAD(head, type) \
+        DLB2_LIST_HEAD((head), type, domain_list)
+
+#define DLB2_FUNC_LIST_HEAD(head, type) \
+        DLB2_LIST_HEAD((head), type, func_list)
+
+#define DLB2_DOM_LIST_FOR(head, ptr, iter) \
+        DLB2_LIST_FOR_EACH(head, ptr, domain_list, iter)
+
+#define DLB2_FUNC_LIST_FOR(head, ptr, iter) \
+        DLB2_LIST_FOR_EACH(head, ptr, func_list, iter)
+
+#define DLB2_DOM_LIST_FOR_SAFE(head, ptr, ptr_tmp, it, it_tmp) \
+        DLB2_LIST_FOR_EACH_SAFE((head), ptr, ptr_tmp, domain_list, it, it_tmp)
+
+#define DLB2_FUNC_LIST_FOR_SAFE(head, ptr, ptr_tmp, it, it_tmp) \
+        DLB2_LIST_FOR_EACH_SAFE((head), ptr, ptr_tmp, func_list, it, it_tmp)
+
+
 int dlb2_resource_init(struct dlb2_hw *hw, enum dlb2_hw_ver ver);
 
 int dlb2_resource_probe(struct dlb2_hw *hw, const void *probe_args);
@@ -437,6 +456,12 @@ int dlb2_enable_cq_weight(struct dlb2_hw *hw,
 			  bool vdev_request,
 			  unsigned int vdev_id);
 
+int dlb2_cq_inflight_ctrl(struct dlb2_hw *hw,
+			  u32 domain_id,
+			  struct dlb2_cq_inflight_ctrl_args *args,
+			  struct dlb2_cmd_response *resp,
+			  bool vdev_req,
+			  unsigned int vdev_id);
 /**
  * dlb2_disable_ldb_sched_perf_ctrl() - disable DLB2 ldb perf counters.
  * @hw: dlb2_hw handle for a particular device.
@@ -473,4 +498,38 @@ void dlb2_hw_set_rate_limit(struct dlb2_hw *hw, int rate_limit);
 
 void dlb2_hw_set_qidx_wrr_scheduler_weight(struct dlb2_hw *hw, int weight);
 
+int dlb2_lm_pause_device(struct dlb2_hw *hw,
+			 bool vdev_req,
+			 unsigned int vdev_id,
+			 struct dlb2_migration_state *state);
+
+int dlb2_lm_restore_device(struct dlb2_hw *hw,
+                           bool vdev_req,
+                           unsigned int vdev_id,
+			   struct dlb2_migration_state *state);
+
+int dlb2_enable_live_migration(struct dlb2_hw *hw, uint8_t cq);
+
+void dlb2_ldb_port_cq_enable(struct dlb2_hw *hw,
+                             struct dlb2_ldb_port *port);
+
+void dlb2_ldb_port_cq_disable(struct dlb2_hw *hw,
+                              struct dlb2_ldb_port *port);
+
+void dlb2_dir_port_cq_enable(struct dlb2_hw *hw,
+                             struct dlb2_dir_pq_pair *port);
+
+void dlb2_dir_port_cq_disable(struct dlb2_hw *hw,
+                              struct dlb2_dir_pq_pair *port);
+
+u32 dlb2_dir_cq_token_count(struct dlb2_hw *hw,
+			   struct dlb2_dir_pq_pair *port);
+
+u32 dlb2_ldb_cq_token_count(struct dlb2_hw *hw,
+                            struct dlb2_ldb_port *port);
+
+bool dlb2_port_find_slot_queue(struct dlb2_ldb_port *port,
+                               enum dlb2_qid_map_state state,
+                               struct dlb2_ldb_queue *queue,
+                               int *slot);
 #endif /* __DLB2_RESOURCE_H */

@@ -67,6 +67,7 @@ DLB2_DOMAIN_IOCTL_CALLBACK_TEMPLATE(get_ldb_queue_depth)
 DLB2_DOMAIN_IOCTL_CALLBACK_TEMPLATE(get_dir_queue_depth)
 DLB2_DOMAIN_IOCTL_CALLBACK_TEMPLATE(pending_port_unmaps)
 DLB2_DOMAIN_IOCTL_CALLBACK_TEMPLATE(enable_cq_weight)
+DLB2_DOMAIN_IOCTL_CALLBACK_TEMPLATE(cq_inflight_ctrl)
 
 /*
  * Port enable/disable ioctls don't use the callback template macro because
@@ -610,7 +611,8 @@ static dlb2_domain_ioctl_fn_t dlb2_domain_ioctl_fns[NUM_DLB2_DOMAIN_CMD] = {
 	dlb2_domain_ioctl_get_dir_port_pp_fd,
 	dlb2_domain_ioctl_get_dir_port_cq_fd,
 	dlb2_domain_ioctl_enable_cq_weight,
-	dlb2_domain_ioctl_enable_cq_epoll
+	dlb2_domain_ioctl_enable_cq_epoll,
+	dlb2_domain_ioctl_cq_inflight_ctrl
 };
 
 static int dlb2_domain_ioctl_arg_size[NUM_DLB2_DOMAIN_CMD] = {
@@ -635,7 +637,8 @@ static int dlb2_domain_ioctl_arg_size[NUM_DLB2_DOMAIN_CMD] = {
 	sizeof(struct dlb2_get_port_fd_args),
 	sizeof(struct dlb2_get_port_fd_args),
 	sizeof(struct dlb2_enable_cq_weight_args),
-	sizeof(struct dlb2_enable_cq_epoll_args)
+	sizeof(struct dlb2_enable_cq_epoll_args),
+	sizeof(struct dlb2_cq_inflight_ctrl_args)
 };
 
 #if KERNEL_VERSION(2, 6, 35) <= LINUX_VERSION_CODE
