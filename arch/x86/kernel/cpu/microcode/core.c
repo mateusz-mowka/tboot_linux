@@ -1138,6 +1138,7 @@ static int __init microcode_init(void)
 
 	debugfs_create_bool("override_minrev", 0644, dentry_ucode, &override_minrev);
 	debugfs_create_bool("load_same", 0644, dentry_ucode, &ucode_load_same);
+	debugfs_create_bool("do_nmi", 0644, dentry_ucode, &microcode_ops->need_nmi_lateload);
 
 	pr_info("Microcode Update Driver: v%s.", DRIVER_VERSION);
 	pr_info("Override minrev %s\n", override_minrev ? "enabled" : "disabled");
