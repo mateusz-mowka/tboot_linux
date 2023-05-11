@@ -13,6 +13,7 @@
 #include "ice_flex_pipe.h"
 #include "ice_vf_vsi_vlan_ops.h"
 #include "ice_vlan.h"
+#include  "ice_scalable_iov.h"
 
 /**
  * ice_free_vf_entries - Free all VF entries from the hash table
@@ -933,6 +934,11 @@ static int ice_check_sriov_allowed(struct ice_pf *pf)
 		return -EOPNOTSUPP;
 	}
 
+	if (test_bit(ICE_FLAG_SIOV_ENA, pf->flags) && ice_has_vfs(pf)) {
+		dev_err(dev, "Scalable IOV and Single Root IOV are mutually exclusive. Remove all active Scalable VFs before attempting to configure PCI SR-IOV.\n");
+		return -EBUSY;
+	}
+
 	if (ice_is_safe_mode(pf)) {
 		dev_err(dev, "SR-IOV cannot be configured - Device is in Safe Mode\n");
 		return -EOPNOTSUPP;
@@ -976,6 +982,12 @@ int ice_sriov_configure(struct pci_dev *pdev, int num_vfs)
 		dev_err(dev, "can't free VFs because some are assigned to VMs.\n");
 		return -EBUSY;
 	}
+
+	/* Disable Scalable IOV since we're activating SR-IOV. Note that
+	 * ice_check_sriov_allowed() has already blocked enabling SR-IOV if we
+	 * have any active Scalable VFs.
+	 */
+	ice_deinit_siov_resources(pf);
 
 	err = ice_pci_sriov_ena(pf, num_vfs);
 	if (err)

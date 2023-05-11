@@ -14,6 +14,7 @@
 #include "ice_dcb_nl.h"
 #include "ice_devlink.h"
 #include "ice_devlink_port.h"
+#include "ice_scalable_iov.h"
 #include "ice_sf_eth.h"
 /* Including ice_trace.h with CREATE_TRACE_POINTS defined will generate the
  * ice tracepoint functions. This must be done exactly once across the
@@ -3783,6 +3784,8 @@ static void ice_set_pf_caps(struct ice_pf *pf)
 		pf->vfs.num_supported = min_t(int, func_caps->num_allocd_vfs,
 					      ICE_MAX_SRIOV_VFS);
 	}
+	if (ice_is_siov_capable(pf))
+		set_bit(ICE_FLAG_SIOV_CAPABLE, pf->flags);
 	clear_bit(ICE_FLAG_RSS_ENA, pf->flags);
 	if (func_caps->common_cap.rss_table_size)
 		set_bit(ICE_FLAG_RSS_ENA, pf->flags);
@@ -4572,6 +4575,7 @@ static void ice_init_features(struct ice_pf *pf)
 
 static void ice_deinit_features(struct ice_pf *pf)
 {
+	ice_deinit_siov_resources(pf);
 	ice_deinit_lag(pf);
 	if (test_bit(ICE_FLAG_DCB_CAPABLE, pf->flags))
 		ice_cfg_lldp_mib_change(&pf->hw, false);
@@ -7185,6 +7189,10 @@ static void ice_rebuild(struct ice_pf *pf, enum ice_reset_req reset_type)
 			/* Reload DDP Package after CORER/GLOBR reset */
 			ice_load_pkg(NULL, pf);
 	}
+
+	/* Restore necessary config for Scalable IOV */
+	if (test_bit(ICE_FLAG_SIOV_ENA, pf->flags))
+		ice_restore_pasid_config(pf, reset_type);
 
 	err = ice_clear_pf_cfg(hw);
 	if (err) {

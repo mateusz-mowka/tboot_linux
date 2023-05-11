@@ -38,6 +38,7 @@ ice-y := ice_main.o	\
 	 ice_tc_lib.o
 ice-$(CONFIG_PCI_IOV) +=	\
 	ice_sriov.o		\
+	ice_scalable_iov.o	\
 	ice_virtchnl.o		\
 	ice_virtchnl_allowlist.o \
 	ice_virtchnl_fdir.o	\
