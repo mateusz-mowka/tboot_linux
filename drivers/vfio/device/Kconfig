@@ -4,3 +4,10 @@ config VFIO_DEVICE_IDXD
 	default n
 	help
 	  VFIO based device driver for Intel Accelerator Devices driver.
+
+config VFIO_DEVICE_INET
+	tristate "VFIO device driver for Intel(R) network devices"
+	depends on VFIO
+	default n
+	help
+	  VFIO based device driver for Intel(R) network devices
