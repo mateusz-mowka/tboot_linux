@@ -1033,6 +1033,13 @@ static const struct devlink_ops ice_devlink_ops = {
 
 	.rate_leaf_parent_set = ice_devlink_set_parent,
 	.rate_node_parent_set = ice_devlink_set_parent,
+
+	.port_new = ice_dl_port_new,
+	.port_del = ice_dl_port_del,
+	.port_function_hw_addr_get = ice_dl_port_fn_hw_addr_get,
+	.port_function_hw_addr_set = ice_dl_port_fn_hw_addr_set,
+	.port_fn_state_get = ice_dl_port_fn_state_get,
+	.port_fn_state_set = ice_dl_port_fn_state_set,
 };
 
 static int

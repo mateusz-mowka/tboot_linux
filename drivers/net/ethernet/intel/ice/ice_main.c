@@ -14,6 +14,7 @@
 #include "ice_dcb_nl.h"
 #include "ice_devlink.h"
 #include "ice_devlink_port.h"
+#include "ice_sf_eth.h"
 /* Including ice_trace.h with CREATE_TRACE_POINTS defined will generate the
  * ice tracepoint functions. This must be done exactly once across the
  * ice driver.
@@ -3757,6 +3758,9 @@ static void ice_deinit_pf(struct ice_pf *pf)
 
 	if (pf->ptp.clock)
 		ptp_clock_unregister(pf->ptp.clock);
+
+	xa_destroy(&pf->dyn_ports);
+	xa_destroy(&pf->sf_nums);
 }
 
 /**
@@ -3847,6 +3851,9 @@ static int ice_init_pf(struct ice_pf *pf)
 	mutex_init(&pf->vfs.table_lock);
 	hash_init(pf->vfs.table);
 	ice_mbx_init_snapshot(&pf->hw);
+
+	xa_init(&pf->dyn_ports);
+	xa_init(&pf->sf_nums);
 
 	return 0;
 }
@@ -5056,6 +5063,8 @@ static void ice_remove(struct pci_dev *pdev)
 	struct ice_pf *pf = pci_get_drvdata(pdev);
 	int i;
 
+	ice_dealloc_all_dynamic_ports(pf);
+
 	for (i = 0; i < ICE_MAX_RESET_WAIT; i++) {
 		if (!ice_is_reset_in_progress(pf->state))
 			break;
@@ -5527,8 +5536,21 @@ static int __init ice_module_init(void)
 	status = pci_register_driver(&ice_driver);
 	if (status) {
 		pr_err("failed to register PCI driver, err %d\n", status);
-		destroy_workqueue(ice_wq);
+		goto err_pci_driver;
 	}
+
+	status = ice_sf_driver_register();
+	if (status) {
+		pr_err("failed to register SF driver, err %d\n", status);
+		goto err_sf_driver;
+	}
+
+	return 0;
+
+err_sf_driver:
+	pci_unregister_driver(&ice_driver);
+err_pci_driver:
+	destroy_workqueue(ice_wq);
 
 	return status;
 }
@@ -5542,6 +5564,7 @@ module_init(ice_module_init);
  */
 static void __exit ice_module_exit(void)
 {
+	ice_sf_driver_unregister();
 	pci_unregister_driver(&ice_driver);
 	destroy_workqueue(ice_wq);
 	pr_info("module unloaded\n");

@@ -30,6 +30,7 @@ ice-y := ice_main.o	\
 	 ice_idc.o	\
 	 ice_devlink.o	\
 	 ice_devlink_port.o	\
+	 ice_sf_eth.o	\
 	 ice_fw_update.o \
 	 ice_lag.o	\
 	 ice_ethtool.o  \
