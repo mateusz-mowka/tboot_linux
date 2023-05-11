@@ -382,22 +382,30 @@ static void ice_ena_vf_mappings(struct ice_vf *vf)
 }
 
 /**
- * ice_calc_vf_reg_idx - Calculate the VF's register index in the PF space
- * @vf: VF to calculate the register index for
+ * ice_calc_vf_reg_idx - Calculate register indexes for q_vector on this VF
+ * @vf: VF to calculate the register indexes for
  * @q_vector: a q_vector associated to the VF
+ *
+ * Calculate PF and VF register index values for this q_vector. On return, the
+ * q_vector->reg_idx and q_vector->vf_reg_idx values will be assigned.
  */
-int ice_calc_vf_reg_idx(struct ice_vf *vf, struct ice_q_vector *q_vector)
+void ice_calc_vf_reg_idx(struct ice_vf *vf, struct ice_q_vector *q_vector)
 {
 	struct ice_pf *pf;
 
-	if (!vf || !q_vector)
-		return -EINVAL;
+	if (WARN_ON(!vf || !q_vector))
+		return;
 
 	pf = vf->pf;
 
-	/* always add one to account for the OICR being the first MSIX */
-	return pf->sriov_base_vector + pf->vfs.num_msix_per * vf->vf_id +
-		q_vector->v_idx + 1;
+	/* Account for the OICR interrupt which does not get tracked by the
+	 * q_vector array.
+	 */
+	q_vector->vf_reg_idx = q_vector->v_idx + ICE_NONQ_VECS_VF;
+
+	q_vector->reg_idx = pf->sriov_base_vector +
+			    pf->vfs.num_msix_per * vf->vf_id +
+			    q_vector->vf_reg_idx;
 }
 
 /**

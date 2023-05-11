@@ -446,9 +446,8 @@ struct ice_q_vector {
 	struct ice_vsi *vsi;
 
 	u16 v_idx;			/* index in the vsi->q_vector array. */
-	u16 reg_idx;
-	u8 num_ring_rx;			/* total number of Rx rings in vector */
-	u8 num_ring_tx;			/* total number of Tx rings in vector */
+	u16 reg_idx;			/* PF register index */
+	u16 vf_reg_idx;			/* VF register index */
 	u8 wb_on_itr:1;			/* if true, WB on ITR is enabled */
 	/* in usecs, need to use ice_intrl_to_usecs_reg() before writing this
 	 * value to the device
@@ -466,6 +465,9 @@ struct ice_q_vector {
 	struct ice_channel *ch;
 
 	char name[ICE_INT_NAME_STR_LEN];
+
+	u8 num_ring_rx;			/* total number of Rx rings in vector */
+	u8 num_ring_tx;			/* total number of Tx rings in vector */
 
 	u16 total_events;	/* net_dim(): number of interrupts processed */
 	struct msi_map irq;
