@@ -199,6 +199,7 @@ struct iommu_iort_rmr_data {
 enum iommu_dev_features {
 	IOMMU_DEV_FEAT_SVA,
 	IOMMU_DEV_FEAT_IOPF,
+	IOMMU_DEV_FEAT_PASID,
 };
 
 #define IOMMU_PASID_INVALID	(-1U)
