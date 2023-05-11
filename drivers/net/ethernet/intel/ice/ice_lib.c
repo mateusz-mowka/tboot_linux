@@ -51,6 +51,7 @@ const char *ice_vsi_type_str(enum ice_vsi_type vsi_type)
 static int ice_vsi_requires_vf(enum ice_vsi_type vsi_type)
 {
 	switch (vsi_type) {
+	case ICE_VSI_ADI:
 	case ICE_VSI_VF:
 		return true;
 	default:
@@ -168,6 +169,7 @@ static void ice_vsi_set_num_desc(struct ice_vsi *vsi)
 {
 	switch (vsi->type) {
 	case ICE_VSI_PF:
+	case ICE_VSI_ADI:
 	case ICE_VSI_SF:
 	case ICE_VSI_SWITCHDEV_CTRL:
 	case ICE_VSI_CTRL:
@@ -250,6 +252,10 @@ static void ice_vsi_set_num_qs(struct ice_vsi *vsi)
 		vsi->alloc_rxq = vsi->alloc_txq;
 		vsi->num_q_vectors = 1;
 		break;
+	case ICE_VSI_ADI:
+		/* ADI VFs allow dynamic MSI-X vector allocation */
+		vsi->irq_dyn_alloc = true;
+		fallthrough;
 	case ICE_VSI_VF:
 		if (vf->num_req_qs)
 			vf->num_vf_qs = vf->num_req_qs;
@@ -658,6 +664,7 @@ ice_vsi_alloc_def(struct ice_vsi *vsi, struct ice_channel *ch)
 		vsi->num_txq = ch->num_txq;
 		vsi->next_base_q = ch->base_q;
 		break;
+	case ICE_VSI_ADI:
 	case ICE_VSI_VF:
 	case ICE_VSI_LB:
 		break;
@@ -979,6 +986,7 @@ static void ice_vsi_set_rss_params(struct ice_vsi *vsi)
 				      BIT(cap->rss_table_entry_width));
 		vsi->rss_lut_type = ICE_AQC_GSET_RSS_LUT_TABLE_TYPE_VSI;
 		break;
+	case ICE_VSI_ADI:
 	case ICE_VSI_VF:
 		/* VF VSI will get a small RSS table.
 		 * For VSI_LUT, LUT size should be set to 64 bytes.
@@ -1304,6 +1312,7 @@ static int ice_vsi_init(struct ice_vsi *vsi, u32 vsi_flags)
 	case ICE_VSI_PF:
 		ctxt->flags = ICE_AQ_VSI_TYPE_PF;
 		break;
+	case ICE_VSI_ADI:
 	case ICE_VSI_SF:
 	case ICE_VSI_SWITCHDEV_CTRL:
 	case ICE_VSI_CHNL:
@@ -2500,6 +2509,7 @@ ice_vsi_cfg_def(struct ice_vsi *vsi, struct ice_vsi_cfg_params *params)
 
 	switch (vsi->type) {
 	case ICE_VSI_CTRL:
+	case ICE_VSI_ADI:
 	case ICE_VSI_SF:
 	case ICE_VSI_SWITCHDEV_CTRL:
 	case ICE_VSI_PF:

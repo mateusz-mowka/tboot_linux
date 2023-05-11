@@ -354,6 +354,7 @@ ice_setup_tx_ctx(struct ice_tx_ring *ring, struct ice_tlan_ctx *tlan_ctx, u16 pf
 		tlan_ctx->vmvf_num = hw->func_caps.vf_base_id + vsi->vf->vf_id;
 		tlan_ctx->vmvf_type = ICE_TLAN_CTX_VMVF_TYPE_VF;
 		break;
+	case ICE_VSI_ADI:
 	case ICE_VSI_SF:
 	case ICE_VSI_SWITCHDEV_CTRL:
 		tlan_ctx->vmvf_type = ICE_TLAN_CTX_VMVF_TYPE_VMQ;
@@ -496,11 +497,16 @@ static int ice_setup_rx_ctx(struct ice_rx_ring *ring)
 	 * setting to 0x03 to ensure profile is programming if prev context is
 	 * of same priority
 	 */
-	if (vsi->type != ICE_VSI_VF)
-		ice_write_qrxflxp_cntxt(hw, pf_q, rxdid, 0x3, true);
-	else
+	switch (vsi->type) {
+	case ICE_VSI_ADI:
+	case ICE_VSI_VF:
 		ice_write_qrxflxp_cntxt(hw, pf_q, ICE_RXDID_LEGACY_1, 0x3,
 					false);
+		break;
+	default:
+		ice_write_qrxflxp_cntxt(hw, pf_q, rxdid, 0x3, true);
+		break;
+	}
 
 	/* Absolute queue number out of 2K needs to be passed */
 	err = ice_write_rxq_ctx(hw, &rlan_ctx, pf_q);
@@ -510,7 +516,7 @@ static int ice_setup_rx_ctx(struct ice_rx_ring *ring)
 		return -EIO;
 	}
 
-	if (vsi->type == ICE_VSI_VF)
+	if (vsi->type == ICE_VSI_VF || vsi->type == ICE_VSI_ADI)
 		return 0;
 
 	/* configure Rx buffer alignment */

@@ -148,6 +148,7 @@ enum ice_vsi_type {
 	ICE_VSI_CHNL = 4,
 	ICE_VSI_LB = 6,
 	ICE_VSI_SWITCHDEV_CTRL = 7,
+	ICE_VSI_ADI = 8,
 	ICE_VSI_SF = 9,
 };
 
