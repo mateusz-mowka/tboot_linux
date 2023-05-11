@@ -57,9 +57,42 @@ struct ucode_info {
 	int size;
 };
 
+
+/*
+ * Holds the previous applied microcode before a reload_nc is successful.
+ */
 static struct ucode_info rollback_ucode;
+
+/*
+ * Always hold the currently applied microcode in the CPU. mc->hdr.rev
+ * should match whats in the CPU revision MSR.
+ */
 static struct ucode_info intel_ucode;
+
+/*
+ * Holds the value of microcode read from the file system and is yet to be
+ * applied to the CPU. This allows post_apply() to free it in case the
+ * application to CPU fails.
+ */
 static struct ucode_info unapplied_ucode;
+
+/*
+ * When performing a rollback, we do the following to allow the
+ * apply_microcode() to do the right thing.
+ *
+ * pre_rollback = intel_ucode
+ * intel_ucode = rollback_ucode
+ *
+ * Now if everything goes good:
+ *
+ * free pre_rollback
+ *
+ * if apply_fails:
+ * rollback_ucode = intel_ucode
+ * intel_ucode = pre_rollback
+ * clear pre_rollback
+ */
+static struct ucode_info pre_rollback;
 
 /* last level cache size per core */
 static int llc_size_per_core;
@@ -270,19 +303,24 @@ static void do_commit(struct work_struct *work)
 	}
 }
 
-static void free_rollback(void)
+static void clear_ucode_store(struct ucode_info *ucode)
 {
-	if (rollback_ucode.ucode)
-		kfree(rollback_ucode.ucode);
-	rollback_ucode.ucode = NULL;
-	rollback_ucode.size = 0;
+	ucode->ucode = NULL;
+	ucode->size = 0;
+}
+
+static void free_ucode_store(struct ucode_info *ucode)
+{
+	if (ucode->ucode)
+		kfree(ucode->ucode);
+	clear_ucode_store(ucode);
 }
 
 static int perform_commit(void)
 {
 	int rv;
 
-	free_rollback();
+	free_ucode_store(&rollback_ucode);
 	rv = schedule_on_each_cpu_locked(do_commit);
 
 	if (!rv && !atomic_read(&commit_status))
@@ -1385,7 +1423,7 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 			if(apply_state) {
 				kfree(intel_ucode.ucode);
 				intel_ucode = unapplied_ucode;
-				free_rollback();
+				free_ucode_store(&rollback_ucode);
 			}
 			break;
 
@@ -1399,6 +1437,7 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 				show_saved_mc(intel_ucode.ucode);
 
 				rollback_ucode = intel_ucode;
+
 				intel_ucode = unapplied_ucode;
 				pr_debug("OSPL: reload_nc: Unapplied ucode revision is \n");
 				show_saved_mc(unapplied_ucode.ucode);
@@ -1407,23 +1446,22 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 		case RELOAD_ROLLBACK:
 			if (apply_state) {
 				show_saved_mc(intel_ucode.ucode);
+			} else {
+				pr_info("Rollback failed\n");
+				rollback_ucode = intel_ucode;
+				intel_ucode = pre_rollback;
+				clear_ucode_store(&pre_rollback);
 			}
 			break;
 		default:
 			pr_debug("Got unknown commit type, returning\n");
 			return;
 	}
-	//kfree(unapplied_ucode.ucode);
-
 	/*
 	 * Free if microcode didn't apply successfully
 	 */
 	if (!apply_state)
-		kfree(unapplied_ucode.ucode);
-
-
-	unapplied_ucode.ucode = NULL;
-	unapplied_ucode.size = 0;
+		free_ucode_store(&unapplied_ucode);
 }
 
 static bool is_blacklisted(unsigned int cpu)
@@ -1569,7 +1607,7 @@ static int prepare_to_apply_intel(enum reload_type type)
 				break;
 			}
 
-			free_rollback();
+			free_ucode_store(&rollback_ucode);
 			rv = switch_to_auto_commit();
 			if (rv)
 				return rv;
@@ -1617,11 +1655,14 @@ static int prepare_to_apply_intel(enum reload_type type)
 			 * rollback_ucode
 			 * TBD: Move these freeing to post call, in case
 			 * rollback fails during staging etc.
+				kfree(intel_ucode.ucode);
+				intel_ucode = rollback_ucode;
+				rollback_ucode.ucode = NULL;
+				rollback_ucode.size = 0;
 			 */
-			kfree(intel_ucode.ucode);
+			pre_rollback = intel_ucode;
 			intel_ucode = rollback_ucode;
-			rollback_ucode.ucode = NULL;
-			rollback_ucode.size = 0;
+			clear_ucode_store(&rollback_ucode);
 			break;
 		default:
 			pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
