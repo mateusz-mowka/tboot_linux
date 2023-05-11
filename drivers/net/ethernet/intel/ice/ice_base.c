@@ -118,9 +118,31 @@ static int ice_vsi_alloc_q_vector(struct ice_vsi *vsi, u16 v_idx)
 	q_vector->rx.itr_mode = ITR_DYNAMIC;
 	q_vector->tx.type = ICE_TX_CONTAINER;
 	q_vector->rx.type = ICE_RX_CONTAINER;
+	q_vector->irq.index = -ENOENT;
 
-	if (vsi->type == ICE_VSI_VF)
+	if (vsi->type == ICE_VSI_VF) {
+		q_vector->reg_idx = ice_calc_vf_reg_idx(vsi->vf, q_vector);
 		goto out;
+	} else if (vsi->type == ICE_VSI_CTRL && vsi->vf) {
+		struct ice_vsi *ctrl_vsi = ice_get_vf_ctrl_vsi(pf, vsi);
+
+		if (ctrl_vsi) {
+			if (unlikely(!ctrl_vsi->q_vectors))
+				return -ENOENT;
+			q_vector->irq = ctrl_vsi->q_vectors[0]->irq;
+			goto skip_alloc;
+		}
+	}
+
+	q_vector->irq = ice_alloc_irq(pf);
+	if (q_vector->irq.index < 0) {
+		kfree(q_vector);
+		return -ENOMEM;
+	}
+
+skip_alloc:
+	q_vector->reg_idx = q_vector->irq.index;
+
 	/* only set affinity_mask if the CPU is online */
 	if (cpu_online(v_idx))
 		cpumask_set_cpu(v_idx, &q_vector->affinity_mask);
@@ -168,6 +190,18 @@ static void ice_free_q_vector(struct ice_vsi *vsi, int v_idx)
 	if (vsi->netdev)
 		netif_napi_del(&q_vector->napi);
 
+	/* release MSIX interrupt if q_vector had interrupt allocated */
+	if (q_vector->irq.index < 0)
+		goto free_q_vector;
+
+	/* only free last VF ctrl vsi interrupt */
+	if (vsi->type == ICE_VSI_CTRL && vsi->vf &&
+	    ice_get_vf_ctrl_vsi(pf, vsi))
+		goto free_q_vector;
+
+	ice_free_irq(pf, q_vector->irq);
+
+free_q_vector:
 	devm_kfree(dev, q_vector);
 	vsi->q_vectors[v_idx] = NULL;
 }
