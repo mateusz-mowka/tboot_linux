@@ -13,6 +13,10 @@ Use at your own risk.
 
 Release History
 ===============
+gnr-bkc-6.2-v1.30
+-----------------
+33. dmaengine: idxd: Workaround Inter-domain PASID table entry flush issue
+
 gnr-bkc-6.2-v1.29
 -----------------
 32. Bug: https://hsdes.intel.com/appstore/article/#/16020360586
