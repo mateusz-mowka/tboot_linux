@@ -52,6 +52,7 @@ static int ice_sf_cfg_netdev(struct ice_sf_dev *sf_dev)
 	eth_hw_addr_set(netdev, dyn_port->hw_addr);
 	ether_addr_copy(netdev->perm_addr, dyn_port->hw_addr);
 	netdev->netdev_ops = &ice_sf_netdev_ops;
+	ice_set_ethtool_sf_ops(netdev);
 	SET_NETDEV_DEVLINK_PORT(netdev, &sf_dev->priv->devlink_port);
 
 	err = register_netdev(netdev);
