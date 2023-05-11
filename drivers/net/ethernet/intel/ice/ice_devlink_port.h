@@ -7,6 +7,7 @@
 #include "ice.h"
 
 struct ice_sf_dev;
+struct ice_scalable_dev;
 
 /**
  * struct ice_dynamic_port - Track dynamically added devlink port instance
@@ -28,6 +29,7 @@ struct ice_dynamic_port {
 	/* Flavour-specific implementation data */
 	union {
 		struct ice_sf_dev *sf_dev;
+		struct ice_scalable_dev *scalable_dev;
 	};
 };
 

@@ -9,6 +9,7 @@
 #include "ice_devlink_port.h"
 #include "ice_eswitch.h"
 #include "ice_sf_eth.h"
+#include "ice_scalable_iov.h"
 #include "ice_fltr.h"
 
 static int ice_active_port_option = -1;
@@ -512,6 +513,48 @@ int ice_devlink_create_sf_dev_port(struct ice_sf_dev *sf_dev)
 }
 
 /**
+ * ice_devlink_create_vfio_port - Register VFIO devlink port
+ * @dyn_port: the dynamic port instance structure for this port
+ *
+ * Register PCI subfunction flavour devlink port for a dynamically added
+ * subfunction port.
+ *
+ * Return: zero on success or an error code on failure.
+ */
+static int
+ice_devlink_create_vfio_port(struct ice_dynamic_port *dyn_port)
+{
+	struct devlink_port_attrs attrs = {};
+	struct devlink_port *devlink_port;
+	struct devlink *devlink;
+	struct ice_vsi *vsi;
+	struct device *dev;
+	struct ice_pf *pf;
+	int err;
+
+	vsi = dyn_port->vsi;
+	pf = dyn_port->pf;
+	dev = ice_pf_to_dev(pf);
+
+	devlink_port = &dyn_port->devlink_port;
+
+	attrs.flavour = DEVLINK_PORT_FLAVOUR_VFIO;
+	attrs.vfio.pf = pf->hw.bus.func;
+
+	devlink_port_attrs_set(devlink_port, &attrs);
+	devlink = priv_to_devlink(pf);
+
+	err = devl_port_register(devlink, devlink_port, vsi->idx);
+	if (err) {
+		dev_err(dev, "Failed to create devlink port for VFIO port %d",
+			vsi->idx);
+		return err;
+	}
+
+	return 0;
+}
+
+/**
  * ice_activate_dynamic_port - Activate a dynamic port
  * @dyn_port: dynamic port instance to activate
  * @extack: extack for reporting error messages
@@ -529,6 +572,11 @@ ice_activate_dynamic_port(struct ice_dynamic_port *dyn_port,
 	switch (dyn_port->devlink_port.attrs.flavour) {
 	case DEVLINK_PORT_FLAVOUR_PCI_SF:
 		err = ice_sf_eth_activate(dyn_port, extack);
+		if (err)
+			return err;
+		break;
+	case DEVLINK_PORT_FLAVOUR_VFIO:
+		err = ice_scalable_dev_activate(dyn_port, extack);
 		if (err)
 			return err;
 		break;
@@ -553,6 +601,9 @@ static void ice_deactivate_dynamic_port(struct ice_dynamic_port *dyn_port)
 	switch (dyn_port->devlink_port.attrs.flavour) {
 	case DEVLINK_PORT_FLAVOUR_PCI_SF:
 		ice_sf_eth_deactivate(dyn_port);
+		break;
+	case DEVLINK_PORT_FLAVOUR_VFIO:
+		ice_scalable_dev_deactivate(dyn_port);
 		break;
 	default:
 		WARN(1, "Attempting to deactivate port with unexpected port flavour %d",
@@ -652,7 +703,18 @@ ice_alloc_dynamic_port(struct ice_pf *pf,
 		goto unroll_vsi_alloc;
 	}
 
-	err = ice_devlink_create_sf_port(dyn_port, sfnum);
+	switch (new_attr->flavour) {
+	case DEVLINK_PORT_FLAVOUR_PCI_SF:
+		err = ice_devlink_create_sf_port(dyn_port, sfnum);
+		break;
+	case DEVLINK_PORT_FLAVOUR_VFIO:
+		err = ice_devlink_create_vfio_port(dyn_port);
+		break;
+	default:
+		err = -EOPNOTSUPP;
+		break;
+	}
+
 	if (err) {
 		NL_SET_ERR_MSG_MOD(extack, "Port registration failed");
 		goto unroll_xa_insert;
@@ -713,6 +775,23 @@ void ice_dealloc_all_dynamic_ports(struct ice_pf *pf)
 }
 
 /**
+ * ice_dl_flavour_supports_dynamic_port
+ * @flavour: the port flavour to check
+ *
+ * Returns: true if the driver supports adding a dynamic port of the requested
+ * flavour, false otherwise.
+ */
+static bool
+ice_dl_flavour_supports_dynamic_port(enum devlink_port_flavour flavour)
+{
+	if (flavour == DEVLINK_PORT_FLAVOUR_PCI_SF ||
+	    flavour == DEVLINK_PORT_FLAVOUR_VFIO)
+		return true;
+
+	return false;
+}
+
+/**
  * ice_dl_port_new_check_attr - Check that new port attributes are valid
  * @pf: pointer to the PF structure
  * @new_attr: the attributes for the new port
@@ -728,8 +807,8 @@ ice_dl_port_new_check_attr(struct ice_pf *pf,
 			   const struct devlink_port_new_attrs *new_attr,
 			   struct netlink_ext_ack *extack)
 {
-	if (new_attr->flavour != DEVLINK_PORT_FLAVOUR_PCI_SF) {
-		NL_SET_ERR_MSG_MOD(extack, "Flavour other than pcisf is not supported");
+	if (!ice_dl_flavour_supports_dynamic_port(new_attr->flavour)) {
+		NL_SET_ERR_MSG_MOD(extack, "Flavour other than pcisf or vfio is not supported");
 		return -EOPNOTSUPP;
 	}
 
@@ -838,8 +917,8 @@ ice_dl_port_fn_hw_addr_set(struct devlink_port *port, const u8 *hw_addr,
 {
 	struct ice_dynamic_port *dyn_port;
 
-	if (port->attrs.flavour != DEVLINK_PORT_FLAVOUR_PCI_SF) {
-		NL_SET_ERR_MSG_MOD(extack, "Port is not a Subfunction");
+	if (!ice_dl_flavour_supports_dynamic_port(port->attrs.flavour)) {
+		NL_SET_ERR_MSG_MOD(extack, "Changing HW address not supported on this port");
 		return -EOPNOTSUPP;
 	}
 
@@ -877,7 +956,7 @@ ice_dl_port_fn_hw_addr_get(struct devlink_port *port, u8 *hw_addr,
 {
 	struct ice_dynamic_port *dyn_port;
 
-	if (port->attrs.flavour != DEVLINK_PORT_FLAVOUR_PCI_SF)
+	if (!ice_dl_flavour_supports_dynamic_port(port->attrs.flavour))
 		return -EOPNOTSUPP;
 
 	dyn_port = ice_devlink_port_to_dyn(port);
@@ -905,8 +984,8 @@ ice_dl_port_fn_state_set(struct devlink_port *port,
 {
 	struct ice_dynamic_port *dyn_port;
 
-	if (port->attrs.flavour != DEVLINK_PORT_FLAVOUR_PCI_SF) {
-		NL_SET_ERR_MSG_MOD(extack, "Port is not a Subfunction");
+	if (!ice_dl_flavour_supports_dynamic_port(port->attrs.flavour)) {
+		NL_SET_ERR_MSG_MOD(extack, "Cannot change the state of static port");
 		return -EOPNOTSUPP;
 	}
 
@@ -946,10 +1025,8 @@ ice_dl_port_fn_state_get(struct devlink_port *port,
 {
 	struct ice_dynamic_port *dyn_port;
 
-	if (port->attrs.flavour != DEVLINK_PORT_FLAVOUR_PCI_SF) {
-		NL_SET_ERR_MSG_MOD(extack, "Port is not a Subfunction");
+	if (!ice_dl_flavour_supports_dynamic_port(port->attrs.flavour))
 		return -EOPNOTSUPP;
-	}
 
 	dyn_port = ice_devlink_port_to_dyn(port);
 
