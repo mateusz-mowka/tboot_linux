@@ -1356,3 +1356,56 @@ struct ice_vsi *ice_get_vf_ctrl_vsi(struct ice_pf *pf, struct ice_vsi *vsi)
 	rcu_read_unlock();
 	return ctrl_vsi;
 }
+
+/**
+ * ice_vf_notify_mac_addr - Notify VF of new MAC addresss
+ * @vf:  VF to notify
+ *
+ * Updates the VF when a new MAC address has been assigned to it.
+ *
+ * Context: The vf->hw_lan_addr already has the new HW address.
+ *
+ * Returns: zero on success, or a non-zero errno value on failure.
+ */
+int ice_vf_notify_mac_addr(struct ice_vf *vf)
+{
+	struct ice_pf *pf = vf->pf;
+	struct device *dev;
+	int err;
+
+	if (ether_addr_equal(vf->dev_lan_addr, vf->hw_lan_addr))
+		return 0;
+
+	dev = ice_pf_to_dev(pf);
+
+	err = ice_check_vf_ready_for_cfg(vf);
+	if (err) {
+		dev_dbg(dev, "VF %u is not ready for configuration\n",
+			vf->vf_id);
+		return err;
+	}
+
+	mutex_lock(&vf->cfg_lock);
+
+	if (is_zero_ether_addr(vf->hw_lan_addr)) {
+		/* VF will send VIRTCHNL_OP_ADD_ETH_ADDR message with its MAC */
+		vf->pf_set_mac = false;
+		dev_info(dev, "Removing MAC on VF %u. VF driver will be reinitialized\n",
+			 vf->vf_id);
+	} else {
+		/* PF will add MAC rule for the VF */
+		vf->pf_set_mac = true;
+		dev_info(dev, "Setting MAC %pM on VF %u. VF driver will be reinitialized\n",
+			 vf->hw_lan_addr, vf->vf_id);
+	}
+
+	/* VF is notified of its new MAC via the PF's response to the
+	 * VIRTCHNL_OP_GET_VF_RESOURCES message after the VF has been reset
+	 */
+	ether_addr_copy(vf->dev_lan_addr, vf->hw_lan_addr);
+
+	ice_reset_vf(vf, ICE_VF_RESET_NOTIFY);
+	mutex_unlock(&vf->cfg_lock);
+
+	return 0;
+}
