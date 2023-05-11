@@ -4740,7 +4740,6 @@ err_init_pf:
 static void ice_deinit_dev(struct ice_pf *pf)
 {
 	ice_free_irq_msix_misc(pf);
-	ice_clear_interrupt_scheme(pf);
 	ice_deinit_pf(pf);
 	ice_deinit_hw(&pf->hw);
 }
@@ -5009,6 +5008,7 @@ err_init_pf_sw:
 	ice_dealloc_vsis(pf);
 err_alloc_vsis:
 	ice_deinit_dev(pf);
+	ice_clear_interrupt_scheme(pf);
 	return err;
 }
 
@@ -5034,6 +5034,8 @@ int ice_load(struct ice_pf *pf)
 	err = ice_reset(&pf->hw, ICE_RESET_PFR);
 	if (err)
 		return err;
+
+	ice_clear_interrupt_scheme(pf);
 
 	err = ice_init_dev(pf);
 	if (err)
@@ -5065,6 +5067,7 @@ err_start_eth:
 	ice_vsi_decfg(ice_get_main_vsi(pf));
 err_vsi_cfg:
 	ice_deinit_dev(pf);
+	ice_clear_interrupt_scheme(pf);
 	return err;
 }
 
@@ -5185,7 +5188,7 @@ err_init_rdma:
 err_init_eth:
 	ice_deinit(pf);
 err_init:
-	pci_disable_device(pdev);
+	ice_clear_interrupt_scheme(pf);
 	return err;
 }
 
@@ -5293,6 +5296,7 @@ static void ice_remove(struct pci_dev *pdev)
 	 */
 	ice_reset(&pf->hw, ICE_RESET_PFR);
 	pci_wait_for_pending_transaction(pdev);
+	ice_clear_interrupt_scheme(pf);
 	pci_disable_device(pdev);
 }
 
