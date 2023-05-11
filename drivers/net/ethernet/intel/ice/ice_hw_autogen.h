@@ -6,6 +6,19 @@
 #ifndef _ICE_HW_AUTOGEN_H_
 #define _ICE_HW_AUTOGEN_H_
 
+#define PF0INT_DYN_CTL(_i)			(0x03000000 + ((_i) * 4096))
+#define QRX_TAIL_PAGE(_QRX)			(0x03800000 + ((_QRX) * 4096))
+#define QTX_COMM_DBELL_PAGE(_DBQM)		(0x04000000 + ((_DBQM) * 4096))
+#define VSI_MBX_ARQBAH(_VSI)			(0x02000018 + ((_VSI) * 4096))
+#define VSI_MBX_ARQBAL(_VSI)			(0x02000014 + ((_VSI) * 4096))
+#define VSI_MBX_ARQH(_VSI)			(0x02000020 + ((_VSI) * 4096))
+#define VSI_MBX_ARQLEN(_VSI)			(0x0200001C + ((_VSI) * 4096))
+#define VSI_MBX_ARQT(_VSI)			(0x02000024 + ((_VSI) * 4096))
+#define VSI_MBX_ATQBAH(_VSI)			(0x02000004 + ((_VSI) * 4096))
+#define VSI_MBX_ATQBAL(_VSI)			(0x02000000 + ((_VSI) * 4096))
+#define VSI_MBX_ATQH(_VSI)			(0x0200000C + ((_VSI) * 4096))
+#define VSI_MBX_ATQLEN(_VSI)			(0x02000008 + ((_VSI) * 4096))
+#define VSI_MBX_ATQT(_VSI)			(0x02000010 + ((_VSI) * 4096))
 #define QTX_COMM_DBELL(_DBQM)			(0x002C0000 + ((_DBQM) * 4))
 #define QTX_COMM_HEAD(_DBQM)			(0x000E0000 + ((_DBQM) * 4))
 #define QTX_COMM_HEAD_HEAD_S			0
@@ -169,6 +182,10 @@
 #define VPGEN_VFRSTAT_VFRD_M			BIT(0)
 #define VPGEN_VFRTRIG(_VF)			(0x00090000 + ((_VF) * 4))
 #define VPGEN_VFRTRIG_VFSWR_M			BIT(0)
+#define VSIGEN_RSTAT(_VSI)			(0x00092800 + ((_VSI) * 4))
+#define VSIGEN_RSTAT_VMRD_M			BIT(0)
+#define VSIGEN_RTRIG(_VSI)			(0x00091800 + ((_VSI) * 4))
+#define VSIGEN_RTRIG_VMSWR_M			BIT(0)
 #define GLINT_CTL				0x0016CC54
 #define GLINT_CTL_DIS_AUTOMASK_M		BIT(0)
 #define GLINT_CTL_ITR_GRAN_200_S		16
@@ -258,6 +275,8 @@
 #define VPINT_ALLOC_PCI_LAST_M			ICE_M(0x7FF, 12)
 #define VPINT_ALLOC_PCI_VALID_M			BIT(31)
 #define VPINT_MBX_CTL(_VSI)			(0x0016A000 + ((_VSI) * 4))
+#define VPINT_MBX_CTL_MSIX_INDX_S		0
+#define VPINT_MBX_CTL_MSIX_INDX_M		ICE_M(0x7FF, 0)
 #define VPINT_MBX_CTL_CAUSE_ENA_M		BIT(30)
 #define GLLAN_RCTL_0				0x002941F8
 #define QRX_CONTEXT(_i, _QRX)			(0x00280000 + ((_i) * 8192 + (_QRX) * 4))
@@ -359,6 +378,8 @@
 #define PF_PCI_CIAA				0x0009E580
 #define PF_PCI_CIAA_VF_NUM_S			12
 #define PF_PCI_CIAD				0x0009E500
+#define PFPCI_VMINDEX				0x0009E600
+#define PFPCI_VMPEND				0x0009E800
 #define GL_PWR_MODE_CTL				0x000B820C
 #define GL_PWR_MODE_CTL_CAR_MAX_BW_S		30
 #define GL_PWR_MODE_CTL_CAR_MAX_BW_M		ICE_M(0x3, 30)
@@ -501,7 +522,22 @@
 #define PFPM_WUS_MAG_M				BIT(1)
 #define PFPM_WUS_MNG_M				BIT(3)
 #define PFPM_WUS_FW_RST_WK_M			BIT(31)
+#define VF_MBX_ARQBAH1				0x00006000
+#define VF_MBX_ARQBAL1				0x00006C00
+#define VF_MBX_ARQH1				0x00007400
+#define VF_MBX_ARQLEN1				0x00008000
+#define VF_MBX_ARQT1				0x00007000
+#define VF_MBX_ATQBAH1				0x00007800
+#define VF_MBX_ATQBAL1				0x00007C00
+#define VF_MBX_ATQH1				0x00006400
+#define VF_MBX_ATQLEN1				0x00006800
+#define VF_MBX_ATQT1				0x00008400
+#define VFGEN_RSTAT1				0x00008800
+#define VFINT_DYN_CTL0				0x00005C00
 #define VFINT_DYN_CTLN(_i)			(0x00003800 + ((_i) * 4))
 #define VFINT_DYN_CTLN_CLEARPBA_M		BIT(1)
+#define VFINT_ITR0(_i)				(0x00004C00 + ((_i) * 4))
+#define QRX_TAIL1(_QRX)				(0x00002000 + ((_QRX) * 4))
+#define QTX_TAIL(_DBQM)				(0x00000000 + ((_DBQM) * 4))
 
 #endif /* _ICE_HW_AUTOGEN_H_ */
