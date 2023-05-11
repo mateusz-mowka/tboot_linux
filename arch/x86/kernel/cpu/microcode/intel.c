@@ -675,7 +675,7 @@ static bool check_update_reqs(struct microcode_header_intel *mch)
 	union	svn_commit commit;
 
 	if (!mcu_cap.rollback)
-		return true;
+		return false;
 
 	if (mch->rev < post_bios_mcu_rev) {
 		pr_err("Revision 0x%x less than 0x%x (Post BIOS rev)\n",
@@ -685,6 +685,9 @@ static bool check_update_reqs(struct microcode_header_intel *mch)
 
 	rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(mch, META_TYPE_ROLLBACK);
 	if (!rb_meta)
+		return false;
+
+	if (!is_ucode_listed(rb_meta))
 		return false;
 
 	if (rb_meta->svn_info.rb_mcu_svn < bsp_rb_info.svn_info.cpu_svn) {
@@ -699,7 +702,7 @@ static bool check_update_reqs(struct microcode_header_intel *mch)
 
 	if (rb_meta->svn_info.rb_mcu_svn > bsp_rb_info.svn_info.pending_svn) {
 		pr_err("Can't load MCU_SVN 0x%x with pending commit SVN 0x%x\n",
-				rb_meta->svn_info.rb_mcu_svn, bsp_rb_info.svn_info.pending_svn);
+			rb_meta->svn_info.rb_mcu_svn, bsp_rb_info.svn_info.pending_svn);
 		return false;
 	}
 
@@ -708,28 +711,11 @@ static bool check_update_reqs(struct microcode_header_intel *mch)
 
 static bool can_do_nocommit(struct microcode_header_intel *mch)
 {
-	struct ucode_meta *rb_meta;
-
-	if (!mcu_cap.rollback)
-		return false;
-
 	if (!check_update_reqs(mch))
 		return false;
 
-	rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(mch, META_TYPE_ROLLBACK);
-	if (!rb_meta)
-		return false;
-
-	if (!is_ucode_listed(rb_meta))
-		return false;
-
-	/*
-	 * Check if MCU min_svn == CPU min_svn
-	 */
-	if (rb_meta->svn_info.rb_min_svn > bsp_rb_info.svn_info.cpu_svn) {
-		pr_debug("svn check fails\n");
-		pr_debug("min_svn = 0x%x cpu_svn = 0x%x\n",
-			rb_meta->svn_info.rb_min_svn, bsp_rb_info.svn_info.cpu_svn);
+	if (rollback_ucode.ucode) {
+		pr_info("Uncommitted microcode, commit before continuing\n");
 		return false;
 	}
 
@@ -1424,6 +1410,7 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 				kfree(intel_ucode.ucode);
 				intel_ucode = unapplied_ucode;
 				free_ucode_store(&rollback_ucode);
+				clear_ucode_store(&unapplied_ucode);
 			}
 			break;
 
@@ -1441,11 +1428,13 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 				intel_ucode = unapplied_ucode;
 				pr_debug("OSPL: reload_nc: Unapplied ucode revision is \n");
 				show_saved_mc(unapplied_ucode.ucode);
+				clear_ucode_store(&unapplied_ucode);
 			}
 			break;
 		case RELOAD_ROLLBACK:
 			if (apply_state) {
 				show_saved_mc(intel_ucode.ucode);
+				free_ucode_store(&pre_rollback);
 			} else {
 				pr_info("Rollback failed\n");
 				rollback_ucode = intel_ucode;
@@ -1607,7 +1596,6 @@ static int prepare_to_apply_intel(enum reload_type type)
 				break;
 			}
 
-			free_ucode_store(&rollback_ucode);
 			rv = switch_to_auto_commit();
 			if (rv)
 				return rv;
@@ -1682,9 +1670,8 @@ static int prepare_to_apply_intel(enum reload_type type)
 
 static enum ucode_state request_microcode_fw(int cpu, struct device *device, enum reload_type type)
 {
-	/* Hack for nocommit WA */
-	bool nocommit, fetch_orig = false;
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
+	bool nocommit, fetch_orig = false;
 	const struct firmware *firmware;
 	enum reload_type tmp_type;
 	struct iov_iter iter;
@@ -1731,23 +1718,21 @@ reget:
 
 	ret = generic_load_microcode(cpu, &iter, tmp_type);
 
+	/*
+	 * fetch_orig is a hack since we haven't done a load. Ideally must
+	 * be in the initrd
+	 */
 	if (!fetch_orig && ret == UCODE_NEW && type == RELOAD_NO_COMMIT) {
 		nocommit = can_do_nocommit((struct microcode_header_intel *)unapplied_ucode.ucode);
 		nocommit = true; // hack since metadata is messed up now
 		if (!nocommit) {
 			ret = UCODE_ERROR;
-			if (unapplied_ucode.ucode)
-				kfree(unapplied_ucode.ucode);
-			unapplied_ucode.ucode = NULL;
-			unapplied_ucode.size = 0;
+			free_ucode_store(&unapplied_ucode);
 		}
 	} else if (!fetch_orig && ret == UCODE_NEW && type == RELOAD_COMMIT) {
 		if (!check_update_reqs((struct microcode_header_intel *)unapplied_ucode.ucode)) {
 			ret = UCODE_ERROR;
-			if (unapplied_ucode.ucode)
-				kfree (unapplied_ucode.ucode);
-			unapplied_ucode.ucode = NULL;
-			unapplied_ucode.size = 0;
+			free_ucode_store(&unapplied_ucode);
 		}
 	}
 
@@ -1760,12 +1745,9 @@ reget:
 		if (unapplied_ucode.ucode) {
 			if (unapplied_ucode.ucode->hdr.rev == c->microcode) {
 				intel_ucode = unapplied_ucode;
-				unapplied_ucode.ucode = NULL;
-				unapplied_ucode.size = 0;
+				clear_ucode_store(&unapplied_ucode);
 			} else {
-				kfree (unapplied_ucode.ucode);
-				unapplied_ucode.ucode = NULL;
-				unapplied_ucode.size = 0;
+				free_ucode_store(&unapplied_ucode);
 				pr_info("Orig ucode not found\n");
 				return UCODE_NFOUND;
 			}
@@ -1776,7 +1758,7 @@ reget:
 		}
 
 		fetch_orig = false;
-		pr_debug ("Trying to fetch new no commit ucode now\n");
+		pr_debug ("Trying to fetch new no commit uCode now\n");
 		goto reget;
 	}
 
