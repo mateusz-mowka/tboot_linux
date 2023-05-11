@@ -178,6 +178,143 @@ int ice_aq_erase_nvm(struct ice_hw *hw, u16 module_typeid, struct ice_sq_cd *cd)
 }
 
 /**
+ * ice_aq_read_nvm_cfg - read an NVM config block
+ * @hw: pointer to the HW struct
+ * @cmd_flags: NVM access admin command bits
+ * @field_id: field or feature ID
+ * @data: buffer for result
+ * @buf_size: buffer size
+ * @elem_count: pointer to count of elements read by FW
+ * @cd: pointer to command details structure or NULL
+ *
+ * Reads single or multiple feature/field ID and data (0x0704)
+ */
+static int
+ice_aq_read_nvm_cfg(struct ice_hw *hw, u8 cmd_flags, u16 field_id, void *data,
+		    u16 buf_size, u16 *elem_count, struct ice_sq_cd *cd)
+{
+	struct ice_aqc_nvm_cfg *cmd;
+	struct ice_aq_desc desc;
+	int status;
+
+	cmd = &desc.params.nvm_cfg;
+
+	ice_fill_dflt_direct_cmd_desc(&desc, ice_aqc_opc_nvm_cfg_read);
+
+	cmd->cmd_flags = cmd_flags;
+	cmd->id = cpu_to_le16(field_id);
+
+	status = ice_aq_send_cmd(hw, &desc, data, buf_size, cd);
+	if (!status && elem_count)
+		*elem_count = le16_to_cpu(cmd->count);
+
+	return status;
+}
+
+/**
+ * ice_aq_write_nvm_cfg - write an NVM config block
+ * @hw: pointer to the HW struct
+ * @cmd_flags: NVM access admin command bits
+ * @data: buffer for result
+ * @buf_size: buffer size
+ * @elem_count: count of elements to be written
+ * @cd: pointer to command details structure or NULL
+ *
+ * Writes single or multiple feature/field ID and data (0x0705)
+ */
+static int
+ice_aq_write_nvm_cfg(struct ice_hw *hw, u8 cmd_flags, void *data, u16 buf_size,
+		     u16 elem_count, struct ice_sq_cd *cd)
+{
+	struct ice_aqc_nvm_cfg *cmd;
+	struct ice_aq_desc desc;
+
+	cmd = &desc.params.nvm_cfg;
+
+	ice_fill_dflt_direct_cmd_desc(&desc, ice_aqc_opc_nvm_cfg_write);
+	desc.flags |= cpu_to_le16(ICE_AQ_FLAG_RD);
+
+	cmd->count = cpu_to_le16(elem_count);
+	cmd->cmd_flags = cmd_flags;
+
+	return ice_aq_send_cmd(hw, &desc, data, buf_size, cd);
+}
+
+/**
+ * ice_aq_get_nvm_feature - Read NVM feature configuration
+ * @hw: pointer to the HW struct
+ * @feature_id: the feature ID to read
+ * @enabled: on return, true if the feature is enabled, false otherwise.
+ *
+ * Reads the current configuration state of a single NVM feature, returning it
+ * through the enabled parameter.
+ *
+ * Context: caller must acquire the NVM read resource.
+ *
+ * Returns: zero on success, or an error code on failure.
+ */
+int ice_aq_get_nvm_feature(struct ice_hw *hw, u16 feature_id, bool *enabled)
+{
+	struct ice_aqc_nvm_cfg_data feature_data = {};
+	u16 elem_count, raw_value;
+	int status;
+
+	status = ice_aq_read_nvm_cfg(hw, 0, feature_id, &feature_data,
+				     sizeof(feature_data), &elem_count, NULL);
+	if (status)
+		return status;
+
+	if (le16_to_cpu(feature_data.field_id) != feature_id) {
+		ice_debug(hw, ICE_DBG_NVM, "Unexpected feature ID %u\n",
+			  le16_to_cpu(feature_data.field_id));
+		return -EINVAL;
+	}
+
+	raw_value = le16_to_cpu(feature_data.field_value);
+
+	switch (raw_value) {
+	case ICE_NVM_FEATURE_NOT_SUPPORTED:
+	case ICE_NVM_FEATURE_DISABLED:
+		*enabled = false;
+		return 0;
+	case ICE_NVM_FEATURE_ENABLED:
+		*enabled = true;
+		return 0;
+	}
+
+	ice_debug(hw, ICE_DBG_NVM, "Unexpected feature value %u\n",
+		  raw_value);
+	return -EINVAL;
+}
+
+/**
+ * ice_aq_set_nvm_feature - Write NVM feature configuration
+ * @hw: pointer to the HW struct
+ * @feature_id: the feature ID to write
+ * @enabled: if true, enable the feature, otherwise disable it
+ *
+ * Enables or disables the requested NVM feature.
+ *
+ * Context: caller must acquire the NVM write resource.
+ *
+ * Returns: zero on success, or an error code on failure.
+ */
+int ice_aq_set_nvm_feature(struct ice_hw *hw, u16 feature_id, bool enabled)
+{
+	struct ice_aqc_nvm_cfg_data feature_data = {};
+	u16 field_value;
+
+	field_value = enabled ? ICE_NVM_FEATURE_ENABLED :
+				ICE_NVM_FEATURE_DISABLED;
+
+	feature_data.field_id = cpu_to_le16(feature_id);
+	feature_data.field_value = cpu_to_le16(field_value);
+
+	return ice_aq_write_nvm_cfg(hw, 0, &feature_data, sizeof(feature_data),
+				    1, NULL);
+}
+
+/**
  * ice_read_sr_word_aq - Reads Shadow RAM via AQ
  * @hw: pointer to the HW structure
  * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)

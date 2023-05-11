@@ -1554,6 +1554,35 @@ struct ice_aqc_nvm {
 
 #define ICE_AQC_NVM_START_POINT			0
 
+/* Used for 0x0704 as well as for 0x0705 commands */
+struct ice_aqc_nvm_cfg {
+	u8	cmd_flags;
+#define ICE_AQC_ANVM_MULTIPLE_ELEMS	BIT(0)
+#define ICE_AQC_ANVM_IMMEDIATE_FIELD	BIT(1)
+#define ICE_AQC_ANVM_NEW_CFG		BIT(2)
+	u8	reserved;
+	__le16 count;
+	__le16 id;
+	u8 reserved1[2];
+	__le32 addr_high;
+	__le32 addr_low;
+};
+
+struct ice_aqc_nvm_cfg_data {
+	__le16 field_id;
+	__le16 field_options;
+	__le16 field_value;
+};
+
+enum ice_aqc_nvm_feature_cfg {
+	ICE_NVM_FEATURE_NOT_SUPPORTED = 0,
+	ICE_NVM_FEATURE_ENABLED,
+	ICE_NVM_FEATURE_DISABLED,
+};
+
+#define ICE_NVM_FEATURE_PF_EXTENDED_MEM_SPACE	0x0015
+#define ICE_NVM_FEATURE_PASID_CAPABILITY	0x0019
+
 /* NVM Checksum Command (direct, 0x0706) */
 struct ice_aqc_nvm_checksum {
 	u8 flags;
@@ -2151,6 +2180,7 @@ struct ice_aq_desc {
 		struct ice_aqc_query_port_ets port_ets;
 		struct ice_aqc_rl_profile rl_profile;
 		struct ice_aqc_nvm nvm;
+		struct ice_aqc_nvm_cfg nvm_cfg;
 		struct ice_aqc_nvm_checksum nvm_checksum;
 		struct ice_aqc_nvm_pkg_data pkg_data;
 		struct ice_aqc_nvm_pass_comp_tbl pass_comp_tbl;
@@ -2311,6 +2341,8 @@ enum ice_adminq_opc {
 	ice_aqc_opc_nvm_read				= 0x0701,
 	ice_aqc_opc_nvm_erase				= 0x0702,
 	ice_aqc_opc_nvm_write				= 0x0703,
+	ice_aqc_opc_nvm_cfg_read			= 0x0704,
+	ice_aqc_opc_nvm_cfg_write			= 0x0705,
 	ice_aqc_opc_nvm_checksum			= 0x0706,
 	ice_aqc_opc_nvm_write_activate			= 0x0707,
 	ice_aqc_opc_nvm_update_empr			= 0x0709,

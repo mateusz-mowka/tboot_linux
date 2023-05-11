@@ -1042,6 +1042,11 @@ static const struct devlink_ops ice_devlink_ops = {
 	.port_fn_state_set = ice_dl_port_fn_state_set,
 };
 
+enum ice_devlink_param_id {
+	ICE_DEVLINK_PARAM_ID_BASE = DEVLINK_PARAM_GENERIC_ID_MAX,
+	ICE_DEVLINK_PARAM_ID_SCALABLE_MODE,
+};
+
 static int
 ice_devlink_enable_roce_get(struct devlink *devlink, u32 id,
 			    struct devlink_param_gset_ctx *ctx)
@@ -1144,6 +1149,131 @@ ice_devlink_enable_iw_validate(struct devlink *devlink, u32 id,
 	return 0;
 }
 
+static int
+ice_devlink_scalable_mode_get(struct devlink *devlink, u32 id,
+			      struct devlink_param_gset_ctx *ctx)
+{
+	bool pf_extended_mem_space, pasid_capability;
+	struct ice_pf *pf = devlink_priv(devlink);
+	struct device *dev = ice_pf_to_dev(pf);
+	struct ice_hw *hw = &pf->hw;
+	int err;
+
+	err = ice_acquire_nvm(hw, ICE_RES_READ);
+	if (err)
+		return err;
+
+	err = ice_aq_get_nvm_feature(hw, ICE_NVM_FEATURE_PF_EXTENDED_MEM_SPACE,
+				     &pf_extended_mem_space);
+	if (err) {
+		if (hw->adminq.sq_last_status == ICE_AQ_RC_ENOENT)
+			err = -EOPNOTSUPP;
+		else
+			dev_warn(dev, "%s: failed to read PF extended memory space configuration, err %pe, aq_err %d\n",
+				 __func__, ERR_PTR(err),
+				 hw->adminq.sq_last_status);
+		goto err_release_nvm;
+	}
+
+	err = ice_aq_get_nvm_feature(hw, ICE_NVM_FEATURE_PASID_CAPABILITY,
+				     &pasid_capability);
+	if (err) {
+		if (hw->adminq.sq_last_status == ICE_AQ_RC_ENOENT)
+			err = -EOPNOTSUPP;
+		else
+			dev_warn(dev, "%s: failed to read device PASID capability configuration, err %pe, aq_err %d\n",
+				 __func__, ERR_PTR(err),
+				 hw->adminq.sq_last_status);
+		goto err_release_nvm;
+	}
+
+	ice_release_nvm(hw);
+
+	/* Scalable mode requires both PF extended memory space and the PASID
+	 * capability to be enabled.
+	 */
+	ctx->val.vbool = pf_extended_mem_space && pasid_capability;
+
+	if (pf_extended_mem_space != pasid_capability)
+		dev_warn(dev, "%s: PF extended memory space is %s but PASID capability is %s\n",
+			 __func__,
+			 pf_extended_mem_space ? "enabled" : "disabled",
+			 pasid_capability ? "enabled" : "disabled");
+
+	return 0;
+
+err_release_nvm:
+	ice_release_nvm(hw);
+	return err;
+}
+
+static int
+ice_devlink_scalable_mode_set(struct devlink *devlink, u32 id,
+			      struct devlink_param_gset_ctx *ctx)
+{
+	struct ice_pf *pf = devlink_priv(devlink);
+	struct device *dev = ice_pf_to_dev(pf);
+	struct ice_rq_event_info event;
+	struct ice_hw *hw = &pf->hw;
+	u16 completion_retval;
+	int err;
+
+	err = ice_acquire_nvm(hw, ICE_RES_WRITE);
+	if (err)
+		return err;
+
+	err = ice_aq_set_nvm_feature(hw, ICE_NVM_FEATURE_PF_EXTENDED_MEM_SPACE,
+				     ctx->val.vbool);
+	if (err) {
+		if (hw->adminq.sq_last_status == ICE_AQ_RC_ENOENT)
+			err = -EOPNOTSUPP;
+		else
+			dev_warn(dev, "%s: failed to write PF extended memory space configuration, err %pe, aq_err %d\n",
+				__func__, ERR_PTR(err),
+				hw->adminq.sq_last_status);
+		goto err_release_nvm;
+	}
+
+	err = ice_aq_set_nvm_feature(hw, ICE_NVM_FEATURE_PASID_CAPABILITY,
+				     ctx->val.vbool);
+	if (err) {
+		if (hw->adminq.sq_last_status == ICE_AQ_RC_ENOENT)
+			err = -EOPNOTSUPP;
+		else
+			dev_warn(dev, "%s: failed to write PASID capability configuration, err %pe, aq_err %d\n",
+				__func__, ERR_PTR(err),
+				hw->adminq.sq_last_status);
+		goto err_release_nvm;
+	}
+
+	err = ice_nvm_write_activate(hw, 0, NULL);
+	if (err) {
+		dev_warn(dev, "%s: failed to issue activation of new NVM configuration, err %pe, aq_err %d\n",
+			 __func__, ERR_PTR(err),
+			 hw->adminq.sq_last_status);
+		goto err_release_nvm;
+	}
+
+	err = ice_aq_wait_for_event(pf, ice_aqc_opc_nvm_write_activate, 30 * HZ,
+				    &event);
+	if (err) {
+		dev_err(dev, "Timed out waiting for firmware to activate new NVM configuration, err %d\n",
+			err);
+		goto err_release_nvm;
+	}
+
+	completion_retval = le16_to_cpu(event.desc.retval);
+	if (completion_retval) {
+		dev_err(dev, "Firmware failed to activate NVM configuration aq_err %s\n",
+			ice_aq_str((enum ice_aq_err)completion_retval));
+		err = -EIO;
+	}
+
+err_release_nvm:
+	ice_release_nvm(hw);
+	return err;
+}
+
 static const struct devlink_param ice_devlink_params[] = {
 	DEVLINK_PARAM_GENERIC(ENABLE_ROCE, BIT(DEVLINK_PARAM_CMODE_RUNTIME),
 			      ice_devlink_enable_roce_get,
@@ -1153,7 +1283,13 @@ static const struct devlink_param ice_devlink_params[] = {
 			      ice_devlink_enable_iw_get,
 			      ice_devlink_enable_iw_set,
 			      ice_devlink_enable_iw_validate),
-
+	DEVLINK_PARAM_DRIVER(ICE_DEVLINK_PARAM_ID_SCALABLE_MODE,
+			     "scalable_mode",
+			     DEVLINK_PARAM_TYPE_BOOL,
+			     BIT(DEVLINK_PARAM_CMODE_PERMANENT),
+			     ice_devlink_scalable_mode_get,
+			     ice_devlink_scalable_mode_set,
+			     NULL),
 };
 
 static void ice_devlink_free(void *devlink_ptr)
