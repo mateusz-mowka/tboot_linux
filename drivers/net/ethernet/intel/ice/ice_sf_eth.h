@@ -28,6 +28,7 @@ int
 ice_sf_eth_activate(struct ice_dynamic_port *dyn_port,
 		    struct netlink_ext_ack *extack);
 void ice_sf_eth_deactivate(struct ice_dynamic_port *dyn_port);
+int ice_sf_eth_update_hw_addr(struct ice_dynamic_port *dyn_port);
 
 int ice_sf_driver_register(void);
 void ice_sf_driver_unregister(void);

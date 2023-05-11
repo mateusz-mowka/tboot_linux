@@ -900,6 +900,27 @@ ice_dl_port_del(struct devlink *devlink, unsigned int port_index,
 }
 
 /**
+ * ice_dl_udpate_hw_addr - Update dynamic port HW address
+ * @dyn_port: the dynamic port to update
+ *
+ * Inform the dynamic port that a new hardware address has been configured.
+ *
+ * Returns: zero on success, or a non-zero errno value on failure to update
+ * the hardware address.
+ */
+static int ice_dl_update_hw_addr(struct ice_dynamic_port *dyn_port)
+{
+	switch (dyn_port->devlink_port.attrs.flavour) {
+	case DEVLINK_PORT_FLAVOUR_PCI_SF:
+		return ice_sf_eth_update_hw_addr(dyn_port);
+	case DEVLINK_PORT_FLAVOUR_VFIO:
+		return ice_scalable_dev_update_hw_addr(dyn_port);
+	default:
+		return 0;
+	}
+}
+
+/**
  * ice_dl_port_fn_hw_addr_set - devlink handler for mac address set
  * @port: pointer to devlink port
  * @hw_addr: hw address to set
@@ -936,7 +957,7 @@ ice_dl_port_fn_hw_addr_set(struct devlink_port *port, const u8 *hw_addr,
 
 	ether_addr_copy(dyn_port->hw_addr, hw_addr);
 
-	return 0;
+	return ice_dl_update_hw_addr(dyn_port);
 }
 
 /**

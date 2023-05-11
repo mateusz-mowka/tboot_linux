@@ -97,7 +97,7 @@ struct ice_vf {
 	struct virtchnl_version_info vf_ver;
 	u32 driver_caps;		/* reported by VF driver */
 	u8 dev_lan_addr[ETH_ALEN];
-	u8 hw_lan_addr[ETH_ALEN];
+	u8 *hw_lan_addr;
 	struct ice_time_mac legacy_last_added_umac;
 	DECLARE_BITMAP(txq_ena, ICE_MAX_RSS_QS_PER_VF);
 	DECLARE_BITMAP(rxq_ena, ICE_MAX_RSS_QS_PER_VF);

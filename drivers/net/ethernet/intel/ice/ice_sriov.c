@@ -618,6 +618,7 @@ teardown:
  */
 struct ice_sriov_vf {
 	struct ice_vf vf;
+	u8 hw_lan_addr[ETH_ALEN];
 };
 
 /**
@@ -818,6 +819,7 @@ static int ice_create_vf_entries(struct ice_pf *pf, u16 num_vfs)
 
 		vf->pf = pf;
 		vf->vf_id = vf_id;
+		vf->hw_lan_addr = priv->hw_lan_addr;
 
 		/* set sriov vf ops for VFs created during SRIOV flow */
 		vf->vf_ops = &ice_sriov_vf_ops;

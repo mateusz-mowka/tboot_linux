@@ -332,3 +332,9 @@ void ice_sf_eth_deactivate(struct ice_dynamic_port *dyn_port)
 
 	dyn_port->sf_dev = NULL;
 }
+
+int ice_sf_eth_update_hw_addr(struct ice_dynamic_port *dyn_port)
+{
+	/* TODO: not sure how we should handle this yet */
+	return 0;
+}

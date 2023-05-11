@@ -1159,6 +1159,7 @@ static void ice_adi_vf_init(struct ice_pf *pf, struct ice_scalable_dev *priv)
 	kref_init(&vf->refcnt);
 	vf->pf = pf;
 	vf->vf_ops = &ice_siov_vf_ops;
+	vf->hw_lan_addr = priv->dyn_port->hw_addr;
 
 	ice_initialize_vf_entry(vf);
 	INIT_WORK(&priv->update_hash_entry, ice_siov_update_hash_entry);
@@ -1364,6 +1365,17 @@ void ice_scalable_dev_deactivate(struct ice_dynamic_port *dyn_port)
 	}
 
 	dyn_port->scalable_dev = NULL;
+}
+
+/**
+ * ice_scalable_dev_update_hw_addr - Update VF MAC address on change
+ * @dyn_port: the dynamic port instance for this VF
+ *
+ * Returns: zero on success, or a non-zero errno value on failure.
+ */
+int ice_scalable_dev_update_hw_addr(struct ice_dynamic_port *dyn_port)
+{
+	return ice_vf_notify_mac_addr(&dyn_port->scalable_dev->vf);
 }
 
 /* Scalable IOV device configuration functions */
