@@ -1193,6 +1193,15 @@ static int devlink_nl_port_attrs_put(struct sk_buff *msg,
 				attrs->pci_sf.sf))
 			return -EMSGSIZE;
 		break;
+	case DEVLINK_PORT_FLAVOUR_VFIO:
+		if (nla_put_u32(msg, DEVLINK_ATTR_PORT_CONTROLLER_NUMBER,
+				attrs->vfio.controller) ||
+		    nla_put_u16(msg, DEVLINK_ATTR_PORT_PCI_PF_NUMBER,
+				attrs->vfio.pf) ||
+		    nla_put_u32(msg, DEVLINK_ATTR_PORT_PCI_VF_NUMBER,
+				attrs->vfio.vf))
+			return -EMSGSIZE;
+		break;
 	case DEVLINK_PORT_FLAVOUR_PHYSICAL:
 	case DEVLINK_PORT_FLAVOUR_CPU:
 	case DEVLINK_PORT_FLAVOUR_DSA:
@@ -10652,6 +10661,34 @@ void devlink_port_attrs_pci_sf_set(struct devlink_port *devlink_port, u32 contro
 EXPORT_SYMBOL_GPL(devlink_port_attrs_pci_sf_set);
 
 /**
+ *	devlink_port_attrs_vfio_set - Set VFIO port attributes
+ *
+ *	@devlink_port: devlink port
+ *	@controller: associated controller number for the devlink port instance
+ *	@pf: associated PF for the devlink port instance
+ *	@vf: associated VFIO device number for the devlink port instance
+ *	@external: indicates if the port is for an external controller
+ */
+void devlink_port_attrs_vfio_set(struct devlink_port *devlink_port,
+				 u32 controller, u16 pf, u32 vf, bool external)
+{
+	struct devlink_port_attrs *attrs = &devlink_port->attrs;
+	int ret;
+
+	ASSERT_DEVLINK_PORT_NOT_REGISTERED(devlink_port);
+
+	ret = __devlink_port_attrs_set(devlink_port,
+				       DEVLINK_PORT_FLAVOUR_VFIO);
+	if (ret)
+		return;
+	attrs->vfio.controller = controller;
+	attrs->vfio.pf = pf;
+	attrs->vfio.vf = vf;
+	attrs->vfio.external = external;
+}
+EXPORT_SYMBOL_GPL(devlink_port_attrs_vfio_set);
+
+/**
  * devl_rate_node_create - create devlink rate node
  * @devlink: devlink instance
  * @priv: driver private data
@@ -10872,6 +10909,17 @@ static int __devlink_port_phys_port_name_get(struct devlink_port *devlink_port,
 		}
 		n = snprintf(name, len, "pf%usf%u", attrs->pci_sf.pf,
 			     attrs->pci_sf.sf);
+		break;
+	case DEVLINK_PORT_FLAVOUR_VFIO:
+		if (attrs->vfio.external) {
+			n = snprintf(name, len, "c%u", attrs->vfio.controller);
+			if (n >= len)
+				return -EINVAL;
+			len -= n;
+			name += n;
+		}
+		n = snprintf(name, len, "pf%uvf%u", attrs->vfio.pf,
+			     attrs->vfio.vf);
 		break;
 	case DEVLINK_PORT_FLAVOUR_VIRTUAL:
 		return -EOPNOTSUPP;

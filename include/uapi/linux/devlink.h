@@ -217,6 +217,11 @@ enum devlink_port_flavour {
 				      * for the PCI SF. It is an internal
 				      * port that faces the PCI SF.
 				      */
+	DEVLINK_PORT_FLAVOUR_VFIO, /* Represents eswitch port for a VFIO
+				    * device. It is an internal port that
+				    * faces the PCI parent device of the VFIO
+				    * device.
+				    */
 };
 
 enum devlink_rate_type {

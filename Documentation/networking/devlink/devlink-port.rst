@@ -39,6 +39,8 @@ Devlink port flavours are described below.
        subfunction (SF).
    * - ``DEVLINK_PORT_FLAVOUR_VIRTUAL``
      - This indicates a virtual port for the PCI virtual function.
+   * - ``DEVLINK_PORT_FLAVOUR_VFIO``
+     - This indicates a virtual port for a VFIO device virtual function.
 
 Devlink port can have a different type based on the link layer described below.
 

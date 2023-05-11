@@ -73,6 +73,20 @@ struct devlink_port_pci_sf_attrs {
 };
 
 /**
+ * struct devlink_port_vfio_attrs - devlink port's VFIO attributes
+ * @controller: Associated controller number
+ * @vf: Associated VFIO number for this port.
+ * @pf: Associated PCI PF number for this port.
+ * @external: when set, indicates if a port is for an external controller
+ */
+struct devlink_port_vfio_attrs {
+	u32 controller;
+	u32 vf;
+	u16 pf;
+	u8 external:1;
+};
+
+/**
  * struct devlink_port_attrs - devlink port object
  * @flavour: flavour of the port
  * @split: indicates if this is split port
@@ -95,6 +109,7 @@ struct devlink_port_attrs {
 		struct devlink_port_pci_pf_attrs pci_pf;
 		struct devlink_port_pci_vf_attrs pci_vf;
 		struct devlink_port_pci_sf_attrs pci_sf;
+		struct devlink_port_vfio_attrs vfio;
 	};
 };
 
@@ -1674,6 +1689,8 @@ void devlink_port_attrs_pci_vf_set(struct devlink_port *devlink_port, u32 contro
 void devlink_port_attrs_pci_sf_set(struct devlink_port *devlink_port,
 				   u32 controller, u16 pf, u32 sf,
 				   bool external);
+void devlink_port_attrs_vfio_set(struct devlink_port *devlink_port,
+				 u32 controller, u16 pf, u32 vf, bool external);
 struct devlink_rate *
 devl_rate_node_create(struct devlink *devlink, void *priv, char *node_name,
 		      struct devlink_rate *parent);
