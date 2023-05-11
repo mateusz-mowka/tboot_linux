@@ -150,6 +150,10 @@ ice_adi_release_non_q_vector(struct ice_pf *pf, struct ice_scalable_dev *priv)
  * dropped. Do not call this or the .free function directly. Instead, use
  * ice_put_vf to ensure that the memory is only released once all references
  * are finished.
+ *
+ * Note this will always be after auxiliary_device_uninit because we do not
+ * free the main reference of the VF until inside the ice_scalable_dev_release
+ * function.
  */
 static void ice_siov_free_vf(struct ice_vf *vf)
 {
@@ -164,6 +168,7 @@ static void ice_siov_free_vf(struct ice_vf *vf)
 	if (priv->non_q_vector.index >= 0)
 		ice_adi_release_non_q_vector(vf->pf, priv);
 	mutex_destroy(&vf->cfg_lock);
+	kfree_rcu(priv, vf.rcu);
 }
 
 /**
@@ -395,6 +400,42 @@ static int ice_vsi_configure_pasid(struct ice_vf *vf, u32 pasid, bool ena)
 }
 
 /**
+ * ice_siov_update_hash_entry - work task to fix VF hash entry
+ * @work: the work task structure
+ *
+ * Work item scheduled to fix the VF hash entry after a rebuild. Called when
+ * the VSI number, and thus the VF ID has changed. This update cannot be done
+ * in the same thread because it cannot guarantee a safe method of acquiring
+ * the table lock mutex, and because the calling thread might be iterating the
+ * hash table using the standard iterator which is not protected against hash
+ * table modification.
+ */
+static void ice_siov_update_hash_entry(struct work_struct *work)
+{
+	struct ice_scalable_dev *priv = container_of(work,
+						     struct ice_scalable_dev,
+						     update_hash_entry);
+	struct ice_vf *vf = &priv->vf;
+	struct ice_vfs *vfs;
+
+	vfs = &vf->pf->vfs;
+
+	mutex_lock(&vfs->table_lock);
+	mutex_lock(&vf->cfg_lock);
+
+	hash_del_rcu(&vf->entry);
+	hash_add_rcu(vfs->table, &vf->entry, vf->vf_id);
+
+	/* We've finished cleaning up in software. Update the reset
+	 * state, allowing the VF to detect that its safe to proceed.
+	 */
+	priv->reset_state = VIRTCHNL_VFR_VFACTIVE;
+
+	mutex_unlock(&vf->cfg_lock);
+	mutex_unlock(&vfs->table_lock);
+}
+
+/**
  * ice_siov_post_vsi_rebuild - post S-IOV VSI rebuild operations
  * @vf: pointer to VF structure
  *
@@ -488,6 +529,10 @@ static const struct ice_vf_ops ice_siov_vf_ops = {
  * The auxiliary bus release function for the ice_scalable_dev.adev. This will be
  * called only once all references to the auxiliary device are dropped. We
  * must not free the ADI or its associated resources before that.
+ *
+ * Once the auxiliary devices are uninitialized it will be safe to release the
+ * VF reference. Once all VF references are released, the ice_siov_free_vf
+ * function will be called.
  */
 static void ice_scalable_dev_release(struct device *dev)
 {
@@ -495,7 +540,109 @@ static void ice_scalable_dev_release(struct device *dev)
 	struct ice_scalable_dev *priv = adev_to_priv(adev);
 
 	xa_erase(&ice_adi_aux_ids, adev->id);
-	kfree(priv);
+	ice_put_vf(&priv->vf);
+}
+
+/**
+ * ice_adi_vf_init - Initialize VF structure and reference count
+ * @pf: pointer to PF structure
+ * @priv: the ADI whose VF to initialize
+ *
+ * Initialize the VF structure associated with the ADI. Once this is done, the
+ * ADI must be released using ice_put_vf, rather than directly releasing it.
+ */
+static void ice_adi_vf_init(struct ice_pf *pf, struct ice_scalable_dev *priv)
+{
+	struct ice_vf *vf = &priv->vf;
+
+	kref_init(&vf->refcnt);
+	vf->pf = pf;
+	vf->vf_ops = &ice_siov_vf_ops;
+
+	ice_initialize_vf_entry(vf);
+	INIT_WORK(&priv->update_hash_entry, ice_siov_update_hash_entry);
+
+	vf->vf_sw_id = pf->first_sw;
+
+	mutex_init(&vf->cfg_lock);
+}
+
+/**
+ * ice_adi_vf_setup - Setup the ADI's VF structure
+ * @pf: pointer to the PF private structure
+ * @priv: pointer to the ADI private data
+ *
+ * Initialize the VF structure for this ADI, and register it with the PF.
+ *
+ * Return: zero on success, or a non-zero errno value on failure to setup the
+ *         VF structure.
+ */
+static int ice_adi_vf_setup(struct ice_pf *pf, struct ice_scalable_dev *priv)
+{
+	struct ice_vsi_cfg_params params = {};
+	struct ice_vf *vf = &priv->vf;
+	struct ice_hw *hw = &pf->hw;
+	struct ice_vsi *vsi;
+	struct device *dev;
+	int err;
+
+	dev = ice_pf_to_dev(pf);
+	vsi = priv->dyn_port->vsi;
+
+	err = ice_adi_alloc_non_q_vector(pf, priv);
+	if (err) {
+		dev_err(dev, "ADI VSI unable to reserve non-queue vector, %pe\n",
+			ERR_PTR(err));
+		return err;
+	}
+
+	params.type = ICE_VSI_ADI;
+	params.pi = ice_vf_get_port_info(vf);
+	params.vf = vf;
+	params.flags = ICE_VSI_FLAG_INIT;
+
+	err = ice_vsi_cfg(vsi, &params);
+	if (err) {
+		dev_err(dev, "ADI VSI configuration failed, %pe\n",
+			ERR_PTR(err));
+		goto err_release_non_q_vectors;
+	}
+
+	vf->lan_vsi_idx = vsi->idx;
+	vf->lan_vsi_num = vsi->vsi_num;
+	vf->vf_id = vsi->vsi_num;
+
+	err = ice_vf_init_host_cfg(vf, vsi);
+	if (err) {
+		dev_err(dev, "Failed to initialize host configuration, %pe\n",
+			ERR_PTR(err));
+		goto err_decfg_vsi;
+	}
+
+	err = ice_ena_siov_vf_mapping(vf);
+	if (err) {
+		dev_err(dev, "Failed to map Scalable IOV VF, %pe\n",
+			ERR_PTR(err));
+		goto err_decfg_vsi;
+	}
+
+	set_bit(ICE_VF_STATE_INIT, vf->vf_states);
+	wr32(hw, VSIGEN_RSTAT(vf->vf_id), VIRTCHNL_VFR_VFACTIVE);
+	ice_flush(hw);
+
+	mutex_lock(&pf->vfs.table_lock);
+	hash_add_rcu(pf->vfs.table, &vf->entry, vf->vf_id);
+	mutex_unlock(&pf->vfs.table_lock);
+
+	return 0;
+
+err_decfg_vsi:
+	ice_vsi_decfg(vsi);
+	vsi->vf = NULL;
+err_release_non_q_vectors:
+	ice_adi_release_non_q_vector(pf, priv);
+
+	return err;
 }
 
 /**
@@ -526,6 +673,11 @@ ice_scalable_dev_activate(struct ice_dynamic_port *dyn_port,
 
 	pf = dyn_port->pf;
 	pdev = pf->pdev;
+	if (ice_get_avail_txq_count(pf) < ICE_DFLT_QS_PER_SIOV_VF ||
+	    ice_get_avail_rxq_count(pf) < ICE_DFLT_QS_PER_SIOV_VF) {
+		NL_SET_ERR_MSG_MOD(extack, "Not enough available queues");
+		return -ENOSPC;
+	}
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
@@ -534,6 +686,13 @@ ice_scalable_dev_activate(struct ice_dynamic_port *dyn_port,
 	}
 
 	priv->dyn_port = dyn_port;
+	ice_adi_vf_init(pf, priv);
+
+	err = ice_adi_vf_setup(pf, priv);
+	if (err) {
+		NL_SET_ERR_MSG_MOD(extack, "Could not setup VF structure");
+		goto err_free_adi;
+	}
 
 	err = xa_alloc(&ice_adi_aux_ids, &id, NULL, XA_LIMIT(1, U32_MAX),
 		       GFP_KERNEL);
@@ -562,7 +721,8 @@ ice_scalable_dev_activate(struct ice_dynamic_port *dyn_port,
 err_erase_id:
 	xa_erase(&ice_adi_aux_ids, id);
 err_free_adi:
-	kfree(priv);
+	/* ice_put_vf will take care of releasing the private structure */
+	ice_put_vf(&priv->vf);
 
 	return err;
 }
