@@ -39,6 +39,26 @@ const char *ice_vsi_type_str(enum ice_vsi_type vsi_type)
 }
 
 /**
+ * ice_vsi_requires_vf - Does this VSI type always require a VF?
+ * @vsi_type: the VSI type
+ *
+ * Returns true if the VSI type *must* have a VF pointer. Returns false
+ * otherwise. In particular, VSI types which may *optionally* have a VF
+ * pointer return false.
+ *
+ * Used to WARN in cases where we always expect a VF pointer to be non-NULL.
+ */
+static int ice_vsi_requires_vf(enum ice_vsi_type vsi_type)
+{
+	switch (vsi_type) {
+	case ICE_VSI_VF:
+		return true;
+	default:
+		return false;
+	}
+}
+
+/**
  * ice_vsi_ctrl_all_rx_rings - Start or stop a VSI's Rx rings
  * @vsi: the VSI being configured
  * @ena: start or stop the Rx rings
@@ -180,7 +200,7 @@ static void ice_vsi_set_num_qs(struct ice_vsi *vsi)
 	struct ice_pf *pf = vsi->back;
 	struct ice_vf *vf = vsi->vf;
 
-	if (WARN_ON(vsi_type == ICE_VSI_VF && !vf))
+	if (WARN_ON(ice_vsi_requires_vf(vsi_type) && !vf))
 		return;
 
 	switch (vsi_type) {
@@ -2591,7 +2611,7 @@ int ice_vsi_cfg(struct ice_vsi *vsi, struct ice_vsi_cfg_params *params)
 	struct ice_pf *pf = vsi->back;
 	int ret;
 
-	if (WARN_ON(params->type == ICE_VSI_VF && !params->vf))
+	if (WARN_ON(ice_vsi_requires_vf(params->type) && !params->vf))
 		return -EINVAL;
 
 	vsi->type = params->type;
@@ -3246,7 +3266,7 @@ int ice_vsi_rebuild(struct ice_vsi *vsi, u32 vsi_flags)
 	params.flags = vsi_flags;
 
 	pf = vsi->back;
-	if (WARN_ON(vsi->type == ICE_VSI_VF && !vsi->vf))
+	if (WARN_ON(ice_vsi_requires_vf(vsi->type) && !vsi->vf))
 		return -EINVAL;
 
 	coalesce = kcalloc(vsi->num_q_vectors,
