@@ -612,6 +612,24 @@ teardown:
 }
 
 /**
+ * struct ice_sriov_vf - Private structure for SR-IOV VFs
+ * @vf: Generic VF structure
+ * @hw_lan_addr: Storage for the VF permanent HW address
+ */
+struct ice_sriov_vf {
+	struct ice_vf vf;
+};
+
+/**
+ * vf_to_priv - Get private ice_sriov_vf pionter from VF structure
+ * @vf: A Single Root IOV VF.
+ */
+static inline struct ice_sriov_vf *vf_to_priv(struct ice_vf *vf)
+{
+	return container_of(vf, struct ice_sriov_vf, vf);
+}
+
+/**
  * ice_sriov_free_vf - Free VF memory after all references are dropped
  * @vf: pointer to VF to free
  *
@@ -620,9 +638,10 @@ teardown:
  */
 static void ice_sriov_free_vf(struct ice_vf *vf)
 {
+	struct ice_sriov_vf *priv = vf_to_priv(vf);
 	mutex_destroy(&vf->cfg_lock);
 
-	kfree_rcu(vf, rcu);
+	kfree_rcu(priv, vf.rcu);
 }
 
 /**
@@ -780,6 +799,7 @@ static const struct ice_vf_ops ice_sriov_vf_ops = {
 static int ice_create_vf_entries(struct ice_pf *pf, u16 num_vfs)
 {
 	struct ice_vfs *vfs = &pf->vfs;
+	struct ice_sriov_vf *priv;
 	struct ice_vf *vf;
 	u16 vf_id;
 	int err;
@@ -787,11 +807,13 @@ static int ice_create_vf_entries(struct ice_pf *pf, u16 num_vfs)
 	lockdep_assert_held(&vfs->table_lock);
 
 	for (vf_id = 0; vf_id < num_vfs; vf_id++) {
-		vf = kzalloc(sizeof(*vf), GFP_KERNEL);
-		if (!vf) {
+		priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+		if (!priv) {
 			err = -ENOMEM;
 			goto err_free_entries;
 		}
+		vf = &priv->vf;
+
 		kref_init(&vf->refcnt);
 
 		vf->pf = pf;
