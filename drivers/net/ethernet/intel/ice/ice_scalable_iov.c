@@ -5,6 +5,7 @@
 #include "ice_lib.h"
 #include "ice_virtchnl_allowlist.h"
 #include "ice_fltr.h"
+#include "siov_regs.h"
 #include "ice_vf_lib_private.h"
 #include <linux/limits.h>
 #include <linux/xarray.h>
@@ -33,6 +34,7 @@ struct ice_mbx_regs {
  * @update_hash_entry: work item for updating VF hash entry
  * @reset_state: the reset state reported to VF by register
  * @mbx_regs: storage for restoring mailbox registers during reset
+ * @ops: ADI driver operations table
  * @dyn_port: pointer to the associated dynamic port instance
  *
  * The ice_scalable_dev structure is the main structure representing
@@ -44,6 +46,7 @@ struct ice_scalable_dev {
 	struct ice_vf vf;
 	struct work_struct update_hash_entry;
 	struct ice_mbx_regs mbx_regs;
+	const struct adi_drv_ops *ops;
 	struct ice_dynamic_port *dyn_port;
 	enum virtchnl_vfr_states reset_state;
 	u32 pasid;
@@ -320,6 +323,13 @@ static void ice_siov_clear_reset_trigger(struct ice_vf *vf)
  */
 static void ice_siov_irq_close(struct ice_vf *vf)
 {
+	struct ice_scalable_dev *priv = vf_to_priv(vf);
+
+	if (!priv->ops)
+		return;
+
+	/* Release the previous VSI IRQ context */
+	priv->ops->pre_rebuild_irqctx(&priv->adi);
 }
 
 /**
@@ -471,6 +481,29 @@ static void ice_siov_post_vsi_rebuild(struct ice_vf *vf)
 		update_hash_entry = false;
 	}
 
+	if (!priv->ops)
+		goto skip_rebuild_irqctx;
+
+	err = priv->ops->rebuild_irqctx(&priv->adi);
+	if (err)
+		dev_err(dev, "failed to rebuild irq context, error %d\n", err);
+
+	/* Make sure to zap all the pages only after the new VSI is setup.
+	 * When ice_siov_vsi_rebuild is called by VF_RESET virtchnl, this
+	 * function is scheduled in a kernel thread. At the same time, VM
+	 * will keep accessing old VSI's mbx register set.
+	 *
+	 * If we zapped the pages before the new VSI was setup, the VF might
+	 * read the mailbox register while we're still setting up the new VSI.
+	 * This would trigger a page fault that generates a new GPA to HPA
+	 * mapping, but with the old VSI registers.
+	 *
+	 * By zapping the pages only after the new VSI is setup, we avoid
+	 * this possibility.
+	 */
+	priv->ops->zap_vma_map(&priv->adi);
+
+skip_rebuild_irqctx:
 	err = ice_vsi_configure_pasid(vf, priv->pasid, true);
 	if (err)
 		dev_err(dev, "Failed to reconfigure PASID for VF %u, error %d\n",
@@ -518,6 +551,574 @@ static const struct ice_vf_ops ice_siov_vf_ops = {
 	.clear_reset_trigger = ice_siov_clear_reset_trigger,
 	.irq_close = ice_siov_irq_close,
 	.post_vsi_rebuild = ice_siov_post_vsi_rebuild,
+};
+
+/* ADI operations called by ADI driver */
+
+/**
+ * ice_adi_init_drv_ops - Initialize PF to ADI driver ops table
+ * @adi: ADI auxiliary device pointer
+ * @ops: the ops table;
+ */
+static void
+ice_adi_init_drv_ops(struct adi_aux_dev *adi, const struct adi_drv_ops *ops)
+{
+	struct ice_scalable_dev *priv = adi_to_priv(adi);
+
+	priv->ops = ops;
+}
+
+/**
+ * ice_adi_get_vector_num - get number of vectors assigned to this ADI
+ * @adi: ADI auxiliary device pointer
+ *
+ * Return: the (positive) number of queue vectors, or -EFAULT if unable to
+ *         determine the VF VSI pointer.
+ */
+static int ice_adi_get_vector_num(struct adi_aux_dev *adi)
+{
+	struct ice_scalable_dev *priv = adi_to_priv(adi);
+	struct ice_vf *vf = &priv->vf;
+	struct ice_pf *pf = vf->pf;
+	struct ice_vsi *vsi;
+
+	vsi = ice_get_vf_vsi(vf);
+	if (!vsi) {
+		dev_err(ice_pf_to_dev(pf), "Invalid VSI pointer");
+		return -EFAULT;
+	}
+
+	/* Account for the queue vectors plus 1 for the non-queue vector */
+	return vsi->num_q_vectors + 1;
+}
+
+/**
+ * ice_adi_get_vector_irq - get OS IRQ number per vector
+ * @adi: ADI auxiliary device pointer
+ * @idx: IRQ vector index
+ *
+ * Return: the Linux IRQ number associated with a vector on success, or
+ *         -EFAULT if unable to determine the VF VSI pointer, or -EINVAL if
+ *         the requested vector index is not valid.
+ */
+static int ice_adi_get_vector_irq(struct adi_aux_dev *adi, u32 idx)
+{
+	struct ice_scalable_dev *priv = adi_to_priv(adi);
+	struct ice_vf *vf = &priv->vf;
+	struct msi_map *irq;
+	struct ice_vsi *vsi;
+
+	vsi = ice_get_vf_vsi(vf);
+	if (WARN_ON(!vsi))
+		return -EFAULT;
+
+	if (idx >= vsi->num_q_vectors + 1)
+		return -EINVAL;
+
+	/* Index 0 is the non-queue vector */
+	if (!idx) {
+		irq = &priv->non_q_vector;
+	} else {
+		struct ice_q_vector *q_vector;
+
+		q_vector = vsi->q_vectors[idx - 1];
+		if (!q_vector)
+			return -EINVAL;
+
+		irq = &q_vector->irq;
+	}
+
+	return irq->virq;
+}
+
+/**
+ * ice_adi_reset - reset VF associated with this ADI auxiliary device
+ * @adi: ADI auxiliary device pointer
+ *
+ * Return: zero on success, or a non-zero errno value on failure to reset the
+ *         associated VF.
+ */
+static int ice_adi_reset(struct adi_aux_dev *adi)
+{
+	struct ice_scalable_dev *priv;
+	struct ice_vf *vf;
+
+	priv = adi_to_priv(adi);
+	vf = &priv->vf;
+
+	return ice_reset_vf(vf, ICE_VF_RESET_NOTIFY | ICE_VF_RESET_LOCK);
+}
+
+/**
+ * ice_adi_cfg_pasid - configure PASID for this ADI auxiliary device
+ * @adi: ADI auxiliary device pointer
+ * @pasid: pasid value
+ * @ena: enable
+ *
+ * Return: zero on success, or a non-zero errno value on failure to configure
+ *         PASID value for the associated VF.
+ */
+static int ice_adi_cfg_pasid(struct adi_aux_dev *adi, u32 pasid, bool ena)
+{
+	struct ice_scalable_dev *priv;
+	struct ice_vf *vf;
+
+	priv = adi_to_priv(adi);
+	vf = &priv->vf;
+
+	return ice_vsi_configure_pasid(vf, pasid, ena);
+}
+
+/**
+ * ice_adi_close - close this ADI auxiliary device
+ * @adi: ADI auxiliary device pointer
+ *
+ * Return: zero on success, or -EFAULT if unable to determine the VSI pointer
+ *         associated with this ADI.
+ */
+static int ice_adi_close(struct adi_aux_dev *adi)
+{
+	struct ice_scalable_dev *priv = adi_to_priv(adi);
+	struct ice_vf *vf = &priv->vf;
+	struct ice_pf *pf = vf->pf;
+	struct ice_vsi *vsi;
+
+	vsi = ice_get_vf_vsi(vf);
+	if (!vsi) {
+		dev_err(ice_pf_to_dev(pf), "Invalid VSI pointer");
+		return -EFAULT;
+	}
+
+	ice_vsi_stop_lan_tx_rings(vsi, ICE_NO_RESET, vf->vf_id);
+	ice_vsi_stop_all_rx_rings(vsi);
+
+	ice_set_vf_state_dis(vf);
+
+	return 0;
+}
+
+/**
+ * ice_adi_read_reg32 - read device register
+ * @adi: ADI auxiliary device pointer
+ * @offs: register offset
+ *
+ * Return: the register value at the associated ADI register offset, or
+ * 0xdeadbeef if an error reading the register occurred.
+ */
+static u32 ice_adi_read_reg32(struct adi_aux_dev *adi, size_t offs)
+{
+	struct ice_scalable_dev *priv = adi_to_priv(adi);
+	struct ice_vf *vf = &priv->vf;
+	struct ice_pf *pf = vf->pf;
+	struct ice_vsi *vsi;
+	u32 index, reg_val;
+	struct ice_hw *hw;
+
+	if (test_bit(ICE_VF_STATE_DIS, vf->vf_states)) {
+		if (offs == VFGEN_RSTAT1)
+			return VIRTCHNL_VFR_INPROGRESS;
+		else
+			return 0xdeadbeef;
+	}
+
+	hw = &pf->hw;
+	vsi = ice_get_vf_vsi(vf);
+	if (!vsi) {
+		dev_err(ice_pf_to_dev(pf), "Invalid VSI pointer");
+		return 0xdeadbeef;
+	}
+
+	/* check for 4-byte aligned register access */
+	if (!IS_ALIGNED(offs, 4))
+		return 0xdeadbeef;
+
+	switch (offs) {
+	case VFGEN_RSTAT1:
+		reg_val = rd32(hw, VSIGEN_RSTAT(vsi->vsi_num));
+
+		if (reg_val & VSIGEN_RSTAT_VMRD_M) {
+			if (priv->reset_state == VIRTCHNL_VFR_VFACTIVE)
+				return VIRTCHNL_VFR_VFACTIVE;
+			else
+				return VIRTCHNL_VFR_COMPLETED;
+		}
+
+		return VIRTCHNL_VFR_INPROGRESS;
+	case VF_MBX_ATQBAL1:
+		return rd32(hw, VSI_MBX_ATQBAL(vsi->vsi_num));
+	case VF_MBX_ATQBAH1:
+		return rd32(hw, VSI_MBX_ATQBAH(vsi->vsi_num));
+	case VF_MBX_ATQLEN1:
+		return rd32(hw, VSI_MBX_ATQLEN(vsi->vsi_num));
+	case VF_MBX_ATQH1:
+		return rd32(hw, VSI_MBX_ATQH(vsi->vsi_num));
+	case VF_MBX_ATQT1:
+		return rd32(hw, VSI_MBX_ATQT(vsi->vsi_num));
+	case VF_MBX_ARQBAL1:
+		return rd32(hw, VSI_MBX_ARQBAL(vsi->vsi_num));
+	case VF_MBX_ARQBAH1:
+		return rd32(hw, VSI_MBX_ARQBAH(vsi->vsi_num));
+	case VF_MBX_ARQLEN1:
+		return rd32(hw, VSI_MBX_ARQLEN(vsi->vsi_num));
+	case VF_MBX_ARQH1:
+		return rd32(hw, VSI_MBX_ARQH(vsi->vsi_num));
+	case VF_MBX_ARQT1:
+		return rd32(hw, VSI_MBX_ARQT(vsi->vsi_num));
+	case VFINT_DYN_CTL0:
+		if (WARN_ON_ONCE(priv->non_q_vector.index < 0))
+			return 0xdeadbeef;
+		return rd32(hw, GLINT_DYN_CTL(priv->non_q_vector.index));
+	case VFINT_ITR0(0):
+	case VFINT_ITR0(1):
+	case VFINT_ITR0(2):
+		if (WARN_ON_ONCE(priv->non_q_vector.index < 0))
+			return 0xdeadbeef;
+		index = (offs - VFINT_ITR0(0)) / 4;
+		return rd32(hw, GLINT_ITR(index, priv->non_q_vector.index));
+	case VFINT_DYN_CTLN(0) ... VFINT_DYN_CTLN(63):
+		index = (offs - VFINT_DYN_CTLN(0)) / 4;
+		if (index >= vsi->num_q_vectors || !vsi->q_vectors[index]) {
+			dev_warn_once(ice_pf_to_dev(pf), "Invalid vector pointer for VSI %d\n",
+				      vsi->vsi_num);
+			return 0xdeadbeef;
+		}
+		return rd32(hw, GLINT_DYN_CTL(vsi->q_vectors[index]->reg_idx));
+	default:
+		return 0xdeadbeef;
+	}
+}
+
+/**
+ * ice_adi_write_reg32 - write device register
+ * @adi: ADI auxiliary device pointer
+ * @offs: register offset
+ * @data: register value
+ */
+static void
+ice_adi_write_reg32(struct adi_aux_dev *adi, size_t offs, u32 data)
+{
+	struct ice_scalable_dev *priv = adi_to_priv(adi);
+	struct ice_vf *vf = &priv->vf;
+	struct ice_pf *pf = vf->pf;
+	struct ice_vsi *vsi;
+	struct ice_hw *hw;
+	u32 index;
+
+	if (test_bit(ICE_VF_STATE_DIS, vf->vf_states))
+		return;
+
+	hw = &pf->hw;
+	vsi = ice_get_vf_vsi(vf);
+	if (!vsi) {
+		dev_err(ice_pf_to_dev(pf), "Invalid VSI pointer");
+		return;
+	}
+
+	/* check for 4-byte aligned register access */
+	if (!IS_ALIGNED(offs, 4))
+		return;
+
+	switch (offs) {
+	case VF_MBX_ATQBAL1:
+		wr32(hw, VSI_MBX_ATQBAL(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ATQBAH1:
+		wr32(hw, VSI_MBX_ATQBAH(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ATQLEN1:
+		wr32(hw, VSI_MBX_ATQLEN(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ATQH1:
+		wr32(hw, VSI_MBX_ATQH(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ATQT1:
+		wr32(hw, VSI_MBX_ATQT(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ARQBAL1:
+		wr32(hw, VSI_MBX_ARQBAL(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ARQBAH1:
+		wr32(hw, VSI_MBX_ARQBAH(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ARQLEN1:
+		wr32(hw, VSI_MBX_ARQLEN(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ARQH1:
+		wr32(hw, VSI_MBX_ARQH(vsi->vsi_num), data);
+		break;
+	case VF_MBX_ARQT1:
+		wr32(hw, VSI_MBX_ARQT(vsi->vsi_num), data);
+		break;
+	case VFINT_DYN_CTL0:
+		if (priv->non_q_vector.index < 0)
+			goto err_resource;
+		wr32(hw, GLINT_DYN_CTL(priv->non_q_vector.index), data);
+		break;
+	case VFINT_ITR0(0):
+	case VFINT_ITR0(1):
+	case VFINT_ITR0(2):
+		if (priv->non_q_vector.index < 0)
+			goto err_resource;
+		index = (offs - VFINT_ITR0(0)) / 4;
+		wr32(hw, GLINT_ITR(index, priv->non_q_vector.index), data);
+		break;
+	case VFINT_DYN_CTLN(0) ... VFINT_DYN_CTLN(63):
+		index = (offs - VFINT_DYN_CTLN(0)) / 4;
+		if (index >= vsi->num_q_vectors || !vsi->q_vectors[index])
+			goto err_resource;
+		wr32(hw, GLINT_DYN_CTL(vsi->q_vectors[index]->reg_idx), data);
+		break;
+	case QTX_TAIL(0) ... QTX_TAIL(255):
+		index = (offs - QTX_TAIL(0)) / 4;
+		if (!vsi->txq_map || index >= vsi->alloc_txq)
+			goto err_resource;
+		wr32(hw, QTX_COMM_DBELL_PAGE(vsi->txq_map[index]), data);
+		break;
+	case QRX_TAIL1(0) ... QRX_TAIL1(255):
+		index = (offs - QRX_TAIL1(0)) / 4;
+		if (!vsi->rxq_map || index >= vsi->alloc_rxq)
+			goto err_resource;
+		wr32(hw, QRX_TAIL_PAGE(vsi->rxq_map[index]), data);
+		break;
+	default:
+		break;
+	}
+	return;
+
+err_resource:
+	dev_warn_once(ice_pf_to_dev(pf), "Invalid resource access for VF VSI %d\n",
+		      vsi->vsi_num);
+}
+
+/**
+ * ice_adi_get_sparse_mmap_hpa - get VDEV HPA
+ * @adi: pointer to assignable device interface
+ * @index: VFIO BAR index
+ * @vm_pgoff: page offset of virtual memory area
+ * @addr: VDEV address
+ *
+ * Return: zero on success, -EFAULT if the associated VSI cannot be
+ *         determined, -EINVAL if the index or address is invalid, or another
+ *         non-zero errno value if unable to get the sparse memory map.
+ */
+static int
+ice_adi_get_sparse_mmap_hpa(struct adi_aux_dev *adi, u32 index, u64 vm_pgoff,
+			    u64 *addr)
+{
+	struct ice_scalable_dev *priv;
+	struct pci_dev *pdev;
+	struct ice_vsi *vsi;
+	struct ice_vf *vf;
+	u64 reg_off;
+	int q_idx;
+
+	if (!addr || index != VFIO_PCI_BAR0_REGION_INDEX)
+		return -EINVAL;
+
+	priv = adi_to_priv(adi);
+	vf = &priv->vf;
+	vsi = ice_get_vf_vsi(vf);
+	if (!vsi)
+		return -EFAULT;
+
+	pdev = vf->pf->pdev;
+	switch (vm_pgoff) {
+	case PHYS_PFN(VDEV_MBX_START):
+		/* MBX Registers */
+		reg_off = VSI_MBX_ATQBAL(vsi->vsi_num);
+		break;
+	case PHYS_PFN(VDEV_QRX_TAIL_START) ...
+				(PHYS_PFN(VDEV_QRX_BUFQ_TAIL_START) - 1):
+		/* RXQ tail register */
+		q_idx = vm_pgoff - PHYS_PFN(VDEV_QRX_TAIL_START);
+		if (q_idx >= vsi->alloc_rxq)
+			return -EINVAL;
+		reg_off = QRX_TAIL_PAGE(vsi->rxq_map[q_idx]);
+		break;
+	case PHYS_PFN(VDEV_QTX_TAIL_START) ...
+				(PHYS_PFN(VDEV_QTX_COMPL_TAIL_START) - 1):
+		/* TXQ tail register */
+		q_idx = vm_pgoff - PHYS_PFN(VDEV_QTX_TAIL_START);
+		if (q_idx >= vsi->alloc_txq)
+			return -EINVAL;
+		reg_off = QTX_COMM_DBELL_PAGE(vsi->txq_map[q_idx]);
+		break;
+	case PHYS_PFN(VDEV_INT_DYN_CTL01):
+		/* INT DYN CTL01, ITR0/1/2 */
+		if (priv->non_q_vector.index < 0)
+			return -EINVAL;
+		reg_off = PF0INT_DYN_CTL(priv->non_q_vector.index);
+		break;
+	case PHYS_PFN(VDEV_INT_DYN_CTL(0)) ...
+					(PHYS_PFN(ICE_ADI_BAR0_SIZE) - 1):
+		/* INT DYN CTL, ITR0/1/2 */
+		q_idx = vm_pgoff - PHYS_PFN(VDEV_INT_DYN_CTL(0));
+		if (q_idx >= vsi->num_q_vectors)
+			return -EINVAL;
+		reg_off = PF0INT_DYN_CTL(vsi->q_vectors[q_idx]->reg_idx);
+		break;
+	default:
+		return -EFAULT;
+	}
+
+	/* add BAR0 start address */
+	*addr = pci_resource_start(pdev, 0) + reg_off;
+	return 0;
+}
+
+enum ice_adi_sparse_mmap_type {
+	ICE_ADI_SPARSE_MBX = 0,
+	ICE_ADI_SPARSE_RXQ,
+	ICE_ADI_SPARSE_TXQ,
+	ICE_ADI_SPARSE_DYN_CTL01,
+	ICE_ADI_SPARSE_DYN_CTL,
+	ICE_ADI_SPARSE_MAX,
+};
+
+struct ice_adi_sparse_mmap_pattern {
+	u64 start;
+	u64 end;
+	u64 cnt;
+	u64 phy_addr;
+};
+
+struct ice_adi_sparse_mmap_info {
+	struct ice_adi_sparse_mmap_pattern patterns[ICE_ADI_SPARSE_MAX];
+};
+
+/**
+ * ice_adi_get_sparse_patterns - Get sparse patterns information
+ * @adi: pointer to assignable device interface
+ * @info: storage for pattern info
+ *
+ * On return the pattern array in info will contain the sparse pattern
+ * information.
+ *
+ * Return: the (positive) number of sparse memory areas defined by the pattern
+ *         array, or -EFAULT if unable to determine the associated VSI
+ *         structure.
+ */
+static int
+ice_adi_get_sparse_patterns(struct adi_aux_dev *adi,
+			    struct ice_adi_sparse_mmap_info *info)
+{
+	struct ice_adi_sparse_mmap_pattern *pattern;
+	struct ice_scalable_dev *priv;
+	struct ice_vsi *vsi;
+	struct ice_vf *vf;
+	int i, nr_areas;
+
+	priv = adi_to_priv(adi);
+	vf = &priv->vf;
+	vsi = ice_get_vf_vsi(vf);
+	if (!vsi)
+		return -EFAULT;
+
+	pattern = &info->patterns[ICE_ADI_SPARSE_MBX];
+	pattern->start = 0;
+	pattern->cnt = 1;
+	pattern->end = pattern->start + pattern->cnt;
+	pattern->phy_addr = VDEV_MBX_START;
+
+	pattern = &info->patterns[ICE_ADI_SPARSE_RXQ];
+	pattern->start = pattern[i - 1].end;
+	pattern->cnt = vsi->alloc_rxq;
+	pattern->end = pattern->start + pattern->cnt;
+	pattern->phy_addr = VDEV_QRX_TAIL_START;
+
+	pattern = &info->patterns[ICE_ADI_SPARSE_TXQ];
+	pattern->start = pattern[i - 1].end;
+	pattern->cnt = vsi->alloc_txq;
+	pattern->end = pattern->start + pattern->cnt;
+	pattern->phy_addr = VDEV_QTX_TAIL_START;
+
+	pattern = &info->patterns[ICE_ADI_SPARSE_DYN_CTL01];
+	pattern->start = pattern[i - 1].end;
+	pattern->cnt = 1;
+	pattern->end = pattern->start + pattern->cnt;
+	pattern->phy_addr = VDEV_INT_DYN_CTL01;
+
+	pattern = &info->patterns[ICE_ADI_SPARSE_DYN_CTL];
+	pattern->start = pattern[i - 1].end;
+	pattern->cnt = vsi->num_q_vectors;
+	pattern->end = pattern->start + pattern->cnt;
+	pattern->phy_addr = VDEV_INT_DYN_CTL(0);
+
+	for (nr_areas = 0, i = 0; i < ARRAY_SIZE(info->patterns); i++)
+		nr_areas += info->patterns[i].cnt;
+
+	return nr_areas;
+}
+
+/**
+ * ice_adi_get_sparse_mmap_num - get number of sparse memory
+ * @adi: pointer to assignable device interface
+ *
+ * Return: the (positive) number of sparse memory areas, or -EFAULT if unable
+ *         to determine the associated VSI structure.
+ */
+static int
+ice_adi_get_sparse_mmap_num(struct adi_aux_dev *adi)
+{
+	struct ice_adi_sparse_mmap_info info = {};
+
+	return ice_adi_get_sparse_patterns(adi, &info);
+}
+
+/**
+ * ice_adi_get_sparse_mmap_area - get sparse memory layout for mmap
+ * @adi: pointer to assignable device interface
+ * @index: index of sparse memory
+ * @offset: pointer to sparse memory areas offset
+ * @size: pointer to sparse memory areas size
+ *
+ * Return: zero on success, -EINVAL if the index offset or size are invalid,
+ *         -EFAULT if unable to determine the VSI for this ADI.
+ */
+static int
+ice_adi_get_sparse_mmap_area(struct adi_aux_dev *adi, int index, u64 *offset,
+			     u64 *size)
+{
+	struct ice_adi_sparse_mmap_pattern *pattern;
+	struct ice_adi_sparse_mmap_info info = {};
+	int nr_areas = 0;
+	u64 ai;
+	int i;
+
+	nr_areas = ice_adi_get_sparse_patterns(adi, &info);
+	if (nr_areas < 0)
+		return nr_areas;
+
+	if (index < 0 || index >= nr_areas)
+		return -EINVAL;
+
+	ai = (u64)index;
+
+	for (i = 0; i < ARRAY_SIZE(info.patterns); i++) {
+		pattern = &info.patterns[i];
+		if (ai >= pattern->start && ai < pattern->end) {
+			*offset = pattern->phy_addr +
+					PAGE_SIZE * (ai - pattern->start);
+			*size   = PAGE_SIZE;
+			break;
+		}
+	}
+
+	return (i == ARRAY_SIZE(info.patterns)) ? -EINVAL : 0;
+}
+
+static const struct adi_dev_ops ice_adi_ops = {
+	.init_drv_ops = ice_adi_init_drv_ops,
+	.get_vector_num = ice_adi_get_vector_num,
+	.get_vector_irq = ice_adi_get_vector_irq,
+	.reset = ice_adi_reset,
+	.cfg_pasid = ice_adi_cfg_pasid,
+	.close = ice_adi_close,
+	.read_reg32 = ice_adi_read_reg32,
+	.write_reg32 = ice_adi_write_reg32,
+	.get_sparse_mmap_hpa = ice_adi_get_sparse_mmap_hpa,
+	.get_sparse_mmap_num = ice_adi_get_sparse_mmap_num,
+	.get_sparse_mmap_area = ice_adi_get_sparse_mmap_area,
 };
 
 /* ADI setup functions */
@@ -701,6 +1302,9 @@ ice_scalable_dev_activate(struct ice_dynamic_port *dyn_port,
 		goto err_free_adi;
 	}
 
+	priv->adi.ops = &ice_adi_ops;
+	priv->adi.cfg_lock = &priv->vf.cfg_lock;
+
 	adev = &priv->adi.adev;
 
 	adev->id = id;
@@ -714,9 +1318,23 @@ ice_scalable_dev_activate(struct ice_dynamic_port *dyn_port,
 		goto err_erase_id;
 	}
 
+	err = auxiliary_device_add(adev);
+	if (err) {
+		NL_SET_ERR_MSG_MOD(extack, "Failed to probe auxiliary device");
+		goto err_auxiliary_uninit;
+	}
+
 	dyn_port->scalable_dev = priv;
 
 	return 0;
+
+err_auxiliary_uninit:
+	/* This will call ice_scalable_dev_release and take care of tearing
+	 * down and releasing the ADI
+	 */
+	auxiliary_device_uninit(adev);
+
+	return err;
 
 err_erase_id:
 	xa_erase(&ice_adi_aux_ids, id);
@@ -740,8 +1358,10 @@ void ice_scalable_dev_deactivate(struct ice_dynamic_port *dyn_port)
 {
 	struct ice_scalable_dev *priv = dyn_port->scalable_dev;
 
-	if (priv)
+	if (priv) {
+		auxiliary_device_delete(&priv->adi.adev);
 		auxiliary_device_uninit(&priv->adi.adev);
+	}
 
 	dyn_port->scalable_dev = NULL;
 }

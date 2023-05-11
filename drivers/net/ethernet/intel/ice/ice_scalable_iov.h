@@ -9,6 +9,7 @@
 #include <linux/vfio.h>
 
 #define ICE_DFLT_QS_PER_SIOV_VF		4
+#define ICE_ADI_BAR0_SIZE		SZ_64M
 
 int
 ice_scalable_dev_activate(struct ice_dynamic_port *dyn_port,
