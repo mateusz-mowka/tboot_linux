@@ -679,6 +679,12 @@ ice_alloc_dynamic_port(struct ice_pf *pf,
 			return err;
 	}
 
+	if (new_attr->flavour == DEVLINK_PORT_FLAVOUR_VFIO) {
+		err = ice_init_siov_resources(pf, extack);
+		if (err)
+			return err;
+	}
+
 	dyn_port = kzalloc(sizeof(*dyn_port), GFP_KERNEL);
 	if (!dyn_port) {
 		err = -ENOMEM;
