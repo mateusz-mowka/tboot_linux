@@ -21,6 +21,8 @@
 #include <vdso/time64.h>
 #include "doe.h"
 
+extern bool verify_staged_rev;
+
 /* DOE registers' offsets */
 #define DOE_REG_CTRL		0x00
 #define DOE_REG_STATUS		0x04
@@ -692,7 +694,11 @@ static int uc_doe_check_staged_ucode(struct uc_doe_mbox *mbox)
 		return rc;
 	}
 
-	if (!rsp.flags.completed) {
+	/*
+	 * TODO: Remove `verify_staged_rev` and add appropriate checks after ucode fixes DWs for
+	 * GET_STAGED_PATCH_ID command.
+	 */
+	if (!rsp.flags.completed && verify_staged_rev) {
 		pr_err("Invalid staged ucode status\n");
 		return -EIO;
 	}

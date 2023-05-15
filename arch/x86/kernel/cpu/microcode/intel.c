@@ -47,6 +47,7 @@
 
 static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 static bool ucode_staging = true;
+bool verify_staged_rev = true;
 extern struct dentry *dentry_ucode;
 int post_bios_mcu_rev;
 
@@ -521,6 +522,8 @@ static void setup_mcu_enumeration(void)
 			dentry_ucode = debugfs_create_dir("microcode", NULL);
 
 		debugfs_create_bool("ucode_staging", 0644, dentry_ucode, &ucode_staging);
+		debugfs_create_bool("verify_staged_revid", 0644, dentry_ucode,
+		                     &verify_staged_rev);
 	}
 
 	status.data = 0;
