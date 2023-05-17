@@ -765,27 +765,39 @@ static u32 ice_adi_read_reg32(struct adi_aux_dev *adi, size_t offs)
 	case VF_MBX_ARQT1:
 		return rd32(hw, VSI_MBX_ARQT(vsi->vsi_num));
 	case VFINT_DYN_CTL0:
-		if (WARN_ON_ONCE(priv->non_q_vector.index < 0))
-			return 0xdeadbeef;
+		if (priv->non_q_vector.index < 0)
+			goto err_resource;
 		return rd32(hw, GLINT_DYN_CTL(priv->non_q_vector.index));
 	case VFINT_ITR0(0):
 	case VFINT_ITR0(1):
 	case VFINT_ITR0(2):
-		if (WARN_ON_ONCE(priv->non_q_vector.index < 0))
-			return 0xdeadbeef;
+		if (priv->non_q_vector.index < 0)
+			goto err_resource;
 		index = (offs - VFINT_ITR0(0)) / 4;
 		return rd32(hw, GLINT_ITR(index, priv->non_q_vector.index));
 	case VFINT_DYN_CTLN(0) ... VFINT_DYN_CTLN(63):
 		index = (offs - VFINT_DYN_CTLN(0)) / 4;
-		if (index >= vsi->num_q_vectors || !vsi->q_vectors[index]) {
-			dev_warn_once(ice_pf_to_dev(pf), "Invalid vector pointer for VSI %d\n",
-				      vsi->vsi_num);
-			return 0xdeadbeef;
-		}
+		if (index >= vsi->num_q_vectors || !vsi->q_vectors[index])
+			goto err_resource;
 		return rd32(hw, GLINT_DYN_CTL(vsi->q_vectors[index]->reg_idx));
+	case QTX_TAIL(0) ... QTX_TAIL(255):
+		index = (offs - QTX_TAIL(0)) / 4;
+		if (!vsi->txq_map || index >= vsi->alloc_txq)
+			goto err_resource;
+		return rd32(hw, QTX_COMM_DBELL_PAGE(vsi->txq_map[index]));
+	case QRX_TAIL1(0) ... QRX_TAIL1(255):
+		index = (offs - QRX_TAIL1(0)) / 4;
+		if (!vsi->rxq_map || index >= vsi->alloc_rxq)
+			goto err_resource;
+		return rd32(hw, QRX_TAIL_PAGE(vsi->rxq_map[index]));
 	default:
 		return 0xdeadbeef;
 	}
+
+err_resource:
+	dev_warn_once(ice_pf_to_dev(pf), "Invalid read access for VF VSI %d at offs 0x%lx\n",
+		      vsi->vsi_num, offs);
+	return 0xdeadbeef;
 }
 
 /**
@@ -886,8 +898,8 @@ ice_adi_write_reg32(struct adi_aux_dev *adi, size_t offs, u32 data)
 	return;
 
 err_resource:
-	dev_warn_once(ice_pf_to_dev(pf), "Invalid resource access for VF VSI %d\n",
-		      vsi->vsi_num);
+	dev_warn_once(ice_pf_to_dev(pf), "Invalid write access for VF VSI %d at offs 0x%lx\n",
+		      vsi->vsi_num, offs);
 }
 
 /**
