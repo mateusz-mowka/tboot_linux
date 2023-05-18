@@ -1,6 +1,10 @@
 INTEL CONFIDENTIAL. FOR INTERNAL USE ONLY.
 ------------------------------------------------------------------------
 
+srf-bkc-v1.7
+============
+1. Enable Realtek RTL8152/8153 USB ethernet adapter driver
+
 SRF PO bkc-v1.6
 ===============
 1. Add ACPI PRM feature support.
