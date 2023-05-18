@@ -80,6 +80,8 @@ enum reload_type {
 	RELOAD_COMMIT,
 	RELOAD_NO_COMMIT,
 	RELOAD_ROLLBACK,
+	RELOAD_STAGE,
+	RELOAD_STAGE_NC,
 };
 
 struct microcode_ops {
@@ -93,6 +95,8 @@ struct microcode_ops {
 	void (*microcode_fini_cpu) (int cpu);
 	void (*post_apply)(enum reload_type type, bool success);
 	int (*rollback)(void);
+	enum ucode_state (*perform_staging)(void);
+	bool (*is_staging_enabled)(void);
 
 	/*
 	 * The generic 'microcode_core' part guarantees that

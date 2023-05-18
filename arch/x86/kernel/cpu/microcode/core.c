@@ -52,6 +52,7 @@ struct dentry *dentry_ucode;
 static bool dis_ucode_ldr = true;
 bool override_minrev;
 bool ucode_load_same;
+bool ucode_staged = false;
 
 bool initrd_gone;
 
@@ -688,8 +689,11 @@ static ssize_t reload_store_common(struct device *dev,
 	bool safe_late_load = false;
 	ssize_t ret;
 
-	if (type != RELOAD_COMMIT && type != RELOAD_NO_COMMIT)
+	if (type == RELOAD_SAME || type == RELOAD_ROLLBACK)
 		return -EINVAL;
+
+	if (ucode_staged && (type != RELOAD_STAGE && type != RELOAD_STAGE_NC))
+		goto skip_fs_read;
 
 	tmp_ret = microcode_ops->request_microcode_fw(bsp, &microcode_pdev->dev, type);
 	if (tmp_ret != UCODE_NEW) {
@@ -702,6 +706,7 @@ static ssize_t reload_store_common(struct device *dev,
 		pr_info("Force loading ucode\n");
 	}
 
+skip_fs_read:
 	load_scope = get_load_scope();
 	if (load_scope == NO_LATE_UPDATE) {
 		pr_err_once("Platform doesn't support late loading\n");
@@ -733,6 +738,20 @@ static ssize_t reload_store_common(struct device *dev,
 
 	mutex_lock(&microcode_mutex);
 
+	if ((type == RELOAD_STAGE || type == RELOAD_STAGE_NC) && microcode_ops->perform_staging &&
+	     microcode_ops->is_staging_enabled()) {
+		if (type == RELOAD_STAGE)
+			pr_info("%s: staging the RELOAD microcode..\n", __func__);
+		else
+			pr_info("%s: staging the RELOAD_NO_COMMIT microcode..\n", __func__);
+
+		ret = microcode_ops->perform_staging();
+		if (ret == UCODE_OK)
+			ucode_staged = true;
+
+		goto skip_ucode_apply;
+	}
+
 	if (microcode_ops->prepare_to_apply)
 		ret = microcode_ops->prepare_to_apply(type);
 
@@ -742,6 +761,7 @@ static ssize_t reload_store_common(struct device *dev,
 	if (microcode_ops->post_apply)
 		microcode_ops->post_apply(type, !ret);
 
+skip_ucode_apply:
 	mutex_unlock(&microcode_mutex);
 
 	if (ret == 0) {
@@ -757,6 +777,41 @@ unlock:
 
 	return ret;
 }
+
+static ssize_t stage_store(struct device *dev,
+			   struct device_attribute *attr,
+			   const char *buf, size_t size)
+{
+	unsigned long val;
+	ssize_t ret = 0;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val != 1)
+		return size;
+
+	return reload_store_common(dev, attr, buf, size, RELOAD_STAGE);
+}
+
+static ssize_t stage_nc_store(struct device *dev,
+			   struct device_attribute *attr,
+			   const char *buf, size_t size)
+{
+	unsigned long val;
+	ssize_t ret = 0;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val != 1)
+		return size;
+
+	return reload_store_common(dev, attr, buf, size, RELOAD_STAGE_NC);
+}
+
 
 static ssize_t reload_nc_store(struct device *dev,
 			    struct device_attribute *attr,
@@ -898,6 +953,8 @@ unlock:
 }
 
 static DEVICE_ATTR_WO(reload);
+static DEVICE_ATTR_WO(stage);
+static DEVICE_ATTR_WO(stage_nc);
 static DEVICE_ATTR_WO(reload_nc);
 static DEVICE_ATTR_RW(commit);
 static DEVICE_ATTR_WO(rollback);
@@ -1053,6 +1110,8 @@ static struct attribute *cpu_root_microcode_attrs[] = {
 
 static struct attribute *cpu_root_mc_rollback_attrs[] = {
 #ifdef CONFIG_MICROCODE_LATE_LOADING
+	&dev_attr_stage.attr,
+	&dev_attr_stage_nc.attr,
 	&dev_attr_reload_nc.attr,
 	&dev_attr_commit.attr,
 	&dev_attr_rollback.attr,

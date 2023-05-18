@@ -49,6 +49,7 @@ static const char ucode_path[] = "kernel/x86/microcode/GenuineIntel.bin";
 static bool ucode_staging = true;
 bool verify_staged_rev = true;
 extern struct dentry *dentry_ucode;
+extern bool ucode_staged;
 int post_bios_mcu_rev;
 
 /* Current microcode patch used in early patching on the APs. */
@@ -652,6 +653,10 @@ static int is_lateload_safe(struct microcode_header_intel *mc_header)
 		return -EINVAL;
 	}
 	return 0;
+}
+
+static bool is_staging_enabled(void) {
+	return ucode_staging;
 }
 
 static bool is_ucode_listed(struct ucode_meta *umeta)
@@ -1392,8 +1397,8 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter, e
 	 */
 	// save_mc_for_early(uci, new_mc, new_mc_size);
 
-	pr_debug("CPU%d found a matching microcode update with version 0x%x (current=0x%x)\n",
-		 cpu, new_rev, uci->cpu_sig.rev);
+	pr_debug("%s: CPU%d found a matching microcode update with version 0x%x (current=0x%x)\n",
+		 __func__, cpu, new_rev, uci->cpu_sig.rev);
 
 	return ret;
 }
@@ -1412,6 +1417,9 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 			if(apply_state) {
 				kfree(intel_ucode.ucode);
 				intel_ucode = unapplied_ucode;
+				// On successful apply, cleared the staged ucode
+				if (ucode_staged)
+					ucode_staged = false;
 				free_ucode_store(&rollback_ucode);
 				clear_ucode_store(&unapplied_ucode);
 			}
@@ -1431,6 +1439,9 @@ static void post_apply_intel(enum reload_type type, bool apply_state)
 				intel_ucode = unapplied_ucode;
 				pr_debug("OSPL: reload_nc: Unapplied ucode revision is \n");
 				show_saved_mc(unapplied_ucode.ucode);
+				// On successful apply, cleared the staged ucode
+				if (ucode_staged)
+					ucode_staged = false;
 				clear_ucode_store(&unapplied_ucode);
 			}
 			break;
@@ -1661,6 +1672,10 @@ static int prepare_to_apply_intel(enum reload_type type)
 
 	pr_debug("OSPL: %s:%d\n", __FILE__,__LINE__);
 
+	// If ucode is already staged, simply return
+	if (ucode_staged)
+		return 0;
+
 	ret = perform_staging();
 	if (ret == UCODE_ERROR ||
 	    (ret == UCODE_NFOUND && !ucode_load_same)) {
@@ -1694,7 +1709,7 @@ reget:
 	sprintf(name, "intel-ucode/%02x-%02x-%02x",
 		c->x86, c->x86_model, c->x86_stepping);
 
-	if (type == RELOAD_NO_COMMIT) {
+	if (type == RELOAD_NO_COMMIT || type == RELOAD_STAGE_NC) {
 		/*
 		 * If we don't have a current ucode try to fetch it
 		 */
@@ -1809,6 +1824,8 @@ static struct microcode_ops microcode_intel_ops = {
 	.prepare_to_apply		  = prepare_to_apply_intel,
 	.apply_microcode                  = apply_microcode_intel,
 	.post_apply			  = post_apply_intel,
+	.perform_staging		  = perform_staging,
+	.is_staging_enabled		  = is_staging_enabled,
 	.microcode_fini_cpu               = microcode_fini_cpu_intel,
 };
 
