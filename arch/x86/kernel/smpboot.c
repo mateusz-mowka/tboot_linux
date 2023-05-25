@@ -1843,6 +1843,13 @@ static inline void mwait_play_dead(void)
 
 			while(1)
 				native_halt();
+
+		case CPUDEAD_MWAIT_LOOP_UCODE:
+			smp_store_release(&ti->syscall_work, ti->flags);
+
+			while (READ_ONCE(ti->flags) == CPUDEAD_MWAIT_LOOP_UCODE);
+			break;
+
 		default:
 			/* Don't fall through. If its something different,
 			 * a cpu_up is in process of changing this before

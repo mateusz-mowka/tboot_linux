@@ -642,6 +642,7 @@ static int microcode_reload_late(enum reload_type type)
 {
 	int old = boot_cpu_data.microcode, ret;
 	struct cpuinfo_x86 prev_info;
+	bool all_cpus_online;
 
 	ret = prepare_for_update();
 
@@ -654,9 +655,21 @@ static int microcode_reload_late(enum reload_type type)
 	 */
 	store_cpu_caps(&prev_info);
 
+	/*
+	 * Check if any CPUs are offline
+	 */
+	all_cpus_online = cpumask_equal(cpu_present_mask, cpu_online_mask);
+
+	if (!all_cpus_online)
+		smp_kick_mwait_play_dead(CPUDEAD_MWAIT_LOOP_UCODE);
+
 	atomic_set(&ucode_updating, 1);
 	ret = do_load_microcode(type);
 	atomic_set(&ucode_updating, 0);
+
+	if (!all_cpus_online)
+		smp_kick_mwait_play_dead(CPUDEAD_MWAIT_WAIT);
+
 
 	if (atomic_read(&mce_in_progress))
 		pr_warn("MCE occured while microcode update was in progress\n");
