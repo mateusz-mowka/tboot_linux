@@ -683,7 +683,7 @@ static bool check_update_reqs(struct microcode_header_intel *mch)
 	union	svn_commit commit;
 
 	if (!mcu_cap.rollback)
-		return false;
+		return true;
 
 	if (mch->rev < post_bios_mcu_rev) {
 		pr_err("Revision 0x%x less than 0x%x (Post BIOS rev)\n",
