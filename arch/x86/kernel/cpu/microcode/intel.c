@@ -1735,49 +1735,49 @@ reget:
 				RELOAD_SAME : type;
 
 	ret = generic_load_microcode(cpu, &iter, tmp_type);
-
-	/*
-	 * fetch_orig is a hack since we haven't done a load. Ideally must
-	 * be in the initrd
-	 */
-	if (!fetch_orig && ret == UCODE_NEW && type == RELOAD_NO_COMMIT) {
-		nocommit = can_do_nocommit((struct microcode_header_intel *)unapplied_ucode.ucode);
-		nocommit = true; // hack since metadata is messed up now
-		if (!nocommit) {
-			ret = UCODE_ERROR;
-			free_ucode_store(&unapplied_ucode);
-		}
-	} else if (!fetch_orig && ret == UCODE_NEW && type == RELOAD_COMMIT) {
-		if (!check_update_reqs((struct microcode_header_intel *)unapplied_ucode.ucode)) {
-			ret = UCODE_ERROR;
-			free_ucode_store(&unapplied_ucode);
-		}
-	}
-
 	release_firmware(firmware);
 
-	pr_debug("type = 0x%x fetch_orig = 0x%x ret = 0x%x\n",
-		type, fetch_orig, ret);
+	if (ret == UCODE_ERROR || ret == UCODE_NFOUND) {
+		pr_info("Can't find currently loaded microcode, please copy rev 0x%x and retry\n",
+			c->microcode);
+		return ret;
+	}
 
+	/*
+	* fetch_orig is a hack since we haven't done a load. Ideally must
+	* be in the initrd
+	*/
 	if (fetch_orig) {
-		if (unapplied_ucode.ucode) {
-			if (unapplied_ucode.ucode->hdr.rev == c->microcode) {
-				intel_ucode = unapplied_ucode;
-				clear_ucode_store(&unapplied_ucode);
-			} else {
-				free_ucode_store(&unapplied_ucode);
-				pr_info("Orig ucode not found\n");
-				return UCODE_NFOUND;
-			}
+		if (unapplied_ucode.ucode->hdr.rev == c->microcode) {
+			intel_ucode = unapplied_ucode;
+			clear_ucode_store(&unapplied_ucode);
 		} else {
-			pr_info("Can't find currently loaded microcode, please copy rev 0x%x and retry\n",
-				c->microcode);
+			pr_info("Orig ucode not found\n");
+			free_ucode_store(&unapplied_ucode);
 			return UCODE_NFOUND;
 		}
 
 		fetch_orig = false;
 		pr_debug ("Trying to fetch new no commit uCode now\n");
 		goto reget;
+	}
+
+	if (ret == UCODE_NEW) {
+		if (type == RELOAD_NO_COMMIT) {
+			nocommit = can_do_nocommit(
+				   (struct microcode_header_intel *)unapplied_ucode.ucode);
+			nocommit = true; // hack since metadata is messed up now
+			if (!nocommit) {
+				free_ucode_store(&unapplied_ucode);
+				return UCODE_ERROR;
+			}
+		} else if (type == RELOAD_COMMIT) {
+			if (!check_update_reqs(
+			    (struct microcode_header_intel *)unapplied_ucode.ucode)) {
+				free_ucode_store(&unapplied_ucode);
+				return UCODE_ERROR;
+			}
+		}
 	}
 
 	return ret;
