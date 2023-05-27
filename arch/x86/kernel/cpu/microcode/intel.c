@@ -677,25 +677,13 @@ static bool is_ucode_listed(struct ucode_meta *umeta)
 	return false;
 }
 
-static bool check_update_reqs(struct microcode_header_intel *mch)
+static bool check_update_reqs(struct microcode_header_intel *mch, struct ucode_meta *rb_meta)
 {
-	struct ucode_meta *rb_meta;
-
-	if (!mcu_cap.rollback)
-		return true;
-
 	if (mch->rev < post_bios_mcu_rev) {
 		pr_err("Revision 0x%x less than 0x%x (Post BIOS rev)\n",
 			mch->rev, post_bios_mcu_rev);
 		return false;
 	}
-
-	rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(mch, META_TYPE_ROLLBACK);
-	if (!rb_meta)
-		return false;
-
-	if (!is_ucode_listed(rb_meta))
-		return false;
 
 	if (rb_meta->svn_info.rb_mcu_svn < bsp_rb_info.svn_info.cpu_svn) {
 		pr_err("MCU SVN 0x%x less than CPU SVN 0x%x, can't update\n",
@@ -703,19 +691,22 @@ static bool check_update_reqs(struct microcode_header_intel *mch)
 		return false;
 	}
 
-	if (rb_meta->svn_info.rb_mcu_svn > bsp_rb_info.svn_info.pending_svn) {
-		pr_err("Can't load MCU_SVN 0x%x with pending commit SVN 0x%x\n",
-			rb_meta->svn_info.rb_mcu_svn, bsp_rb_info.svn_info.pending_svn);
-		return false;
-	}
-
 	return true;
 }
 
-static bool can_do_nocommit(struct microcode_header_intel *mch)
+static bool can_do_nocommit(struct microcode_header_intel *mch, struct ucode_meta *rb_meta)
 {
-	if (!check_update_reqs(mch))
+	if (!check_update_reqs(mch, rb_meta))
 		return false;
+
+	if (!is_ucode_listed(rb_meta))
+		return false;
+
+	if (rb_meta->svn_info.rb_min_svn > bsp_rb_info.svn_info.cpu_svn) {
+		pr_err("MCU MIN SVN 0x%x greater than CPU SVN 0x%x, can't update\n",
+			rb_meta->svn_info.rb_min_svn, bsp_rb_info.svn_info.cpu_svn);
+		return false;
+	}
 
 	if (rollback_ucode.ucode) {
 		pr_info("Uncommitted microcode, commit before continuing\n");
@@ -1691,6 +1682,7 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 	enum ucode_state ret;
 	struct kvec kvec;
 	char name[30];
+	struct ucode_meta *rb_meta;
 
 	if (is_blacklisted(cpu))
 		return UCODE_NFOUND;
@@ -1730,12 +1722,13 @@ reget:
 				RELOAD_SAME : type;
 
 	ret = generic_load_microcode(cpu, &iter, tmp_type);
-	release_firmware(firmware);
-
 	if (ret == UCODE_ERROR || ret == UCODE_NFOUND) {
-		pr_info("Can't find currently loaded microcode, please copy rev 0x%x and retry\n",
-			c->microcode);
-		return ret;
+		if (ret == UCODE_ERROR)
+			pr_info("Error loading microcode from the filesystem!\n");
+
+		if (ret == UCODE_NFOUND)
+			pr_info("No new microcode found from the filesystem path!\n");
+		goto out;
 	}
 
 	/*
@@ -1748,8 +1741,8 @@ reget:
 			clear_ucode_store(&unapplied_ucode);
 		} else {
 			pr_info("Orig ucode not found\n");
-			free_ucode_store(&unapplied_ucode);
-			return UCODE_NFOUND;
+			ret = UCODE_NFOUND;
+			goto out;
 		}
 
 		fetch_orig = false;
@@ -1757,24 +1750,36 @@ reget:
 		goto reget;
 	}
 
-	if (ret == UCODE_NEW) {
+	if (ret == UCODE_NEW && mcu_cap.rollback) {
+		rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(
+				(void*)unapplied_ucode.ucode, META_TYPE_ROLLBACK);
+		if (!rb_meta) {
+			ret = UCODE_ERROR;
+			goto out;
+
+		}
+
 		if (type == RELOAD_NO_COMMIT) {
 			nocommit = can_do_nocommit(
-				   (struct microcode_header_intel *)unapplied_ucode.ucode);
+				   (struct microcode_header_intel *)unapplied_ucode.ucode, rb_meta);
 			nocommit = true; // hack since metadata is messed up now
 			if (!nocommit) {
-				free_ucode_store(&unapplied_ucode);
-				return UCODE_ERROR;
+				ret = UCODE_ERROR;
+				goto out;
 			}
 		} else if (type == RELOAD_COMMIT) {
 			if (!check_update_reqs(
-			    (struct microcode_header_intel *)unapplied_ucode.ucode)) {
-				free_ucode_store(&unapplied_ucode);
-				return UCODE_ERROR;
+			    (struct microcode_header_intel *)unapplied_ucode.ucode, rb_meta)) {
+				ret = UCODE_ERROR;
+				goto out;
 			}
 		}
 	}
 
+out:
+	release_firmware(firmware);
+	if (ret == UCODE_ERROR)
+		free_ucode_store(&unapplied_ucode);
 	return ret;
 }
 
