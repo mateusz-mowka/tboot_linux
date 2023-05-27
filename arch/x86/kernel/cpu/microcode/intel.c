@@ -680,7 +680,6 @@ static bool is_ucode_listed(struct ucode_meta *umeta)
 static bool check_update_reqs(struct microcode_header_intel *mch)
 {
 	struct ucode_meta *rb_meta;
-	union	svn_commit commit;
 
 	if (!mcu_cap.rollback)
 		return true;
@@ -703,10 +702,6 @@ static bool check_update_reqs(struct microcode_header_intel *mch)
 				rb_meta->svn_info.rb_mcu_svn, bsp_rb_info.svn_info.cpu_svn);
 		return false;
 	}
-
-	rdmsrl(MSR_MCU_COMMIT, commit.data);
-	if (!commit.commit_svn)
-		return true;
 
 	if (rb_meta->svn_info.rb_mcu_svn > bsp_rb_info.svn_info.pending_svn) {
 		pr_err("Can't load MCU_SVN 0x%x with pending commit SVN 0x%x\n",
@@ -1700,7 +1695,7 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device, enu
 	if (is_blacklisted(cpu))
 		return UCODE_NFOUND;
 
-	if (type == RELOAD_NO_COMMIT && check_pending()) {
+	if (check_pending()) {
 		pr_err("Pending commit, Please commit before proceeding\n");
 		return UCODE_ERROR;
 	}
