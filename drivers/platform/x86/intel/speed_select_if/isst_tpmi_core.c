@@ -2046,8 +2046,10 @@ int tpmi_sst_init(void)
 	cb.cmd_callback = isst_if_mmio_rd_wr;
 	cb.owner = THIS_MODULE;
 	ret = isst_if_cdev_register(ISST_IF_DEV_MMIO, &cb);
-	if (!ret)
+	if (!ret) {
+		++isst_core_usage_count;
 		goto init_done;
+	}
 
 	isst_if_cdev_unregister(ISST_IF_DEV_MBOX);
 err_mbox:
