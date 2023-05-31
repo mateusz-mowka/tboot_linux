@@ -5093,8 +5093,12 @@ EXPORT_SYMBOL_GPL(kvm_mmu_map_private_page);
 int kvm_prealloc_private_pages(struct kvm *kvm, bool nonleaf)
 {
 	struct kvm_memory_slot *memslot;
-	struct kvm_memslots *slots = kvm_memslots(kvm);
-	int bkt, ret = 0;
+	struct kvm_memslots *slots;
+	int bkt, idx, ret = 0;
+
+	idx = srcu_read_lock(&kvm->srcu);
+	slots = kvm_memslots(kvm);
+	srcu_read_unlock(&kvm->srcu, idx);
 
 	kvm_for_each_memslot(memslot, bkt, slots) {
 		if (!memslot->restricted_file)
