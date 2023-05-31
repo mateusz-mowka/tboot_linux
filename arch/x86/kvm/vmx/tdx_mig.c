@@ -1192,7 +1192,6 @@ static int tdx_mig_export_state_vp(struct kvm_tdx *kvm_tdx,
 	vcpu = kvm_get_vcpu(kvm, mig_state->vcpu_export_next_idx);
 	vcpu_tdx = to_tdx(vcpu);
 	tdx_flush_vp_on_cpu(vcpu);
-	cpu = get_cpu();
 
 	stream_info.index = stream->idx;
 	do {
@@ -1213,6 +1212,8 @@ static int tdx_mig_export_state_vp(struct kvm_tdx *kvm_tdx,
 		pr_err("%s: failed, err=%llx\n", __func__, err);
 		return -EIO;
 	}
+
+	cpu = get_cpu();
 	tdx_add_vcpu_association(vcpu_tdx, cpu);
 	vcpu->cpu = cpu;
 	put_cpu();
