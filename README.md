@@ -1,8 +1,10 @@
 Purpose
 =======
-Provide Best Known Configuration (BKC) kernel for GNR customers.
+Provide Best Known Configuration (BKC) kernel for SRF customers.
 
-The BKC kernel is based on v6.2 kernel + EMR 6.2 kernel.
+The BKC kernel is based on v6.2 kernel + GNR 6.2 kernel.
+
+Where the GNR kernel is based on v6.2 kernel + EMR 6.2 kernel.
 
 WARNING this kernel contains technology preview code that is
 subject to change once it goes upstream. This kernel is
@@ -13,6 +15,90 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v2.12
+-----------------
+44. cleaned up the README.md
+
+srf-bkc-6.2-v2.11
+-----------------
+44. Linear Address Masking support enabled in the kernel config
+    CONFIG_ADDRESS_MASKING=y
+
+srf-bkc-6.2-v2.10
+-----------------
+43. srf-bkc: add srf.config
+    added the srf.config file to arch/x86/configs
+
+srf-bkc-6.2-v2.9
+-----------------
+42. srf-bkc: Backport fixes from GNR BKC kernel
+    dmaengine: idxd: Fix multiple submitters issue
+    Source:
+    https://github.com/intel-sandbox/os.linux.sierraforest.poweron/tree/bkc-v1.6
+
+
+srf-bkc-6.2-v2.8
+-----------------
+41. srf-bkc: Enable softlokup debug option and C1 state fix
+    Force enable C1 state
+    Enable BOOTPARAM_SOFTLOCKUP_PANIC debug option
+    Source:
+    https://github.com/intel-sandbox/os.linux.sierraforest.poweron/tree/bkc-v1.6
+
+
+srf-bkc-6.2-v2.7
+-----------------
+40. srf-bkc: Fixes for PMU, ACPI and KVM features
+    Enable ACPI debugger support
+    Remove ZBBed PMU feature (RDPMC_USER_DISABLE)
+    Fixed nested VM issue
+    Source:
+    https://github.com/intel-sandbox/os.linux.sierraforest.poweron/tree/bkc-v1.6
+
+srf-bkc-6.2-v2.6
+-----------------
+39. srf-bkc: Fixes for PMU LBR event logging
+    Update PMU LBR event logging format
+    Source:
+    https://github.com/intel-sandbox/os.linux.sierraforest.poweron/tree/bkc-v1.6
+
+srf-bkc-6.2-v2.5
+-----------------
+38. srf-bkc: Fix LASS vsyscall issue
+    Fix LASS vsyscall issue
+    Source:
+    https://github.com/intel-sandbox/os.linux.sierraforest.poweron/tree/bkc-v1.6
+
+srf-bkc-6.2-v2.4
+-----------------
+37. srf-bkc: Enable IBT and Intel idle support
+    Enable CONFIG_X86_KERNEL_IBT config
+    Add Intel IDLE support for SRF platform
+    Source:
+    https://github.com/intel-sandbox/os.linux.sierraforest.poweron/tree/bkc-v1.6
+
+srf-bkc-6.2-v2.3
+-----------------
+36. srf-bkc: Add in-field driver support for SRF platform
+    * Add in-field driver support for SRF platform
+    Source:
+    https://github.com/intel-sandbox/os.linux.sierraforest.poweron/tree/bkc-v1.6
+
+srf-bkc-6.2-v2.2
+-----------------
+35. srf-bkc:Bug fixes related to MSRLIST and LBR
+    * Add KVM MSRLIST CPUID enabling support
+    * Fix active group check for LBR log event
+    * Fix load and snoop events issue 
+    Sources:
+    https://github.com/intel-sandbox/os.linux.sierraforest.poweron/tree/bkc-v1.6
+    https://github.com/intel-innersource/os.linux.intelnext.kernel
+
+srf-bkc-6.2-v2.1
+-----------------
+34. srf-bkc: Add KVM LAM feature support
+    Source: https://github.com/binbinwu1/linux/commits/v6.3-rc6-kvm-lam-new
+
 gnr-bkc-6.2-v1.30
 -----------------
 33. dmaengine: idxd: Workaround Inter-domain PASID table entry flush issue
