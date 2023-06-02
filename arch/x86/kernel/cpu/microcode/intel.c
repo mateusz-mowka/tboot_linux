@@ -1768,7 +1768,7 @@ reget:
 				goto out;
 			}
 		} else if (type == RELOAD_COMMIT) {
-			if (!check_update_reqs(
+			if (!relax_rbmeta && !check_update_reqs(
 			    (struct microcode_header_intel *)unapplied_ucode.ucode, rb_meta)) {
 				ret = UCODE_ERROR;
 				goto out;

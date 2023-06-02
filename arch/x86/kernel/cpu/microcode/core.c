@@ -53,6 +53,7 @@ static bool dis_ucode_ldr = true;
 bool override_minrev;
 bool ucode_load_same;
 bool ucode_staged = false;
+bool relax_rbmeta = false;
 
 bool initrd_gone;
 
@@ -1211,11 +1212,12 @@ static int __init microcode_init(void)
 	debugfs_create_bool("override_minrev", 0644, dentry_ucode, &override_minrev);
 	debugfs_create_bool("load_same", 0644, dentry_ucode, &ucode_load_same);
 	debugfs_create_bool("do_nmi", 0644, dentry_ucode, &microcode_ops->need_nmi_lateload);
+	debugfs_create_bool("relax_rbmeta", 0644, dentry_ucode, &relax_rbmeta);
 
 	pr_info("Microcode Update Driver: v%s.", DRIVER_VERSION);
 	pr_info("Override minrev %s\n", override_minrev ? "enabled" : "disabled");
-	pr_info("ucode_load_same is %s\n",
-		ucode_load_same ? "enabled" : "disabled");
+	pr_info("ucode_load_same is %s\n", ucode_load_same ? "enabled" : "disabled");
+	pr_info("relax rollback metadata check: %s\n", relax_rbmeta ? "enabled" : "disabled");
 
 	return 0;
 

@@ -49,6 +49,7 @@ extern struct list_head microcode_cache;
 
 extern bool override_minrev;
 extern bool ucode_load_same;
+extern bool relax_rbmeta;
 
 struct cpu_signature {
 	unsigned int sig;
