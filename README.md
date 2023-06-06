@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.1
+-----------------
+45. IFS cli test tool will not work without this change.
+    Fix SBFT device enumeration
+
 srf-bkc-6.2-v2.12
 -----------------
 44. cleaned up the README.md
