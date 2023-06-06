@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.2
+----------------
+46. add CONFIG_X86_KERNEL_IBT=y
+    https://hsdes.intel.com/appstore/article/#/15013164115
+
 srf-bkc-6.2-v3.1
 -----------------
 45. IFS cli test tool will not work without this change.
