@@ -647,7 +647,6 @@ static void rapl_init_domains(struct rapl_package *rp)
 
 	for (i = 0; i < RAPL_DOMAIN_MAX; i++) {
 		unsigned int mask = rp->domain_map & (1 << i);
-		int t;
 
 		if (!mask)
 			continue;
@@ -662,12 +661,22 @@ static void rapl_init_domains(struct rapl_package *rp)
 				rapl_domain_names[i]);
 
 		rd->id = i;
-		/* PL1 is supported by default */
-		rp->priv->limits[i] |= BIT(POWER_LIMIT1);
+		rd->rpl[0].prim_id = PL1_ENABLE;
+		rd->rpl[0].name = pl1_name;
 
-		for (t = POWER_LIMIT1; t < NR_POWER_LIMITS; t++) {
-			if (test_bit(t, &(rp->priv->limits[i])))
-				rd->rpl[t].name = pl_names[t];
+		/*
+		 * The PL2 power domain is applicable for limits two
+		 * and limits three
+		 */
+		if (rp->priv->limits[i] >= 2) {
+			rd->rpl[1].prim_id = PL2_ENABLE;
+			rd->rpl[1].name = pl2_name;
+		}
+
+		/* Enable PL4 domain if the total power limits are three */
+		if (rp->priv->limits[i] == 3) {
+			rd->rpl[2].prim_id = PL4_ENABLE;
+			rd->rpl[2].name = pl4_name;
 		}
 
 		for (j = 0; j < RAPL_DOMAIN_REG_MAX; j++)
@@ -768,7 +777,7 @@ static int rapl_read_data_raw(struct rapl_domain *rd,
 	cpu = rd->rp->lead_cpu;
 
 	/* domain with 2 limits has different bit */
-	if (prim == FW_LOCK && test_bit(POWER_LIMIT2, &rd->rp->priv->limits[rd->id])) {
+	if (prim == FW_LOCK && rd->rp->priv->limits[rd->id] == 2) {
 		rpi->mask = POWER_HIGH_LOCK;
 		rpi->shift = 63;
 	}
