@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.3
+----------------
+46. backport upstream rapl changes from v6.4-rc4
+
 srf-bkc-6.2-v3.2
 ----------------
 46. add CONFIG_X86_KERNEL_IBT=y
