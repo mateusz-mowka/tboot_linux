@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.4
+----------------
+47. backport upstream IFS and uCode changes from v6.4-rc4
+    unblocks some uCode test cases.
+
 srf-bkc-6.2-v3.3
 ----------------
 46. backport upstream rapl changes from v6.4-rc4
