@@ -48,7 +48,7 @@ static struct ifs_device ifs_devices[] = {
 	},
 	[IFS_SBFT] = {
 		.data = {
-			.integrity_cap_bit = MSR_INTEGRITY_CAPS_SBFT_AT_FIELD_BIT,
+			.integrity_cap_bit = MSR_INTEGRITY_CAPS_SBFT_AT_FIELD,
 			.test_num = IFS_SBFT,
 		},
 		.misc = {
