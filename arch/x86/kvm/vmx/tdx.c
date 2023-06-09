@@ -962,29 +962,15 @@ static struct tdx_uret_msr tdx_uret_msrs[] = {
 	{.msr = MSR_STAR,},
 	{.msr = MSR_LSTAR,},
 	{.msr = MSR_TSC_AUX,},
-	{.msr = MSR_IA32_TSX_CTRL,},
 };
 
-static void tdx_user_return_update_cache(struct kvm_vcpu *vcpu)
+static void tdx_user_return_update_cache(void)
 {
-	struct kvm_tdx *kvm_tdx = to_kvm_tdx(vcpu->kvm);
-	/*
-	 * TDX module resets the TSX_CTRL MSR to 0 at TD exit if TSX
-	 * is enabled for TD, otherwise reset it to 0x3, need to update
-	 *  TSX_CTRL's slot curr accordingly.
-	 */
-	u64 tsx_ctrl = kvm_tdx->tsx_enabled ? 0 :
-		       TSX_CTRL_RTM_DISABLE | TSX_CTRL_CPUID_CLEAR;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(tdx_uret_msrs); i++) {
-		if (tdx_uret_msrs[i].msr == MSR_IA32_TSX_CTRL)
-			kvm_user_return_update_cache(tdx_uret_msrs[i].slot,
-						     tsx_ctrl);
-		else
-			kvm_user_return_update_cache(tdx_uret_msrs[i].slot,
-						     tdx_uret_msrs[i].defval);
-	}
+	for (i = 0; i < ARRAY_SIZE(tdx_uret_msrs); i++)
+		kvm_user_return_update_cache(tdx_uret_msrs[i].slot,
+					     tdx_uret_msrs[i].defval);
 }
 
 static void tdx_restore_host_xsave_state(struct kvm_vcpu *vcpu)
@@ -1145,7 +1131,7 @@ fastpath_t tdx_vcpu_run(struct kvm_vcpu *vcpu)
 
 	tdx_vcpu_enter_exit(vcpu, tdx);
 
-	tdx_user_return_update_cache(vcpu);
+	tdx_user_return_update_cache();
 
 	/*
 	 * This is safe only when host PMU is disabled, e.g.
@@ -3720,7 +3706,6 @@ static int setup_tdparams(struct kvm *kvm, struct td_params *td_params,
 			struct kvm_tdx_init_vm *init_vm)
 {
 	const struct kvm_cpuid2 *cpuid = &init_vm->cpuid;
-	struct kvm_tdx *kvm_tdx = to_kvm_tdx(kvm);
 	const struct kvm_cpuid_entry2 *entry;
 	u64 guest_supported_xcr0;
 	u64 guest_supported_xss;
@@ -3742,7 +3727,6 @@ static int setup_tdparams(struct kvm *kvm, struct td_params *td_params,
 			pr_info_ratelimited("{HLE,RTM} must be set same!\n");
 				return -EINVAL;
 		}
-		kvm_tdx->tsx_enabled = !!(entry->ebx & mask);
 	}
 
 	for (i = 0; i < tdx_caps.nr_cpuid_configs; i++) {
