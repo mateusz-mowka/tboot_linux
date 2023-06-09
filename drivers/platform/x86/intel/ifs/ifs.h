@@ -147,8 +147,6 @@
 
 #define MSR_SAF_CTRL				0x000004f0
 #define MSR_SBFT_CTRL				0x000004f8
-#define MSR_ARRAY_TRIGGER			0x000002d6
-#define MSR_ARRAY_STATUS			0x000002d7
 #define SCAN_NOT_TESTED				0
 #define SCAN_TEST_PASS				1
 #define SCAN_TEST_FAIL				2
@@ -356,7 +354,6 @@ union ifs_sbft_status {
  * @chunk_size: size of a test chunk
  * @max_bundle: maximum bundle index
  * @last_wp: additional details of activate test
- * @array_gen: test generation of array test
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -373,7 +370,6 @@ struct ifs_data {
 	u32	chunk_size;
 	u32	max_bundle;
 	u32	last_wp;
-	u32	array_gen;
 };
 
 struct ifs_work {

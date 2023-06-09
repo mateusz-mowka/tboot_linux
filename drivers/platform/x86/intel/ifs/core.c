@@ -10,15 +10,15 @@
 
 #include "ifs.h"
 
-#define X86_MATCH(model, array_gen)				\
+#define X86_MATCH(model)				\
 	X86_MATCH_VENDOR_FAM_MODEL_FEATURE(INTEL, 6,	\
-		INTEL_FAM6_##model, X86_FEATURE_CORE_CAPABILITIES, array_gen)
+		INTEL_FAM6_##model, X86_FEATURE_CORE_CAPABILITIES, NULL)
 
 static const struct x86_cpu_id ifs_cpu_ids[] __initconst = {
-	X86_MATCH(SAPPHIRERAPIDS_X, 0),
-	X86_MATCH(EMERALDRAPIDS_X, 0),
-	X86_MATCH(GRANITERAPIDS_X, 0),
-	X86_MATCH(SIERRAFOREST_X, 1),
+	X86_MATCH(SAPPHIRERAPIDS_X),
+	X86_MATCH(EMERALDRAPIDS_X),
+	X86_MATCH(GRANITERAPIDS_X),
+	X86_MATCH(SIERRAFOREST_X),
 	{}
 };
 MODULE_DEVICE_TABLE(x86cpu, ifs_cpu_ids);
@@ -103,8 +103,6 @@ static int __init ifs_init(void)
 			break;
 		case IFS_ARRAY:
 			ifs_devices[i].misc.groups = ifs_get_array_groups();
-			ifs_devices[i].data.array_gen = (u32)m->driver_data;
-			pr_info("intel_ifs array gen %d\n", ifs_devices[i].data.array_gen);
 		}
 
 		if (misc_register(&ifs_devices[i].misc))
