@@ -2552,6 +2552,7 @@ static int tdx_sept_drop_private_spte(struct kvm *kvm, gfn_t gfn,
 			r = -EIO;
 		} else {
 			tdx_set_page_present(hpa);
+			tdx_clear_page(hpa, PAGE_SIZE);
 			tdx_unpin(kvm, gfn + i, pfn + i, PG_LEVEL_4K);
 		}
 		hpa += PAGE_SIZE;
@@ -2635,6 +2636,7 @@ static int tdx_sept_merge_private_spt(struct kvm *kvm, gfn_t gfn,
 	}
 
 	tdx_set_page_present(__pa(private_spt));
+	tdx_clear_page(__pa(private_spt), PAGE_SIZE);
 	return 0;
 }
 
@@ -2789,6 +2791,7 @@ static int tdx_sept_free_private_spt(struct kvm *kvm, gfn_t gfn,
 	}
 
 	tdx_set_page_present(__pa(private_spt));
+	tdx_clear_page(__pa(private_spt), PAGE_SIZE);
 	return 0;
 }
 

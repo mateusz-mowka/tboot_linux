@@ -208,6 +208,7 @@ bool tdx_io_support(void);
 bool tdx_io_enabled(void);
 int tdx_reclaim_page(unsigned long pa, enum pg_level level, bool do_wb, u16 hkid);
 void tdx_reclaim_td_page(unsigned long td_page_pa);
+void tdx_clear_page(unsigned long page_pa, int size);
 
 u64 __seamcall(u64 op, u64 rcx, u64 rdx, u64 r8, u64 r9, u64 r10,
 	       u64 r11, u64 r12, u64 r13, struct tdx_module_output *out);
@@ -1062,6 +1063,7 @@ tdh_devif_request(u32 func_id, u64 payload, u64 req_out_pa,
 static inline u64
 tdh_devif_response(u32 func_id, u64 payload, u64 rsp_out_pa,
 		   struct tdx_module_output *out) { return -EOPNOTSUPP; }
+static inline void tdx_clear_page(unsigned long page_pa, int size) { }
 #endif	/* CONFIG_INTEL_TDX_HOST */
 
 #ifdef CONFIG_INTEL_TDX_MODULE_UPDATE

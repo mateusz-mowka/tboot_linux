@@ -1575,7 +1575,7 @@ bool tdx_io_enabled(void)
 EXPORT_SYMBOL_GPL(tdx_io_enabled);
 
 #include <asm/kvm_host.h>
-static void tdx_clear_page(unsigned long page_pa, int size)
+void tdx_clear_page(unsigned long page_pa, int size)
 {
 	const void *zero_page = (const void *) __va(page_to_phys(ZERO_PAGE(0)));
 	void *page = __va(page_pa);
@@ -1607,6 +1607,7 @@ static void tdx_clear_page(unsigned long page_pa, int size)
 	 */
 	__mb();
 }
+EXPORT_SYMBOL_GPL(tdx_clear_page);
 
 static inline void tdx_set_page_present_level(u64 addr, enum pg_level pg_level)
 {
