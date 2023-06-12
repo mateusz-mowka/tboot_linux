@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.5
+----------------
+48. Port missing DSA patches from GNR BKC 5.19 kernel to SRF BKC 6.2 kernel
+
 srf-bkc-6.2-v3.4
 ----------------
 47. backport upstream IFS and uCode changes from v6.4-rc4
