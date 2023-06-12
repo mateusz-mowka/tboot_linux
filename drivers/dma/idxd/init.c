@@ -317,7 +317,7 @@ static int idxd_setup_groups(struct idxd_device *idxd)
 		}
 
 		idxd->groups[i] = group;
-		if (idxd->hw.version < DEVICE_VERSION_2 && !tc_override) {
+		if (idxd->hw.version <= DEVICE_VERSION_2 && !tc_override) {
 			group->tc_a = 1;
 			group->tc_b = 1;
 		} else {
@@ -629,6 +629,7 @@ static void idxd_setup_idbr(struct idxd_device *idxd)
 
 	if (!idxd->hw.gen_cap.inter_domain ||
 	    !(idxd->hw.id_cap.idpte_support_mask & BIT(1)) ||
+	    !device_user_pasid_enabled(idxd) ||
 	    !device_pasid_enabled(idxd))
 		return;
 

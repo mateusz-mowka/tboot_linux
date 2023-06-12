@@ -797,6 +797,9 @@ static void vidxd_wq_reset(struct vdcm_idxd *vidxd, int wq_id_mask)
 		idxd_wq_drain(wq);
 	}
 
+	memset(vwqcfg, 0, sizeof(union wqcfg));
+	vidxd_mmio_init_wqcfg(vidxd);
+
 	vwqcfg->wq_state = IDXD_WQ_DEV_DISABLED;
 	idxd_complete_command(vidxd, IDXD_CMDSTS_SUCCESS);
 }

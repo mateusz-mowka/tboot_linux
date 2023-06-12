@@ -679,6 +679,7 @@ struct dmar_domain {
 		};
 	};
 
+	u32		spasid;
 	struct iommu_domain domain;	/* generic domain data structure for
 					   iommu core */
 };
