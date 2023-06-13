@@ -15,6 +15,17 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.6
+----------------
+49. Issue: Cannot launch container on EMB BKC kernel 6.2.0-emr.bkc.6.2.5.6.33.x86_64
+    https://jira.devtools.intel.com/browse/LINUXBKC3-11
+    https://hsdes.intel.com/appstore/article/#/14019589887
+    Fix:
+    CONFIG_CGROUP_BPF=y
+    CONFIG_CGROUP_MISC=y
+    CONFIG_BLK_CGROUP_IOLATENCY=y
+    CONFIG_BLK_CGROUP_FC_APPID=y
+
 srf-bkc-6.2-v3.5
 ----------------
 48. Port missing DSA patches from GNR BKC 5.19 kernel to SRF BKC 6.2 kernel
