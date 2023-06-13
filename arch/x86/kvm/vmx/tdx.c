@@ -4071,7 +4071,11 @@ static int tdx_td_init(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 
 	if (cmd->flags != KVM_TDX_INIT_VM_F_POST_INIT) {
 		err = tdh_mng_init(kvm_tdx->tdr_pa, __pa(td_params), &out);
-		if (WARN_ON_ONCE(err)) {
+		if ((err & TDX_SEAMCALL_STATUS_MASK) == TDX_OPERAND_INVALID) {
+			/* Because a user gives operands, don't warn. */
+			ret = -EINVAL;
+			goto out;
+		} else if (WARN_ON_ONCE(err)) {
 			pr_tdx_error(TDH_MNG_INIT, err, &out);
 			ret = -EIO;
 			goto out;
