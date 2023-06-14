@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.8
+----------------
+51. Issue: missing some eBPF related kernel configs
+    https://jira.devtools.intel.com/browse/LINUXBKC3-12
+
 srf-bkc-6.2-v3.7
 ----------------
 50. Issue: fix for the TD booting fail caused by MSR TSX_CTRL
