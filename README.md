@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.7
+----------------
+50. Issue: fix for the TD booting fail caused by MSR TSX_CTRL
+    https://jira.devtools.intel.com/browse/LFE-8557
+
 srf-bkc-6.2-v3.6
 ----------------
 49. Issue: Cannot launch container on EMB BKC kernel 6.2.0-emr.bkc.6.2.5.6.33.x86_64
