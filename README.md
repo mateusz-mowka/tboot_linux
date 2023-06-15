@@ -15,7 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
-srf-bkc-6.2-v3.8
+srf-bkc-6.2-v3.9
+----------------
+52. Issue: enable FW_LOADER_COMPRESS_XZ for out of tree ICE driver support.
+    https://hsdes.intel.com/appstore/article/#/15013303281
+
+bkc-6.2-v3.8
 ----------------
 51. Issue: missing some eBPF related kernel configs
     https://jira.devtools.intel.com/browse/LINUXBKC3-12
