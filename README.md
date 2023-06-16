@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.10
+----------------
+53. Issue: work around TD launch issue by setting 
+    CONFIG_INTEL_TDX_HOST_DEBUG_MEMORY_CORRUPT
+    https://jira.devtools.intel.com/browse/LFE-8652
+
 srf-bkc-6.2-v3.9
 ----------------
 52. Issue: enable FW_LOADER_COMPRESS_XZ for out of tree ICE driver support.
