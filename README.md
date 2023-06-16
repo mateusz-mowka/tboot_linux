@@ -15,6 +15,15 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v3.11
+----------------
+54. enable kernel to issue ENQCMD using descriptor and completion record
+    in kernel memory for inter-domain copy operation between 2 user space
+    processes.
+
+    change requested by developers Ramesh Thomas and Jacob Pan
+    no HSD or LFE yet.
+
 srf-bkc-6.2-v3.10
 ----------------
 53. Issue: work around TD launch issue by setting 
