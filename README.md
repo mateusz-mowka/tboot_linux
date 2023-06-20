@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v4.1
+----------------
+55. Stop pannicing on softlockup events.  Its a test blocker when we do that.
+    https://hsdes.intel.com/appstore/article/#/14019636887
+
 srf-bkc-6.2-v3.11
 ----------------
 54. enable kernel to issue ENQCMD using descriptor and completion record
