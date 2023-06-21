@@ -1561,16 +1561,7 @@ arch_initcall(tdx_init_early);
 
 bool tdx_io_support(void)
 {
-	const struct tdsysinfo_struct *tdsysinfo;
-
-	tdsysinfo = tdx_get_sysinfo();
-	if (!tdsysinfo)
-		return false;
-
-	if (tdsysinfo->major_version > 1)
-		return true;
-
-	return false;
+	return !!(tdx_features0 & TDX_FEATURES0_IO);
 }
 EXPORT_SYMBOL_GPL(tdx_io_support);
 
