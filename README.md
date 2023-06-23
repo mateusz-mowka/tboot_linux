@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v4.2
+----------------
+56. cherry-pick fixe to wake on lan issue 
+    https://bugzilla.kernel.org/show_bug.cgi?id=217069#c63
+    https://hsdes.intel.com/appstore/article/#/15013256192
+
 srf-bkc-6.2-v4.1
 ----------------
 55. Stop pannicing on softlockup events.  Its a test blocker when we do that.
