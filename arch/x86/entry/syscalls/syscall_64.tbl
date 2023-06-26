@@ -372,8 +372,8 @@
 448	common	process_mrelease	sys_process_mrelease
 449	common	futex_waitv		sys_futex_waitv
 450	common	set_mempolicy_home_node	sys_set_mempolicy_home_node
-451	common	memfd_restricted	sys_memfd_restricted
-452	64	map_shadow_stack	sys_map_shadow_stack
+451	64	map_shadow_stack	sys_map_shadow_stack
+452	common	memfd_restricted	sys_memfd_restricted
 
 #
 # Due to a historical design error, certain syscalls are numbered differently
