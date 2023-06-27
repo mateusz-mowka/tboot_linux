@@ -278,7 +278,6 @@ union ifs_array_status {
  * @cur_batch: number indicating the currently loaded test file
  * @test_num: number indicating the test type
  * @test_gen: test generation revision
- * @chunk_size: size of a test chunk
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -292,7 +291,6 @@ struct ifs_data {
 	u32	cur_batch;
 	int	test_num;
 	u32	test_gen;
-	u32	chunk_size;
 };
 
 struct ifs_work {
