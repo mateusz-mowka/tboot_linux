@@ -26,7 +26,6 @@ union meta_data {
 
 #define IFS_HEADER_SIZE	(sizeof(struct microcode_header_intel))
 #define META_TYPE_IFS	1
-#define INVALIDATE_STRIDE (0x1UL)
 static  struct microcode_header_intel *ifs_header_ptr;	/* pointer to the ifs image header */
 static u64 ifs_hash_ptr;			/* Address of ifs metadata (hash) */
 static u64 ifs_test_image_ptr;			/* 256B aligned address of test pattern */
@@ -215,16 +214,6 @@ static int copy_hashes_authenticate_chunks_gen2(struct device *dev)
 			 ifsd->loaded_version);
 		num_chunks = ifsd->valid_chunks;
 		chunk_size = ifsd->chunk_size;
-	}
-
-	if (ifsd->test_gen > 1) {
-		wrmsrl(MSR_SAF_CTRL, INVALIDATE_STRIDE);
-		rdmsrl(MSR_CHUNKS_AUTHENTICATION_STATUS, chunk_status.data);
-		if (chunk_status.valid_chunks != 0) {
-			dev_err(dev, "Couldn't invalidate installed stride - %d\n",
-				chunk_status.valid_chunks);
-		}
-		return -EIO;
 	}
 
 	base = ifs_test_image_ptr;
