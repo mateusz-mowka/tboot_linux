@@ -232,7 +232,6 @@ union ifs_array_status {
  * @scan_details: opaque scan status code from h/w
  * @cur_batch: number indicating the currently loaded test file
  * @test_num: number indicating the test type
- * @test_gen: test generation revision
  */
 struct ifs_data {
 	int	integrity_cap_bit;
@@ -245,7 +244,6 @@ struct ifs_data {
 	u64	scan_details;
 	u32	cur_batch;
 	int	test_num;
-	u32	test_gen;
 };
 
 struct ifs_work {

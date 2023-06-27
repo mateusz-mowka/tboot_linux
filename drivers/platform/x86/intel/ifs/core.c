@@ -77,9 +77,6 @@ static int __init ifs_init(void)
 		if (!(msrval & BIT(ifs_devices[i].data.integrity_cap_bit)))
 			continue;
 
-		ifs_devices[i].data.test_gen = (msrval & MSR_INTEGRITY_CAPS_SAF_GEN_REV_MASK)
-							>> MSR_INTEGRITY_CAPS_SAF_GEN_REV_SHIFT;
-
 		ifs_devices[i].data.pkg_auth = kmalloc_array(topology_max_packages(),
 							     sizeof(bool), GFP_KERNEL);
 		if (!ifs_devices[i].data.pkg_auth)
