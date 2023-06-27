@@ -15,9 +15,14 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v4.3
+----------------
+57. upstream developer updates to ucode and IFS logic.
+    no HSD.  Tested by developer.
+
 srf-bkc-6.2-v4.2
 ----------------
-56. cherry-pick fixe to wake on lan issue 
+56. cherry-pick fix to wake on lan issue 
     https://bugzilla.kernel.org/show_bug.cgi?id=217069#c63
     https://hsdes.intel.com/appstore/article/#/15013256192
 
