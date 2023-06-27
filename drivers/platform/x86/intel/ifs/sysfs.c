@@ -75,7 +75,7 @@ static ssize_t run_test_store(struct device *dev,
 	if (down_interruptible(&ifs_sem))
 		return -EINTR;
 
-	if (ifsd->integrity_cap_bit != MSR_INTEGRITY_CAPS_ARRAY_BIST_BIT && !ifsd->loaded)
+	if (!ifsd->loaded)
 		rc = -EPERM;
 	else
 		rc = do_core_test(cpu, dev);
@@ -155,19 +155,4 @@ ATTRIBUTE_GROUPS(plat_ifs);
 const struct attribute_group **ifs_get_groups(void)
 {
 	return plat_ifs_groups;
-}
-
-/* global array sysfs attributes */
-static struct attribute *plat_ifs_array_attrs[] = {
-	&dev_attr_details.attr,
-	&dev_attr_status.attr,
-	&dev_attr_run_test.attr,
-	NULL
-};
-
-ATTRIBUTE_GROUPS(plat_ifs_array);
-
-const struct attribute_group **ifs_get_array_groups(void)
-{
-	return plat_ifs_array_groups;
 }

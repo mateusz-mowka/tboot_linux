@@ -127,7 +127,6 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 
-#define MSR_ARRAY_BIST				0x00000105
 #define MSR_COPY_SCAN_HASHES			0x000002c2
 #define MSR_SCAN_HASHES_STATUS			0x000002c3
 #define MSR_AUTHENTICATE_AND_COPY_CHUNK		0x000002c4
@@ -190,28 +189,6 @@ union ifs_status {
 	};
 };
 
-/* MSR_ARRAY_BIST bit fields */
-union ifs_array {
-	u64	data;
-	struct {
-		u32	array_bitmask		:32;
-		u32	array_bank		:16;
-		u32	rsvd			:15;
-		u32	sigmce			:1;
-	};
-};
-
-/* MSR_ARRAY_BIST_STATUS bit fields */
-union ifs_array_status {
-	u64	data;
-	struct {
-		u32	array_bitmask		:32;
-		u32	array_bank		:16;
-		u32	rsvd			:15;
-		u32	passfail		:1;
-	};
-};
-
 /*
  * Driver populated error-codes
  * 0xFD: Test timed out before completing all the chunks.
@@ -267,6 +244,5 @@ static inline struct ifs_data *ifs_get_data(struct device *dev)
 int ifs_load_firmware(struct device *dev);
 int do_core_test(int cpu, struct device *dev);
 const struct attribute_group **ifs_get_groups(void);
-const struct attribute_group **ifs_get_array_groups(void);
 
 #endif
