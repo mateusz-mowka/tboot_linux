@@ -114,7 +114,7 @@ static const char dlb2_error_strings[][128] = {
 	"DLB2_ST_FEATURE_UNAVAILABLE",
 };
 
-#define DLB2_DRIVER_VERSION	"8.4.0"
+#define DLB2_DRIVER_VERSION	"8.4.1"
 
 struct dlb2_cmd_response {
 	__u32 status; /* Interpret using enum dlb2_error */

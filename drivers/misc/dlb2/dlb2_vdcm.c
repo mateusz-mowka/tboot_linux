@@ -2376,11 +2376,13 @@ static int dlb2_vdcm_attach_ioas(struct vfio_device *vfio_dev,
 		goto out_unlock;
 	}
 
+#if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	/* Only allows one IOAS attach */
 	if (!xa_empty(&vdev->pasid_xa)) {
 		rc = -EBUSY;
 		goto out_unlock;
 	}
+#endif
 
 	pasid = vfio_device_get_pasid(vfio_dev);
 	if (!pasid_valid(pasid)) {
@@ -2391,6 +2393,19 @@ static int dlb2_vdcm_attach_ioas(struct vfio_device *vfio_dev,
 #if KERNEL_VERSION(5, 19, 0) >= LINUX_VERSION_CODE
 	rc = dlb2_vdcm_pasid_attach(vdev, pasid, &pt_id);
 #else
+	if (!pt_id) {
+		struct vfio_pci_hwpt *hwpt;
+
+		hwpt = xa_load(&vdev->pasid_xa, pasid);
+		if (!hwpt) {
+			goto out_unlock;
+		}
+		xa_erase(&vdev->pasid_xa, hwpt->pasid);
+		kfree(hwpt);
+		iommufd_device_detach(vdev->idev, pasid);
+		goto out_unlock;
+        }
+
 	rc = dlb2_vdcm_pasid_attach(vdev, pasid, pt_id);
 #endif
 	if (rc)

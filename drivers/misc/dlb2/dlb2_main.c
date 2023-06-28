@@ -752,7 +752,7 @@ static int dlb2_probe(struct pci_dev *pdev,
 		goto dlb2_resource_probe_fail;
 
 	ret = dlb2_reset_device(pdev);
-	if (ret)
+	if (ret && DLB2_IS_PF(dlb2))
 		goto dlb2_reset_fail;
 
 	ret = dlb2->ops->init_interrupts(dlb2, pdev);

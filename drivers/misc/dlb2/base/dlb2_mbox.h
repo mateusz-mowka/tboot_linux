@@ -82,6 +82,7 @@ enum dlb2_mbox_cmd_type {
 	DLB2_MBOX_CMD_QUERY_CQ_POLL_MODE,
 	DLB2_MBOX_CMD_DEV_RESET,
 	DLB2_MBOX_CMD_ENABLE_CQ_WEIGHT,
+	DLB2_MBOX_CMD_CQ_INFLIGHT_CTRL,
 
 	/* NUM_QE_CMD_TYPES must be last */
 	NUM_DLB2_MBOX_CMD_TYPES,
@@ -119,6 +120,7 @@ static const char dlb2_mbox_cmd_type_strings[][128] = {
 	"DLB2_MBOX_CMD_QUERY_CQ_POLL_MODE",
 	"DLB2_MBOX_CMD_DEV_RESET",
 	"DLB2_MBOX_CMD_ENABLE_CQ_WEIGHT",
+	"DLB2_MBOX_CMD_CQ_INFLIGHT_CTRL",
 };
 
 /* PF-initiated commands */
@@ -652,4 +654,18 @@ struct dlb2_mbox_enable_cq_weight_cmd_resp {
 	u32 padding;
 };
 
+struct dlb2_mbox_cq_inflight_ctrl_cmd_req {
+	struct dlb2_mbox_req_hdr hdr;
+	u32 domain_id;
+	u16 port_id;
+	u16 enable;
+	u32 threshold;
+};
+
+struct dlb2_mbox_cq_inflight_ctrl_cmd_resp {
+	struct dlb2_mbox_resp_hdr hdr;
+	u32 error_code;
+	u32 status;
+	u32 padding;
+};
 #endif /* __DLB2_BASE_DLB2_MBOX_H */

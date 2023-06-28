@@ -1558,6 +1558,12 @@ static int __alert_fn(void *__args)
 
 #if KERNEL_VERSION(5, 17, 0) <= LINUX_VERSION_CODE
 	kthread_complete_and_exit(NULL, 0);
+#elif defined(RHEL_RELEASE_CODE)
+#if (RHEL_RELEASE_VERSION(9, 2) <= RHEL_RELEASE_CODE)
+	kthread_complete_and_exit(NULL, 0);
+#else
+	do_exit(0);
+#endif
 #else
 	do_exit(0);
 #endif

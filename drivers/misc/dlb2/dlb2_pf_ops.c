@@ -1143,6 +1143,35 @@ dlb2_mbox_cmd_enable_cq_weight_fn(struct dlb2 *dlb2,
 	dlb2_pf_write_vf_mbox_resp(&dlb2->hw, vf_id, &resp, sizeof(resp));
 }
 
+static void dlb2_mbox_cmd_cq_inflight_ctrl(struct dlb2 *dlb2, int vf_id,
+					   void *data, bool send_resp) {
+	struct dlb2_mbox_cq_inflight_ctrl_cmd_resp resp = { {0} };
+	struct dlb2_mbox_cq_inflight_ctrl_cmd_req *req = data;
+	struct dlb2_cmd_response hw_response = {0};
+	struct dlb2_cq_inflight_ctrl_args hw_arg;
+	int ret;
+
+	hw_arg.port_id = req->port_id;
+	hw_arg.enable = req->enable;
+	hw_arg.threshold = req->threshold;
+
+	ret = dlb2_cq_inflight_ctrl(&dlb2->hw,
+				    req->domain_id,
+				    &hw_arg,
+				    &hw_response,
+				    true,
+				    vf_id);
+
+	if (!send_resp)
+		return;
+
+	resp.hdr.status = DLB2_MBOX_ST_SUCCESS;
+	resp.error_code = dlb2_errno_to_mbox_error(ret);
+	resp.status = hw_response.status;
+
+	dlb2_pf_write_vf_mbox_resp(&dlb2->hw, vf_id, &resp, sizeof(resp));
+}
+
 static void (*mbox_fn_table[])(struct dlb2 *dlb2, int vf_id, void *data, bool send_resp) = {
 	dlb2_mbox_cmd_register_fn,
 	dlb2_mbox_cmd_unregister_fn,
@@ -1175,6 +1204,7 @@ static void (*mbox_fn_table[])(struct dlb2 *dlb2, int vf_id, void *data, bool se
 	dlb2_mbox_cmd_query_cq_poll_mode_fn,
 	dlb2_mbox_cmd_dev_reset_fn,
 	dlb2_mbox_cmd_enable_cq_weight_fn,
+	dlb2_mbox_cmd_cq_inflight_ctrl,
 };
 
 static u32
@@ -3250,7 +3280,7 @@ dlb2_pf_enable_cq_weight(struct dlb2_hw *hw,
 static int
 dlb2_pf_cq_inflight_ctrl(struct dlb2_hw *hw,
 			 u32 id,
-			 struct dlb2_cq_inflight_ctrl_args*args,
+			 struct dlb2_cq_inflight_ctrl_args *args,
 			 struct dlb2_cmd_response *resp)
 {
 	return dlb2_cq_inflight_ctrl(hw, id, args, resp, false, 0);

@@ -2979,7 +2979,6 @@ static void
 dlb2_get_pp_allocation(struct dlb2_hw *hw, int cpu, enum dlb2_port_type port_type)
 {
 	struct dlb2_pp_thread_data cos_cycles[DLB2_NUM_COS_DOMAINS];
-	struct dlb2 *dlb2 = container_of(hw, struct dlb2, hw);
 	int num_ports_per_sort, num_ports, num_sort, i;
 	bool is_ldb = (port_type == LDB);
 	int *port_allocations;
@@ -2990,7 +2989,7 @@ dlb2_get_pp_allocation(struct dlb2_hw *hw, int cpu, enum dlb2_port_type port_typ
 		num_sort = DLB2_NUM_COS_DOMAINS;
 	} else {
 		port_allocations = hw->dir_pp_allocations[cpu];
-		num_ports = DLB2_MAX_NUM_DIR_PORTS(dlb2->hw_ver);
+		num_ports = DLB2_MAX_NUM_DIR_PORTS(hw->ver);
 		num_sort = 1;
 	}
 	num_ports_per_sort = num_ports / num_sort;
@@ -3096,6 +3095,7 @@ dlb2_resource_probe(struct dlb2_hw *hw, const void *probe_args)
 	DLB2_ALLOC_CHECK(hw->ldb_pp_allocations, hw->num_phys_cpus * sizeof(int *));
 	DLB2_ALLOC_CHECK(hw->dir_pp_allocations, hw->num_phys_cpus * sizeof(int *));
 
+	hw->ver = dlb2->hw_ver;
 	/* After DLB2_MAX_NUM_LDB_PORTS cos order is stored*/
 	ldb_alloc_size = (DLB2_MAX_NUM_LDB_PORTS + DLB2_NUM_COS_DOMAINS) * sizeof(int);
 	dir_alloc_size = DLB2_MAX_NUM_DIR_PORTS(hw->ver) * sizeof(int);
@@ -10810,9 +10810,8 @@ int dlb2_cq_inflight_ctrl(struct dlb2_hw *hw,
 			    __func__, __LINE__);
 		return -EFAULT;
 	}
-
-		BITS_SET(reg, args->enable, LSP_CFG_CTRL_GENERAL_0_ENAB_IF_THRESH_V2_5);
-		DLB2_CSR_WR(hw, V2_5LSP_CFG_CTRL_GENERAL_0, reg);
+	BITS_SET(reg, args->enable, LSP_CFG_CTRL_GENERAL_0_ENAB_IF_THRESH_V2_5);
+	DLB2_CSR_WR(hw, V2_5LSP_CFG_CTRL_GENERAL_0, reg);
 
 	if (args->enable) {
 		reg = 0;

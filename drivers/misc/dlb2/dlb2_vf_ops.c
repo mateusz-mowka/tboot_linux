@@ -2391,6 +2391,47 @@ dlb2_vf_enable_cq_weight(struct dlb2_hw *hw,
 	return dlb2_mbox_error_to_errno(resp.error_code);
 }
 
+static int
+dlb2_vf_cq_inflight_ctrl(struct dlb2_hw *hw,
+			 u32 id,
+			 struct dlb2_cq_inflight_ctrl_args *args,
+			 struct dlb2_cmd_response *user_resp)
+{
+	struct dlb2_mbox_cq_inflight_ctrl_cmd_resp resp;
+	struct dlb2_mbox_cq_inflight_ctrl_cmd_req req;
+	struct dlb2 *dlb2;
+	int ret;
+
+	dlb2 = container_of(hw, struct dlb2, hw);
+
+	req.hdr.type = DLB2_MBOX_CMD_CQ_INFLIGHT_CTRL;
+	req.domain_id = id;
+	req.port_id = args->port_id;
+	req.enable = args->enable;
+	req.threshold = args->threshold;
+
+	ret = dlb2_send_sync_mbox_cmd(dlb2, &req, sizeof(req), DLB2_MBOX_TOUT);
+	if (ret)
+		return ret;
+
+	dlb2_vf_read_pf_mbox_resp(&dlb2->hw, &resp, sizeof(resp));
+
+	if (resp.hdr.status != DLB2_MBOX_ST_SUCCESS) {
+		dev_err(dlb2->dev,
+			"[%s()]: failed with mailbox error: %s\n",
+			__func__,
+			dlb2_mbox_st_string(&resp.hdr));
+
+		user_resp->status = DLB2_ST_MBOX_ERROR;
+
+		return -1;
+	}
+
+	user_resp->status = resp.status;
+
+	return dlb2_mbox_error_to_errno(resp.error_code);
+}
+
 /**************************************/
 /****** Resource query callbacks ******/
 /**************************************/
@@ -2618,4 +2659,5 @@ struct dlb2_device_ops dlb2_vf_ops = {
 	.query_cq_poll_mode = dlb2_vf_query_cq_poll_mode,
 	.mbox_dev_reset = dlb2_vf_mbox_dev_reset,
 	.enable_cq_weight = dlb2_vf_enable_cq_weight,
+	.cq_inflight_ctrl = dlb2_vf_cq_inflight_ctrl,
 };
