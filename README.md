@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v4.4
+----------------
+58. config change enable CONFIG_DEBUG_ATOMIC_SLEEP
+
 srf-bkc-6.2-v4.3
 ----------------
 57. upstream developer updates to ucode and IFS logic.
