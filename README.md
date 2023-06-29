@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.1
+----------------
+59. DLB kernel driver to the corresponding DLB SW release 8.4.0. The support of
+    SIOV is added for BKC 6.2.
+
 srf-bkc-6.2-v4.5
 ----------------
 58. disable change to enable CONFIG_DEBUG_ATOMIC_SLEEP
