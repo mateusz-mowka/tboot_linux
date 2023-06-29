@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.2
+----------------
+60. dlb2: update dlb driver to dlb release 8.4.1
+          See: https://hsdes.intel.com/appstore/article/#/16020437285
+
 srf-bkc-6.2-v5.1
 ----------------
 59. DLB kernel driver to the corresponding DLB SW release 8.4.0. The support of
