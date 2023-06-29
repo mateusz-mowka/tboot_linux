@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v4.5
+----------------
+58. disable change to enable CONFIG_DEBUG_ATOMIC_SLEEP
+    causes too many warnings. Will enable this for next code freeze. 
+
 srf-bkc-6.2-v4.4
 ----------------
 58. config change enable CONFIG_DEBUG_ATOMIC_SLEEP
