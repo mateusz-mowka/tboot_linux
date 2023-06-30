@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.3
+----------------
+61. fix https://hsdes.intel.com/appstore/article/#/22018410691 that manifests
+    as an "ioremap on RAM" warning in SRF.
+
 srf-bkc-6.2-v5.2
 ----------------
 60. dlb2: update dlb driver to dlb release 8.4.1
