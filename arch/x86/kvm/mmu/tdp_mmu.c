@@ -2760,7 +2760,7 @@ int kvm_tdp_mmu_import_private_pages(struct kvm_vcpu *vcpu,
 	 * spteps till import is done.
 	 */
 	for (i = 0; i < npages; i++) {
-		if (!gfns[i])
+		if (!gfns[i] && !sptes[i])
 			continue;
 
 		gfn = gfns[i];
