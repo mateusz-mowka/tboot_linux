@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.4
+----------------
+62. swap memfd_restricted and map_shadow_stack syscall number
+
 srf-bkc-6.2-v5.3
 ----------------
 61. fix https://hsdes.intel.com/appstore/article/#/22018410691 that manifests
