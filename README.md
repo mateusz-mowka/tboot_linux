@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.5
+----------------
+63. Avoid calling sleeping API's in atomic context from tdx.c
+
 srf-bkc-6.2-v5.4
 ----------------
 62. swap memfd_restricted and map_shadow_stack syscall number
