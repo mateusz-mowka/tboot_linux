@@ -874,7 +874,7 @@ static long idxd_idpt_win_create(struct file *filp, struct idxd_win_param *win_p
 	}
 
 	mutex_lock(&idxd->idpt_lock);
-	index = ida_alloc(&idxd->idpt_ida, GFP_KERNEL);
+	index = ida_alloc_max(&idxd->idpt_ida, idxd->idpt_size, GFP_KERNEL);
 	mutex_unlock(&idxd->idpt_lock);
 	if (index < 0)
 		return index;
