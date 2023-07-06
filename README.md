@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.7
+----------------
+65. 2 reverts to fix: https://jira.devtools.intel.com/browse/LFE-8846
+
 srf-bkc-6.2-v5.6
 ----------------
 64. IDPT window index should not be more than IDPT size. Or, the IDPT entry
