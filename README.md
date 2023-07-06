@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.6
+----------------
+64. IDPT window index should not be more than IDPT size. Or, the IDPT entry
+    cannot be found. Fix the issue by limiting the index to max IDPT size.
+    https://jira.devtools.intel.com/browse/LFE-8929
+
 srf-bkc-6.2-v5.5
 ----------------
 63. Avoid calling sleeping API's in atomic context from tdx.c
