@@ -1753,7 +1753,7 @@ reget:
 	if (ret == UCODE_NEW && mcu_cap.rollback) {
 		rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(
 				(void*)unapplied_ucode.ucode, META_TYPE_ROLLBACK);
-		if (!rb_meta) {
+		if (!rb_meta && !relax_rbmeta) {
 			ret = UCODE_ERROR;
 			goto out;
 
