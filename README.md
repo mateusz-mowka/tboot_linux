@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.11
+----------------
+69. fixes for 2 HSD's:
+    https://hsdes.intel.com/appstore/article/#/22018502312
+    https://hsdes.intel.com/appstore/article/#/22018492629
+
 srf-bkc-6.2-v5.10
 ----------------
 68. Bug: microcode override_min does not work Fix: Revert "x86/microcode/intel:
