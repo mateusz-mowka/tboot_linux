@@ -15,6 +15,16 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.10
+----------------
+68. Bug: microcode override_min does not work Fix: Revert "x86/microcode/intel:
+    min_req_id check for late loading" since it is a duplicate of the more
+    generic fix patch "x86/microcode/intel: Add minimum required revision to
+    microcode header" No JIRA/HSD tracking. But Vijay Dhanraj and Jithu Joseph
+    confirmed the patch works.
+    https://jira.devtools.intel.com/browse/LFE-8933
+
+
 srf-bkc-6.2-v5.9
 ----------------
 67. disable CONFIG_RT_GROUP_SCHED as it breaks LTP test cases.
