@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.9
+----------------
+67. disable CONFIG_RT_GROUP_SCHED as it breaks LTP test cases.
+
 srf-bkc-6.2-v5.8
 ----------------
 66. fix https://jira.devtools.intel.com/browse/LFE-8797
