@@ -185,6 +185,13 @@ struct uc_doe_rsp {
 			u32 rsvd:29;
 		};
 	} flags;
+	union {
+		u32 data1;
+		struct {
+			u32 mcu_svn:16;
+			u32 rsvd1:16;
+		};
+	}svn_info;
 };
 
 /*
@@ -703,7 +710,8 @@ static int uc_doe_check_staged_ucode(struct uc_doe_mbox *mbox)
 		return -EIO;
 	}
 
-	pr_debug("Staged ucode revision 0x%x\n", rsp.result.patch_id);
+	pr_debug("Staged ucode revision 0x%x svn 0x%x\n", rsp.result.patch_id,
+		 rsp.svn_info.mcu_svn);
 
 	return 0;
 }
