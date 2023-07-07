@@ -1747,6 +1747,8 @@ reget:
 
 		fetch_orig = false;
 		pr_debug ("Trying to fetch new no commit uCode now\n");
+		/* Free the original firmware before getting the staged one. */
+		release_firmware(firmware);
 		goto reget;
 	}
 
