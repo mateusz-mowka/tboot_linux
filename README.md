@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.12
+----------------
+70. fix https://jira.devtools.intel.com/browse/LFE-8932
+    After rollback test, the normal reload will always reload the current
+    (saved in kernel) microcode revision
+
 srf-bkc-6.2-v5.11
 ----------------
 69. fixes for 2 HSD's:
