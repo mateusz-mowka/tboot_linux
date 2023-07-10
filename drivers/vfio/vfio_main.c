@@ -598,6 +598,10 @@ static int vfio_device_fops_release(struct inode *inode, struct file *filep)
 		vfio_device_group_close(df);
 	else
 		vfio_device_close(df);
+
+	if (df->iommufd)
+		iommufd_ctx_put(df->iommufd);
+
 	kfree(df);
 	vfio_device_put_registration(device);
 
@@ -1234,8 +1238,10 @@ out_close_device:
 out_unlock:
 	df->iommufd = NULL;
 	mutex_unlock(&device->dev_set->lock);
-	if (!IS_ERR(iommufd))
+	if (!IS_ERR(iommufd)) {
+		iommufd_ctx_put(iommufd);
 		fdput(f);
+	}
 	return ret;
 }
 
