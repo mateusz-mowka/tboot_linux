@@ -15,6 +15,18 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.13
+----------------
+73. "WARNING: suspicious RCU usage" with non-BKC kernel config
+https://jira.devtools.intel.com/browse/LFE-7685  
+
+72. BUG: sleeping function called from invalid context at lib/usercopy.c:29
+https://jira.devtools.intel.com/browse/LFE-7686 
+
+71. SEAMCALL error when killing dst TD after successful migration.
+https://jira.devtools.intel.com/browse/LFE-8822
+
+
 srf-bkc-6.2-v5.12
 ----------------
 70. fix https://jira.devtools.intel.com/browse/LFE-8932
