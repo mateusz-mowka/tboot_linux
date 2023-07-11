@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.14
+----------------
+74. Config change to enable docker recomended config options:
+    CONFIG_IP_VS_RR
+    CONFIG_SECURITY_SELINUX
+
 srf-bkc-6.2-v5.13
 ----------------
 73. "WARNING: suspicious RCU usage" with non-BKC kernel config
