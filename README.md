@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.16
+----------------
+76. enable CONFIG_DEBUG_ATOMIC_SLEEP in support of checking correctness and
+    ruling out a SW root cause to 
+    https://hsdes.intel.com/appstore/article/#/16021035709
+
 srf-bkc-6.2-v5.15
 ----------------
 75. TDX was disabled when VM/TD preserving was triggered with no seam files in
