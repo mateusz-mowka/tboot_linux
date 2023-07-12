@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v5.15
+----------------
+75. TDX was disabled when VM/TD preserving was triggered with no seam files in
+    intel-seam directory
+    https://jira.devtools.intel.com/browse/LFE-8890
+
 srf-bkc-6.2-v5.14
 ----------------
 74. Config change to enable docker recomended config options:
