@@ -2105,6 +2105,7 @@ int tdx_module_update(bool live_update, bool *recoverable)
 	const struct firmware *module, *sig;
 	const struct seam_sigstruct *seam_sig;
 
+	*recoverable = true;
 	tdx_pdev = platform_device_register_simple("tdx", -1, NULL, 0);
 	if (IS_ERR(tdx_pdev))
 		return PTR_ERR(tdx_pdev);
@@ -2120,7 +2121,6 @@ int tdx_module_update(bool live_update, bool *recoverable)
 		goto release_module;
 
 	seam_sig = (void *)sig->data;
-	*recoverable = true;
 	params = alloc_seamldr_params(module->data, module->size, sig->data, sig->size,
 				      live_update);
 	if (IS_ERR(params)) {
