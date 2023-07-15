@@ -1220,7 +1220,7 @@ static void __init check_system_tsc_reliable(void)
 	 *  - TSC which does not stop in C-States
 	 *  - the TSC_ADJUST register which allows to detect even minimal
 	 *    modifications
-	 *  - not more than two sockets. As the number of sockets cannot be
+	 *  - not more than four sockets. As the number of sockets cannot be
 	 *    evaluated at the early boot stage where this has to be
 	 *    invoked, check the number of online memory nodes as a
 	 *    fallback solution which is an reasonable estimate.
@@ -1228,8 +1228,11 @@ static void __init check_system_tsc_reliable(void)
 	if (boot_cpu_has(X86_FEATURE_CONSTANT_TSC) &&
 	    boot_cpu_has(X86_FEATURE_NONSTOP_TSC) &&
 	    boot_cpu_has(X86_FEATURE_TSC_ADJUST) &&
-	    nr_online_nodes <= 2)
+	    ((topology_max_packages() && topology_max_packages() <= 4) ||
+		nr_online_nodes <= 4)) {
+		pr_info("topology_max_packages()=%d nr_online_nodes=%d\n", topology_max_packages(), nr_online_nodes);
 		tsc_disable_clocksource_watchdog();
+	}
 }
 
 /*

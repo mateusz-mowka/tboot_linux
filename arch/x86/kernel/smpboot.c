@@ -1471,9 +1471,82 @@ void __init native_smp_prepare_boot_cpu(void)
 	native_pv_lock_init();
 }
 
+struct logical_pkg {
+	unsigned int	enabled_cpus;
+	unsigned int	disabled_cpus;
+};
+
+/*
+ * Needs to be size of NR_CPUS because virt allows to create the weirdest
+ * topologies just because it can.
+ */
+static struct logical_pkg logical_pkgs[NR_CPUS] __refdata;
+
+void logical_packages_update(u32 apicid, bool enabled)
+{
+	struct logical_pkg *lp;
+	unsigned int pkg;
+
+	if (!apic_to_pkg_shift || system_state != SYSTEM_BOOTING)
+		return;
+
+	pkg = (apicid >> apic_to_pkg_shift);
+
+	lp = logical_pkgs + pkg;
+	if (enabled)
+		lp->enabled_cpus++;
+	else
+		lp->disabled_cpus++;
+
+	if (++pkg > __max_logical_packages)
+		__max_logical_packages = pkg;
+}
+
+static void __init logical_packages_finish_setup(unsigned int possible)
+{
+	unsigned int pkg, maxpkg = 0, maxcpus = 0;
+
+	if (!apic_to_pkg_shift)
+		return;
+
+	/* Scan the enabled CPUs first */
+	for (pkg = 0; pkg < __max_logical_packages; pkg++) {
+		if (!logical_pkgs[pkg].enabled_cpus)
+			continue;
+
+		maxpkg++;
+		maxcpus += logical_pkgs[pkg].enabled_cpus;
+
+		if (maxcpus >= possible) {
+			__max_logical_packages = maxpkg;
+			return;
+		}
+	}
+
+	/* There is still room, scan for disabled CPUs */
+	for (pkg = 0; pkg < __max_logical_packages; pkg++) {
+		if (logical_pkgs[pkg].enabled_cpus || !logical_pkgs[pkg].disabled_cpus)
+			continue;
+
+		maxpkg++;
+		maxcpus += logical_pkgs[pkg].disabled_cpus;
+
+		if (maxcpus >= possible)
+			break;
+	}
+
+	__max_logical_packages = maxpkg;
+}
+
 void __init calculate_max_logical_packages(void)
 {
 	int ncpus;
+
+	if (__max_logical_packages) {
+		pr_info("Max logical packages ACPI enumeration: %u\n",
+		       __max_logical_packages);
+		return;
+	}
 
 	/*
 	 * Today neither Intel nor AMD support heterogeneous systems so
@@ -1481,7 +1554,8 @@ void __init calculate_max_logical_packages(void)
 	 */
 	ncpus = cpu_data(0).booted_cores * topology_max_smt_threads();
 	__max_logical_packages = DIV_ROUND_UP(total_cpus, ncpus);
-	pr_info("Max logical packages: %u\n", __max_logical_packages);
+
+	pr_info("Max logical packages estimated: %u\n", __max_logical_packages);
 }
 
 void __init native_smp_cpus_done(unsigned int max_cpus)
@@ -1589,6 +1663,8 @@ __init void prefill_possible_map(void)
 
 	for (i = 0; i < possible; i++)
 		set_cpu_possible(i, true);
+
+	logical_packages_finish_setup(possible);
 }
 
 #ifdef CONFIG_HOTPLUG_CPU

@@ -174,6 +174,7 @@ static int acpi_register_lapic(int id, u32 acpiid, u8 enabled)
 	}
 
 	if (!enabled) {
+		logical_packages_update(acpiid, false);
 		++disabled_cpus;
 		return -EINVAL;
 	}
@@ -184,6 +185,8 @@ static int acpi_register_lapic(int id, u32 acpiid, u8 enabled)
 	cpu = generic_processor_info(id, ver);
 	if (cpu >= 0)
 		early_per_cpu(x86_cpu_to_acpiid, cpu) = acpiid;
+
+	logical_packages_update(acpiid, cpu >= 0);
 
 	return cpu;
 }

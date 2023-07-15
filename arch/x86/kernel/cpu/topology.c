@@ -30,6 +30,8 @@ unsigned int __max_die_per_package __read_mostly = 1;
 EXPORT_SYMBOL(__max_die_per_package);
 
 #ifdef CONFIG_SMP
+unsigned int apic_to_pkg_shift;
+
 /*
  * Check if given CPUID extended topology "leaf" is implemented
  */
@@ -67,7 +69,7 @@ int detect_extended_topology_early(struct cpuinfo_x86 *c)
 {
 #ifdef CONFIG_SMP
 	unsigned int eax, ebx, ecx, edx;
-	int leaf;
+	int leaf, subleaf;
 
 	leaf = detect_extended_topology_leaf(c);
 	if (leaf < 0)
@@ -82,6 +84,14 @@ int detect_extended_topology_early(struct cpuinfo_x86 *c)
 	c->initial_apicid = edx;
 	if (smp_num_siblings < LEVEL_MAX_SIBLINGS(ebx))
 		smp_num_siblings = LEVEL_MAX_SIBLINGS(ebx);
+
+	for (subleaf = 1; subleaf < 8; subleaf++) {
+		cpuid_count(leaf, subleaf, &eax, &ebx, &ecx, &edx);
+
+		if (ebx == 0 || !LEAFB_SUBTYPE(ecx))
+			break;
+		apic_to_pkg_shift = BITS_SHIFT_NEXT_LEVEL(eax);
+	}
 #endif
 	return 0;
 }
