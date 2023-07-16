@@ -1307,6 +1307,9 @@ static bool tdp_mmu_zap_leafs(struct kvm *kvm, struct kvm_mmu_page *root,
 	lockdep_assert_held_write(&kvm->mmu_lock);
 	WARN_ON_ONCE(zap_private && !is_private);
 
+	if (!zap_private && is_private)
+		return flush;
+
 	/*
 	 * start and end doesn't have GFN shared bit.  This function zaps
 	 * a region including alias.  Adjust shared bit of [start, end) if the
