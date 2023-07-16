@@ -1746,7 +1746,7 @@ static int tdp_mmu_unzap_large_spte(struct kvm_vcpu *vcpu, struct kvm_page_fault
 				    struct tdp_iter *iter)
 {
 	struct kvm_mmu_page *sp = sptep_to_sp(rcu_dereference(iter->sptep));
-	kvm_pfn_t mask = KVM_HPAGE_MASK(iter->level);
+	kvm_pfn_t mask = KVM_HPAGE_GFN_MASK(iter->level);
 	u64 new_spte;
 
 	KVM_BUG_ON((fault->pfn & mask) != spte_to_pfn(iter->old_spte), vcpu->kvm);

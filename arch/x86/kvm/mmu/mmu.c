@@ -7981,11 +7981,10 @@ static bool linfo_is_mixed(struct kvm_lpage_info *linfo)
 
 bool kvm_mem_attr_is_mixed(struct kvm_memory_slot *slot, gfn_t gfn, int level)
 {
-       struct kvm_lpage_info *linfo = lpage_info_slot(gfn & KVM_HPAGE_MASK(level),
-						      slot, level);
+	struct kvm_lpage_info *linfo = lpage_info_slot(gfn, slot, level);
 
-       WARN_ON_ONCE(level == PG_LEVEL_4K);
-       return linfo_is_mixed(linfo);
+	WARN_ON_ONCE(level == PG_LEVEL_4K);
+	return linfo_is_mixed(linfo);
 }
 
 static void linfo_set_mixed(gfn_t gfn, struct kvm_memory_slot *slot,
