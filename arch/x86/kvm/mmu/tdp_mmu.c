@@ -1546,11 +1546,13 @@ static int tdp_mmu_merge_private_spt(struct kvm_vcpu *vcpu,
 	 * All child pages are required to be populated for merging them into a
 	 * large page.  Populate all child spte.
 	 */
-	for (i = 0; i < SPTE_ENT_PER_PAGE; i++, tdp_iter_step_side(&child_iter)) {
+	for (i = 0; i < SPTE_ENT_PER_PAGE; i++) {
 		WARN_ON_ONCE(child_iter.level != PG_LEVEL_4K);
 		if (is_shadow_present_pte(child_iter.old_spte)) {
 			/* TODO: relocate page for huge page. */
 			WARN_ON_ONCE(spte_to_pfn(child_iter.old_spte) != spte_to_pfn(new_spte) + i);
+			if (i < SPTE_ENT_PER_PAGE - 1)
+				tdp_iter_step_side(&child_iter);
 			continue;
 		}
 
@@ -1572,6 +1574,9 @@ static int tdp_mmu_merge_private_spt(struct kvm_vcpu *vcpu,
 			ret_pf_retry = true;
 		else if (ret)
 			goto out;
+
+		if (i < SPTE_ENT_PER_PAGE - 1)
+			tdp_iter_step_side(&child_iter);
 	}
 	if (ret_pf_retry) {
 		ret = -EBUSY;
