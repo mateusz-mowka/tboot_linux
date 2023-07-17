@@ -15,6 +15,13 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v6.1
+----------------
+77. Bug: [EMR][QAT][BKC10 Kernel 6.2 v6.10] SR-IOV QAT VF is still used by driver QEMU after detach from VM
+    https://hsdes.intel.com/appstore/article/#/15013507016
+    Fix: vfio: free iommufd ref in device close and error path
+
+
 srf-bkc-6.2-v5.16
 ----------------
 76. enable CONFIG_DEBUG_ATOMIC_SLEEP in support of checking correctness and
