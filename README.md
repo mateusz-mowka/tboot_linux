@@ -15,12 +15,21 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v6.3
+----------------
+79. Fixes: 100% VCPU when guest is idle:
+    https://jira.devtools.intel.com/browse/LFE-7894
+
+srf-bkc-6.2-v6.2
+----------------
+78. Fixes NVME disk passthrough to TD issue:
+    https://jira.devtools.intel.com/browse/LFE-7775
+
 srf-bkc-6.2-v6.1
 ----------------
 77. Bug: [EMR][QAT][BKC10 Kernel 6.2 v6.10] SR-IOV QAT VF is still used by driver QEMU after detach from VM
     https://hsdes.intel.com/appstore/article/#/15013507016
     Fix: vfio: free iommufd ref in device close and error path
-
 
 srf-bkc-6.2-v5.16
 ----------------
@@ -51,7 +60,6 @@ https://jira.devtools.intel.com/browse/LFE-7686
 71. SEAMCALL error when killing dst TD after successful migration.
 https://jira.devtools.intel.com/browse/LFE-8822
 
-
 srf-bkc-6.2-v5.12
 ----------------
 70. fix https://jira.devtools.intel.com/browse/LFE-8932
@@ -72,7 +80,6 @@ srf-bkc-6.2-v5.10
     microcode header" No JIRA/HSD tracking. But Vijay Dhanraj and Jithu Joseph
     confirmed the patch works.
     https://jira.devtools.intel.com/browse/LFE-8933
-
 
 srf-bkc-6.2-v5.9
 ----------------
