@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v6.4
+----------------
+80.  System clock source switches from TSC to HPET during PnP runs
+     Fix: tsc: use the better socket number estimation
+     https://hsdes.intel.com/appstore/article/#/22016721723
+
 srf-bkc-6.2-v6.3
 ----------------
 79. Fixes: 100% VCPU when guest is idle:
