@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v7.1
+----------------
+81.  stop panics on NMI watchdog time out.  .config change
+fixes: https://hsdes.intel.com/appstore/article/#/16021325551
+
 srf-bkc-6.2-v6.4
 ----------------
 80.  System clock source switches from TSC to HPET during PnP runs
