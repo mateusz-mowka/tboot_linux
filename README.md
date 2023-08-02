@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v7.3
+----------------
+83. fix sleeping function called in bad context issue
+    x86/microcode/intel: Fix "BUG: sleeping function called from invalid context"
+
 srf-bkc-6.2-v7.2
 ----------------
 82. Enable net-switch device support
