@@ -744,7 +744,7 @@ struct uc_doe_mbox *uc_doe_create_mbox(phys_addr_t doe_addr)
 	if (!doe_addr)
 		return NULL;
 
-	mbox = kzalloc(sizeof(*mbox), GFP_KERNEL);
+	mbox = kzalloc(sizeof(*mbox), GFP_ATOMIC);
 	if (!mbox)
 		return NULL;
 
