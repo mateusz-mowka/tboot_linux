@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v7.4
+----------------
+84. fix hang on warmboot testing with tboot.
+    https://hsdes.intel.com/appstore/article/#/16020656447
+
 srf-bkc-6.2-v7.3
 ----------------
 83. fix sleeping function called in bad context issue
