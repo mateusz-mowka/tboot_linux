@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v7.5
+----------------
+85. fix bug blocking TD guests with more than 256 cpus
+    https://jira.devtools.intel.com/browse/LFE-8569
+
 srf-bkc-6.2-v7.4
 ----------------
 84. fix hang on warmboot testing with tboot.
