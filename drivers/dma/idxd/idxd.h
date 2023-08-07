@@ -750,6 +750,11 @@ void idxd_dma_complete_txd(struct idxd_desc *desc,
 			   enum idxd_complete_type comp_type,
 			   bool free_desc, void *ctx, u32 *status);
 
+void idxd_free_desc(struct idxd_wq *wq, struct idxd_desc *desc);
+void idxd_dma_complete_txd(struct idxd_desc *desc,
+			   enum idxd_complete_type comp_type,
+			   bool free_desc, void *ctx, u32 *status);
+
 static inline void idxd_desc_complete(struct idxd_desc *desc,
 				      enum idxd_complete_type comp_type,
 				      bool free_desc)
