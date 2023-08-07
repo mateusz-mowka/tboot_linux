@@ -1811,7 +1811,7 @@ static int iaa_crypto_probe(struct idxd_dev *idxd_dev)
 
 	wq->type = IDXD_WQT_KERNEL;
 
-	ret = drv_enable_wq(wq);
+	ret = idxd_drv_enable_wq(wq);
 	if (ret < 0) {
 		dev_dbg(dev, "enable wq %d.%d failed: %d\n",
 			idxd->id, wq->id, ret);
@@ -1859,7 +1859,7 @@ err_save:
 		free_wq_table();
 err_alloc:
 	mutex_unlock(&iaa_devices_lock);
-	drv_disable_wq(wq);
+	idxd_drv_disable_wq(wq);
 err:
 	wq->type = IDXD_WQT_NONE;
 
@@ -1877,7 +1877,7 @@ static void iaa_crypto_remove(struct idxd_dev *idxd_dev)
 	mutex_lock(&iaa_devices_lock);
 
 	remove_iaa_wq(wq);
-	drv_disable_wq(wq);
+	idxd_drv_disable_wq(wq);
 	rebalance_wq_table();
 
 	if (nr_iaa == 0) {

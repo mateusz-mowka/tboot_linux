@@ -2416,7 +2416,7 @@ static int idxd_vdev_drv_probe(struct idxd_dev *idxd_dev)
 	}
 
 	wq->type = IDXD_WQT_VDEV;
-	rc = drv_enable_wq(wq);
+	rc = idxd_drv_enable_wq(wq);
 	if (rc < 0)
 		goto err_enable_wq;
 
@@ -2441,7 +2441,7 @@ static void idxd_vdev_drv_remove(struct idxd_dev *idxd_dev)
 	struct idxd_wq *wq = idxd_dev_to_wq(idxd_dev);
 
 	mutex_lock(&wq->wq_lock);
-	drv_disable_wq(wq);
+	idxd_drv_disable_wq(wq);
         if (wq->state == IDXD_WQ_LOCKED)
                 wq->state = IDXD_WQ_DISABLED;
 	wq->type = IDXD_WQT_NONE;
