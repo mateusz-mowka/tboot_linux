@@ -15,19 +15,38 @@ The IAA hardware spec can be found here:
   https://cdrdv2.intel.com/v1/dl/getContent/721858
 
 The iaa_crypto driver is designed to work as a layer underneath
-higher-level compression devices such as zswap and zram.
+higher-level compression devices such as zswap.
 
 Users can select IAA compress/decompress acceleration by specifying
-'iaa_crypto' as the compression algorithm to use by whatever facility
+one of the supported IAA compression algorithms in whatever facility
 allows compression algorithms to be selected.
 
-For example, a zram drive can select iaa_crypto via::
+For example, a zswap device can select the IAA 'fixed' mode
+represented by selecting the 'deflate-iaa' crypto compression
+algorithm::
 
-  # echo iaa_crypto > /sys/block/zram1/comp_algorithm
+  # echo deflate-iaa > /sys/module/zswap/parameters/compressor
 
-Similarly for zswap::
+This will tell zswap to use the IAA 'fixed' compression mode for all
+compresses and decompresses.
 
-  # echo iaa_crypto > /sys/module/zswap/parameters/compressor
+Currently, there is only one compression modes available, 'fixed'
+mode.
+
+The 'fixed' compression mode implements the compression scheme
+specified by RFC 1951 and is given the crypto algorithm name
+'deflate-iaa'.  (Because the IAA hardware has a 4k history-window
+limitation, only buffers <= 4k, or that have been compressed using a
+<= 4k history window, are technically compliant with the deflate spec,
+which allows for a window of up to 32k.  Because of this limitation,
+the IAA fixed mode deflate algorithm is given its own algorithm name
+rather than simply 'deflate').
+
+'fixed' mode can be chosen as the mode to be used for
+compression/decompression via the corresponding crypto algorithm
+name::
+
+  # echo deflate-iaa >  /sys/bus/dsa/drivers/crypto/compression_mode
 
 
 Config options and other setup
@@ -152,7 +171,7 @@ has the old 'iax' device naming in place) ::
 
   # configure wq1.0
 
-  accel-config config-wq --group-id=0 --mode=shared --type=kernel --name="iaa_crypto" --device_name="crypto" iax1/wq1.0
+  accel-config config-wq --group-id=0 --mode=dedicated --type=kernel --name="iaa_crypto" --device_name="crypto" iax1/wq1.0
 
   # enable IAA device iax1
 
@@ -173,59 +192,44 @@ efficiently.
 
 The IAA crypto algorigthms is operational and compression and
 decompression operations are fully enabled following the successful
-binding of the first IAA workqueue to the iaa_crypto driver, and
-similarly, the IAA crypto algorithm is automatically unregistered when
-there are no IAA workqueues bound to the driver, following their
-removal.
+binding of the first IAA workqueue to the iaa_crypto driver.
 
-As a result, the iaa_crypto crypto algorithm and thus the IAA hardware
-are only available when one or more workques are bound to the
-iaa_crypto driver.
+Similarly, the IAA crypto algorithm is not operational and compression
+and decompression operations are disabled following the unbinding of
+the last IAA worqueue to the iaa_crypto driver.
+
+As a result, the IAA crypto algorithms and thus the IAA hardware are
+only available when one or more workques are bound to the iaa_crypto
+driver.
+
+When there are no IAA workqueues bound to the driver, the IAA crypto
+algorithms can be unregistered by removing the module.
+
 
 Driver attributes
 -----------------
 
-There are a few user-configurable driver attributes that can be used
-to configure various modes of operation.  They're listed below, along
-with their default values.  To set any of these attributes, echo the
-appropriate values to the attribute file located under
+There are a couple user-configurable driver attributes that can be
+used to configure various modes of operation.  They're listed below,
+along with their default values.  To set any of these attributes, echo
+the appropriate values to the attribute file located under
 /sys/bus/dsa/drivers/crypto/
+
+The attribute settings at the time the IAA algorithms are registered
+are captured in each algorithm's crypto_ctx and used for all compresses
+and decompresses when using that algorithm.
+
+The available attributes are:
 
   - verify_compress
 
     Toggle compression verification.  If set, each compress will be
     internally decompressed and the contents verified, returning error
-    codes if unsuccessful.  This can be toggled with 0/1:
+    codes if unsuccessful.  This can be toggled with 0/1::
 
       echo 0 > /sys/bus/dsa/drivers/crypto/verify_compress
 
     The default setting is '1' - verify all compresses.
-
-  - compression_mode
-
-    Select compression mode to be used by all compresses and
-    decompresses.  There are a number ofcompression modes available,
-    each identified by a unique string.  These can be selected by
-    echoing the string to the 'compression_mode' driver attribute.
-    Currently, there are only two compression modes available,
-    'canned' and 'fixed' modes.
-
-    The 'fixed' compression mode implements the compression scheme
-    specified by RFC 1951.
-
-    The 'canned' compression mode implements a good general-purpose
-    compression scheme whose tables were generated from statistics
-    derived from a wide variety of SPEC17 workloads.  It provides much
-    better overall characteristics than the existing deflate-1951
-    tables implemented by 'fixed'.
-
-    Either 'fixed' or 'canned' modes can be chosen as the mode to be used
-    for compression/decompression via the iaa_crypto compression_mode
-    iaa_crypto driver attribute:
-
-      echo "canned" >  /sys/bus/dsa/drivers/crypto/compression_mode
-
-    The default setting is 'fixed'.
 
   - sync_mode
 
@@ -253,17 +257,17 @@ appropriate values to the attribute file located under
     polling in the iaa_crypto driver previously mentioned.
 
     This mode can be enabled by writing 'async_irq' to the sync_mode
-    iaa_crypto driver attribute:
+    iaa_crypto driver attribute::
 
       echo async_irq > /sys/bus/dsa/drivers/crypto/sync_mode
 
     Async mode without interrupts (caller must poll) can be enabled by
-    writing 'async' to it:
+    writing 'async' to it::
 
       echo async > /sys/bus/dsa/drivers/crypto/sync_mode
 
     The mode that does the polling in the iaa_crypto driver can be
-    enabled by writing 'sync' to it:
+    enabled by writing 'sync' to it::
 
       echo sync > /sys/bus/dsa/drivers/crypto/sync_mode
 
@@ -366,22 +370,23 @@ per-device and per-wq stats::
 Use cases
 =========
 
-Simple zram test
-----------------
+Simple zswap test
+-----------------
 
 For this example, the kernel should be configured according to the
-scalable mode options described above, and zram should be enabled as
+dedicated mode options described above, and zswap should be enabled as
 well::
 
-  CONFIG_ZRAM=m
-  CONFIG_ZSMALLOC=m
-  CONFIG_ZSMALLOC_STAT=y
-  CONFIG_ZRAM_WRITEBACK=y
+  CONFIG_ZSWAP=y
 
 This is a simple test that uses iaa_compress as the compressor for a
-zram filesystem. It simply copies a file to an iaa_compressed zram
-disk and then copies it back, to demonstrate both compress and
-decompress.
+swap (zswap) device.  It sets up the zswap device and then uses the
+memory_memadvise program listed below to forcibly swap out and in a
+specified number of pages, demonstrating both compress and decompress.
+
+The zswap test expects the work queues for each IAA device on the
+system to be configured properly as a kernel workqueue with a
+workqueue driver_name of "crypto".
 
 The first step is to make sure the iaa_crypto module is loaded::
 
@@ -389,7 +394,7 @@ The first step is to make sure the iaa_crypto module is loaded::
 
 Following that the IAA device(s) should be configured and enabled.
 
-The zram test expects the work queues for each IAA device on the
+The zswap test expects the work queues for each IAA device on the
 system to be configured properly as a kernel workqueue with a
 workqueue driver_name of "crypto".
 
@@ -428,7 +433,7 @@ The below script automatically does that::
   #
   echo "Configure IAA"
   for ((i = 1; i < ${num_iaa} * 2; i += 2)); do
-      accel-config config-wq --group-id=0 --mode=shared --size=128 --priority=10 --type=kernel --name="iaa_crypto" --device_name="crypto" --threshold=10 iax${i}/wq${i}
+      accel-config config-wq --group-id=0 --mode=dedicated --size=128 --priority=10 --type=kernel --name="iaa_crypto" --driver_name="crypto" iax${i}/wq${i}
   done
 
   echo "End Configure IAA"
@@ -471,176 +476,19 @@ enabled debug output (echo -n 'module iaa_crypto +p' >
   .
   .
 
-Once the workqueues and devices have been enabled, the iaa_crypto
-algorithm is enabled and available.  When the iaa_crypto algorithm has
-been successfully enabled, you should see the following dmesg output::
+Once the workqueues and devices have been enabled, the IAA crypto
+algorithms are enabled and available.  When the IAA crypto algorithms
+have been successfully enabled, you should see the following dmesg
+output::
 
   [   64.893759] iaa_crypto: iaa_crypto_enable: iaa_crypto now ENABLED
 
-Now that the iaa_crypto module is ready to go, we can set up
-zram. Start by setting up a few vm params::
-
-  echo 100 > /proc/sys/vm/swappiness
-  echo never > /sys/kernel/mm/transparent_hugepage/enabled
-  echo 1 > /proc/sys/vm/overcommit_memory
-
-Next, insert the zram module for 1 device and configure the new
-/dev/zram1 to use iaa_crypto as the compression algorithm::
-
-  modprobe zram num_devices=1
-
-  echo iaa_crypto > /sys/block/zram1/comp_algorithm
-  echo 32G > /sys/block/zram1/disksize
-  echo 32G > /sys/block/zram1/mem_limit
-
-Now create an ext4 filesytem on /dev/zram1 and mount it::
-
-  mkfs.ext4 /dev/zram1
-  mount /dev/zram1 /tmp
-
-Now that our /tmp filesystem is set up and using iaa_crypto for
-compress/decompress, copy a big file to /tmp::
-
-  cp -f somebigfile.txt /tmp; sync
-
-You should see something like the following in the dmesg output if
-you've enabled debug output (echo -n 'module iaa_crypto +p' >
-/sys/kernel/debug/dynamic_debug/control)::
-
-  [  836.226331] idxd 0000:6f:02.0: iaa_comp_compress: dma_map_single, src_addr 2cdffb000, dev 0000000063891379, src 000000004d193d53, slen 4096
-  [  836.226333] idxd 0000:6f:02.0: iaa_comp_compress: dma_map_single, dst_addr 281182000, dev 0000000063891379, dst 0000000014a9f578, *dlen 8192
-  [  836.226335] idxd 0000:6f:02.0: iaa_comp_compress: src 000000004d193d53, src_addr 2cdffb000, slen 4096, dst 0000000014a9f578, dst_addr 281182000, dlen 8192
-  [  836.226337] idxd 0000:6f:02.0: iaa_compress: desc->src1_addr 2cdffb000, desc->src1_size 4096, desc->dst_addr 281182000, desc->max_dst_size 8192, desc->src2_addr 28270a000, desc->src2_size 1568
-  [  836.226344] idxd 0000:6f:02.0: iaa_compress_verify: (verify) desc->src1_addr 281182000, desc->src1_size 468, desc->dst_addr 2cdffb000, desc->max_dst_size 4096, desc->src2_addr 0, desc->src2_size 0
-  [  836.226381] idxd 0000:6f:02.0: iaa_comp_compress: dma_map_single, src_addr 280367000, dev 0000000063891379, src 00000000b72795f1, slen 4096
-  [  836.226383] idxd 0000:6f:02.0: iaa_comp_compress: dma_map_single, dst_addr 281182000, dev 0000000063891379, dst 0000000014a9f578, *dlen 8192
-  [  836.226385] idxd 0000:6f:02.0: iaa_comp_compress: src 00000000b72795f1, src_addr 280367000, slen 4096, dst 0000000014a9f578, dst_addr 281182000, dlen 8192
-  [  836.226388] idxd 0000:6f:02.0: iaa_compress: desc->src1_addr 280367000, desc->src1_size 4096, desc->dst_addr 281182000, desc->max_dst_size 8192, desc->src2_addr 28270a000, desc->src2_size 1568
-  [  836.226394] idxd 0000:6f:02.0: iaa_compress_verify: (verify) desc->src1_addr 281182000, desc->src1_size 285, desc->dst_addr 280367000, desc->max_dst_size 4096, desc->src2_addr 0, desc->src2_size 0
-
-To see the file decompress (again, turn on debug output in the
-kernel)::
-
-  sync; echo 3 > /proc/sys/vm/drop_caches; sync
-  cat /tmp/somebigfile.txt
-
-You should see something like the following in the dmesg output if
-you've enabled debug output (echo -n 'module iaa_crypto +p' >
-/sys/kernel/debug/dynamic_debug/control)::
-
-  [  929.394416] idxd 0000:74:02.0: iaa_comp_decompress: using wq for cpu=81 = wq 000000007e629f8f
-  [  929.394417] idxd 0000:74:02.0: iaa_comp_decompress: dma_map_single, src_addr 272a58008, dev 000000002bf7270d, src 000000007e580802, slen 1564
-  [  929.394418] idxd 0000:74:02.0: iaa_comp_decompress: dma_map_single, dst_addr 274bbe000, dev 000000002bf7270d, dst 0000000037de3d04, *dlen 4096
-  [  929.394420] idxd 0000:74:02.0: iaa_comp_decompress: src 000000007e580802, src_addr 272a58008, slen 1564, dst 0000000037de3d04, dst_addr 274bbe000, dlen 4096
-  [  929.394421] idxd 0000:74:02.0: iaa_decompress: desc->src1_addr 272a58008, desc->src1_size 1564, desc->dst_addr 274bbe000, desc->max_dst_size 4096, desc->src2_addr 0, desc->src2_size 0
-  [  929.394427] idxd 0000:74:02.0: iaa_comp_decompress: using wq for cpu=81 = wq 000000007e629f8f
-  [  929.394428] idxd 0000:74:02.0: iaa_comp_decompress: dma_map_single, src_addr 2b8539008, dev 000000002bf7270d, src 0000000021939c1e, slen 849
-  [  929.394430] idxd 0000:74:02.0: iaa_comp_decompress: dma_map_single, dst_addr 2b89b7000, dev 000000002bf7270d, dst 00000000850a85fa, *dlen 4096
-  [  929.394431] idxd 0000:74:02.0: iaa_comp_decompress: src 0000000021939c1e, src_addr 2b8539008, slen 849, dst 00000000850a85fa, dst_addr 2b89b7000, dlen 4096
-  [  929.394433] idxd 0000:74:02.0: iaa_decompress: desc->src1_addr 2b8539008, desc->src1_size 849, desc->dst_addr 2b89b7000, desc->max_dst_size 4096, desc->src2_addr 0, desc->src2_size 0
-
-When finished, disable the device(s), and remove the zram and
-iaa_crypto modules::
-
-  umount -f /dev/zram1
-  echo 0 > /sys/class/zram-control/hot_remove
-
-  rmmod zram
-  rmmod iaa_crypto
-
-
-Simple zswap test
------------------
-
-For this example, the kernel should be configured according to the
-scalable mode options described above, and zswap should be enabled as
-well::
-
-  CONFIG_ZSWAP=y
-
-This is a simple test that uses iaa_compress as the compressor for a
-swap (zswap) device.  It sets up the zswap device and then uses the
-memory_memadvice program listed below to forcibly swap out and in a
-specified number of pages, demonstrating both compress and decompress.
-
-The zswap test expects the work queues for each IAA device on the
-system to be configured properly as a kernel workqueue with a
-workqueue driver_name of "crypto".
-
-The first step is to make sure the iaa_crypto module is loaded::
-
-  modprobe iaa_crypto
-
-Following that the IAA device(s) should be configured and enabled.
-
-Repeat the above steps but instead of the zram setup following the iaa
-device/workqueue setup script, run the following zswap-specific setup
-commands. For zswap, CONFIG_ZSWAP=y should be enabled as well:
-
-The below script automatically does that::
-
-  #!/bin/bash
-
-  echo "IAA devices:"
-  lspci -d:0cfe
-  echo "# IAA devices:"
-  lspci -d:0cfe | wc -l
-
-  #
-  # count iaa instances
-  #
-  iaa_dev_id="0cfe"
-  num_iaa=$(lspci -d:${iaa_dev_id} | wc -l)
-  echo "Found ${num_iaa} IAA instances"
-
-  #
-  # disable iaa wqs and devices
-  #
-  echo "Disable IAA"
-
-  for ((i = 1; i < ${num_iaa} * 2; i += 2)); do
-      echo disable wq iax${i}/wq${i}.0
-      accel-config disable-wq iax${i}/wq${i}.0
-      echo disable iaa iax${i}
-      accel-config disable-device iax${i}
-  done
-
-  echo "End Disable IAA"
-
-  #
-  # configure iaa wqs and devices
-  #
-  echo "Configure IAA"
-  for ((i = 1; i < ${num_iaa} * 2; i += 2)); do
-      accel-config config-wq --group-id=0 --mode=shared --size=128 --priority=10 --type=kernel --name="iaa_crypto" --device_name="crypto" --threshold=10 iax${i}/wq${i}
-  done
-
-  echo "End Configure IAA"
-
-  #
-  # enable iaa wqs and devices
-  #
-  echo "Enable IAA"
-
-  for ((i = 1; i < ${num_iaa} * 2; i += 2)); do
-      echo enable iaa iaa${i}
-      accel-config enable-device iaa${i}
-      echo enable wq iaa${i}/wq${i}.0
-      accel-config enable-wq iaa${i}/wq${i}.0
-  done
-
-  echo "End Enable IAA"
-
-When the iaa_crypto algorithm has been successfully enabled, you
-should see the following dmesg output::
-
-  [  196.377326] iaa_crypto: iaa_crypto_enable: iaa_crypto now ENABLED
-
-Now run the following zswap-specific setup commands::
+Now run the following zswap-specific setup commands to have zswap use
+the 'fixed' compression mode::
 
   echo 0 > /sys/module/zswap/parameters/enabled
   echo 50 > /sys/module/zswap/parameters/max_pool_percent
-  echo iaa_crypto > /sys/module/zswap/parameters/compressor
+  echo deflate-iaa > /sys/module/zswap/parameters/compressor
   echo zsmalloc > /sys/module/zswap/parameters/zpool
   echo 1 > /sys/module/zswap/parameters/enabled
   echo 0 > /sys/module/zswap/parameters/same_filled_pages_enabled
@@ -674,6 +522,60 @@ you've enabled debug output (echo -n 'module iaa_crypto +p' >
   [  409.203254] idxd 0000:e7:02.0: iaa_comp_adecompress: dma_map_sg, src_addr 21ddd8b100, nr_sgs 1, req->src 0000000084adab64, req->slen 228, sg_dma_len(sg) 228
   [  409.203256] idxd 0000:e7:02.0: iaa_comp_adecompress: dma_map_sg, dst_addr 21f1551000, nr_sgs 1, req->dst 000000004e2990d0, req->dlen 4096, sg_dma_len(sg) 4096
   [  409.203257] idxd 0000:e7:02.0: iaa_decompress: desc->src1_addr 21ddd8b100, desc->src1_size 228, desc->dst_addr 21f1551000, desc->max_dst_size 4096, desc->src2_addr 0, desc->src2_size 0
+
+In order to unregister the IAA crypto algorithms, and register new
+ones using different parameters, any users of the current algorithm
+should be stopped and the IAA workqueues and devices disabled.
+
+In the case of zswap, remove the IAA crypto algorithm as the
+compressor and turn off swap (to remove all references to
+iaa_crypto)::
+
+  echo lzo > /sys/module/zswap/parameters/compressor
+  swapoff -a
+
+  echo 0 > /sys/module/zswap/parameters/accept_threshold_percent
+  echo 0 > /sys/module/zswap/parameters/max_pool_percent
+  echo 0 > /sys/module/zswap/parameters/enabled
+
+Once zswap is disabled and no longer using iaa_crypto, the IAA wqs and
+devices can be disabled.
+
+The below script automatically does that::
+
+  #!/bin/bash
+
+  echo "IAA devices:"
+  lspci -d:0cfe
+  echo "# IAA devices:"
+  lspci -d:0cfe | wc -l
+
+  #
+  # count iaa instances
+  #
+  iaa_dev_id="0cfe"
+  num_iaa=$(lspci -d:${iaa_dev_id} | wc -l)
+  echo "Found ${num_iaa} IAA instances"
+
+  #
+  # disable iaa wqs and devices
+  #
+  echo "Disable IAA"
+
+  for ((i = 1; i < ${num_iaa} * 2; i += 2)); do
+      echo disable wq iax${i}/wq${i}.0
+      accel-config disable-wq iax${i}/wq${i}.0
+      echo disable iaa iax${i}
+      accel-config disable-device iax${i}
+  done
+
+  echo "End Disable IAA"
+
+Finally, at this point the iaa_crypto module can be removed, which
+will unregister the current IAA crypto algorithms::
+
+  rmmod iaa_crypto
+
 
 memory_madvise.c (gcc -o memory_memadvise memory_madvise.c)::
 
