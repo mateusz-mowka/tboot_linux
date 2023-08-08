@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v7.6
+----------------
+86. Incorporate the ICE driver from Jacob Keller rebased from his tree
+    PSXT requested/no HSD
+
 srf-bkc-6.2-v7.5
 ----------------
 85. fix bug blocking TD guests with more than 256 cpus
