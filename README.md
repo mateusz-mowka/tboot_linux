@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v8.1
+----------------
+87. fix When multi dsa devices and wqs are enabled and dsa_test are executed
+    parallelly, existing way to acquire pdev may stuck in spin lock
+    HSD: https://hsdes.intel.com/appstore/article/#/16021526906
+
 srf-bkc-6.2-v7.6
 ----------------
 86. Incorporate the ICE driver from Jacob Keller rebased from his tree
