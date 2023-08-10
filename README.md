@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v8.2
+----------------
+88. device filter "authorize_allow_devs=pci:$vendor_id:$device_id" doesn't work
+    as expected with warning and call trace
+    see https://jira.devtools.intel.com/browse/LFE-8914
+
 srf-bkc-6.2-v8.1
 ----------------
 87. fix When multi dsa devices and wqs are enabled and dsa_test are executed
