@@ -791,6 +791,7 @@ void __init iordt_show(void)
 
 void __init iordt_init(void)
 {
+#if 0
 	if (!iordt_cpu_has_cat_l3() && !iordt_cpu_has_cmt_l3() &&
 	    !iordt_cpu_has_mbm_l3())
 		return;
@@ -804,4 +805,5 @@ void __init iordt_init(void)
 
 		return;
 	}
+#endif
 }
