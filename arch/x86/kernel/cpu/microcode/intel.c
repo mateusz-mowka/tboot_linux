@@ -1755,23 +1755,26 @@ reget:
 	if (ret == UCODE_NEW && mcu_cap.rollback) {
 		rb_meta = (struct ucode_meta *)intel_microcode_find_meta_data(
 				(void*)unapplied_ucode.ucode, META_TYPE_ROLLBACK);
-		if (!rb_meta && !relax_rbmeta) {
-			ret = UCODE_ERROR;
+		if (!rb_meta) {
+			/* TODO: `relax_rbmeta` is temp hack as many test ucode
+			 * do not have metadata. Needs to be removed before
+			 * upstreaming!
+			 */
+			if (!relax_rbmeta)
+				ret = UCODE_ERROR;
 			goto out;
-
 		}
 
 		if (type == RELOAD_NO_COMMIT) {
 			nocommit = can_do_nocommit(
 				   (struct microcode_header_intel *)unapplied_ucode.ucode, rb_meta);
-			nocommit = true; // hack since metadata is messed up now
 			if (!nocommit) {
 				ret = UCODE_ERROR;
 				goto out;
 			}
 		} else if (type == RELOAD_COMMIT) {
-			if (!relax_rbmeta && !check_update_reqs(
-			    (struct microcode_header_intel *)unapplied_ucode.ucode, rb_meta)) {
+			if (!check_update_reqs(
+				(struct microcode_header_intel *)unapplied_ucode.ucode, rb_meta)) {
 				ret = UCODE_ERROR;
 				goto out;
 			}
