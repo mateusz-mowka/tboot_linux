@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v9.3
+----------------
+91.  Fix: segfault error 46 in ld-linux-x86-so.2 
+     Fix: x86/fpu: Invalidate FPU state correctly on exec()
+     https://hsdes.intel.com/appstore/article/#/15013744136
+
 srf-bkc-6.2-v9.2
 ----------------
 90.  Fix: dmaengine: idxd: use spin_lock_irqsave before wait_event_lock_irq
