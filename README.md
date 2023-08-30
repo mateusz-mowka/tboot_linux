@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v9.1
+----------------
+89.  fix ucode relod_nc test case pannic
+     https://hsdes.intel.com/appstore/article/#/15013940029
+
 srf-bkc-6.2-v8.2
 ----------------
 88. device filter "authorize_allow_devs=pci:$vendor_id:$device_id" doesn't work
