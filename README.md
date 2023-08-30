@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v9.2
+----------------
+90.  Fix: dmaengine: idxd: use spin_lock_irqsave before wait_event_lock_irq
+     https://jira.devtools.intel.com/browse/LFE-9288
+
 srf-bkc-6.2-v9.1
 ----------------
 89.  fix ucode relod_nc test case pannic
