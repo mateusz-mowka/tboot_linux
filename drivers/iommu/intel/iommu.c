@@ -1783,7 +1783,7 @@ static int iommu_tdxio_enable(struct intel_iommu *iommu)
 	 * contiguous. e.g. 4 contiguous pages for IQ, 4 for IQCTX. For
 	 * simplicity, alloc 16 contiguous pages and leave last 4 unused.
 	 */
-	va = __get_free_pages(GFP_KERNEL_ACCOUNT | __GFP_ZERO, TDX_IO_BUFF_ORDER);
+	va = __get_free_pages(GFP_KERNEL_ACCOUNT | __GFP_ZERO | GFP_ATOMIC, TDX_IO_BUFF_ORDER);
 	if (!va)
 		return -ENOMEM;
 
