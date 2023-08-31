@@ -1120,6 +1120,8 @@ struct cxl_dev_state *cxl_dev_state_create(struct device *dev)
 	mutex_init(&cxlds->mbox_mutex);
 	mutex_init(&cxlds->event.log_lock);
 	cxlds->dev = dev;
+	cxlds->comp_map.dev = dev;
+	cxlds->comp_map.resource = CXL_RESOURCE_NONE;
 
 	return cxlds;
 }
