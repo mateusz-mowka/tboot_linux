@@ -98,7 +98,8 @@ static int map_hdm_decoder_regs(struct cxl_port *port, void __iomem *crb,
 		return -ENXIO;
 	}
 
-	return cxl_map_component_regs(&map, regs, BIT(CXL_CM_CAP_CAP_ID_HDM));
+	return cxl_map_component_regs(&map, &port->dev, regs,
+				      BIT(CXL_CM_CAP_CAP_ID_HDM));
 }
 
 static struct cxl_hdm *devm_cxl_setup_emulated_hdm(struct cxl_port *port,
