@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v9.4
+----------------
+92.  fix https://hsdes.intel.com/appstore/article/#/16021418418
+     harvest patch from LKML by M Wilcox for addressing softlockup events in
+     folio_wake_bit.
+
 srf-bkc-6.2-v9.3
 ----------------
 91.  Fix: segfault error 46 in ld-linux-x86-so.2 
