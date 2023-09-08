@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v10.1
+----------------
+94.  fix  https://hsdes.intel.com/appstore/article/#/14019997355
+
 srf-bkc-6.2-v9.5
 ----------------
 93.  fix  https://hsdes.intel.com/appstore/article/#/22018521045
