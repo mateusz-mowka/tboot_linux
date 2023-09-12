@@ -15,9 +15,15 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v10.2
+----------------
+95.  fix memory leak n TD live migration:
+     https://jira.devtools.intel.com/browse/LFE-7719
+
 srf-bkc-6.2-v10.1
 ----------------
-94.  fix  https://hsdes.intel.com/appstore/article/#/14019997355
+94.  fix mesh-stress execution time slow down
+     https://hsdes.intel.com/appstore/article/#/14019997355
 
 srf-bkc-6.2-v9.5
 ----------------
