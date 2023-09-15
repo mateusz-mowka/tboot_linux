@@ -252,9 +252,9 @@ int __init iaa_crypto_debugfs_init(void)
 	debugfs_create_u64("max_decomp_delay_ns", 0644,
 			   iaa_crypto_debugfs_root, &max_decomp_delay_ns);
 	debugfs_create_u64("max_acomp_delay_ns", 0644,
-			   iaa_crypto_debugfs_root, &max_comp_delay_ns);
+			   iaa_crypto_debugfs_root, &max_acomp_delay_ns);
 	debugfs_create_u64("max_adecomp_delay_ns", 0644,
-			   iaa_crypto_debugfs_root, &max_decomp_delay_ns);
+			   iaa_crypto_debugfs_root, &max_adecomp_delay_ns);
 	debugfs_create_u64("total_comp_calls", 0644,
 			   iaa_crypto_debugfs_root, &total_comp_calls);
 	debugfs_create_u64("total_decomp_calls", 0644,
