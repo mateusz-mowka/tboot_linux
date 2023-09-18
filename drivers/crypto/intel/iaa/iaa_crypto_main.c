@@ -1000,6 +1000,9 @@ static void rebalance_wq_table(void)
 	pr_debug("rebalance: nr_nodes=%d, nr_cpus %d, nr_iaa %d, cpus_per_iaa %d\n",
 		 nr_nodes, nr_cpus, nr_iaa, cpus_per_iaa);
 
+	if (cpus_per_iaa == 0) /*lets not divide by zero below */
+		return;
+
 	clear_wq_table();
 
 	if (nr_iaa == 1) {
