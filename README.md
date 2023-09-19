@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v10.5
+----------------
+98.  TDH_MEM_PAGE_PROMOTE failed when creatign TD guest with hugetlb=on
+     https://jira.devtools.intel.com/browse/BLR-879
+
 srf-bkc-6.2-v10.4
 ----------------
 97.  Avoid MCA's when launching multiple TD's
