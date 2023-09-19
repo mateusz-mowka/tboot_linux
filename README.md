@@ -15,6 +15,12 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v10.3
+----------------
+96.  Backport iaa_crypto v9 from upstream submission:
+https://lore.kernel.org/all/20230807203726.1682123-1-tom.zanussi@linux.intel.com/
+    https://hsdes.intel.com/appstore/article/#/22018423994
+
 srf-bkc-6.2-v10.2
 ----------------
 95.  fix memory leak n TD live migration:
