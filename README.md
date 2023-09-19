@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v10.7
+----------------
+100.  diable IORDT as its been ZBBED.
+      https://hsdes.intel.com/appstore/article/#/14019874233
+
 srf-bkc-6.2-v10.6
 ----------------
 99.  fix booting TD with 1vCPU, 4GB when hugetlb=on
