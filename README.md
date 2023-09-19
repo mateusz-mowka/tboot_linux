@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v10.4
+----------------
+97.  Avoid MCA's when launching multiple TD's
+     https://hsdes.intel.com/appstore/article/#/15014120562
+
 srf-bkc-6.2-v10.3
 ----------------
 96.  Backport iaa_crypto v9 from upstream submission:
