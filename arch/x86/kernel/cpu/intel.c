@@ -1442,7 +1442,7 @@ static void bus_lock_init(void)
 
 bool handle_user_split_lock(struct pt_regs *regs, long error_code)
 {
-	if ((regs->flags & X86_EFLAGS_AC) || sld_state == sld_fatal)
+	if ((regs->flags & X86_EFLAGS_AC) || cpu_feature_enabled(X86_FEATURE_TDX_GUEST))
 		return false;
 	split_lock_warn(regs->ip);
 	return true;
