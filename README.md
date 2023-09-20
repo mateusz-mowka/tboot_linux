@@ -15,6 +15,13 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v10.9
+----------------
+102.  disable #AC (alignment check) excdeptions when in a TDX guest
+      fixes: split lock warn cause stress-ng memory test hangs after launching
+      lockbus test
+      https://jira.devtools.intel.com/browse/BLR-500
+
 srf-bkc-6.2-v10.8
 ----------------
 101.  Work around TBOOT issue with LASS protection
