@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v10.8
+----------------
+101.  Work around TBOOT issue with LASS protection
+      https://hsdes.intel.com/appstore/article/#/16021247597
+
 srf-bkc-6.2-v10.7
 ----------------
 100.  diable IORDT as its been ZBBED.
