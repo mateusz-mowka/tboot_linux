@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v11.1
+----------------
+102. include UPM 2M patches used in EMR kernel emr-bkc-6.2-v12.3 UPM 2M patches
+     backport https://jira.devtools.intel.com/browse/LFE-8945
+
 srf-bkc-6.2-v10.9
 ----------------
 102.  disable #AC (alignment check) excdeptions when in a TDX guest
