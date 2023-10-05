@@ -11,9 +11,13 @@
 /*
  * Version 2: Added DLB2_MBOX_CMD_ENABLE_CQ_WEIGHT
  * Version 3: Added sn_slots in resource management
- *
+ * Version 4: Added DLB2_MBOX_CMD_CQ_INFLIGHT_CTRL and DLB2_MBOX_CMD_GET_XSTATS
+ *            Also, added inflight ctrl params to port create mailbox command
  */
-#define DLB2_MBOX_INTERFACE_VERSION 3
+#define DLB2_MBOX_INTERFACE_VERSION 4
+
+/* Set minimum supported version as the last released stable version */
+#define DLB2_MBOX_MIN_INTERFACE_VERSION 3
 
 /*
  * The PF uses its PF->VF mailbox to send responses to VF requests, as well as
@@ -26,6 +30,10 @@
  *
  * Partitioning the PF->VF mailbox allows responses and requests to occupy the
  * mailbox simultaneously.
+ *
+ * IMPORTANT: Add new fields at the end of structure to maintain compatibility
+ * with older driver versions. If changes result in structure field offset
+ * change, update mailbox version compatibility.
  */
 #define DLB2_PF2VF_RESP_BYTES	  48
 #define DLB2_PF2VF_RESP_BASE	  0
@@ -49,7 +57,12 @@
 #define DLB2_VF2PF_RESP_BASE	  (DLB2_VF2PF_REQ_BASE + DLB2_VF2PF_REQ_BYTES)
 #define DLB2_VF2PF_RESP_BASE_WORD (DLB2_VF2PF_RESP_BASE / 4)
 
-/* VF-initiated commands */
+/*
+ * VF-initiated commands
+ * IMPORTANT: Do not change the ordering as that will break backward
+ * compatibility between PF<->VF drivers. New commands should be added
+ * at the end.
+ */
 enum dlb2_mbox_cmd_type {
 	DLB2_MBOX_CMD_REGISTER,
 	DLB2_MBOX_CMD_UNREGISTER,
@@ -83,9 +96,23 @@ enum dlb2_mbox_cmd_type {
 	DLB2_MBOX_CMD_DEV_RESET,
 	DLB2_MBOX_CMD_ENABLE_CQ_WEIGHT,
 	DLB2_MBOX_CMD_CQ_INFLIGHT_CTRL,
+	DLB2_MBOX_CMD_GET_XSTATS,
 
 	/* NUM_QE_CMD_TYPES must be last */
 	NUM_DLB2_MBOX_CMD_TYPES,
+};
+
+/*
+ * Each MBOX command needs to populate its supported version in this structure.
+ * VF driver will check this against the MBOX version of PF driver and only
+ * allow commands whose version are <= PF driver's supported MBOX version.
+ */
+static const int dlb2_mbox_cmd_version [] = {
+	[DLB2_MBOX_CMD_REGISTER] = 0,
+	[DLB2_MBOX_CMD_UNREGISTER ... DLB2_MBOX_CMD_DEV_RESET] = 1,
+	[DLB2_MBOX_CMD_ENABLE_CQ_WEIGHT] = 2,
+	[DLB2_MBOX_CMD_CQ_INFLIGHT_CTRL] = 4,
+	[DLB2_MBOX_CMD_GET_XSTATS] = 4,
 };
 
 static const char dlb2_mbox_cmd_type_strings[][128] = {
@@ -121,6 +148,7 @@ static const char dlb2_mbox_cmd_type_strings[][128] = {
 	"DLB2_MBOX_CMD_DEV_RESET",
 	"DLB2_MBOX_CMD_ENABLE_CQ_WEIGHT",
 	"DLB2_MBOX_CMD_CQ_INFLIGHT_CTRL",
+	"DLB2_MBOX_CMD_GET_XSTATS",
 };
 
 /* PF-initiated commands */
@@ -147,6 +175,7 @@ enum dlb2_mbox_status_type {
 	DLB2_MBOX_ST_INVALID_CMD_TYPE,
 	DLB2_MBOX_ST_VERSION_MISMATCH,
 	DLB2_MBOX_ST_INVALID_OWNER_VF,
+	DLB2_MBOX_ST_INVALID_DATA,
 
 	/* NUM_DLB2_MBOX_STATUS_TYPES must be last */
 	NUM_DLB2_MBOX_STATUS_TYPES,
@@ -157,6 +186,7 @@ static const char dlb2_mbox_status_type_strings[][128] = {
 	"DLB2_MBOX_ST_INVALID_CMD_TYPE",
 	"DLB2_MBOX_ST_VERSION_MISMATCH",
 	"DLB2_MBOX_ST_INVALID_OWNER_VF",
+	"DLB2_MBOX_ST_INVALID_DATA",
 };
 
 /* This structure is always the first field in a request structure */
@@ -317,8 +347,10 @@ struct dlb2_mbox_create_ldb_port_cmd_req {
 	u16 cq_history_list_size;
 	u8 cos_id;
 	u8 cos_strict;
-	u16 padding1;
+	u16 inflight_threshold;
 	u64 cq_base_address;
+	u8 enable_inflight_ctrl;
+	u8 pad[3];
 };
 
 struct dlb2_mbox_create_ldb_port_cmd_resp {
@@ -657,9 +689,9 @@ struct dlb2_mbox_enable_cq_weight_cmd_resp {
 struct dlb2_mbox_cq_inflight_ctrl_cmd_req {
 	struct dlb2_mbox_req_hdr hdr;
 	u32 domain_id;
-	u16 port_id;
-	u16 enable;
-	u32 threshold;
+	u32 port_id;
+	u8 enable;
+	u16 threshold;
 };
 
 struct dlb2_mbox_cq_inflight_ctrl_cmd_resp {
@@ -667,5 +699,18 @@ struct dlb2_mbox_cq_inflight_ctrl_cmd_resp {
 	u32 error_code;
 	u32 status;
 	u32 padding;
+};
+
+struct dlb2_mbox_get_xstats_cmd_req {
+	struct dlb2_mbox_req_hdr hdr;
+	u32 xstats_type;
+	u32 xstats_id;
+};
+
+struct dlb2_mbox_get_xstats_cmd_resp {
+	struct dlb2_mbox_resp_hdr hdr;
+	u32 error_code;
+	u32 status;
+	u64 xstats_val;
 };
 #endif /* __DLB2_BASE_DLB2_MBOX_H */

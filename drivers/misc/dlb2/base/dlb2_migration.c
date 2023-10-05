@@ -97,7 +97,7 @@ static int dlb2_read_src_hl(struct dlb2_hw *hw,
 	state->ldb_cq_state[vcq].push_ptr_gen = read_hist_list_push_ptr(hw, cq) >>
 						CHP_HIST_LIST_PUSH_PTR_GENERATION_LOC;
 	state->ldb_cq_state[vcq].push_ptr = BITS_GET(state->ldb_cq_state[vcq].push_ptr_val,
-                                                       CHP_HIST_LIST_PUSH_PTR_PUSH_PTR);
+						       CHP_HIST_LIST_PUSH_PTR_PUSH_PTR);
 	state->ldb_cq_state[vcq].hist_list_entry_base = port->hist_list_entry_base;
 	state->ldb_cq_state[vcq].hist_list_entry_limit = port->hist_list_entry_limit;
 
@@ -275,7 +275,7 @@ static int dlb2_read_sn_state(struct dlb2_hw *hw)
 bool dlb2_return_token(struct dlb2_hw *hw, uint8_t cq, bool is_ldb)
 {
 	struct dlb2_hcw hcw_mem[8], *hcw;
-        void __iomem *pp_addr;
+	void __iomem *pp_addr;
 	int tkn_cnt;
 
 	hcw = (struct dlb2_hcw *)((uintptr_t)&hcw_mem[4] & ~0x3F);
@@ -328,8 +328,8 @@ static int dlb2_send_src_cq_comps(struct dlb2_hw *hw,
 	src_state->ldb_cq_state[src_vcq].tkn_cnt = tkn_cnt;
 
 	/* Read and store the SRC CQ inflights limit */
-        inflight_limit = DLB2_CSR_RD(hw, LSP_CQ_LDB_INFL_LIM(hw->ver, src_cq));
-        src_state->ldb_cq_state[src_vcq].inflights_limit = inflight_limit;
+	inflight_limit = DLB2_CSR_RD(hw, LSP_CQ_LDB_INFL_LIM(hw->ver, src_cq));
+	src_state->ldb_cq_state[src_vcq].inflights_limit = inflight_limit;
 
 	LM_DEBUG_print("Processing SRC HL COMPS: SRC_CQ = %d hl_idx = %d Inflights = %d inf: "
 		"%d, Inflight_limit: %d, tkn_cnt: %d\n",
@@ -422,8 +422,8 @@ static int dlb2_send_src_cq_comps(struct dlb2_hw *hw,
 
 #if 0
 static int dlb2_send_src_cq_tokens(struct dlb2_hw *hw,
-                                  struct dlb2_dir_pq_pair *port,
-                                  struct dlb2_migration_state *src_state)
+				  struct dlb2_dir_pq_pair *port,
+				  struct dlb2_migration_state *src_state)
 {
 	uint32_t tkn_cnt;
 	uint8_t cq;
@@ -599,7 +599,7 @@ static int dlb2_drain_src_vas(struct dlb2_hw *hw,
 		DLB2_CSR_WR(hw, CHP_LDB_CQ_WPTR(hw->ver, cq), CHP_LDB_CQ_WPTR_RST);
 
 		DLB2_CSR_WR(hw, SYS_LDB_CQ_ADDR_L(cq), dummy_cq_dma_base & 0xffffffc0);
-                DLB2_CSR_WR(hw, SYS_LDB_CQ_ADDR_U(cq), dummy_cq_dma_base >> 32);
+		DLB2_CSR_WR(hw, SYS_LDB_CQ_ADDR_U(cq), dummy_cq_dma_base >> 32);
 
 		/* Reset PASID for HCW draining in PF host driver */
 		DLB2_CSR_WR(hw,
@@ -711,7 +711,7 @@ static int dlb2_drain_src_vas(struct dlb2_hw *hw,
 		DLB2_CSR_WR(hw, CHP_DIR_CQ_WPTR(hw->ver, cq), CHP_DIR_CQ_WPTR_RST);
 
 		DLB2_CSR_WR(hw, SYS_DIR_CQ_ADDR_L(cq), dummy_cq_dma_base & 0xffffffc0);
-                DLB2_CSR_WR(hw, SYS_DIR_CQ_ADDR_U(cq), dummy_cq_dma_base >> 32);
+		DLB2_CSR_WR(hw, SYS_DIR_CQ_ADDR_U(cq), dummy_cq_dma_base >> 32);
 
 		src_state->dir_qid_state[vcq].num_drain_hcws = 0;
 
@@ -733,7 +733,7 @@ static int dlb2_drain_src_vas(struct dlb2_hw *hw,
 
 				vqid = vcq;//hcw->qid;
 
-			        if (cnt % 500 == 0)
+				if (cnt % 500 == 0)
 					LM_DEBUG_print("[%d]Reading SRC HCW[%d]: 0x%016llx 0x%016llx"
 						" at CQ=%d VQID = %d qType = %d udata64: %llx\n",
 						src_state->dir_qid_state[vqid].num_drain_hcws, cnt,
@@ -789,7 +789,7 @@ static void dlb2_get_queue_status(struct dlb2_hw *hw,
 		aq_ac[i] = DLB2_CSR_RD(hw, LSP_QID_AQED_ACTIVE_CNT(hw->ver, qid));
 		LM_DEBUG_print("%s: qid = %d, na_enq = %d, at_ac = %d, aq_ac = %d\n",
 				__func__, qid, na_enq[i], at_ac[i], aq_ac[i]);
-        }
+	}
 }
 
 static int dlb2_drain_src_ord_qid(struct dlb2_hw *hw,
@@ -942,21 +942,21 @@ bool fill_dest_rob_renq(struct dlb2_hw *hw, uint8_t cq, uint8_t qid, uint16_t id
 			struct dlb2_migration_state *dst_state)
 {
 	struct dlb2_hcw hcw_mem[8], *hcw;
-        void __iomem *pp_addr;
+	void __iomem *pp_addr;
 	uint32_t tkn_cnt;
 
 	/* Point hcw to a 64B-aligned location */
-        hcw = (struct dlb2_hcw *)((uintptr_t)&hcw_mem[4] & ~0x3F);
+	hcw = (struct dlb2_hcw *)((uintptr_t)&hcw_mem[4] & ~0x3F);
 
-        /* Setup the required HCW fields from the SRC HL Entry */
-        memset(hcw, 0, 4 * sizeof(*hcw));
+	/* Setup the required HCW fields from the SRC HL Entry */
+	memset(hcw, 0, 4 * sizeof(*hcw));
 
-        hcw->qe_valid = 1;
+	hcw->qe_valid = 1;
 	hcw->qe_comp = 1;
 
-        tkn_cnt = DLB2_CSR_RD(hw, LSP_CQ_LDB_TKN_CNT(hw->ver, cq));
-        //if (tkn_cnt)
-        //        hcw->cq_token = 1;
+	tkn_cnt = DLB2_CSR_RD(hw, LSP_CQ_LDB_TKN_CNT(hw->ver, cq));
+	//if (tkn_cnt)
+	//	hcw->cq_token = 1;
 	hcw->cq_token = 1;
 
 	qid = dst_state->ldb_qid_state[qid].drain_rob_hcw[idx].qid;
@@ -1124,7 +1124,7 @@ bool pf_sch_dummy_hcw(struct dlb2_hw *hw, struct dlb2_ldb_port *dst_port, uint16
 {
 	struct dlb2_hcw hcw_mem[8], *hcw;
 	uint8_t dst_vcq, dst_cq;
-        void __iomem *pp_addr;
+	void __iomem *pp_addr;
 	uint8_t qid;
 
 	dst_cq = dst_port->id.phys_id;
@@ -1144,7 +1144,7 @@ bool pf_sch_dummy_hcw(struct dlb2_hw *hw, struct dlb2_ldb_port *dst_port, uint16
 	/* If all the CQ entries are restored, but few HL entries are yet to
 	 * be restored, set the cq_token bit for such entries
 	 */
-        LM_DEBUG_print("tkn_cnt: %d, dst_state->ldb_cq_state[dst_vcq].tkn_cnt: %d\n",
+	LM_DEBUG_print("tkn_cnt: %d, dst_state->ldb_cq_state[dst_vcq].tkn_cnt: %d\n",
 			tkn_cnt, dst_state->ldb_cq_state[dst_vcq].tkn_cnt);
 	if (tkn_cnt && tkn_cnt >= dst_state->ldb_cq_state[dst_vcq].tkn_cnt)
 		hcw->cq_token = 1;
@@ -1337,7 +1337,7 @@ bool pf_sch_dummy_dir_hcw(struct dlb2_hw *hw,
 	tkn_cnt = dlb2_dir_cq_token_count(hw, port);
 	LM_DEBUG_print("Writing HCW: 0x%016llx 0x%016llx to PP =%d "
 		"PP addr:%p QID = %d qType = %d, new tkn_cnt: %d\n",
-                *(uint64_t *)hcw, *((uint64_t *)hcw + 1), cq, pp_addr,
+		*(uint64_t *)hcw, *((uint64_t *)hcw + 1), cq, pp_addr,
 		hcw->qid, hcw->sched_type, tkn_cnt);
 
 	return 0;
@@ -1367,7 +1367,7 @@ bool restore_dest_tokens(struct dlb2_hw *hw,
 		    SYS_DIR_CQ_PASID_RST);
 
 	/* Enable the DIR port scheduling to send the dummy QE  */
-        dlb2_dir_port_cq_enable(hw, dst_port);
+	dlb2_dir_port_cq_enable(hw, dst_port);
 
 	while(cur_tkn_cnt < expected_tkn_cnt) {
 		if (pf_sch_dummy_dir_hcw(hw, dst_port))
@@ -1430,7 +1430,7 @@ bool fill_dest_qes_dir(struct dlb2_hw *hw,
 {
 	struct dlb2_hcw hcw_mem[8], *hcw_out;
 	uint8_t dst_qid, dst_vqid;
-        void __iomem *pp_addr;
+	void __iomem *pp_addr;
 	uint16_t i, domain_id;
 	uint32_t enq;
 	int val;
@@ -1465,7 +1465,7 @@ bool fill_dest_qes_dir(struct dlb2_hw *hw,
 
 		if (i % 500 == 0 || i == dst_state->dir_qid_state[dst_vqid].num_drain_hcws - 1) {
 			enq = DLB2_CSR_RD(hw, LSP_QID_DIR_ENQUEUE_CNT(hw->ver, dst_qid));
-                        val = DLB2_CSR_RD(hw, CHP_CFG_DIR_VAS_CRD(domain_id));
+			val = DLB2_CSR_RD(hw, CHP_CFG_DIR_VAS_CRD(domain_id));
 			LM_DEBUG_print("[%d]After writing SRC HCW: 0x%016llx 0x%016llx using PP: %d with QID = %d"
 				" qType = %d udata64: %llx :: na_eq: %d, VAS DIR Credits: %d \n", i,
 				*(uint64_t *)hcw_out, *((uint64_t *)hcw_out + 1), pp, hcw_out->qid,
@@ -1484,7 +1484,7 @@ bool fill_dest_qes_ldb(struct dlb2_hw *hw,
 {
 	struct dlb2_hcw hcw_mem[8], *hcw_out;
 	uint8_t dst_qid, dst_vqid;
-        void __iomem *pp_addr;
+	void __iomem *pp_addr;
 	uint16_t i, domain_id;
 	uint32_t enq;
 	int val;
@@ -1530,7 +1530,7 @@ bool fill_dest_qes_ldb(struct dlb2_hw *hw,
 }
 
 bool dlb2_fill_dest_vas_qes(struct dlb2_hw *hw,
-		            struct dlb2_migration_state *dst_state)
+			    struct dlb2_migration_state *dst_state)
 {
 	uint8_t pp;
 	int i;
@@ -1550,7 +1550,7 @@ bool dlb2_fill_dest_vas_qes(struct dlb2_hw *hw,
 }
 
 bool dlb2_restore_state_vas(struct dlb2_hw *hw,
-		            struct dlb2_migration_state *dst_state)
+			    struct dlb2_migration_state *dst_state)
 {
 	struct dlb2_dir_pq_pair *dst_dir_port;
 	struct dlb2_ldb_port *dst_ldb_port;
@@ -1574,9 +1574,9 @@ bool dlb2_restore_state_vas(struct dlb2_hw *hw,
 				dst_ldb_port->hist_list_entry_base);
 
 		DLB2_CSR_WR(hw, CHP_HIST_LIST_PUSH_PTR(hw->ver, dst_cq),
-                                (dst_state->ldb_cq_state[dst_vcq].push_ptr_val -
+				(dst_state->ldb_cq_state[dst_vcq].push_ptr_val -
 				dst_state->ldb_cq_state[dst_vcq].hist_list_entry_base) +
-                                dst_ldb_port->hist_list_entry_base);
+				dst_ldb_port->hist_list_entry_base);
 
 		/* Setting the CQ ADDR */
 		LM_DEBUG_print("MIG: Setting CQ_ADDR for DST_CQ[%d] upper=0x%x, lower= 0x%x WPTR = 0x%08x\n",
@@ -1586,7 +1586,7 @@ bool dlb2_restore_state_vas(struct dlb2_hw *hw,
 		DLB2_CSR_WR(hw, SYS_LDB_CQ_ADDR_L(dst_cq), dst_state->ldb_cq_addr[dst_vcq].low);
 		DLB2_CSR_WR(hw, SYS_LDB_CQ_ADDR_U(dst_cq), dst_state->ldb_cq_addr[dst_vcq].up);
 
-                DLB2_CSR_WR(hw, CHP_LDB_CQ_WPTR(hw->ver, dst_cq), wptr);
+		DLB2_CSR_WR(hw, CHP_LDB_CQ_WPTR(hw->ver, dst_cq), wptr);
 	}
 
 	/* Copy the CQ addr and gen bit */
@@ -1605,7 +1605,7 @@ bool dlb2_restore_state_vas(struct dlb2_hw *hw,
 		DLB2_CSR_WR(hw, SYS_DIR_CQ_ADDR_L(dst_cq), dst_state->dir_cq_addr[dst_vcq].low);
 		DLB2_CSR_WR(hw, SYS_DIR_CQ_ADDR_U(dst_cq), dst_state->dir_cq_addr[dst_vcq].up);
 
-                DLB2_CSR_WR(hw, CHP_DIR_CQ_WPTR(hw->ver, dst_cq), wptr);
+		DLB2_CSR_WR(hw, CHP_DIR_CQ_WPTR(hw->ver, dst_cq), wptr);
 	}
 	return 0;
 }
@@ -1622,9 +1622,9 @@ bool dlb2_resume_vas(struct dlb2_hw *hw,
 		cq = dst_state->ldb_port[i]->id.phys_id;
 
 		/* restore PASID */
-                reg = 0;
-                BITS_SET(reg, hw->pasid[vdev_id], SYS_LDB_CQ_PASID_PASID);
-                BIT_SET(reg, SYS_LDB_CQ_PASID_FMT2);
+		reg = 0;
+		BITS_SET(reg, hw->pasid[vdev_id], SYS_LDB_CQ_PASID_PASID);
+		BIT_SET(reg, SYS_LDB_CQ_PASID_FMT2);
 		DLB2_CSR_WR(hw, SYS_LDB_CQ_PASID(hw->ver, cq), reg);
 
 		/* print the dst HL status/infor for debug.
@@ -1633,7 +1633,7 @@ bool dlb2_resume_vas(struct dlb2_hw *hw,
 		 */
 
 		LM_DEBUG_print("MIG: Enabling DST CQ : %d \n ", cq);
-                dlb2_ldb_port_cq_enable(hw, dst_state->ldb_port[i]);
+		dlb2_ldb_port_cq_enable(hw, dst_state->ldb_port[i]);
 	}
 
 	/* Get the dst ldb queue status for debug
@@ -1647,13 +1647,13 @@ bool dlb2_resume_vas(struct dlb2_hw *hw,
 		cq = dst_state->dir_port[i]->id.phys_id;
 
 		/* restore PASID */
-                reg = 0;
-                BITS_SET(reg, hw->pasid[vdev_id], SYS_DIR_CQ_PASID_PASID);
-                BIT_SET(reg, SYS_DIR_CQ_PASID_FMT2);
+		reg = 0;
+		BITS_SET(reg, hw->pasid[vdev_id], SYS_DIR_CQ_PASID_PASID);
+		BIT_SET(reg, SYS_DIR_CQ_PASID_FMT2);
 		DLB2_CSR_WR(hw, SYS_DIR_CQ_PASID(hw->ver, cq), reg);
 
 		LM_DEBUG_print("MIG: Enabling DST CQ : %d \n ", cq);
-                dlb2_dir_port_cq_enable(hw, dst_state->dir_port[i]);
+		dlb2_dir_port_cq_enable(hw, dst_state->dir_port[i]);
 	}
 	return 0;
 }
@@ -1691,8 +1691,8 @@ static void dlb2_print_mig_state(struct dlb2_hw *hw,
 }
 
 static int dlb2_prepare_migration(struct dlb2_hw *hw,
-                                  bool vdev_req,
-                                  unsigned int vdev_id,
+				  bool vdev_req,
+				  unsigned int vdev_id,
 				  struct dlb2_migration_state *src_state)
 {
 	struct dlb2_list_entry *iter __attribute__((unused));
@@ -1710,15 +1710,15 @@ static int dlb2_prepare_migration(struct dlb2_hw *hw,
 	rsrcs = (vdev_req) ? &hw->vdev[vdev_id] : &hw->pf;
 	if (!rsrcs) {
 		LM_DEBUG_print("No vdev available vdev_id = %d...\n", vdev_id);
-                return -EFAULT;
+		return -EFAULT;
 	}
 
 	/* Save domain details */
 	domain = DLB2_FUNC_LIST_HEAD(rsrcs->used_domains, typeof(*domain));
-        if (!domain) {
+	if (!domain) {
 		LM_DEBUG_print("No domain configured\n");
-                return -EFAULT;
-        }
+		return -EFAULT;
+	}
 	src_state->domain = domain;
 
 	LM_DEBUG_print("[%s]Src domain phys id : %d, virt id: %d\n",
@@ -1731,8 +1731,8 @@ static int dlb2_prepare_migration(struct dlb2_hw *hw,
 
 	if (base < 0) {
 		LM_DEBUG_print("No hist list entry available\n");
-                return -EFAULT;
-        }
+		return -EFAULT;
+	}
 
 	src_state->dummy_cq_hist_list_base = base;
 	src_state->dummy_cq_hist_list_limit = base + DLB2_HIST_LIST_ENTRIES_USED_BY_LM;
@@ -1741,7 +1741,7 @@ static int dlb2_prepare_migration(struct dlb2_hw *hw,
 
 	/* Get LDB Queue basic info */
 	src_state->num_ldb_queues = 0;
-        DLB2_DOM_LIST_FOR(domain->used_ldb_queues, ldb_queue, iter) {
+	DLB2_DOM_LIST_FOR(domain->used_ldb_queues, ldb_queue, iter) {
 
 		/* Step 1.2 Prepare Migration */
 		num_queues = src_state->num_ldb_queues;
@@ -1766,29 +1766,29 @@ static int dlb2_prepare_migration(struct dlb2_hw *hw,
 		vcq = dir_port->id.virt_id;
 
 		/*
-                 * Can't drain a port if it's not configured, and there's
-                 * nothing to drain if its queue is unconfigured.
-                 */
-                if (!dir_port->port_configured || !dir_port->queue_configured) {
+		 * Can't drain a port if it's not configured, and there's
+		 * nothing to drain if its queue is unconfigured.
+		 */
+		if (!dir_port->port_configured || !dir_port->queue_configured) {
 			LM_DEBUG_print("CQ %d not enabled/configured/rx_port, skipping... \n", cq);
-                        continue;
+			continue;
 		}
 		/* Step 1.1 Disable CQ */
 		LM_DEBUG_print("[%s]Disabling DIR port phys id : %d, virt id: %d\n",
 			__func__, dir_port->id.phys_id, dir_port->id.virt_id);
 
-                dlb2_dir_port_cq_disable(hw, dir_port);
+		dlb2_dir_port_cq_disable(hw, dir_port);
 
 		/* Step 1.2 Prepare Migration */
 		num_ports = src_state->num_dir_ports;
 
 		src_state->dir_port[num_ports] = dir_port;
 
-	        /* save the SRC CQ cq_addr to be used for the dst CQ */
+		/* save the SRC CQ cq_addr to be used for the dst CQ */
 		src_state->dir_cq_addr[vcq].low = DLB2_CSR_RD(hw, SYS_DIR_CQ_ADDR_L(cq));
 		src_state->dir_cq_addr[vcq].up = DLB2_CSR_RD(hw, SYS_DIR_CQ_ADDR_U(cq));
 		LM_DEBUG_print("MIG: CQ_ADDR for SRC_CQ[%d] upper=0x%x, lower= 0x%x\n",
-                        dir_port->id.phys_id, src_state->dir_cq_addr[vcq].up,
+			dir_port->id.phys_id, src_state->dir_cq_addr[vcq].up,
 			src_state->dir_cq_addr[vcq].low);
 		src_state->dir_cq_wptr[vcq] = DLB2_CSR_RD(hw, CHP_DIR_CQ_WPTR(hw->ver, cq));
 
@@ -1812,18 +1812,18 @@ static int dlb2_prepare_migration(struct dlb2_hw *hw,
 		/* Step 1.1 Disable CQ */
 		LM_DEBUG_print("[%s]Disabling LDB port : %d\n", __func__, ldb_port->id.phys_id);
 
-                dlb2_ldb_port_cq_disable(hw, ldb_port);
+		dlb2_ldb_port_cq_disable(hw, ldb_port);
 
 		/* Step 1.2 Prepare Migration */
 		num_ports = src_state->num_ldb_ports;
 
 		src_state->ldb_port[num_ports] = ldb_port;
 
-	        /* save the SRC CQ cq_addr to be used for the dst CQ */
+		/* save the SRC CQ cq_addr to be used for the dst CQ */
 		src_state->ldb_cq_addr[vcq].low = DLB2_CSR_RD(hw, SYS_LDB_CQ_ADDR_L(cq));
 		src_state->ldb_cq_addr[vcq].up = DLB2_CSR_RD(hw, SYS_LDB_CQ_ADDR_U(cq));
 		LM_DEBUG_print("MIG: CQ_ADDR for SRC_CQ[%d(%d)] upper=0x%x, lower= 0x%x\n",
-                        ldb_port->id.phys_id, ldb_port->id.virt_id, src_state->ldb_cq_addr[vcq].up,
+			ldb_port->id.phys_id, ldb_port->id.virt_id, src_state->ldb_cq_addr[vcq].up,
 			src_state->ldb_cq_addr[vcq].low);
 
 		src_state->num_ldb_ports++;
@@ -1835,7 +1835,7 @@ static int dlb2_prepare_migration(struct dlb2_hw *hw,
 	}
 
 	/* Save LDB Queue details */
-        for (i = 0; i < src_state->num_ldb_queues; i++) {
+	for (i = 0; i < src_state->num_ldb_queues; i++) {
 		ldb_queue = src_state->ldb_queue[i];
 
 		/* Step 1.3 Store the queue state */
@@ -1854,8 +1854,8 @@ static int dlb2_prepare_migration(struct dlb2_hw *hw,
 }
 
 static int dlb2_prepare_resumption(struct dlb2_hw *hw,
-                                  bool vdev_req,
-                                  unsigned int vdev_id,
+				  bool vdev_req,
+				  unsigned int vdev_id,
 				  struct dlb2_migration_state *dst_state)
 {
 	struct dlb2_list_entry *iter __attribute__((unused));
@@ -1873,15 +1873,15 @@ static int dlb2_prepare_resumption(struct dlb2_hw *hw,
 	rsrcs = (vdev_req) ? &hw->vdev[vdev_id] : &hw->pf;
 	if (!rsrcs) {
 		LM_DEBUG_print("No vdev available vdev_id = %d...\n", vdev_id);
-                return -EFAULT;
+		return -EFAULT;
 	}
 
 	/* Save domain details */
 	domain = DLB2_FUNC_LIST_HEAD(rsrcs->used_domains, typeof(*domain));
-        if (!domain) {
+	if (!domain) {
 		LM_DEBUG_print("No domain configured\n");
-                return -EFAULT;
-        }
+		return -EFAULT;
+	}
 	dst_state->domain = domain;
 
 	LM_DEBUG_print("[%s]Dst domain phys id : %d, virt id: %d\n",
@@ -1894,8 +1894,8 @@ static int dlb2_prepare_resumption(struct dlb2_hw *hw,
 
 	if (base < 0) {
 		LM_DEBUG_print("No hist list entry available\n");
-                return -EFAULT;
-        }
+		return -EFAULT;
+	}
 
 	dst_state->dummy_cq_hist_list_base = base;
 	dst_state->dummy_cq_hist_list_limit = base + DLB2_HIST_LIST_ENTRIES_USED_BY_LM;
@@ -1909,12 +1909,12 @@ static int dlb2_prepare_resumption(struct dlb2_hw *hw,
 		vcq = dir_port->id.virt_id;
 
 		/*
-                 * Can't drain a port if it's not configured, and there's
-                 * nothing to drain if its queue is unconfigured.
-                 */
-                if (!dir_port->port_configured || !dir_port->queue_configured) {
+		 * Can't drain a port if it's not configured, and there's
+		 * nothing to drain if its queue is unconfigured.
+		 */
+		if (!dir_port->port_configured || !dir_port->queue_configured) {
 			LM_DEBUG_print("CQ %d not enabled/configured/rx_port, skipping... \n", cq);
-                        continue;
+			continue;
 		}
 		LM_DEBUG_print("[%s]Dst DIR port phys id : %d, virt id: %d\n",
 			__func__, dir_port->id.phys_id, dir_port->id.virt_id);
@@ -1963,7 +1963,7 @@ static int dlb2_prepare_resumption(struct dlb2_hw *hw,
 
 	/* Save LDB Queue details */
 	dst_state->num_ldb_queues = 0;
-        DLB2_DOM_LIST_FOR(domain->used_ldb_queues, ldb_queue, iter) {
+	DLB2_DOM_LIST_FOR(domain->used_ldb_queues, ldb_queue, iter) {
 
 		/* Step 1.2 Prepare Migration */
 		num_queues = dst_state->num_ldb_queues;
@@ -2002,11 +2002,11 @@ int dlb2_lm_pause_device(struct dlb2_hw *hw,
 
 	dlb2 = container_of(hw, struct dlb2, hw);
 
-        dummy_cq_base = dma_alloc_attrs(&dlb2->pdev->dev,
-                                  DLB2_CQ_SIZE,
-                                  &dummy_cq_dma_base,
-                                  GFP_KERNEL,
-                                  DMA_ATTR_FORCE_CONTIGUOUS);
+	dummy_cq_base = dma_alloc_attrs(&dlb2->pdev->dev,
+				  DLB2_CQ_SIZE,
+				  &dummy_cq_dma_base,
+				  GFP_KERNEL,
+				  DMA_ATTR_FORCE_CONTIGUOUS);
 
 	LM_DEBUG_print("%s\n", __func__);
 	LM_DEBUG_print("\n------------------------------------------------------------------\n");
@@ -2074,11 +2074,11 @@ int dlb2_lm_restore_device(struct dlb2_hw *hw,
 
 	dlb2 = container_of(hw, struct dlb2, hw);
 
-        dummy_cq_base = dma_alloc_attrs(&dlb2->pdev->dev,
-                                  DLB2_CQ_SIZE,
-                                  &dummy_cq_dma_base,
-                                  GFP_KERNEL,
-                                  DMA_ATTR_FORCE_CONTIGUOUS);
+	dummy_cq_base = dma_alloc_attrs(&dlb2->pdev->dev,
+				  DLB2_CQ_SIZE,
+				  &dummy_cq_dma_base,
+				  GFP_KERNEL,
+				  DMA_ATTR_FORCE_CONTIGUOUS);
 
 	LM_DEBUG_print("%s\n", __func__);
 	LM_DEBUG_print("\n---------------------------------------------------------------------\n");

@@ -5,6 +5,7 @@
 
 #include <linux/sort.h>
 #include <linux/completion.h>
+#include <linux/pm_runtime.h>
 #include "dlb2_hw_types.h"
 #include "dlb2_mbox.h"
 #include "dlb2_osdep.h"
@@ -1580,11 +1581,11 @@ static int dlb2_attach_dir_ports(struct dlb2_hw *hw,
 			cpu = dlb2_bitmap_find_nth_set_bit(&bmp, DLB2_PROD_PROBE_CORE);
 		} else {
 			bmp.map = (unsigned long *)args->core_mask;
-			cpu = dlb2_bitmap_find_nth_set_bit(&bmp, DLB2_DEFAULT_PROBE_CORE);
-		}
-		if(cpu >= 0)
-		    cpu %= hw->num_phys_cpus;
-	}
+			if (dlb2_bitmap_count(&bmp))
+                                cpu = dlb2_bitmap_find_nth_set_bit(&bmp, DLB2_DEFAULT_PROBE_CORE);
+                }
+                cpu %= hw->num_phys_cpus;
+        }
 
 	for (i = 0; i < num_ports; i++) {
 		struct dlb2_dir_pq_pair *port;
@@ -1915,14 +1916,16 @@ dlb2_verify_create_ldb_queue_args(struct dlb2_hw *hw,
 }
 
 static int
-dlb2_verify_create_dir_queue_args(struct dlb2_hw *hw,
-				  u32 domain_id,
-				  struct dlb2_create_dir_queue_args *args,
-				  struct dlb2_cmd_response *resp,
-				  bool vdev_req,
-				  unsigned int vdev_id,
-				  struct dlb2_hw_domain **out_domain,
-				  struct dlb2_dir_pq_pair **out_queue)
+dlb2_create_dir_pq(struct dlb2_hw *hw,
+		   u32 domain_id,
+		   int pq_id,
+		   bool is_port,
+		   bool is_producer,
+		   struct dlb2_cmd_response *resp,
+		   bool vdev_req,
+		   unsigned int vdev_id,
+		   struct dlb2_hw_domain **out_domain,
+		   struct dlb2_dir_pq_pair **out_pq)
 {
 	struct dlb2_hw_domain *domain;
 	struct dlb2_dir_pq_pair *pq;
@@ -1944,38 +1947,62 @@ dlb2_verify_create_dir_queue_args(struct dlb2_hw *hw,
 		return -EINVAL;
 	}
 
-	/*
-	 * If the user claims the port is already configured, validate the port
-	 * ID, its domain, and whether the port is configured.
-	 */
-	if (args->port_id != -1) {
+	if (pq_id != -1) {
+		/*
+		 * If the user claims the queue is already configured, validate
+		 * the queue ID, its domain, and whether the queue is
+		 * configured.
+		 */
 		pq = dlb2_get_domain_used_dir_pq(hw,
-						 args->port_id,
+						 pq_id,
 						 vdev_req,
 						 domain);
 
 		if (!pq || pq->domain_id.phys_id != domain->id.phys_id ||
-		    !pq->port_configured) {
-			resp->status = DLB2_ST_INVALID_PORT_ID;
+		    (is_port && !pq->queue_configured) ||
+		    (!is_port && !pq->port_configured)) {
+			resp->status = is_port ? DLB2_ST_INVALID_DIR_QUEUE_ID : DLB2_ST_INVALID_PORT_ID;
 			return -EINVAL;
 		}
 	} else {
 		/*
-		 * If the queue's port is not configured, validate that a free
+		 * If the port's queue is not configured, validate that a free
 		 * port-queue pair is available.
+		 *
+		 * First try the 'res' list if the port is producer OR if
+		 * 'avail' list is empty else fall back to 'avail' list
 		 */
-		pq = DLB2_DOM_LIST_HEAD(domain->avail_dir_pq_pairs,
-					typeof(*pq));
+		if (!dlb2_list_empty(&domain->rsvd_dir_pq_pairs) &&
+		    (is_producer || dlb2_list_empty(&domain->avail_dir_pq_pairs)))
+			pq = DLB2_DOM_LIST_HEAD(domain->rsvd_dir_pq_pairs,
+						typeof(*pq));
+		else
+			pq = DLB2_DOM_LIST_HEAD(domain->avail_dir_pq_pairs,
+						typeof(*pq));
 		if (!pq) {
-			resp->status = DLB2_ST_DIR_QUEUES_UNAVAILABLE;
+			resp->status = is_port ? DLB2_ST_DIR_PORTS_UNAVAILABLE : DLB2_ST_DIR_QUEUES_UNAVAILABLE;
 			return -EINVAL;
 		}
 	}
 
 	*out_domain = domain;
-	*out_queue = pq;
+	*out_pq = pq;
 
 	return 0;
+}
+
+static int
+dlb2_verify_create_dir_queue_args(struct dlb2_hw *hw,
+				  u32 domain_id,
+				  struct dlb2_create_dir_queue_args *args,
+				  struct dlb2_cmd_response *resp,
+				  bool vdev_req,
+				  unsigned int vdev_id,
+				  struct dlb2_hw_domain **out_domain,
+				  struct dlb2_dir_pq_pair **out_queue)
+{
+	return dlb2_create_dir_pq(hw, domain_id, args->port_id, false, false,
+				  resp, vdev_req, vdev_id, out_domain, out_queue);
 }
 
 static void dlb2_configure_ldb_queue(struct dlb2_hw *hw,
@@ -2266,63 +2293,6 @@ dlb2_verify_create_dir_port_args(struct dlb2_hw *hw,
 				 struct dlb2_hw_domain **out_domain,
 				 struct dlb2_dir_pq_pair **out_port)
 {
-	struct dlb2_hw_domain *domain;
-	struct dlb2_dir_pq_pair *pq;
-
-	domain = dlb2_get_domain_from_id(hw, domain_id, vdev_req, vdev_id);
-
-	if (!domain) {
-		resp->status = DLB2_ST_INVALID_DOMAIN_ID;
-		return -EINVAL;
-	}
-
-	if (!domain->configured) {
-		resp->status = DLB2_ST_DOMAIN_NOT_CONFIGURED;
-		return -EINVAL;
-	}
-
-	if (domain->started) {
-		resp->status = DLB2_ST_DOMAIN_STARTED;
-		return -EINVAL;
-	}
-
-	if (args->queue_id != -1) {
-		/*
-		 * If the user claims the queue is already configured, validate
-		 * the queue ID, its domain, and whether the queue is
-		 * configured.
-		 */
-		pq = dlb2_get_domain_used_dir_pq(hw,
-						 args->queue_id,
-						 vdev_req,
-						 domain);
-
-		if (!pq || pq->domain_id.phys_id != domain->id.phys_id ||
-		    !pq->queue_configured) {
-			resp->status = DLB2_ST_INVALID_DIR_QUEUE_ID;
-			return -EINVAL;
-		}
-	} else {
-		/*
-		 * If the port's queue is not configured, validate that a free
-		 * port-queue pair is available.
-		 *
-		 * First try the 'res' list if the port is producer OR if
-		 * 'avail' list is empty else fall back to 'avail' list
-		 */
-		if (!dlb2_list_empty(&domain->rsvd_dir_pq_pairs) &&
-		    (args->is_producer || dlb2_list_empty(&domain->avail_dir_pq_pairs)))
-			pq = DLB2_DOM_LIST_HEAD(domain->rsvd_dir_pq_pairs,
-						typeof(*pq));
-		else
-			pq = DLB2_DOM_LIST_HEAD(domain->avail_dir_pq_pairs,
-						typeof(*pq));
-		if (!pq) {
-			resp->status = DLB2_ST_DIR_PORTS_UNAVAILABLE;
-			return -EINVAL;
-		}
-	}
-
 	/* Check cache-line alignment */
 	if ((cq_dma_base & 0x3F) != 0) {
 		resp->status = DLB2_ST_INVALID_CQ_VIRT_ADDR;
@@ -2334,10 +2304,8 @@ dlb2_verify_create_dir_port_args(struct dlb2_hw *hw,
 		return -EINVAL;
 	}
 
-	*out_domain = domain;
-	*out_port = pq;
-
-	return 0;
+	return dlb2_create_dir_pq(hw, domain_id, args->queue_id, true, args->is_producer,
+				  resp, vdev_req, vdev_id, out_domain, out_port);
 }
 
 static int dlb2_verify_start_domain_args(struct dlb2_hw *hw,
@@ -3067,6 +3035,15 @@ static int dlb2_pp_probe_func(void *data)
 	}
 
 int
+dlb2_get_num_phy_cpus(void)
+{
+	struct cpuinfo_x86 *info = &cpu_data(num_online_cpus() - 1);
+	bool ht = info->cpu_core_id != info->cpu_index;
+
+	return num_online_cpus() >> ht;
+}
+
+int
 dlb2_resource_probe(struct dlb2_hw *hw, const void *probe_args)
 {
 	struct dlb2 *dlb2 = container_of(hw, struct dlb2, hw);
@@ -3078,7 +3055,7 @@ dlb2_resource_probe(struct dlb2_hw *hw, const void *probe_args)
 	if (DLB2_IS_VF(dlb2) || !dlb2_port_probe)
 		return 0;
 
-	hw->num_phys_cpus = num_online_cpus() >> cpu_feature_enabled(X86_FEATURE_HT);
+	hw->num_phys_cpus = dlb2_get_num_phy_cpus();
 	if (movdir64b_supported()) {
 		dlb2->enqueue_four = dlb2_movdir64b;
 	} else {
@@ -7124,8 +7101,9 @@ int dlb2_set_group_sequence_numbers(struct dlb2_hw *hw,
 				    u32 val)
 {
 	const u32 valid_allocations[] = {64, 128, 256, 512, 1024};
+	struct dlb2 *dlb2 = container_of(hw, struct dlb2, hw);
 	struct dlb2_sn_group *group;
-	u32 sn_mode = 0, num_sn;
+	u32 num_sn;
 	int mode;
 
 	if (group_id >= DLB2_MAX_NUM_SEQUENCE_NUMBER_GROUPS)
@@ -7164,10 +7142,19 @@ int dlb2_set_group_sequence_numbers(struct dlb2_hw *hw,
 	group->mode = mode;
 	group->sequence_numbers_per_queue = val;
 
-	BITS_SET(sn_mode, hw->rsrcs.sn_groups[0].mode, RO_GRP_SN_MODE_SN_MODE_0);
-	BITS_SET(sn_mode, hw->rsrcs.sn_groups[1].mode, RO_GRP_SN_MODE_SN_MODE_1);
+	/* MMIO registers are accessible only when the device is active (
+	 * (in D0 PCI state). User may use sysfs to set parameter when the
+	 * device is in D3 state. val is saved in driver, is used to reconfigure
+	 * the system when the device is waked up.
+	 */
+	if(!pm_runtime_suspended(&dlb2->pdev->dev)) {
+		u32 sn_mode = 0;
 
-	DLB2_CSR_WR(hw, RO_GRP_SN_MODE(hw->ver), sn_mode);
+		BITS_SET(sn_mode, hw->rsrcs.sn_groups[0].mode, RO_GRP_SN_MODE_SN_MODE_0);
+		BITS_SET(sn_mode, hw->rsrcs.sn_groups[1].mode, RO_GRP_SN_MODE_SN_MODE_1);
+
+		DLB2_CSR_WR(hw, RO_GRP_SN_MODE(hw->ver), sn_mode);
+	}
 
 	dlb2_log_set_group_sequence_numbers(hw, group_id, val);
 
@@ -10335,8 +10322,8 @@ static void dlb2_log_set_cos_bandwidth(struct dlb2_hw *hw, u32 cos_id, u8 bw)
  */
 int dlb2_hw_set_cos_bandwidth(struct dlb2_hw *hw, u32 cos_id, u8 bandwidth)
 {
+	struct dlb2 *dlb2 = container_of(hw, struct dlb2, hw);
 	unsigned int i;
-	u32 reg;
 	u8 total;
 
 	if (cos_id >= DLB2_NUM_COS_DOMAINS)
@@ -10353,20 +10340,29 @@ int dlb2_hw_set_cos_bandwidth(struct dlb2_hw *hw, u32 cos_id, u8 bandwidth)
 	if (total > DLB2_MAX_BW_PCT)
 		return -EINVAL;
 
-	reg = DLB2_CSR_RD(hw, LSP_CFG_SHDW_RANGE_COS(hw->ver, cos_id));
-
-	/*
-	 * Normalize the bandwidth to a value in the range 0-255. Integer
-	 * division may leave unreserved scheduling slots; these will be
-	 * divided among the 4 classes of service.
+	/* MMIO registers are accessible only when the device is active (
+	 * (in D0 PCI state). User may use sysfs to set parameter when the
+	 * device is in D3 state. val is saved in driver, is used to reconfigure
+	 * the system when the device is waked up.
 	 */
-	BITS_SET(reg, (bandwidth * 256) / 100, LSP_CFG_SHDW_RANGE_COS_BW_RANGE);
-	DLB2_CSR_WR(hw, LSP_CFG_SHDW_RANGE_COS(hw->ver, cos_id), reg);
+	if(!pm_runtime_suspended(&dlb2->pdev->dev)) {
+		u32 reg;
 
-	reg = 0;
-	BIT_SET(reg, LSP_CFG_SHDW_CTRL_TRANSFER);
-	/* Atomically transfer the newly configured service weight */
-	DLB2_CSR_WR(hw, LSP_CFG_SHDW_CTRL(hw->ver), reg);
+		reg = DLB2_CSR_RD(hw, LSP_CFG_SHDW_RANGE_COS(hw->ver, cos_id));
+
+		/*
+		* Normalize the bandwidth to a value in the range 0-255. Integer
+		* division may leave unreserved scheduling slots; these will be
+		* divided among the 4 classes of service.
+		*/
+		BITS_SET(reg, (bandwidth * 256) / 100, LSP_CFG_SHDW_RANGE_COS_BW_RANGE);
+		DLB2_CSR_WR(hw, LSP_CFG_SHDW_RANGE_COS(hw->ver, cos_id), reg);
+
+		reg = 0;
+		BIT_SET(reg, LSP_CFG_SHDW_CTRL_TRANSFER);
+		/* Atomically transfer the newly configured service weight */
+		DLB2_CSR_WR(hw, LSP_CFG_SHDW_CTRL(hw->ver), reg);
+	}
 
 	dlb2_log_set_cos_bandwidth(hw, cos_id, bandwidth);
 
@@ -10842,4 +10838,80 @@ void dlb2_hw_set_qidx_wrr_scheduler_weight(struct dlb2_hw *hw, int weight)
 
 	BITS_SET(reg, weight, LSP_CFG_LSP_CSR_CONTROL_LDB_WRR_COUNT_BASE_V2_5);
 	DLB2_CSR_WR(hw, LSP_CFG_LSP_CSR_CONTROL(hw->ver), reg);
+}
+
+int dlb2_get_xstats(struct dlb2_hw *hw, struct dlb2_xstats_args *args,
+		    bool vdev_req, unsigned int vdev_id)
+{
+	uint16_t xstats_base = DLB2_GET_XSTATS_BASE(args->xstats_type);
+	uint64_t val = 0;
+	int id = -1;
+
+	if(xstats_base >= MAX_XSTATS) {
+		return -EINVAL;
+	}
+
+	if (xstats_base == LDB_QUEUE_XSTATS) {
+		struct dlb2_ldb_queue *queue;
+
+		queue = dlb2_get_ldb_queue_from_id(hw, args->xstats_id,
+						   vdev_req, vdev_id);
+		if (queue)
+			id = queue->id.phys_id;
+	} else if (xstats_base == LDB_PORT_XSTATS) {
+		struct dlb2_ldb_port *port;
+
+		port = dlb2_get_ldb_port_from_id(hw, args->xstats_id,
+						 vdev_req, vdev_id);
+		if (port)
+			id = port->id.phys_id;
+	} else if (xstats_base == DIR_PQ_XSTATS) {
+		struct dlb2_dir_pq_pair *pq;
+
+		pq = dlb2_get_dir_pq_from_id(hw, args->xstats_id,
+					     vdev_req, vdev_id);
+		if (pq)
+			id = pq->id.phys_id;
+	}
+
+	if (id == -1)
+		return 0;
+
+	if (args->xstats_type == DLB_CFG_QID_LDB_INFLIGHT_COUNT)
+		val = DLB2_CSR_RD(hw, LSP_QID_LDB_INFL_CNT(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_QID_LDB_INFLIGHT_LIMIT)
+		val = DLB2_CSR_RD(hw, LSP_QID_LDB_INFL_LIM(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_QID_ATM_ACTIVE)
+		val = DLB2_CSR_RD(hw, LSP_QID_AQED_ACTIVE_CNT(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_QID_ATM_DEPTH_THRSH)
+		val = DLB2_CSR_RD(hw, LSP_QID_ATM_DEPTH_THRSH(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_QID_NALB_DEPTH_THRSH)
+		val = DLB2_CSR_RD(hw, LSP_QID_NALDB_DEPTH_THRSH(hw->ver, id));
+	/*else if (args->xstats_type == DLB_CFG_QID_ATQ_ENQ_CNT)
+		val = DLB2_CSR_RD(hw, LSP_QID_ATQ_(hw->ver, id));*/
+	else if (args->xstats_type == DLB_CFG_QID_LDB_ENQ_CNT)
+		val = DLB2_CSR_RD(hw, LSP_QID_LDB_ENQUEUE_CNT(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_CQ_LDB_DEPTH)
+		val = DLB2_CSR_RD(hw, CHP_LDB_CQ_DEPTH(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_CQ_LDB_TOKEN_COUNT)
+		val = DLB2_CSR_RD(hw, LSP_CQ_LDB_TKN_CNT(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_CQ_LDB_TOKEN_DEPTH_SELECT)
+		val = DLB2_CSR_RD(hw, LSP_CQ_LDB_TKN_DEPTH_SEL(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_CQ_LDB_INFLIGHT_COUNT)
+		val = DLB2_CSR_RD(hw, LSP_CQ_LDB_INFL_CNT(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_CQ_DIR_DEPTH)
+		val = DLB2_CSR_RD(hw, CHP_DIR_CQ_DEPTH(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_CQ_DIR_TOKEN_DEPTH_SELECT)
+		val = DLB2_CSR_RD(hw, CHP_DIR_CQ_TKN_DEPTH_SEL(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_QID_DIR_DEPTH_THRSH)
+		val = DLB2_CSR_RD(hw, LSP_QID_DIR_DEPTH_THRSH(hw->ver, id));
+	else if (args->xstats_type == DLB_CFG_QID_DIR_ENQ_CNT)
+		val = DLB2_CSR_RD(hw, LSP_QID_DIR_ENQUEUE_CNT(hw->ver, id));
+	else
+		DLB2_HW_DBG(hw,
+			    "Unsupported stats %x: %d\n",
+			    args->xstats_type, args->xstats_id);
+
+	args->xstats_val = val;
+	return 0;
 }

@@ -30,6 +30,7 @@
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Copyright(c) 2018-2020 Intel Corporation");
 MODULE_DESCRIPTION("Intel(R) Dynamic Load Balancer 2.0 Driver");
+MODULE_VERSION(DLB2_DRIVER_VERSION);
 
 static unsigned int dlb2_reset_timeout_s = DLB2_DEFAULT_RESET_TIMEOUT_S;
 module_param_named(reset_timeout_s, dlb2_reset_timeout_s, uint, 0644);
@@ -548,10 +549,8 @@ static int dlb2_pp_mmap(struct file *f, struct vm_area_struct *vma)
 	 *
 	 * The non-maskable PP address does not work in DLB 2.5 simics model.
 	 *
-	 * To do:
-	 * Add dlb2->type == DLB2_5_PF after simics model is fixed.
 	 */
-	if (dlb2->type == DLB2_PF) {
+	if (dlb2->type == DLB2_PF || dlb2->type == DLB2_5_PF) {
 		if (port->is_ldb)
 			pgoff += DLB2_DRV_LDB_PP_OFFS(port->id);
 		else

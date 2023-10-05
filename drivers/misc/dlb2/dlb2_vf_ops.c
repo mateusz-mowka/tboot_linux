@@ -39,12 +39,30 @@ dlb2_send_sync_mbox_cmd(struct dlb2 *dlb2,
 			int len,
 			int timeout_s)
 {
-	int ret, retry_cnt;
+	struct dlb2_mbox_req_hdr *req = data;
+	int ret, retry_cnt, cmd_if_ver;
+	int cmd = req->type;
 
 	if (len > VF_VF2PF_MAILBOX_BYTES) {
 		dev_err(dlb2->dev,
 			"Internal error: VF mbox message too large\n");
 		return -1;
+	}
+
+	if (cmd >= ARRAY_SIZE(dlb2_mbox_cmd_version)) {
+		dev_err(dlb2->dev,
+			"Internal error: add VF mbox interface version for cmd"
+			" %d\n", cmd);
+		return -1;
+	}
+
+	cmd_if_ver = dlb2_mbox_cmd_version[cmd];
+	if (dlb2->vf_id_state.pf_interface_version < cmd_if_ver) {
+		dev_err(dlb2->dev,
+			"MBOX cmd %s (version: %d) unsupported by PF driver"
+			"(version: %d)\n", dlb2_mbox_cmd_type_strings[cmd],
+			cmd_if_ver, dlb2->vf_id_state.pf_interface_version);
+		return -ENOTSUPP;
 	}
 
 	ret = dlb2_vf_write_pf_mbox_req(&dlb2->hw, data, len);
@@ -1017,8 +1035,8 @@ dlb2_vf_register_driver(struct dlb2 *dlb2)
 	 */
 
 	req.hdr.type = DLB2_MBOX_CMD_REGISTER;
-	/* The VF driver only supports interface version 1 */
-	req.min_interface_version = DLB2_MBOX_INTERFACE_VERSION;
+	/* The VF driver only supports minimum interface version 3 */
+	req.min_interface_version = DLB2_MBOX_MIN_INTERFACE_VERSION;
 	req.max_interface_version = DLB2_MBOX_INTERFACE_VERSION;
 
 	ret = dlb2_send_sync_mbox_cmd(dlb2, &req, sizeof(req), DLB2_MBOX_TOUT);
@@ -1028,15 +1046,15 @@ dlb2_vf_register_driver(struct dlb2 *dlb2)
 	dlb2_vf_read_pf_mbox_resp(&dlb2->hw, &resp, sizeof(resp));
 
 	if (resp.hdr.status != DLB2_MBOX_ST_SUCCESS) {
-		dev_err(dlb2->dev,
+		dev_err(&dlb2->pdev->dev,
 			"VF driver registration failed with mailbox error: %s\n",
 			dlb2_mbox_st_string(&resp.hdr));
 
 		if (resp.hdr.status == DLB2_MBOX_ST_VERSION_MISMATCH) {
-			dev_err(dlb2->dev,
+			dev_err(&dlb2->pdev->dev,
 				"VF driver mailbox interface version: %d\n",
 				DLB2_MBOX_INTERFACE_VERSION);
-			dev_err(dlb2->dev,
+			dev_err(&dlb2->pdev->dev,
 				"PF driver mailbox interface version: %d\n",
 				resp.interface_version);
 		}
@@ -1044,12 +1062,19 @@ dlb2_vf_register_driver(struct dlb2 *dlb2)
 		return -1;
 	}
 
+	if (resp.interface_version != DLB2_MBOX_INTERFACE_VERSION)
+		dev_warn(&dlb2->pdev->dev,
+			 "PF mbox version(%d) differs from VF mbox version(%d)."
+			 " Some of the features may not be supported.\n",
+			 resp.interface_version, DLB2_MBOX_INTERFACE_VERSION);
+
 	dlb2->vf_id_state.pf_id = resp.pf_id;
 	dlb2->vf_id_state.vf_id = resp.vf_id;
 	dlb2->vf_id_state.is_auxiliary_vf =
 		resp.flags & DLB2_MBOX_FLAG_IS_AUX_VF;
 	dlb2->needs_mbox_reset = resp.flags & DLB2_MBOX_FLAG_MBOX_RESET;
 	dlb2->vf_id_state.primary_vf_id = resp.primary_vf_id;
+	dlb2->vf_id_state.pf_interface_version = resp.interface_version;
 
 	/*
 	 * Auxiliary VF interrupts are initialized in the register_driver
@@ -1777,6 +1802,8 @@ dlb2_vf_create_ldb_port(struct dlb2_hw *hw,
 	req.cos_id = (args->cos_id == DLB2_COS_DEFAULT) ? 0 : args->cos_id;
 	req.cos_strict = args->cos_strict;
 	req.cq_base_address = cq_dma_base;
+	req.enable_inflight_ctrl = args->enable_inflight_ctrl;
+	req.inflight_threshold = args->inflight_threshold;
 
 	ret = dlb2_send_sync_mbox_cmd(dlb2, &req, sizeof(req), DLB2_MBOX_TOUT);
 	if (ret)
@@ -2610,6 +2637,40 @@ dlb2_vf_get_sn_occupancy(struct dlb2_hw *hw, u32 group_id)
 	return resp.num;
 }
 
+static int dlb2_vf_get_xstats(struct dlb2_hw *hw,
+			      struct dlb2_xstats_args *args) {
+	struct dlb2_mbox_get_xstats_cmd_resp resp;
+	struct dlb2_mbox_get_xstats_cmd_req req;
+	struct dlb2 *dlb2;
+	int ret;
+
+	dlb2 = container_of(hw, struct dlb2, hw);
+
+	req.hdr.type = DLB2_MBOX_CMD_GET_XSTATS;
+	req.xstats_type = args->xstats_type;
+	req.xstats_id = args->xstats_id;
+
+	ret = dlb2_send_sync_mbox_cmd(dlb2, &req, sizeof(req), DLB2_MBOX_TOUT);
+	if (ret)
+		return ret;
+
+	dlb2_vf_read_pf_mbox_resp(&dlb2->hw, &resp, sizeof(resp));
+
+	if (resp.hdr.status != DLB2_MBOX_ST_SUCCESS) {
+		dev_err(dlb2->dev,
+			"[%s()]: failed with mailbox error: %s\n",
+			__func__,
+			dlb2_mbox_st_string(&resp.hdr));
+
+
+		return -1;
+	}
+
+	args->xstats_val = resp.xstats_val;
+
+	return dlb2_mbox_error_to_errno(resp.error_code);
+}
+
 /*********************************/
 /****** DLB2 VF Device Ops ******/
 /*********************************/
@@ -2660,4 +2721,5 @@ struct dlb2_device_ops dlb2_vf_ops = {
 	.mbox_dev_reset = dlb2_vf_mbox_dev_reset,
 	.enable_cq_weight = dlb2_vf_enable_cq_weight,
 	.cq_inflight_ctrl = dlb2_vf_cq_inflight_ctrl,
+	.get_xstats = dlb2_vf_get_xstats,
 };

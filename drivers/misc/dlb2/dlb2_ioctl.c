@@ -964,6 +964,29 @@ int dlb2_ioctl_query_cq_poll_mode(struct dlb2 *dlb2, void *karg)
 	return ret;
 }
 
+int dlb2_ioctl_get_xstats(struct dlb2 *dlb2, void *karg)
+{
+	struct dlb2_xstats_args *arg = karg;
+	struct dlb2_cmd_response response = {0};
+	int ret;
+
+	mutex_lock(&dlb2->resource_mutex);
+
+	if (dlb2->reset_active) {
+		mutex_unlock(&dlb2->resource_mutex);
+		return -EINVAL;
+	}
+
+	ret = dlb2->ops->get_xstats(&dlb2->hw, arg);
+
+	mutex_unlock(&dlb2->resource_mutex);
+
+	BUILD_BUG_ON(offsetof(typeof(*arg), response) != 0);
+	memcpy(karg, &response, sizeof(response));
+
+	return ret;
+}
+
 typedef int (*dlb2_ioctl_fn_t)(struct dlb2 *dlb2,
 			       void *karg);
 
@@ -979,6 +1002,7 @@ static dlb2_ioctl_fn_t dlb2_ioctl_fns[NUM_DLB2_CMD] = {
 	dlb2_ioctl_get_cos_bw,
 	dlb2_ioctl_get_sn_occupancy,
 	dlb2_ioctl_query_cq_poll_mode,
+	dlb2_ioctl_get_xstats,
 };
 
 static int dlb2_ioctl_arg_size[NUM_DLB2_CMD] = {
@@ -992,7 +1016,8 @@ static int dlb2_ioctl_arg_size[NUM_DLB2_CMD] = {
 	sizeof(struct dlb2_set_cos_bw_args),
 	sizeof(struct dlb2_get_cos_bw_args),
 	sizeof(struct dlb2_get_sn_occupancy_args),
-	sizeof(struct dlb2_query_cq_poll_mode_args)
+	sizeof(struct dlb2_query_cq_poll_mode_args),
+	sizeof(struct dlb2_xstats_args),
 };
 
 #if KERNEL_VERSION(2, 6, 35) <= LINUX_VERSION_CODE

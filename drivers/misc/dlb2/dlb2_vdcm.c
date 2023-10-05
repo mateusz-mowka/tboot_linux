@@ -1176,7 +1176,11 @@ static int dlb2_vdcm_alloc_ims_irq_vectors(struct dlb2_vdev *vdev)
 	}
 
 	i = 0;
+#if KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE
+	for_each_dev_msi_entry(desc, dev) {
+#else
 	for_each_msi_entry(desc, dev) {
+#endif
 		irq_entry = &vdev->irq_entries[i];
 
 		ret = request_threaded_irq(desc->irq,
@@ -1210,7 +1214,11 @@ static void dlb2_vdcm_free_ims_irq_vectors(struct dlb2_vdev *vdev)
 	int i;
 
 	i = 0;
+#if KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE
+	for_each_dev_msi_entry(desc, dev) {
+#else
 	for_each_msi_entry(desc, dev) {
+#endif
 		irq_entry = &vdev->irq_entries[i];
 
 		irq_entry->in_use = false;
@@ -1637,6 +1645,9 @@ void dlb2_save_cmd_for_migration(struct dlb2 *dlb2, int vdev_id, u8 *data, int d
 	struct dlb2_vdev *vdev = NULL;
 	struct list_head *next;
 	uint32_t cmd_offset;
+
+	if (!dlb2->vdcm_initialized)
+		return;
 
 	list_for_each(next, &dlb2->vdev_list) {
 		vdev = container_of(next, struct dlb2_vdev, next);

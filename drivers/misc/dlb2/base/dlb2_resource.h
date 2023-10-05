@@ -462,6 +462,13 @@ int dlb2_cq_inflight_ctrl(struct dlb2_hw *hw,
 			  struct dlb2_cmd_response *resp,
 			  bool vdev_req,
 			  unsigned int vdev_id);
+
+#define DLB2_GET_XSTATS_BASE(x)   ((x >> 16) & 0xFFFF)
+
+int dlb2_get_xstats(struct dlb2_hw *hw,
+		    struct dlb2_xstats_args *args,
+		    bool vdev_req,
+		    unsigned int vdev_id);
 /**
  * dlb2_disable_ldb_sched_perf_ctrl() - disable DLB2 ldb perf counters.
  * @hw: dlb2_hw handle for a particular device.

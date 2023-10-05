@@ -114,7 +114,7 @@ static const char dlb2_error_strings[][128] = {
 	"DLB2_ST_FEATURE_UNAVAILABLE",
 };
 
-#define DLB2_DRIVER_VERSION	"8.4.1"
+#define DLB2_DRIVER_VERSION	"8.5.2"
 
 struct dlb2_cmd_response {
 	__u32 status; /* Interpret using enum dlb2_error */
@@ -385,6 +385,58 @@ struct dlb2_query_cq_poll_mode_args {
 	struct dlb2_cmd_response response;
 };
 
+/*
+ * DLB2_CMD_GET_HW_REG: Read the contents of a HW register
+ *
+ * Input parameters:
+ * - reg_addr: 32 bit address of HW register
+ *
+ * Output parameters:
+ * - reg_val: Contents of a HW register
+ * - response.status: Detailed error code. In certain cases, such as if the
+ *     ioctl request arg is invalid, the driver won't set status.
+ */
+struct dlb2_xstats_args {
+	/* Output parameters */
+	struct dlb2_cmd_response response;
+	__u64 xstats_val;
+	/* Input parameters */
+	__u32 xstats_type;
+	__u32 xstats_id;
+};
+enum dlb2_xtats_type {
+	DEVICE_XSTATS= 0x0,
+	LDB_QUEUE_XSTATS,
+	LDB_PORT_XSTATS,
+	DIR_PQ_XSTATS,
+	MAX_XSTATS
+};
+#define XSTATS_BASE(id) (id << 16)
+
+enum dlb2_ldb_queue_xstats {
+	DLB_CFG_QID_LDB_INFLIGHT_COUNT = XSTATS_BASE(LDB_QUEUE_XSTATS),
+	DLB_CFG_QID_LDB_INFLIGHT_LIMIT,
+	DLB_CFG_QID_ATM_ACTIVE,
+	DLB_CFG_QID_ATM_DEPTH_THRSH,
+	DLB_CFG_QID_NALB_DEPTH_THRSH,
+	DLB_CFG_QID_ATQ_ENQ_CNT,
+	DLB_CFG_QID_LDB_ENQ_CNT,
+};
+
+enum dlb2_ldb_port_xstats {
+	DLB_CFG_CQ_LDB_DEPTH = XSTATS_BASE(LDB_PORT_XSTATS),
+	DLB_CFG_CQ_LDB_TOKEN_COUNT,
+	DLB_CFG_CQ_LDB_TOKEN_DEPTH_SELECT,
+	DLB_CFG_CQ_LDB_INFLIGHT_COUNT,
+};
+
+enum dlb2_dir_pq_xstats {
+	DLB_CFG_CQ_DIR_TOKEN_DEPTH_SELECT = XSTATS_BASE(DIR_PQ_XSTATS),
+	DLB_CFG_CQ_DIR_DEPTH,
+	DLB_CFG_QID_DIR_DEPTH_THRSH,
+	DLB_CFG_QID_DIR_ENQ_CNT,
+};
+
 enum dlb2_user_interface_commands {
 	DLB2_CMD_GET_DEVICE_VERSION,
 	DLB2_CMD_CREATE_SCHED_DOMAIN,
@@ -397,6 +449,7 @@ enum dlb2_user_interface_commands {
 	DLB2_CMD_GET_COS_BW,
 	DLB2_CMD_GET_SN_OCCUPANCY,
 	DLB2_CMD_QUERY_CQ_POLL_MODE,
+	DLB2_CMD_GET_XSTATS,
 
 	/* NUM_DLB2_CMD must be last */
 	NUM_DLB2_CMD,
@@ -1032,7 +1085,6 @@ enum dlb2_domain_user_interface_commands {
 	/* NUM_DLB2_DOMAIN_CMD must be last */
 	NUM_DLB2_DOMAIN_CMD,
 };
-
 /*
  * Mapping sizes for memory mapping the consumer queue (CQ) memory space, and
  * producer port (PP) MMIO space.
@@ -1174,4 +1226,8 @@ enum dlb2_domain_user_interface_commands {
 		_IOWR(DLB2_IOC_MAGIC,				\
 		      DLB2_DOMAIN_CMD_SET_CQ_INFLIGHT_CTRL,	\
 		      struct dlb2_cq_inflight_ctrl_args)
+#define DLB2_IOC_GET_XSTATS					\
+		_IOWR(DLB2_IOC_MAGIC,				\
+		      DLB2_CMD_GET_XSTATS,			\
+		      struct dlb2_xstats_args)
 #endif /* __DLB2_USER_H */

@@ -182,6 +182,8 @@ struct dlb2_device_ops {
 				u32 domain_id,
 				struct dlb2_cq_inflight_ctrl_args *args,
 				struct dlb2_cmd_response *resp);
+	int (*get_xstats)(struct dlb2_hw *hw,
+			  struct dlb2_xstats_args *args);
 };
 
 extern const struct attribute_group *dlb2_vf_attrs[];
@@ -296,6 +298,11 @@ struct vf_id_state {
 	 * primary sibling.
 	 */
 	u8 primary_vf_id;
+	/*
+	 * MBOX interface Version supported by PF. This allows VF to check if a
+	 * certain mbox command is supported by PF driver.
+	 */
+	u32 pf_interface_version;
 };
 
 struct dlb2_vf_perf_metric_data {

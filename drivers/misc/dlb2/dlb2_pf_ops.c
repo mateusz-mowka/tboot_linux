@@ -346,6 +346,8 @@ dlb2_mbox_cmd_create_ldb_port_fn(struct dlb2 *dlb2, int vf_id, void *data, bool 
 	hw_arg.cq_history_list_size = req->cq_history_list_size;
 	hw_arg.cos_id = req->cos_id;
 	hw_arg.cos_strict = req->cos_strict;
+	hw_arg.enable_inflight_ctrl = req->enable_inflight_ctrl;
+	hw_arg.inflight_threshold = req->inflight_threshold;
 
 	ret = dlb2_hw_create_ldb_port(&dlb2->hw,
 				      req->domain_id,
@@ -372,7 +374,7 @@ dlb2_mbox_cmd_create_dir_port_fn(struct dlb2 *dlb2, int vf_id, void *data, bool 
 	struct dlb2_mbox_create_ldb_port_cmd_resp resp;
 	struct dlb2_mbox_create_dir_port_cmd_req *req;
 	struct dlb2_cmd_response hw_response = {0};
-	struct dlb2_create_dir_port_args hw_arg;
+	struct dlb2_create_dir_port_args hw_arg = {0};
 	int ret;
 
 	memset(&resp, 0, sizeof(resp));
@@ -916,6 +918,29 @@ dlb2_mbox_cmd_get_sn_allocation_fn(struct dlb2 *dlb2,
 	dlb2_pf_write_vf_mbox_resp(&dlb2->hw, vf_id, &resp, sizeof(resp));
 }
 
+static void dlb2_mbox_cmd_get_xstats_fn(struct dlb2 *dlb2, int vf_id,
+					void *data, bool send_resp)
+{
+	struct dlb2_mbox_get_xstats_cmd_req *req = data;
+	struct dlb2_mbox_get_xstats_cmd_resp resp;
+	struct dlb2_xstats_args arg = {0};
+	int ret;
+
+	memset(&resp, 0, sizeof(resp));
+
+	arg.xstats_type = req->xstats_type;
+	arg.xstats_id = req->xstats_id;
+	ret = dlb2_get_xstats(&dlb2->hw, &arg, true, vf_id);
+
+	if (ret)
+		return;
+
+	resp.xstats_val = arg.xstats_val;
+	resp.hdr.status = DLB2_MBOX_ST_SUCCESS;
+
+	dlb2_pf_write_vf_mbox_resp(&dlb2->hw, vf_id, &resp, sizeof(resp));
+}
+
 static void
 dlb2_mbox_cmd_get_sn_occupancy_fn(struct dlb2 *dlb2,
 				  int vf_id,
@@ -933,8 +958,12 @@ dlb2_mbox_cmd_get_sn_occupancy_fn(struct dlb2 *dlb2,
 	if (!send_resp)
 		return;
 
-	resp.num = arg.num_sn_slots[req->group_id];
-	resp.hdr.status = DLB2_MBOX_ST_SUCCESS;
+	if (req->group_id < DLB2_MAX_NUM_SEQUENCE_NUMBER_GROUPS) {
+		resp.num = arg.num_sn_slots[req->group_id];
+		resp.hdr.status = DLB2_MBOX_ST_SUCCESS;
+	} else {
+		resp.hdr.status = DLB2_MBOX_ST_INVALID_DATA;
+	}
 
 	dlb2_pf_write_vf_mbox_resp(&dlb2->hw, vf_id, &resp, sizeof(resp));
 }
@@ -1205,6 +1234,7 @@ static void (*mbox_fn_table[])(struct dlb2 *dlb2, int vf_id, void *data, bool se
 	dlb2_mbox_cmd_dev_reset_fn,
 	dlb2_mbox_cmd_enable_cq_weight_fn,
 	dlb2_mbox_cmd_cq_inflight_ctrl,
+	dlb2_mbox_cmd_get_xstats_fn,
 };
 
 static u32
@@ -3243,6 +3273,11 @@ dlb2_pf_get_num_resources(struct dlb2_hw *hw,
 {
 	return dlb2_hw_get_num_resources(hw, args, false, 0);
 }
+static int
+dlb2_pf_get_xstats(struct dlb2_hw *hw,
+		   struct dlb2_xstats_args *args) {
+	return dlb2_get_xstats(hw, args, false, 0);
+}
 
 static int
 dlb2_pf_reset_domain(struct dlb2_hw *hw, u32 id)
@@ -3356,4 +3391,5 @@ struct dlb2_device_ops dlb2_pf_ops = {
 	.mbox_dev_reset = dlb2_pf_mbox_dev_reset,
 	.enable_cq_weight = dlb2_pf_enable_cq_weight,
 	.cq_inflight_ctrl = dlb2_pf_cq_inflight_ctrl,
+	.get_xstats = dlb2_pf_get_xstats,
 };
