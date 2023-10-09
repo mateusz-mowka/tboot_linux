@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v11.2
+----------------
+102. backport a shstk fix from 6.5 User space SHSTK vfork fixed patch was not
+     merged into EMR BKC https://jira.devtools.intel.com/browse/LFE-10036
+
 srf-bkc-6.2-v11.1
 ----------------
 102. include UPM 2M patches used in EMR kernel emr-bkc-6.2-v12.3 UPM 2M patches
