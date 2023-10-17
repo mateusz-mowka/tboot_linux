@@ -15,6 +15,10 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v11.3
+----------------
+103.  Update DLB to DLB SW release 8.5.2
+
 srf-bkc-6.2-v11.2
 ----------------
 102. backport a shstk fix from 6.5 User space SHSTK vfork fixed patch was not
