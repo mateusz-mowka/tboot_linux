@@ -1052,8 +1052,14 @@ static int handles_cxl_error_iter(struct pci_dev *dev, void *data)
 {
 	bool *handles_cxl = data;
 
-	if (!*handles_cxl)
-		*handles_cxl = is_cxl_mem_dev(dev) && cxl_error_is_native(dev);
+	if (!*handles_cxl) {
+		if (pci_pcie_type(dev) == PCI_EXP_TYPE_RC_END &&
+		    is_cxl_mem_dev(dev) && cxl_error_is_native(dev))
+			*handles_cxl = true;
+		if (pci_pcie_type(dev) == PCI_EXP_TYPE_ROOT_PORT &&
+		    cxl_error_is_native(dev))
+			*handles_cxl = true;
+	}
 
 	/* Non-zero terminates iteration */
 	return *handles_cxl;
@@ -1065,13 +1071,18 @@ static bool handles_cxl_errors(struct pci_dev *rcec)
 
 	if (pci_pcie_type(rcec) == PCI_EXP_TYPE_RC_EC &&
 	    pcie_aer_is_native(rcec))
-		pcie_walk_rcec(rcec, handles_cxl_error_iter, &handles_cxl);
+		pcie_walk_rcec_range(rcec, handles_cxl_error_iter, &handles_cxl);
 
 	return handles_cxl;
 }
 
-static void cxl_rch_enable_rcec(struct pci_dev *rcec)
+static void cxl_enable_rcec(struct pci_dev *rcec)
 {
+	/*
+	 * Enable RCEC's internal error report for two cases:
+	 * 1. RCiEP detected CXL.cachemem protocol errors
+	 * 2. CXL root port detected CXL.cachemem protocol errors.
+	 */
 	if (!handles_cxl_errors(rcec))
 		return;
 
@@ -1080,7 +1091,7 @@ static void cxl_rch_enable_rcec(struct pci_dev *rcec)
 }
 
 #else
-static inline void cxl_rch_enable_rcec(struct pci_dev *dev) { }
+static inline void cxl_enable_rcec(struct pci_dev *dev) { }
 static inline void cxl_rch_handle_error(struct pci_dev *dev,
 					struct aer_err_info *info) { }
 #endif
@@ -1529,7 +1540,7 @@ static int aer_probe(struct pcie_device *dev)
 		return status;
 	}
 
-	cxl_rch_enable_rcec(port);
+	cxl_enable_rcec(port);
 	aer_enable_rootport(rpc);
 	pci_info(port, "enabled with IRQ %d\n", dev->irq);
 	return 0;
