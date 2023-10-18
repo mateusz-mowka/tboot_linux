@@ -807,8 +807,31 @@ void cxl_disable_rch_root_ints(struct cxl_dport *dport)
 	}
 }
 
+static void cxl_handle_rp_ras(struct cxl_dev_state *cxlds, bool cor)
+{
+	struct pci_dev *pdev = to_pci_dev(cxlds->dev);
+	struct pci_dev *rp_pdev;
+	struct cxl_dport *dport;
+	struct cxl_port *port;
+
+	rp_pdev = pcie_find_root_port(pdev);
+	if (!rp_pdev)
+		return;
+	port = find_cxl_port(&rp_pdev->dev, &dport);
+	if (!port)
+		return;
+
+	put_device(&port->dev);
+
+	if (cor)
+		__cxl_handle_cor_ras(cxlds, dport->regs.ras);
+	else
+		__cxl_handle_ras(cxlds, dport->regs.ras);
+}
+
 #else
 static void cxl_handle_rdport_errors(struct cxl_dev_state *cxlds) { }
+static void cxl_handle_rp_ras(struct cxl_dev_state *cxlds, bool cor) { }
 #endif
 
 void cxl_cor_error_detected(struct pci_dev *pdev)
@@ -817,6 +840,8 @@ void cxl_cor_error_detected(struct pci_dev *pdev)
 
 	if (cxlds->rcd)
 		cxl_handle_rdport_errors(cxlds);
+	else
+		cxl_handle_rp_ras(cxlds, true);
 
 	cxl_handle_endpoint_cor_ras(cxlds);
 }
@@ -832,6 +857,8 @@ pci_ers_result_t cxl_error_detected(struct pci_dev *pdev,
 
 	if (cxlds->rcd)
 		cxl_handle_rdport_errors(cxlds);
+	else
+		cxl_handle_rp_ras(cxlds, false);
 
 	/*
 	 * A frozen channel indicates an impending reset which is fatal to
