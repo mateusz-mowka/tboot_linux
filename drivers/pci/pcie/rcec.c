@@ -65,6 +65,15 @@ static int walk_rcec_helper(struct pci_dev *dev, void *data)
 	return 0;
 }
 
+static int walk_rcec_range_helper(struct pci_dev *dev, void *data)
+{
+	struct walk_rcec_data *rcec_data = data;
+
+	rcec_data->user_callback(dev, rcec_data->user_data);
+
+	return 0;
+}
+
 static void walk_rcec(int (*cb)(struct pci_dev *dev, void *data),
 		      void *userdata)
 {
@@ -144,6 +153,31 @@ void pcie_walk_rcec(struct pci_dev *rcec, int (*cb)(struct pci_dev *, void *),
 	rcec_data.user_data = userdata;
 
 	walk_rcec(walk_rcec_helper, &rcec_data);
+}
+
+/**
+ * pcie_walk_rcec_range - Walk all devices in RCEC's bus range.
+ * @rcec:	RCEC whose devices should be walked
+ * @cb:		Callback to be called for each device found
+ * @userdata:	Arbitrary pointer to be passed to callback
+ *
+ * Walk the given RCEC. Call the callback on each device found.
+ *
+ * If @cb returns anything other than 0, break out.
+ */
+void pcie_walk_rcec_range(struct pci_dev *rcec, int (*cb)(struct pci_dev *, void *),
+			  void *userdata)
+{
+	struct walk_rcec_data rcec_data;
+
+	if (!rcec->rcec_ea)
+		return;
+
+	rcec_data.rcec = rcec;
+	rcec_data.user_callback = cb;
+	rcec_data.user_data = userdata;
+
+	walk_rcec(walk_rcec_range_helper, &rcec_data);
 }
 
 void pci_rcec_init(struct pci_dev *dev)
