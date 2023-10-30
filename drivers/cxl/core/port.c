@@ -1237,8 +1237,8 @@ static struct cxl_port *__find_cxl_port(struct cxl_find_port_ctx *ctx)
 	return NULL;
 }
 
-static struct cxl_port *find_cxl_port(struct device *dport_dev,
-				      struct cxl_dport **dport)
+struct cxl_port *find_cxl_port(struct device *dport_dev,
+			       struct cxl_dport **dport)
 {
 	struct cxl_find_port_ctx ctx = {
 		.dport_dev = dport_dev,
@@ -1249,6 +1249,7 @@ static struct cxl_port *find_cxl_port(struct device *dport_dev,
 	port = __find_cxl_port(&ctx);
 	return port;
 }
+EXPORT_SYMBOL_NS_GPL(find_cxl_port, CXL);
 
 static struct cxl_port *find_cxl_port_at(struct cxl_port *parent_port,
 					 struct device *dport_dev,
