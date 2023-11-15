@@ -15,6 +15,11 @@ Use at your own risk.
 
 Release History
 ===============
+srf-bkc-6.2-v12.1
+----------------
+104.  CXL.MEM correctable errors OS handling fix
+     https://hsdes.intel.com/appstore/article/#/14019463740
+
 srf-bkc-6.2-v11.3
 ----------------
 103.  Update DLB to DLB SW release 8.5.2
